@@ -1,0 +1,19 @@
+{
+    "name": "tapclic/backend",
+    "description": "Backend API para TapClic con JWT y servicios",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Tapclic\\Backend\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Jesus Diaz"
+        }
+    ],
+    "require": {
+        "firebase/php-jwt": "^6.11"
+    }
+}

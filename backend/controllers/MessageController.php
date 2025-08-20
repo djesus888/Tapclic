@@ -1,0 +1,142 @@
+<?php
+// controllers/MessageController.php
+
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../models/Message.php';
+require_once __DIR__ . '/../utils/jwt.php';
+
+class MessageController {
+
+    private $db;
+
+    public function __construct() {
+        $this->db = (new Database())->connect();
+    }
+
+    /**
+     * Autenticación del usuario a través del token Bearer
+     */
+    private function authUser() {
+        $headers = getallheaders();
+        $auth = $headers['Authorization'] ?? '';
+
+        if (!str_starts_with($auth, 'Bearer ')) return null;
+        $token = str_replace('Bearer ', '', $auth);
+        $user = JwtHandler::decode($token);
+
+        if (!$user || !isset($user->id)) return null;
+        $user->id = intval($user->id);
+        $user->role = $user->role ?? 'user';
+        $user->name = $user->name ?? 'Usuario';
+        return $user;
+    }
+
+    /**
+     * GET /api/messages/:providerId
+     * Recuperar mensajes entre el usuario autenticado y un proveedor
+     */
+    public function getMessages($method, $request) {
+        if ($method !== 'GET') {
+            http_response_code(405);
+            echo json_encode(["error" => "Método no permitido"]);
+            return;
+        }
+
+        $user = $this->authUser();
+        if (!$user) {
+            http_response_code(401);
+            echo json_encode(["error" => "No autorizado"]);
+            return;
+        }
+
+        preg_match('/\/api\/messages\/(\d+)/', $request, $matches);
+        $providerId = intval($matches[1]);
+
+        // Verificar que el proveedor exista
+        $stmt = $this->db->prepare("SELECT id, name, avatar_url, role FROM users WHERE id = :id");
+        $stmt->execute(['id' => $providerId]);
+        $provider = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$provider) {
+            http_response_code(404);
+            echo json_encode(["error" => "Proveedor no encontrado"]);
+            return;
+        }
+
+        $messageModel = new Message();
+        $messages = $messageModel->getMessages($user->id, $providerId);
+
+        echo json_encode([
+            "success" => true,
+            "auth_user" => [
+                "id" => $user->id,
+                "name" => $user->name,
+                "role" => $user->role
+            ],
+            "provider" => [
+                "id" => $provider['id'],
+                "name" => $provider['name'],
+                "avatar_url" => $provider['avatar_url'] ?? ''
+            ],
+            "messages" => $messages
+        ]);
+    }
+
+    /**
+     * POST /api/messages
+     * Enviar un mensaje a un proveedor
+     */
+    public function sendMessage($method) {
+        if ($method !== 'POST') {
+            http_response_code(405);
+            echo json_encode(["error" => "Método no permitido"]);
+            return;
+        }
+
+        $user = $this->authUser();
+        if (!$user) {
+            http_response_code(401);
+            echo json_encode(["error" => "No autorizado"]);
+            return;
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        $receiverId = intval($data['driver_id'] ?? 0); // El proveedor se maneja como driver
+        $text = trim($data['text'] ?? '');
+
+        if (!$receiverId || !$text) {
+            http_response_code(400);
+            echo json_encode(["error" => "Faltan datos requeridos"]);
+            return;
+        }
+
+        // Verificar que el proveedor exista
+        $stmt = $this->db->prepare("SELECT id, name, avatar_url, role FROM users WHERE id = :id");
+        $stmt->execute(['id' => $receiverId]);
+        $provider = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$provider) {
+            http_response_code(404);
+            echo json_encode(["error" => "Proveedor no encontrado"]);
+            return;
+        }
+
+        $messageModel = new Message();
+        $message = $messageModel->insertMessage($user->id, $receiverId, $text, 'text');
+
+        if (!$message) {
+            http_response_code(500);
+            echo json_encode(["error" => "No se pudo guardar el mensaje"]);
+            return;
+        }
+
+        // Añadimos información del remitente y del avatar
+        $message['sender_name'] = $user->name;
+        $message['avatar_url'] = $user->avatar_url ?? '';
+
+        echo json_encode([
+            "success" => true,
+            "message" => $message
+        ]);
+    }
+}

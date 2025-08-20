@@ -1,0 +1,2 @@
+// Xcode project configuration file
+// generado automáticamente por Flutter
