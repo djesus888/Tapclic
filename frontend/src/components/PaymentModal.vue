@@ -4,7 +4,7 @@ import api from '@/axio'
 import { useAuthStore } from '@/stores/authStore'
 
 interface ServiceRequest {
-  id: number
+  requestId: number
   provider: {
     paymentInfo?: {
       pagoMovil?: { banco: string; telefono: string; cedula: string }
@@ -24,7 +24,6 @@ const reference = ref('')
 const captureFile = ref<File | null>(null)
 const loading = ref(false)
 
-// Reset campos al abrir modal
 watch(() => props.isOpen, val => {
   if (val) {
     paymentMethod.value = 'efectivo'
@@ -35,13 +34,12 @@ watch(() => props.isOpen, val => {
 
 function handleFileUpload(e: Event) {
   const target = e.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    captureFile.value = target.files[0]
-  }
+  if (target.files && target.files[0]) captureFile.value = target.files[0]
 }
 
 async function submitPayment() {
-  if (!props.request?.id) {
+  const requestId = props.request?.requestId
+  if (!requestId) {
     alert('Solicitud inválida')
     return
   }
@@ -55,19 +53,12 @@ async function submitPayment() {
     }
 
     const formData = new FormData()
-    formData.append('serviceRequestId', props.request.id.toString())
+    formData.append('serviceRequestId', requestId.toString()) // <-- Usar requestId
     formData.append('paymentMethod', paymentMethod.value)
     formData.append('reference', reference.value || '')
     if (captureFile.value) formData.append('capture', captureFile.value)
 
-    // Log de depuración
-    console.log('Enviando pago:', {
-      serviceRequestId: props.request.id,
-      paymentMethod: paymentMethod.value,
-      reference: reference.value,
-      captureFile: captureFile.value,
-      token: authStore.token
-    })
+    console.log('Enviando pago:', { requestId, paymentMethod: paymentMethod.value, reference: reference.value, captureFile: captureFile.value, token: authStore.token })
 
     const res = await api.post('/payments', formData, {
       headers: {
@@ -76,10 +67,7 @@ async function submitPayment() {
       }
     })
 
-    if (!res.data?.success) {
-      console.error('Error backend:', res.data)
-      throw new Error(res.data?.error || 'Error al procesar el pago')
-    }
+    if (!res.data?.success) throw new Error(res.data?.error || 'Error al procesar el pago')
 
     emit('update:isOpen', false)
     emit('on-payment-submit', paymentMethod.value)

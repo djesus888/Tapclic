@@ -132,24 +132,24 @@
             <button @click="showUserPanel = false; logout()" class="block">🚪 {{ $t('logout') }}</button>
           </div>
 
-          <div v-else-if="authStore.user?.role === 'driver'">
+          <div v-else-if="authStore.user?.role === 'provider'">
             <RouterLink to="/" class="block" @click="showUserPanel = false">📊 {{ $t('dashboard') }}</RouterLink>
-            <RouterLink to="/driver/routes" class="block" @click="showUserPanel = false">🛣️ {{ $t('myRoutes') }}</RouterLink>
-            <RouterLink to="/driver/services" class="block" @click="showUserPanel = false">📦 {{ $t('myServices') }}</RouterLink>
-            <RouterLink to="/driver/services/new" class="block" @click="showUserPanel = false">➕ {{ $t('addService') }}</RouterLink>
-            <RouterLink to="/driver/earnings" class="block" @click="showUserPanel = false">📈 {{ $t('myEarnings') }}</RouterLink>
-            <RouterLink to="/driver/profile" class="block" @click="showUserPanel = false">🛡️ {{ $t('profile') }}</RouterLink>
+            <RouterLink to="/routes" class="block" @click="showUserPanel = false">🛣️ {{ $t('myRoutes') }}</RouterLink>
+            <RouterLink to="/services" class="block" @click="showUserPanel = false">📦 {{ $t('myServices') }}</RouterLink>
+            <RouterLink to="/services/new" class="block" @click="showUserPanel = false">➕ {{ $t('addService') }}</RouterLink>
+            <RouterLink to="/earnings" class="block" @click="showUserPanel = false">📈 {{ $t('myEarnings') }}</RouterLink>
+            <RouterLink to="/profile" class="block" @click="showUserPanel = false">🛡️ {{ $t('profile') }}</RouterLink>
             <RouterLink to="/wallet" class="block" @click="showUserPanel = false">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" class="block" @click="showUserPanel = false">⚙️ {{ $t('settings') }}</RouterLink>
             <button @click="showUserPanel = false; logout()" class="block">🚪 {{ $t('logout') }}</button>
           </div>
 
           <div v-else-if="authStore.user?.role === 'admin'">
-            <RouterLink to="/admin/dashboard" class="block" @click="showUserPanel = false">🔑 {{ $t('adminDashboard') }}</RouterLink>
-            <RouterLink to="/admin/users" class="block" @click="showUserPanel = false">👥 {{ $t('manageUsers') }}</RouterLink>
-            <RouterLink to="/admin/drivers" class="block" @click="showUserPanel = false">🛡️ {{ $t('manageProviders') }}</RouterLink>
-            <RouterLink to="/admin/services" class="block" @click="showUserPanel = false">📦 {{ $t('manageServices') }}</RouterLink>
-            <RouterLink to="/admin/reports" class="block" @click="showUserPanel = false">📊 {{ $t('reports') }}</RouterLink>
+            <RouterLink to="/dashboard" class="block" @click="showUserPanel = false">🔑 {{ $t('adminDashboard') }}</RouterLink>
+            <RouterLink to="/users" class="block" @click="showUserPanel = false">👥 {{ $t('manageUsers') }}</RouterLink>
+            <RouterLink to="/drivers" class="block" @click="showUserPanel = false">🛡️ {{ $t('manageProviders') }}</RouterLink>
+            <RouterLink to="/services" class="block" @click="showUserPanel = false">📦 {{ $t('manageServices') }}</RouterLink>
+            <RouterLink to="/reports" class="block" @click="showUserPanel = false">📊 {{ $t('reports') }}</RouterLink>
             <RouterLink to="/profile" class="block" @click="showUserPanel = false">👤 {{ $t('profile') }}</RouterLink>
             <RouterLink to="/wallet" class="block" @click="showUserPanel = false">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" class="block" @click="showUserPanel = false">⚙️ {{ $t('settings') }}</RouterLink>

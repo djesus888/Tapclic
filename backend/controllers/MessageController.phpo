@@ -132,7 +132,7 @@ class MessageController {
 
 
         // Añadimos información del remitente y del avatar
-        $message['sender'] = ($user->role === 'driver' ? 'provider' : 'user'); // <- línea nueva
+        $message['sender'] = ($user->role === 'driver' ? 'user'); // <- línea nueva
         $message['name'] = $user->name;
         $message['avatar_url'] = $user->avatar_url ?? '';
 

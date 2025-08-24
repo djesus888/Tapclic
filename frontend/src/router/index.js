@@ -18,8 +18,7 @@ import Orders from '@/pages/orders.vue'
 // Dashboards por rol
 import DashboardUser from '@/components/DashboardUser.vue'
 import DashboardAdmin from '@/components/DashboardAdmin.vue'
-import DashboardDriver from '@/components/DashboardDriver.vue'
-//import ServiceCard from '@/components/ServiceCard.vue'
+import DashboardProvider from '@/components/DashboardProvider.vue'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -43,7 +42,7 @@ const routes = [
 // Dashboards específicos por rol
       { path: 'dashboard/user', component: DashboardUser, meta: { role: 'user' } },
       { path: 'dashboard/admin', component: DashboardAdmin, meta: { role: 'admin' } },
-      { path: 'dashboard/driver', component: DashboardDriver, meta: { role: 'driver' } },
+      { path: 'dashboard/provider', component: DashboardProvider, meta: { role: 'provider' } },
    
  ]
   },

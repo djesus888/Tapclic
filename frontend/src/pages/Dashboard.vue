@@ -6,15 +6,15 @@
 import { useAuthStore } from '@/stores/authStore'
 import DashboardUser from '@/components/DashboardUser.vue'
 import DashboardAdmin from '@/components/DashboardAdmin.vue'
-import DashboardDriver from '@/components/DashboardDriver.vue'
+import DashboardProvider from '@/components/DashboardProvider.vue'
 
 export default {
-  components: { DashboardUser, DashboardAdmin, DashboardDriver },
+  components: { DashboardUser, DashboardAdmin, DashboardProvider },
   computed: {
     dashboardComponent() {
       const role = useAuthStore().user?.role
       if (role === 'admin') return 'DashboardAdmin'
-      if (role === 'driver') return 'DashboardDriver'
+      if (role === 'provider') return 'DashboardProvider'
       return 'DashboardUser'
     }
   }

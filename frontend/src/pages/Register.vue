@@ -75,7 +75,7 @@
           >
             <option value="" disabled>{{ $t('select_role') }}</option>
             <option value="user">{{ $t('client') }}</option>
-            <option value="driver">{{ $t('provider') }}</option>
+            <option value="provider">{{ $t('provider') }}</option>
           </select>
         </div>
 
@@ -142,8 +142,8 @@ export default {
 
         if (res.role === 'admin') {
           router.push('/dashboard/admin')
-        } else if (res.role === 'driver') {
-          router.push('/dashboard/driver')
+        } else if (res.role === 'provider') {
+          router.push('/dashboard/provider')
         } else {
           router.push('/dashboard/user')
         }

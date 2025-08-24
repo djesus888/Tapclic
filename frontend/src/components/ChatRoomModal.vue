@@ -93,7 +93,7 @@ const sendMessage = async () => {
     const res = await api.post(
       `/messages`,
       {
-        driver_id: props.providerId,
+        provider_id: props.providerId,
         text: newMessage.value
       },
       {
@@ -102,13 +102,13 @@ const sendMessage = async () => {
     )
 
     // Adaptación temporal: si el backend no devuelve message, usamos un objeto local
-    const msg: Message = res.data.message ?? {
-      id: Date.now(),
-      text: newMessage.value,
-      sender: 'user',
-      created_at: new Date().toISOString(),
-      avatar_url: authStore.user?.avatar_url ?? ''
-    }
+    const msg: Message = res.data.message; // ?? {
+    //  id: Date.now(),
+    //  text: newMessage.value,
+    //  sender: 'user',
+    //  created_at: new Date().toISOString(),
+     // avatar_url: authStore.user?.avatar_url ?? ''
+    //}
 
     // Aseguramos avatar del proveedor si viene de provider
     if (msg.sender === 'provider' && providerProfile.value) {

@@ -48,6 +48,7 @@ if (preg_match('/\/api\/login/', $request)) {
 } elseif (
     preg_match('/\/api\/requests\/create/', $request) ||
     preg_match('/\/api\/requests\/mine/', $request) ||
+    preg_match('/\/api\/requests\/pending/', $request) ||
     preg_match('/\/api\/requests\/active/', $request) ||
     preg_match('/\/api\/requests\/accept/', $request) ||
     preg_match('/\/api\/requests\/status\/\d+/', $request) ||
