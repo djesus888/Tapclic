@@ -1,2 +1,56 @@
 node_modules/
 mobile/flutter_linux_3.22.2-stable.tar.xz
+
+# Flutter SDK
+flutter/
+flutter_linux_*.tar.xz
+flutter_windows_*.zip
+flutter_macos_*.zip
+
+# Build outputs
+build/
+.linux/
+.android/
+.ios/
+.macos/
+.web/
+.windows/
+
+# Dart
+.dart_tool/
+.packages
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+websocket/websocket.log
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug
+android/app/release
+android/key.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Large files
+*.tar.xz
+*.zip
+*.apk
+*.aab
