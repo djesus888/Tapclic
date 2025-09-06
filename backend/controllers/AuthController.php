@@ -83,7 +83,7 @@ class AuthController {
             return;
         }
 
-        if (!in_array($data['role'], ['admin', 'user', 'driver'])) {
+        if (!in_array($data['role'], ['admin', 'user', 'provider'])) {
             http_response_code(400);
             echo json_encode(["message" => "Rol no permitido"]);
             return;

@@ -46,6 +46,14 @@ class User {
         return $this->conn->lastInsertId();
     }
 
+
+public function find(int $id): ?array{
+    $stmt = $this->conn->prepare("SELECT id, name, avatar_url, average_rating FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
     public function findById($id) {
         $stmt = $this->conn->prepare("SELECT id, name, email, phone, role, avatar_url, business_address, service_categories, coverage_area, preferences  FROM {$this->table} WHERE id = ?");
         $stmt->execute([$id]);

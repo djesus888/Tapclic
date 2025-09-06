@@ -1,4 +1,3 @@
-// stores/socketStore.js
 import { defineStore } from 'pinia';
 import { io } from 'socket.io-client';
 import { useAuthStore } from './authStore';
@@ -11,12 +10,15 @@ export const useSocketStore = defineStore('socket', {
   }),
   actions: {
     init() {
-      if (this.socket) return; // ya inicializado
+      if (this.socket) return;
 
       const authStore = useAuthStore();
       this.socket = io('http://localhost:3001', {
         auth: { token: authStore.token }
       });
+
+      const room = `${authStore.user.role}_${authStore.user.id}`
+      this.socket.emit('join-room', room)
 
       this.notificationSound = new Audio('/sounds/notification.mp3');
 
@@ -28,8 +30,8 @@ export const useSocketStore = defineStore('socket', {
 
       this.socket.on('new-notification', (data) => {
         console.log('📣 Notificación recibida:', data);
-        this.notifications.unshift(data); // guardar al inicio
-        this.notificationSound.play().catch(() => {});
+        this.notifications.unshift(data);
+        this.playNotificationSound()
       });
     },
 
@@ -44,6 +46,11 @@ export const useSocketStore = defineStore('socket', {
 
     clearNotifications() {
       this.notifications = [];
+    },
+
+    playNotificationSound() {
+      const sound = new Audio('/sounds/notification.mp3');
+      sound.play().catch(() => {});
     }
   },
 

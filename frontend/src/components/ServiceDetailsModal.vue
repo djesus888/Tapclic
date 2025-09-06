@@ -1,3 +1,4 @@
+<!-- ServiceDetailsModal.vue -->
 <template>
   <div
     v-if="isOpen"
@@ -20,19 +21,28 @@
         </div>
       </div>
 
+      <!-- Proveedor -->
       <div class="flex items-center gap-3 mt-4">
-        <img :src="request.provider?.avatar_url || ''" alt="Avatar" class="w-10 h-10 rounded-full" />
+        <img
+          :src="request.image_url ? `http://localhost:8000${request.image_url}` : '/img/default-provider.png'"
+          alt="Avatar"
+          class="w-10 h-10 rounded-full"
+        />
         <div>
           <p class="font-semibold">{{ request.provider?.name || '—' }}</p>
           <p>{{ request.provider?.rating ?? 'N/A' }} ⭐</p>
         </div>
+
+        <!-- Botón abrir chat -->
         <button
-         @click="$emit('on-start-chat', request.provider?.id || request.provider_id || request.user_id)"
+          @click="openChat"
           class="ml-auto bg-gray-100 p-2 rounded"
+          title="Abrir chat"
         >
           💬
         </button>
       </div>
+
       <div class="flex justify-between items-center mt-4">
         <span>{{ $t('servicePrice') }}</span>
         <span class="font-bold text-lg">${{ formattedPrice }}</span>
@@ -65,8 +75,27 @@ const props = defineProps({
   request: Object
 })
 
-// Formatear precio seguro
 const formattedPrice = computed(() => {
   return Number(props.request?.price || 0).toFixed(2)
 })
+
+/* Emitir objeto Target al abrir el chat */
+const openChat = () => {
+  const provider = props.request?.provider
+  const target = {
+    id: provider?.id ?? props.request?.provider_id ?? props.request?.user_id,
+    name: provider?.name ?? 'Proveedor',
+    role: 'provider',
+    avatarUrl: provider?.avatar_url
+  }
+  // Disparar evento con el objeto completo
+  emit('on-start-chat', target)
+}
+
+// defineEmits
+const emit = defineEmits([
+  'on-open-change',
+  'on-request-service',
+  'on-start-chat'
+])
 </script>

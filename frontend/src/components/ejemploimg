@@ -1,0 +1,13 @@
+<img
+          :src="previewAvatar || user?.avatar_url || defaultAvatar"
+          alt="Avatar"
+          class="w-24 h-24 rounded-full object-cover border border-gray-300"
+        />
+
+
+
+<img
+           :src="service.provider?.avatar_url || '/img/default-provider.png'"
+           :alt="service.provider?.name || 'Ads'"
+           class="w-10 h-10 rounded-full object-cover"
+          />

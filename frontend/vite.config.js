@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import path from 'path' // 👈 Asegúrate de importar esto
+import { fileURLToPath, URL } from 'url'
 
-// ✅ Mejora recomendada:
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -11,11 +10,12 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173,
-    open: true
+    host: '0.0.0.0',
+    port: 5173
   },
   build: {
     outDir: 'dist',
     sourcemap: true
   }
 })
+

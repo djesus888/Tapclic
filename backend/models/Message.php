@@ -2,152 +2,223 @@
 // models/Message.php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/Conversation.php';
 
-class Message {
-
+class Message
+{
     private $db;
 
-    public function __construct() {
-        $this->db = (new Database())->connect();
+    public function __construct()
+    {
+        $this->db = (new Database())->getConnection();
     }
 
-    /**
-     * Obtener todos los mensajes entre un usuario y un driver
-     */
-    public function getMessages($userId, $driverId) {
-        $userId = intval($userId);
-        $driverId = intval($driverId);
+    private function emitWs(array $payload): void
+    {
+        $url = 'http://localhost:3001/emit';
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 2,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    }
 
+    // ✅ CORREGIDO: Ahora acepta senderType y receiverType
+    public function getMessages(int $senderId, int $receiverId, string $senderType, string $receiverType): array
+    {
+        $conv = new Conversation();
+        $conversationId = $conv->findOrCreate($senderId, $senderType, $receiverId, $receiverType);
+        return $this->getMessagesByConversation($conversationId);
+    }
+
+    public function getMessagesByConversation(int $conversationId): array
+    {
         $stmt = $this->db->prepare("
             SELECT
-                m.id, m.sender_id, m.receiver_id, m.text, m.type, m.status, m.created_at,
-                m.attachment_url, m.parent_id, m.read_at, m.metadata,
-                u.avatar_url, u.name, u.role
+                m.id,
+                m.sender_id,
+                m.receiver_id,
+                m.text,
+                m.type,
+                m.status,
+                m.created_at,
+                m.updated_at,
+                m.attachment_url,
+                m.metadata,
+                m.read_at,
+                m.sender_type,
+                u.avatar_url,
+                u.name
             FROM messages m
             LEFT JOIN users u ON u.id = m.sender_id
-            WHERE (m.sender_id = :userId AND m.receiver_id = :driverId)
-               OR (m.sender_id = :driverId AND m.receiver_id = :userId)
+            WHERE m.conversation_id = :convId
             ORDER BY m.created_at ASC
         ");
-        $stmt->execute([
-            'userId' => $userId,
-            'driverId' => $driverId
-        ]);
-
+        $stmt->execute(['convId' => $conversationId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!$rows) $rows = [];
-
-        return array_map(fn($msg) => $this->mapMessage($msg, $userId), $rows);
+        return array_map(fn($r) => $this->mapMessage($r), $rows ?: []);
     }
 
-    /**
-     * Insertar un nuevo mensaje
-     */
-  public function insertMessage($senderId, $receiverId, $text, $type = 'text', $attachment_url = null, $parent_id = null, $metadata = null) {
-    $senderId = intval($senderId);
-    $receiverId = intval($receiverId);
-    $text = trim($text);
-
-    if (!$receiverId || (!$text && !$attachment_url)) return null;
-
-    // Insertamos el mensaje en la base de datos
-    $stmt = $this->db->prepare("
-        INSERT INTO messages (sender_id, receiver_id, text, type, attachment_url, parent_id, metadata, status, created_at)
-        VALUES (:sender_id, :receiver_id, :text, :type, :attachment_url, :parent_id, :metadata, 'sent', NOW())
-    ");
-    $success = $stmt->execute([
-        'sender_id' => $senderId,
-        'receiver_id' => $receiverId,
-        'text' => $text,
-        'type' => $type,
-        'attachment_url' => $attachment_url,
-        'parent_id' => $parent_id,
-        'metadata' => $metadata
-    ]);
-
-    if (!$success) return null;
-
-    // Obtenemos el ID del mensaje insertado
-    $id = $this->db->lastInsertId();
-
-    // Obtenemos el mensaje completo y lo mapeamos a formato consistente
-    $stmt = $this->db->prepare("
-        SELECT m.id, m.sender_id, m.receiver_id, m.text, m.type, m.status, m.created_at,
-               m.attachment_url, m.parent_id, m.read_at, m.metadata,
-               u.avatar_url, u.name, u.role
-        FROM messages m
-        LEFT JOIN users u ON u.id = m.sender_id
-        WHERE m.id = :id
-    ");
-    $stmt->execute(['id' => intval($id)]);
-    $msg = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$msg) return null;
-
-    return [
-        "id" => intval($msg['id']),
-        "text" => $msg['text'],
-        "sender" => ($msg['role'] === 'driver' || $msg['role'] === 'provider' ? 'provider' : 'user'),
-        "type" => $msg['type'],
-        "status" => $msg['status'],
-        "created_at" => $msg['created_at'],
-        "avatar_url" => $msg['avatar_url'] ?? '',
-        "attachment_url" => $msg['attachment_url'] ?? null,
-        "parent_id" => $msg['parent_id'] ?? null,
-        "read_at" => $msg['read_at'] ?? null,
-        "metadata" => $msg['metadata'] ?? null,
-        "sender_name" => $msg['name'] ?? ($msg['role'] === 'driver' ? 'Proveedor' : 'Usuario')
-    ];
-}
-
-    /**
-     * Recuperar un mensaje por ID
-     */
-    public function getMessageById($id, $loggedUserId = null) {
+    public function getLastMessage(int $conversationId): ?array
+    {
         $stmt = $this->db->prepare("
             SELECT
-                m.id, m.sender_id, m.receiver_id, m.text, m.type, m.status, m.created_at,
-                m.attachment_url, m.parent_id, m.read_at, m.metadata,
-                u.avatar_url, u.name, u.role
+                m.id,
+                m.text,
+                m.created_at
+            FROM messages m
+            WHERE m.conversation_id = :convId
+            ORDER BY m.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute(['convId' => $conversationId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function countUnread(int $conversationId, int $userId): int
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) AS c
+            FROM messages m
+            WHERE m.conversation_id = :convId
+              AND m.receiver_id = :uid
+              AND m.read_at IS NULL
+        ");
+        $stmt->execute([
+            'convId' => $conversationId,
+            'uid'    => $userId,
+        ]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    // ✅ CORREGIDO: Ahora acepta conversation_id como primer parámetro
+    public function insertMessage(
+        int    $conversationId,  // NUEVO: primer parámetro
+        int    $senderId,
+        int    $receiverId,
+        string $text,
+        string $type = 'text',
+        ?string $attachment_url = null,
+        string $senderType = 'user'
+    ): array {
+        $text = trim($text);
+
+        if (!$receiverId || ($text === '' && !$attachment_url)) {
+            throw new InvalidArgumentException('Faltan datos requeridos');
+        }
+
+        $allowed = ['text', 'image', 'file', 'audio', 'video', 'system'];
+        $type    = in_array($type, $allowed, true) ? $type : 'text';
+
+        try {
+            $this->db->beginTransaction();
+
+            $stmt = $this->db->prepare("
+                INSERT INTO messages
+                (conversation_id, sender_id, receiver_id, text, type,
+                 attachment_url, status, sender_type, created_at, updated_at)
+                VALUES
+                (:conv, :s, :r, :t, :ty,
+                 :att, 'sent', :st, NOW(), NOW())
+            ");
+            $stmt->execute([
+                'conv' => $conversationId,
+                's'    => $senderId,
+                'r'    => $receiverId,
+                't'    => $text,
+                'ty'   => $type,
+                'att'  => $attachment_url,
+                'st'   => $senderType,
+            ]);
+
+            $id = (int)$this->db->lastInsertId();
+            $this->db->commit();
+            return $this->getMessageById($id);
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            error_log("❌ insertMessage error: " . $e->getMessage());
+            $this->emitWs([
+                'receiver_id'   => 1,
+                'receiver_role' => 'admin',
+                'title'         => 'Error al guardar mensaje',
+                'message'       => "Error: " . $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    public function getMessageById(int $id): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                m.id,
+                m.conversation_id,
+                m.sender_id,
+                m.receiver_id,
+                m.text,
+                m.type,
+                m.status,
+                m.created_at,
+                m.updated_at,
+                m.attachment_url,
+                m.metadata,
+                m.read_at,
+                m.sender_type,
+                u.avatar_url,
+                u.name
             FROM messages m
             LEFT JOIN users u ON u.id = m.sender_id
             WHERE m.id = :id
+            LIMIT 1
         ");
-        $stmt->execute(['id' => intval($id)]);
-        $msg = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$msg) return null;
-
-        return $this->mapMessage($msg, $loggedUserId);
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $this->mapMessage($row);
     }
 
-    /**
-     * Mapear mensaje a formato consistente para frontend
-     */
-    private function mapMessage($msg, $loggedUserId = null) {
+    public function markReadBatch(array $ids, int $readerId): int
+    {
+        if (empty($ids)) return 0;
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "UPDATE messages
+                SET read_at = NOW()
+                WHERE id IN ($placeholders)
+                  AND receiver_id = ?
+                  AND read_at IS NULL";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([...$ids, $readerId]);
+        return $stmt->rowCount();
+    }
+
+    public function markRead(int $messageId, int $readerId): int
+    {
+        return $this->markReadBatch([$messageId], $readerId);
+    }
+
+    private function mapMessage(array $msg): array
+    {
         return [
-            "id" => intval($msg['id']),
-            "text" => $msg['text'],
-            "sender" => ($msg['role'] === 'driver' ? 'provider' : 'user'),
-            "type" => $msg['type'],
-            "status" => $msg['status'],
-            "created_at" => $msg['created_at'],
-            "avatar_url" => $msg['avatar_url'] ?? null,
-            "attachment_url" => $msg['attachment_url'] ?? null,
-            "parent_id" => $msg['parent_id'] ?? null,
-            "read_at" => $msg['read_at'] ?? null,
-            "metadata" => $msg['metadata'] ?? null,
-            "name" => $msg['name'] ??  null
+            'id'             => (int)$msg['id'],
+            'conversation_id'=> (int)($msg['conversation_id'] ?? 0),
+            'text'           => $msg['text'] ?? '',
+            'sender'         => $msg['sender_type'] ?? 'user',
+            'type'           => $msg['type'],
+            'status'         => $msg['status'],
+            'created_at'     => $msg['created_at'],
+            'updated_at'     => $msg['updated_at'],
+            'avatar_url'     => $msg['avatar_url'] ?? null,
+            'attachment_url' => $msg['attachment_url'] ?? null,
+            'read_at'        => $msg['read_at'] ?? null,
+            'parent_id'      => isset($msg['parent_id']) ? (int)$msg['parent_id'] : null,
+            'metadata'       => isset($msg['metadata']) && $msg['metadata']
+                                ? json_decode($msg['metadata'], true) : null,
         ];
-    }
-
-    /**
-     * Marcar mensaje como leído
-     */
-    public function markAsRead($messageId) {
-        $stmt = $this->db->prepare("
-            UPDATE messages SET status = 'read', read_at = NOW() WHERE id = :id
-        ");
-        return $stmt->execute(['id' => intval($messageId)]);
     }
 }

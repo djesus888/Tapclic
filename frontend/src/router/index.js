@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
-// Layout principal
+// Layout principal5
 import MainLayout from '@/layouts/MainLayout.vue'
 
 // Páginas públicas
@@ -14,6 +14,11 @@ import Profile from '@/pages/Profile.vue'
 import Wallet from '@/pages/Wallet.vue'
 import Config from '@/pages/config.vue'
 import Orders from '@/pages/orders.vue'
+import New from '@/pages/services/New.vue'
+import Services from '@/pages/services/Services.vue'
+import ChatList from '@/pages/ChatList.vue'
+import ChatView from '@/pages/ChatView.vue'
+
 
 // Dashboards por rol
 import DashboardUser from '@/components/DashboardUser.vue'
@@ -38,7 +43,12 @@ const routes = [
       { path: 'wallet', component: Wallet },
       { path: 'config', component: Config },
       { path: 'orders', component: Orders },
-      
+      { path: 'services/new', component: New },      
+      { path: 'chats', component: ChatList },
+      { path: 'chat/:id', component: ChatView },
+      { path: 'services', component: Services },
+
+
 // Dashboards específicos por rol
       { path: 'dashboard/user', component: DashboardUser, meta: { role: 'user' } },
       { path: 'dashboard/admin', component: DashboardAdmin, meta: { role: 'admin' } },

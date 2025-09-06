@@ -212,7 +212,7 @@ public function getProvider($id) {
     }
 
     $user = $this->userModel->findById($id);
-    if (!$user || $user['role'] !== 'driver') {
+    if (!$user || $user['role'] !== 'provider') {
         http_response_code(404);
         echo json_encode(["error" => "Proveedor no encontrado"]);
         return;

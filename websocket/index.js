@@ -12,7 +12,7 @@ const server = http.createServer(app)
 
 const io = new Server(server, {
   cors: {
-    origin: '*', // o tu frontend exacto
+    origin: '*',
     methods: ['GET', 'POST']
   }
 })
@@ -37,8 +37,13 @@ io.on('connection', (socket) => {
 
   console.log(`🔌 Usuario conectado: ${id} (${role})`)
 
-  // Guardar socket por id y role
+  const room = `${role}_${id}`
+  socket.join(room)
   connectedUsers.set(`${id}_${role}`, socket)
+
+  socket.on('join-room', (r) => {
+    socket.join(r)
+  })
 
   socket.on('disconnect', () => {
     connectedUsers.delete(`${id}_${role}`)
@@ -46,28 +51,21 @@ io.on('connection', (socket) => {
   })
 })
 
-// Ruta para emitir notificación desde PHP u otro backend
 app.use(express.json())
 
 app.post('/emit', (req, res) => {
   const { receiver_id, receiver_role, title, message } = req.body
-  const targetKey = `${receiver_id}_${receiver_role}`
-  const socket = connectedUsers.get(targetKey)
-
-  if (socket) {
-    socket.emit('new-notification', {
-      id: Date.now(), // o real de DB
-      receiver_id,
-      receiver_role,
-      title,
-      message,
-      is_read: 0,
-      created_at: new Date().toISOString()
-    })
-    return res.json({ status: 'enviado' })
-  }
-
-  res.status(404).json({ status: 'usuario no conectado' })
+  const room = `${receiver_role}_${receiver_id}`
+  io.to(room).emit('new-notification', {
+    id: Date.now(),
+    receiver_id,
+    receiver_role,
+    title,
+    message,
+    is_read: 0,
+    created_at: new Date().toISOString()
+  })
+  res.json({ status: 'enviado' })
 })
 
 server.listen(process.env.PORT, () => {
