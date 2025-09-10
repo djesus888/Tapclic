@@ -78,6 +78,103 @@
         />
       </div>
 
+      <!-- Dirección personal -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          {{ $t('address') }}
+        </label>
+        <input
+          type="text"
+          v-model="form.address"
+          :placeholder="$t('address')"
+          class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <!-- Campos exclusivos para admin o provider -->
+      <template v-if="user?.role === 'admin' || user?.role === 'provider'">
+        <!-- Dirección comercial -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('businessAddress') }}
+          </label>
+          <input
+            type="text"
+            v-model="form.business_address"
+            :placeholder="$t('businessAddress')"
+            class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <!-- Categorías de servicio -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('serviceCategories') }}
+          </label>
+          <textarea
+            v-model="form.service_categories"
+            :placeholder="$t('serviceCategoriesPlaceholder')"
+            class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
+
+        <!-- Área de cobertura -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('coverageArea') }}
+          </label>
+          <textarea
+            v-model="form.coverage_area"
+            :placeholder="$t('coverageAreaPlaceholder')"
+            class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
+      </template>
+
+      <!-- Sección Preferencias -->
+      <details class="mt-6">
+        <summary class="cursor-pointer font-semibold text-gray-700 mb-3">
+          {{ $t('preferencesSection') }}
+        </summary>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+          <!-- Idioma -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              {{ $t('language') }}
+            </label>
+            <select v-model="pref.language" class="w-full border rounded-md p-2">
+              <option value="es">Español</option>
+              <option value="en">English</option>
+              <option value="pt">Português</option>
+            </select>
+          </div>
+
+          <!-- Tema -->
+          <div>
+            <label class="flex items-center mt-6">
+              <input type="checkbox" v-model="pref.dark" class="mr-2" />
+              {{ $t('darkTheme') }}
+            </label>
+          </div>
+
+          <!-- Notificaciones -->
+          <div class="md:col-span-2 space-y-2">
+            <label class="block text-sm font-medium text-gray-700">
+              {{ $t('notifications') }}
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" v-model="pref.notifications.email" class="mr-2" />
+              {{ $t('notifyEmail') }}
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" v-model="pref.notifications.sms" class="mr-2" />
+              {{ $t('notifySMS') }}
+            </label>
+          </div>
+        </div>
+      </details>
+
       <!-- Botón Guardar -->
       <div>
         <button
@@ -94,7 +191,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import api from '@/axio'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
@@ -104,16 +201,31 @@ export default {
   name: 'Profile',
   setup() {
     const authStore = useAuthStore()
-    const { t } = useI18n()
+    const { t, locale } = useI18n()
 
-    const BASE_URL = 'http://localhost:8000' // Cambia esto si usas otro dominio o puerto
+    const BASE_URL = 'http://localhost:8000'
 
     const user = ref(null)
-    const form = ref({ name: '', email: '', phone: '' })
+    const form = ref({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      business_address: '',
+      service_categories: '',
+      coverage_area: '',
+      preferences: ''
+    })
     const avatarFile = ref(null)
     const previewAvatar = ref(null)
     const defaultAvatar = '/img/default-avatar.png'
     const loading = ref(false)
+
+    const pref = reactive({
+      language: 'es',
+      dark: false,
+      notifications: { email: true, sms: false }
+    })
 
     const fetchProfile = async () => {
       try {
@@ -122,7 +234,6 @@ export default {
         })
         user.value = data.user || {}
 
-        // Si avatar_url no es URL completa, construir URL pública
         if (user.value.avatar_url && !user.value.avatar_url.startsWith('http')) {
           user.value.avatar_url = BASE_URL + '/uploads/avatars/' + user.value.avatar_url
         }
@@ -130,7 +241,30 @@ export default {
         form.value = {
           name: user.value.name || '',
           email: user.value.email || '',
-          phone: user.value.phone || ''
+          phone: user.value.phone || '',
+          address: user.value.address || '',
+          business_address: user.value.business_address || '',
+          service_categories: user.value.service_categories || '',
+          coverage_area: user.value.coverage_area || '',
+          preferences: user.value.preferences || ''
+        }
+
+        if (user.value.preferences) {
+          try {
+            const p = JSON.parse(user.value.preferences)
+            pref.language = p.language || 'es'
+            pref.dark = p.dark || false
+            pref.notifications.email = p.notifications?.email ?? true
+            pref.notifications.sms = p.notifications?.sms ?? false
+          } catch (e) {
+            console.warn('Preferencias corruptas, se usan valores por defecto')
+          }
+        }
+
+        // idioma desde localStorage (sobre-escribe el de BD si existe)
+        const savedLang = localStorage.getItem('userLanguage')
+        if (savedLang) {
+          pref.language = savedLang
         }
       } catch (err) {
         console.error('Error al obtener perfil:', err)
@@ -149,34 +283,38 @@ export default {
       }
     }
 
+    // cambio instantáneo de idioma + localStorage
+    watch(
+      () => pref.language,
+      newLang => {
+        localStorage.setItem('userLanguage', newLang)
+        locale.value = newLang
+      },
+      { immediate: true }
+    )
+
     const updateProfile = async () => {
       loading.value = true
+      form.value.preferences = JSON.stringify(pref)
 
       try {
+        const payload = new FormData()
+        payload.append('name', form.value.name)
+        payload.append('email', form.value.email)
+        payload.append('phone', form.value.phone)
+        payload.append('address', form.value.address)
+        payload.append('business_address', form.value.business_address)
+        payload.append('service_categories', form.value.service_categories)
+        payload.append('coverage_area', form.value.coverage_area)
+        payload.append('preferences', form.value.preferences)
+
         if (avatarFile.value) {
-          const formData = new FormData()
-          formData.append('name', form.value.name)
-          formData.append('email', form.value.email)
-          formData.append('phone', form.value.phone)
-          formData.append('avatar', avatarFile.value)
-
-          await api.post('/profile/update', formData, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-          })
-        } else {
-          const payload = {
-            name: form.value.name,
-            email: form.value.email,
-            phone: form.value.phone,
-          }
-
-          await api.post('/profile/update', payload, {
-            headers: {
-              Authorization: `Bearer ${authStore.token}`,
-              'Content-Type': 'application/json'
-            }
-          })
+          payload.append('avatar', avatarFile.value)
         }
+
+        await api.post('/profile/update', payload, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
 
         Swal.fire(t('profile.successTitle'), t('profile.successMessage'), 'success')
         await fetchProfile()
@@ -208,7 +346,8 @@ export default {
       loading,
       onAvatarChange,
       updateProfile,
-      t
+      t,
+      pref
     }
   }
 }

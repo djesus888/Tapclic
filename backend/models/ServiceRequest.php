@@ -131,23 +131,42 @@ class ServiceRequest {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getActiveByUser($userId) {
+ public function getActiveByUser($userId): array
+{
     $query = "
-        SELECT sr.*,
-               s.title AS service_title,
-               s.description AS service_description,
-               s.price AS service_price,
-               s.image_url AS service_image_url,
-               s.provider_rating AS provider_rating,
-               s.provider_name AS service_provider_name,
-               u.avatar_url AS provider_avatar_url,
-               u.address AS provider_address,
-               u.phone AS provider_phone
+        SELECT 
+            sr.*,
+            s.title AS service_title,
+            s.description AS service_description,
+            s.price AS service_price,
+            s.image_url AS service_image_url,
+            s.provider_rating AS provider_rating,
+            s.provider_name AS service_provider_name,
+            u.avatar_url AS provider_avatar_url,
+            u.address AS provider_address,
+            u.phone AS provider_phone,
+            (
+                SELECT JSON_ARRAYAGG(
+                    JSON_OBJECT(
+                        'method_type', ppm.method_type,
+                        'bank_name', ppm.bank_name,
+                        'holder_name', ppm.holder_name,
+                        'id_number', ppm.id_number,
+                        'phone_number', ppm.phone_number,
+                        'account_number', ppm.account_number,
+                        'email', ppm.email
+                    )
+                )
+                FROM provider_payment_methods ppm
+                WHERE ppm.provider_id = sr.provider_id
+                  AND ppm.is_active = 1
+                  AND ppm.method_type IN ('pago_movil', 'transferencia', 'paypal', 'zelle', 'binance')
+            ) AS payment_methods
         FROM {$this->table} sr
         LEFT JOIN services s ON s.id = sr.service_id
         LEFT JOIN users u ON u.id = sr.provider_id
-        WHERE (sr.user_id = :id OR sr.provider_id = :id)
-          AND sr.status IN ('pending','accepted')
+        WHERE sr.user_id = :id
+          AND sr.status IN ('pending','accepted','in_progress','on_the_way','arrived')
         ORDER BY sr.created_at DESC
     ";
 
@@ -157,36 +176,30 @@ class ServiceRequest {
 }
 
 
-
-
-
-
-
-
-
-
-
-
 public function getActiveByProvider(int $providerId): array
 {
     $sql = "
-        SELECT sr.*,
-               s.title        AS service_title,
-               s.description  AS service_description,
-               s.price        AS service_price,
-               u.name         AS user_name,
-               u.avatar_url   AS user_avatar
+        SELECT 
+            sr.*,
+            s.title AS service_title,
+            s.description AS service_description,
+            s.price AS service_price,
+            u.name AS user_name,
+            u.avatar_url AS user_avatar
         FROM {$this->table} sr
         JOIN services s ON s.id = sr.service_id
-        JOIN users    u ON u.id = sr.user_id
+        JOIN users u ON u.id = sr.user_id
         WHERE sr.provider_id = :pid
-          AND sr.status = 'accepted'
+          AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
         ORDER BY sr.updated_at DESC
     ";
     $stmt = $this->conn->prepare($sql);
     $stmt->execute([':pid' => $providerId]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+
+
+
 
     public function getById($id) {
         $query = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";

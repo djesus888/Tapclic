@@ -55,23 +55,37 @@ public function find(int $id): ?array{
 }
 
     public function findById($id) {
-        $stmt = $this->conn->prepare("SELECT id, name, email, phone, role, avatar_url, business_address, service_categories, coverage_area, preferences  FROM {$this->table} WHERE id = ?");
+        $stmt = $this->conn->prepare("SELECT id, name, email, phone, role, avatar_url, address, business_address, service_categories, coverage_area, preferences  FROM {$this->table} WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function updateProfile($id, $data) {
+public function updateProfile($id, $data) {
     $name = $data['name'] ?? '';
     $email = $data['email'] ?? '';
-    $phone = $data['phone'] ?? '';
+    $phone = $data['phone'] ?? ''; 
 
-    $query = "UPDATE {$this->table} SET name = :name, email = :email, phone = :phone WHERE id = :id";
+   $query = "UPDATE {$this->table} SET 
+                name = :name, 
+                email = :email, 
+                phone = :phone, 
+                address = :address, 
+                business_address = :business_address, 
+                service_categories = :service_categories, 
+                coverage_area = :coverage_area, 
+                preferences = :preferences
+                WHERE id = :id";
     $stmt = $this->conn->prepare($query);
     return $stmt->execute([
-        ':name'  => $name,
-        ':email' => $email,
-        ':phone' => $phone,
-        ':id'    => $id
+        ':name' => $data['name'],
+        ':email' => $data['email'],
+        ':phone' => $data['phone'],
+        ':address' => $data['address'],
+        ':business_address' => $data['business_address'],
+        ':service_categories' => $data['service_categories'],
+        ':coverage_area' => $data['coverage_area'],
+        ':preferences' => $data['preferences'],
+        ':id' => $id
     ]);
 }
 

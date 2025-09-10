@@ -111,7 +111,7 @@ export default {
           category: this.form.category || 'other'
         }
 
-        await api.post('/api/support/tickets', payload, {
+        await api.post('/support/tickets/create', payload, {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {}
         })
 

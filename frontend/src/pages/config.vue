@@ -1,90 +1,115 @@
 <template>
-  <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md mt-8">
-    <h1 class="text-3xl font-bold mb-6">{{ $t('config.title') }}</h1>
+  <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+      <header class="mb-8">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ $t('config.title') }}</h1>
+        <p class="text-sm text-gray-500 mt-1">{{ $t('config.subtitle') }}</p>
+      </header>
 
-    <!-- Sección cuenta -->
-    <section class="mb-8">
-      <h2 class="text-xl font-semibold mb-4">{{ $t('config.account') }}</h2>
-      <FormInput
-        label="Nombre"
-        v-model="form.name"
-        required
-      />
-      <FormInput
-        label="Email"
-        type="email"
-        v-model="form.email"
-        required
-      />
-      <FormInput
-        label="Teléfono"
-        type="tel"
-        v-model="form.phone"
-      />
-    </section>
+      <form @submit.prevent="saveConfig" novalidate>
+        <!-- Cuenta -->
+        <section class="mb-10">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ $t('config.account') }}</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <FormInput
+              v-model="form.name"
+              label="Nombre"
+              required
+              aria-required="true"
+              :error="errors.name"
+            />
+            <FormInput
+              v-model="form.email"
+              type="email"
+              label="Email"
+              required
+              aria-required="true"
+              :error="errors.email"
+            />
+            <FormInput
+              v-model="form.phone"
+              type="tel"
+              label="Teléfono"
+              :error="errors.phone"
+              class="sm:col-span-2"
+            />
+          </div>
+        </section>
 
-    <!-- Sección preferencias -->
-    <section class="mb-8">
-      <h2 class="text-xl font-semibold mb-4">{{ $t('config.preferences') }}</h2>
-      <FormSelect
-        label="Idioma"
-        :options="languages"
-        v-model="form.language"
-      />
-      <FormSelect
-        label="Tema"
-        :options="themes"
-        v-model="form.theme"
-      />
-      <FormSwitch
-        label="Notificaciones"
-        v-model="form.notifications"
-      />
-    </section>
+        <!-- Preferencias -->
+        <section class="mb-10">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ $t('config.preferences') }}</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <FormSelect
+              v-model="form.language"
+              label="Idioma"
+              :options="languages"
+            />
+            <FormSelect
+              v-model="form.theme"
+              label="Tema"
+              :options="themes"
+            />
+            <FormSwitch
+              v-model="form.notifications"
+              label="Notificaciones"
+              class="sm:col-span-2"
+            />
+          </div>
+        </section>
 
-    <!-- Seguridad -->
-    <section class="mb-8">
-      <h2 class="text-xl font-semibold mb-4">{{ $t('config.security') }}</h2>
-      <button @click="showChangePassword = true" class="btn-primary">
-        {{ $t('config.changePassword') }}
-      </button>
-    </section>
+        <!-- Seguridad -->
+        <section class="mb-10">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ $t('config.security') }}</h2>
+          <button
+            type="button"
+            @click="showChangePassword = true"
+            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          >
+            🔒 {{ $t('config.changePassword') }}
+          </button>
+        </section>
 
-    <!-- Sección admin (solo visible para admins) -->
-    <section v-if="isAdmin" class="mb-8 border-t pt-6">
-      <h2 class="text-xl font-semibold mb-4 text-red-600">{{ $t('config.adminSection') }}</h2>
+        <!-- Admin -->
+        <section v-if="isAdmin" class="mb-10 border-t pt-6">
+          <h2 class="text-lg font-semibold text-red-600 mb-4">{{ $t('config.adminSection') }}</h2>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Gestionar Usuarios</label>
+            <button
+              type="button"
+              @click="openUserManagement"
+              class="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+            >
+              👥 {{ $t('config.manageUsers') }}
+            </button>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Configuración Global</label>
+            <textarea
+              v-model="form.globalConfig"
+              rows="5"
+              class="w-full border rounded-lg p-3 text-sm font-mono"
+              placeholder='{"key": "value"}'
+              :class="{ 'border-red-500': errors.globalConfig }"
+            ></textarea>
+            <p v-if="errors.globalConfig" class="text-red-500 text-xs mt-1">{{ errors.globalConfig }}</p>
+          </div>
+        </section>
 
-      <div>
-        <label class="block font-medium mb-1">Gestionar Usuarios</label>
-        <button @click="openUserManagement" class="btn-secondary mb-4">
-          {{ $t('config.manageUsers') }}
-        </button>
-      </div>
-
-      <div>
-        <label class="block font-medium mb-1">Configuración Global</label>
-        <textarea
-          v-model="form.globalConfig"
-          rows="5"
-          class="w-full border rounded p-2"
-          placeholder="JSON o configuración avanzada"
-        ></textarea>
-      </div>
-    </section>
-
-    <!-- Botón guardar -->
-    <div>
-      <button
-        @click="saveConfig"
-        :disabled="loading"
-        class="btn-primary w-full py-3 rounded text-white font-semibold"
-      >
-        <span v-if="loading">{{ $t('config.saving') }}</span>
-        <span v-else>{{ $t('config.saveChanges') }}</span>
-      </button>
+        <!-- Submit -->
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            :disabled="loading"
+            class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition"
+          >
+            <span v-if="loading">⏳ {{ $t('config.saving') }}</span>
+            <span v-else>💾 {{ $t('config.saveChanges') }}</span>
+          </button>
+        </div>
+      </form>
     </div>
 
-    <!-- Modal cambio contraseña -->
     <ChangePasswordModal
       v-if="showChangePassword"
       @close="showChangePassword = false"
@@ -94,12 +119,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import api from '@/axio'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
-
-
 import { useI18n } from 'vue-i18n'
 
 const authStore = useAuthStore()
@@ -107,15 +130,22 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const showChangePassword = ref(false)
-
 const user = ref(null)
-const form = ref({
+
+const form = reactive({
   name: '',
   email: '',
   phone: '',
   language: 'es',
   theme: 'light',
   notifications: true,
+  globalConfig: ''
+})
+
+const errors = reactive({
+  name: '',
+  email: '',
+  phone: '',
   globalConfig: ''
 })
 
@@ -132,50 +162,54 @@ const themes = [
 
 const isAdmin = computed(() => user.value?.role === 'admin')
 
+const validate = () => {
+  let valid = true
+  errors.name = form.name ? '' : 'El nombre es obligatorio'
+  errors.email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) ? '' : 'Email inválido'
+  errors.phone = !form.phone || /^\+?\d{7,15}$/.test(form.phone) ? '' : 'Teléfono inválido'
+
+  if (form.globalConfig) {
+    try {
+      JSON.parse(form.globalConfig)
+      errors.globalConfig = ''
+    } catch {
+      errors.globalConfig = 'JSON inválido'
+      valid = false
+    }
+  }
+
+  return valid && !Object.values(errors).some(e => e)
+}
+
 const fetchProfile = async () => {
   try {
     const { data } = await api.get('/profile', {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
     user.value = data.user || {}
-
-    form.value.name = user.value.name || ''
-    form.value.email = user.value.email || ''
-    form.value.phone = user.value.phone || ''
-    form.value.language = user.value.language || 'es'
-    form.value.theme = user.value.theme || 'light'
-    form.value.notifications = user.value.notifications ?? true
-    form.value.globalConfig = user.value.globalConfig || ''
-  } catch (err) {
-    console.error(err)
+    Object.assign(form, {
+      name: user.value.name || '',
+      email: user.value.email || '',
+      phone: user.value.phone || '',
+      language: user.value.language || 'es',
+      theme: user.value.theme || 'light',
+      notifications: user.value.notifications ?? true,
+      globalConfig: user.value.globalConfig || ''
+    })
+  } catch {
     Swal.fire(t('error'), t('config.loadFailed'), 'error')
   }
 }
 
 const saveConfig = async () => {
+  if (!validate()) return
   loading.value = true
-
   try {
-    const payload = {
-      name: form.value.name,
-      email: form.value.email,
-      phone: form.value.phone,
-      language: form.value.language,
-      theme: form.value.theme,
-      notifications: form.value.notifications,
-      globalConfig: form.value.globalConfig
-    }
-
-    await api.post('/profile/update', payload, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-        'Content-Type': 'application/json'
-      }
+    await api.post('/profile/update', form, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
     })
-
     Swal.fire(t('success'), t('config.saved'), 'success')
-  } catch (err) {
-    console.error(err)
+  } catch {
     Swal.fire(t('error'), t('config.saveFailed'), 'error')
   } finally {
     loading.value = false
@@ -193,25 +227,3 @@ const onPasswordChanged = () => {
 
 onMounted(fetchProfile)
 </script>
-
-<style scoped>
-.btn-primary {
-  background-color: #2563eb;
-  transition: background-color 0.3s ease;
-}
-.btn-primary:hover {
-  background-color: #1e40af;
-}
-
-.btn-secondary {
-  background-color: #f97316;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-.btn-secondary:hover {
-  background-color: #c2410c;
-}
-</style>

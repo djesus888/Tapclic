@@ -1,202 +1,84 @@
 <template>
   <div class="dashboard-user p-4">
     <!-- Pestañas -->
-    <div
-      class="mb-6 border-b border-gray-300 bg-white sticky top-16 z-20"
-      style="padding-bottom: 0.25rem;"
-    >
-      <nav
-        class="flex space-x-2 justify-center max-w-md mx-auto"
-        role="tablist"
-        aria-label="Tabs"
-      >
-        <button
-          role="tab"
-          :aria-selected="selectedTab === 'services'"
-          :tabindex="selectedTab === 'services' ? 0 : -1"
-          aria-controls="panel-services"
-          @click="selectedTab = 'services'"
-          :class="tabClass('services')"
-        >
+    <div class="mb-6 border-b border-gray-300 bg-white sticky top-16 z-20" style="padding-bottom: 0.25rem;">
+      <nav class="flex space-x-2 justify-center max-w-md mx-auto" role="tablist" aria-label="Tabs">
+        <button role="tab" :aria-selected="selectedTab === 'services'" :tabindex="selectedTab === 'services' ? 0 : -1" aria-controls="panel-services" @click="selectedTab = 'services'" :class="tabClass('services')">
           {{ $t('services') }}
         </button>
-        <button
-          role="tab"
-          :aria-selected="selectedTab === 'activeRequests'"
-          :tabindex="selectedTab === 'activeRequests' ? 0 : -1"
-          aria-controls="panel-activeRequests"
-          @click="selectedTab = 'activeRequests'"
-          :class="tabClass('activeRequests')"
-        >
+        <button role="tab" :aria-selected="selectedTab === 'activeRequests'" :tabindex="selectedTab === 'activeRequests' ? 0 : -1" aria-controls="panel-activeRequests" @click="selectedTab = 'activeRequests'" :class="tabClass('activeRequests')">
           {{ $t('active') }}
         </button>
-        <button
-          role="tab"
-          :aria-selected="selectedTab === 'support'"
-          :tabindex="selectedTab === 'support' ? 0 : -1"
-          aria-controls="panel-support"
-          @click="selectedTab = 'support'"
-          :class="tabClass('support')"
-        >
+        <button role="tab" :aria-selected="selectedTab === 'support'" :tabindex="selectedTab === 'support' ? 0 : -1" aria-controls="panel-support" @click="selectedTab = 'support'" :class="tabClass('support')">
           {{ $t('support') }}
         </button>
-        <button
-          role="tab"
-          :aria-selected="selectedTab === 'history'"
-          :tabindex="selectedTab === 'history' ? 0 : -1"
-          aria-controls="panel-history"
-          @click="selectedTab = 'history'"
-          :class="tabClass('history')"
-        >
+        <button role="tab" :aria-selected="selectedTab === 'history'" :tabindex="selectedTab === 'history' ? 0 : -1" aria-controls="panel-history" @click="selectedTab = 'history'" :class="tabClass('history')">
           {{ $t('history') }}
         </button>
       </nav>
     </div>
 
     <!-- Contenido pestañas -->
-    <div
-      id="panel-services"
-      role="tabpanel"
-      v-if="selectedTab === 'services'"
-      aria-labelledby="tab-services"
-    >
+    <div id="panel-services" role="tabpanel" v-if="selectedTab === 'services'" aria-labelledby="tab-services">
       <div v-if="loading" class="text-center py-10">{{ $t('loading') }}...</div>
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-for="service in services"
-          :key="service.id"
-          class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition"
-          @click="openServiceDetails(service)"
-        >
+        <div v-for="service in services" :key="service.id" class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition" @click="openServiceDetails(service)">
           <div class="p-4 flex justify-between items-start bg-gray-100">
             <div>
               <h2 class="font-bold text-lg">{{ sanitize(service.title) }}</h2>
-              <p class="text-sm text-gray-600">
-                {{ sanitize(service.description) }}
-              </p>
+              <p class="text-sm text-gray-600">{{ sanitize(service.description) }}</p>
             </div>
             <div class="text-right ml-4">
-              <p class="font-semibold">
-                {{ formatDate(service.created_at) }}
-              </p>
-              <span
-                :class="
-                  service.isAvailable === 1 && service.status === 'active'
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                "
-                class="text-xs font-medium"
-              >
-                {{
-                  service.isAvailable === 1 && service.status === 'active'
-                    ? $t('available')
-                    : $t('not_available')
-                }}
+              <p class="font-semibold">{{ formatDate(service.created_at) }}</p>
+              <span :class="service.isAvailable === 1 && service.status === 'active' ? 'text-green-600' : 'text-red-600'" class="text-xs font-medium">
+                {{ service.isAvailable === 1 && service.status === 'active' ? $t('available') : $t('not_available') }}
               </span>
             </div>
           </div>
           <div class="p-4 flex justify-between items-center bg-white">
             <div class="flex items-center gap-3">
-              <img
-                :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'"
-                :alt="service.provider?.name || 'Ads'"
-                class="w-10 h-10 rounded-full object-cover"
-              />
+              <img :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
               <div>
-                <p class="font-semibold">
-                  {{ sanitize(service.provider?.name || 'Desconocido') }}
-                </p>
-                <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">
-                  ⭐ {{ service.provider.rating }}
-                </p>
+                <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
+                <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-lg font-bold text-primary">
-                $ {{ service.price }}
-              </span>
+              <span class="text-lg font-bold text-primary">$ {{ service.price }}</span>
             </div>
           </div>
         </div>
       </div>
-      <div v-if="!loading && services.length === 0" class="text-center text-gray-500 py-10">
-        {{ $t('no_services_available') }}
-      </div>
+      <div v-if="!loading && services.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_services_available') }}</div>
     </div>
 
     <!-- ACTIVE REQUESTS -->
-    <div
-      id="panel-activeRequests"
-      role="tabpanel"
-      v-if="selectedTab === 'activeRequests'"
-      aria-labelledby="tab-activeRequests"
-    >
-      <div v-if="activeRequestsLoading" class="text-center py-10">
-        {{ $t('loading') }}...
-      </div>
+    <div id="panel-activeRequests" role="tabpanel" v-if="selectedTab === 'activeRequests'" aria-labelledby="tab-activeRequests">
+      <div v-if="activeRequestsLoading" class="text-center py-10">{{ $t('loading') }}...</div>
       <div v-else>
-        <div
-          v-if="activeRequests.length === 0"
-          class="text-center text-gray-500 py-10"
-        >
-          {{ $t('no_active_requests') }}
-        </div>
+        <div v-if="activeRequests.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_active_requests') }}</div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div
-            v-for="request in activeRequests"
-            :key="request.id"
-            class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition"
-            @click="openLiveTracking(request)"
-          >
+          <div v-for="request in activeRequests" :key="request.id" class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition" @click="openLiveTracking(request)">
             <div class="p-4 flex justify-between items-start bg-gray-100">
               <div>
-                <h2 class="font-bold text-lg">
-                  {{ sanitize(request.service_title || 'Servicio Activo') }}
-                </h2>
-                <p class="text-sm text-gray-600">
-                  {{ sanitize(request.service_description || '-') }}
-                </p>
+                <h2 class="font-bold text-lg">{{ sanitize(request.service_title || 'Servicio Activo') }}</h2>
+                <p class="text-sm text-gray-600">{{ sanitize(request.service_description || '-') }}</p>
               </div>
               <div class="text-right ml-4">
-                <p class="font-semibold">
-                  {{ formatDate(request.created_at) }}
-                </p>
-                <span
-                  :class="
-                    request.status === 'accepted'
-                      ? 'text-green-600'
-                      : 'text-yellow-600'
-                  "
-                  class="text-xs font-medium"
-                >
-                  {{
-                    request.status === 'accepted'
-                      ? $t('accepted')
-                      : $t('pending')
-                  }}
-                </span>
+                <p class="font-semibold">{{ formatDate(request.created_at) }}</p>
+                <span :class="statusColor(request.status)" class="text-xs font-medium">{{ statusLabel(request.status) }}</span>
               </div>
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <div class="flex items-center gap-3">
-                <img
-                  :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'"
-                  :alt="request.service_name || 'Ads'"
-                  class="w-10 h-10 rounded-full object-cover"
-                />
+                <img :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
                 <div>
-                  <p class="font-semibold">
-                    {{ sanitize(request.service_provider_name || 'Ads') }}
-                  </p>
-                  <p v-if="request.provider_rating" class="text-yellow-500 text-sm">
-                    ⭐ {{ request.provider_rating }}
-                  </p>
+                  <p class="font-semibold">{{ sanitize(request.service_provider_name || 'Ads') }}</p>
+                  <p v-if="request.provider_rating" class="text-yellow-500 text-sm">⭐ {{ request.provider_rating }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-lg font-bold text-primary">
-                  $ {{ request.service_price || '-' }}
-                </span>
+                <span class="text-lg font-bold text-primary">$ {{ request.service_price || '-' }}</span>
               </div>
             </div>
           </div>
@@ -205,150 +87,56 @@
     </div>
 
     <!-- SOPORTE -->
-    <div
-      id="panel-support"
-      role="tabpanel"
-      v-if="selectedTab === 'support'"
-      aria-labelledby="tab-support"
-      class="p-4"
-    >
-      <!-- FAQ -->
-      <div v-if="faqLoading" class="text-center py-10">
-        {{ $t('loading') }}…
-      </div>
+    <div id="panel-support" role="tabpanel" v-if="selectedTab === 'support'" aria-labelledby="tab-support" class="p-4">
+      <div v-if="faqLoading" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else class="mb-8">
-        <h2 class="text-xl font-semibold mb-4">
-          {{ $t('faq') }}
-        </h2>
+        <h2 class="text-xl font-semibold mb-4">{{ $t('faq') }}</h2>
         <div class="space-y-2">
-          <details
-            v-for="(item, idx) in faqItems"
-            :key="idx"
-            class="bg-white rounded-md shadow px-4 py-2"
-          >
-            <summary class="cursor-pointer font-medium text-left">
-              {{ sanitize(item.question) }}
-            </summary>
-            <p class="text-sm text-gray-600 mt-2">
-              {{ sanitize(item.answer) }}
-            </p>
+          <details v-for="(item, idx) in faqItems" :key="idx" class="bg-white rounded-md shadow px-4 py-2">
+            <summary class="cursor-pointer font-medium text-left">{{ sanitize(item.question) }}</summary>
+            <p class="text-sm text-gray-600 mt-2">{{ sanitize(item.answer) }}</p>
           </details>
         </div>
       </div>
-
-      <!-- Botón contactar con soporte -->
       <div class="text-center">
-        <button
-          @click="openSupportChat"
-          class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700"
-        >
-          💬 {{ $t('contact_support') }}
-        </button>
+        <button @click="openSupportChat" class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700">💬 {{ $t('contact_support') }}</button>
       </div>
-
-      <!-- Tickets -->
-      <div v-if="supportLoading" class="text-center py-10 mt-8">
-        {{ $t('loading') }}…
-      </div>
+      <div v-if="supportLoading" class="text-center py-10 mt-8">{{ $t('loading') }}…</div>
       <div v-else class="mt-8">
-        <h2 class="text-xl font-semibold mb-4">
-          {{ $t('my_tickets') }}
-        </h2>
-        <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">
-          {{ $t('no_support_tickets') }}
-        </div>
+        <h2 class="text-xl font-semibold mb-4">{{ $t('my_tickets') }}</h2>
+        <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_support_tickets') }}</div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div
-            v-for="ticket in tickets"
-            :key="ticket.id"
-            class="card shadow rounded-lg overflow-hidden"
-          >
+          <div v-for="ticket in tickets" :key="ticket.id" class="card shadow rounded-lg overflow-hidden">
             <div class="p-4 bg-gray-100">
-              <h2 class="font-bold text-lg truncate">
-                {{ sanitize(ticket.subject) }}
-              </h2>
-              <p class="text-sm text-gray-600 truncate">
-                {{ sanitize(ticket.last_message) }}
-              </p>
+              <h2 class="font-bold text-lg truncate">{{ sanitize(ticket.subject) }}</h2>
+              <p class="text-sm text-gray-600 truncate">{{ sanitize(ticket.last_message) }}</p>
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
-              <span :class="statusColor(ticket.status)">
-                {{ statusLabel(ticket.status) }}
-              </span>
-              <span class="text-sm text-gray-500">
-                {{ formatDate(ticket.updated_at) }}
-              </span>
+              <span :class="statusColor(ticket.status)">{{ statusLabel(ticket.status) }}</span>
+              <span class="text-sm text-gray-500">{{ formatDate(ticket.updated_at) }}</span>
             </div>
           </div>
         </div>
-        <button
-          v-if="!showNewTicket"
-          @click="showNewTicket = true"
-          class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
-          :title="$t('new_ticket')"
-        >
-          +
-        </button>
-        <NewTicketModal
-          v-if="showNewTicket"
-          :is-open="showNewTicket"
-          @close="showNewTicket = false"
-          @ticket-created="onTicketCreated"
-        />
+        <button v-if="!showNewTicket" @click="showNewTicket = true" class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl" :title="$t('new_ticket')">+</button>
+        <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket" @close="showNewTicket = false" @ticket-created="onTicketCreated" />
       </div>
     </div>
 
     <!-- HISTORIAL -->
-    <div
-      id="panel-history"
-      role="tabpanel"
-      v-if="selectedTab === 'history'"
-      aria-labelledby="tab-history"
-      class="p-4"
-    >
-      <div v-if="historyLoading" class="text-center py-10">
-        {{ $t('loading') }}...
-      </div>
+    <div id="panel-history" role="tabpanel" v-if="selectedTab === 'history'" aria-labelledby="tab-history" class="p-4">
+      <div v-if="historyLoading" class="text-center py-10">{{ $t('loading') }}...</div>
       <div v-else>
-        <div v-if="history.length === 0" class="text-center text-gray-500 py-10">
-          {{ $t('no_history') }}
-        </div>
+        <div v-if="history.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_history') }}</div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div
-            v-for="item in history"
-            :key="item.id"
-            class="card shadow rounded-lg overflow-hidden"
-          >
+          <div v-for="item in history" :key="item.id" class="card shadow rounded-lg overflow-hidden">
             <div class="p-4 bg-gray-100">
-              <h2 class="font-bold text-lg">
-                {{ sanitize(item.service_title || item.title) }}
-              </h2>
-              <p class="text-sm text-gray-600">
-                {{ $t('provider') }}:
-                {{ sanitize(item.provider_name || item.providerName) }}
-              </p>
-              <p class="text-sm text-gray-600">
-                {{ $t('date') }}:
-                {{
-                  formatDate(
-                    item.completed_at || item.created_at
-                  )
-                }}
-              </p>
+              <h2 class="font-bold text-lg">{{ sanitize(item.service_title || item.title) }}</h2>
+              <p class="text-sm text-gray-600">{{ $t('provider') }}: {{ sanitize(item.provider_name || item.providerName) }}</p>
+              <p class="text-sm text-gray-600">{{ $t('date') }}: {{ formatDate(item.completed_at || item.created_at) }}</p>
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
-              <span :class="statusColor(item.status)">
-                {{ statusLabel(item.status) }}
-              </span>
-              <span class="text-lg font-bold text-primary">
-                ${{
-                  Number(
-                    item.service_price ||
-                    item.price ||
-                    0
-                  ).toFixed(2)
-                }}
-              </span>
+              <span :class="statusColor(item.status)">{{ statusLabel(item.status) }}</span>
+              <span class="text-lg font-bold text-primary">${{ Number(item.service_price || item.price || 0).toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -356,52 +144,14 @@
     </div>
 
     <!-- Modales -->
-    <ServiceDetailsModal
-      v-if="modalService"
-      :is-open="showServiceDetails"
-      :request="modalService"
-      @on-request-service="goToRequestConfirmation"
-      @on-open-change="(val) => (showServiceDetails = val)"
-      @on-start-chat="openChat"
-    />
-    <ChatRoomModal
-      v-if="chatTarget"
-      :target="chatTarget"
-      @close="chatTarget = null"
-    />
-    <RequestConfirmationModal
-      v-if="modalService"
-      :is-open="showRequestConfirmation"
-      @confirm="onConfirmRequest"
-      @on-open-change="(val) => (showRequestConfirmation = val)"
-    />
-    <ProviderContactModal
-      v-if="showProviderContact && modalService"
-      ref="providerContactModal"
-      :is-open="showProviderContact"
-      :provider-name="modalService.provider?.name"
-      :request-id="modalService.requestId"
-      @on-provider-response="onProviderResponse"
-      @cancel="resetFlow"
-      @openPayment="openPaymentModal"
-      @retry-request="handleRetry"
-    />
-    <PaymentModal
-      v-if="modalService"
-      v-model:isOpen="showPayment"
-      :is-open="showPayment"
-      :request="modalService"
-      @on-payment-submit="handlePaymentSubmit"
-      @on-open-change="(val) => (showPayment = val)"
-    />
+    <ServiceDetailsModal v-if="modalService" :is-open="showServiceDetails" :request="modalService" @on-request-service="goToRequestConfirmation" @on-open-change="(val) => (showServiceDetails = val)" @on-start-chat="openChat" />
+    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
+    <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
+    <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId" @on-provider-response="onProviderResponse" @cancel="resetFlow" @openPayment="openPaymentModal" @retry-request="handleRetry" />
+    <PaymentModal v-if="modalService" v-model:isOpen="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
 
     <!-- LiveOrderTracking -->
-    <LiveOrderTracking
-      v-if="showLiveTracking"
-      :order="liveOrder"
-      @close="showLiveTracking = false"
-      @open-chat="openChat"
-    />
+    <LiveOrderTracking v-if="showLiveTracking" :order="liveOrder" @close="showLiveTracking = false" @open-chat="openChat" />
   </div>
 </template>
 
@@ -488,7 +238,41 @@ export default {
       }
     },
     normalizeService(s) {
-      const p = s.provider && typeof s.provider === 'object' ? s.provider : {}
+      const p = s.provider && typeof s.provider === 'object' ? s.provider : {};
+      let paymentInfo = {};
+
+      try {
+        const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || [];
+        methods.forEach(m => {
+          if (m.method_type === 'pago_movil') {
+            paymentInfo.pagoMovil = {
+              banco: m.bank_name,
+              telefono: m.phone_number,
+              cedula: m.id_number,
+            };
+          }
+          if (m.method_type === 'transferencia') {
+            paymentInfo.transferencia = {
+              banco: m.bank_name,
+              cuenta: m.account_number,
+              cedula: m.id_number,
+            };
+          }
+          if (m.method_type === 'paypal') {
+            paymentInfo.paypal = {
+              email: m.email,
+            };
+          }
+          if (m.method_type === 'zelle') {
+            paymentInfo.zelle = {
+              email: m.email,
+            };
+          }
+        });
+      } catch (e) {
+        console.warn("Error parseando payment_methods:", e);
+      }
+
       return {
         ...s,
         provider: {
@@ -496,8 +280,9 @@ export default {
           name: p.name || s.provider_name || '—',
           avatar_url: p.avatar_url || s.provider_avatar_url || '',
           rating: p.rating ?? s.provider_rating ?? null,
+          paymentInfo: Object.keys(paymentInfo).length ? paymentInfo : undefined,
         },
-      }
+      };
     },
     buildPath(resource) {
       const base = api.defaults?.baseURL || ''
@@ -512,11 +297,7 @@ export default {
         const res = await api.get(this.buildPath('services'), {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
         })
-        const raw = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.services)
-          ? res.data.services
-          : []
+        const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.services) ? res.data.services : []
         this.services = raw.map((s) => this.normalizeService(s))
       } catch (err) {
         console.error(err)
@@ -532,14 +313,8 @@ export default {
         const res = await api.get(this.buildPath('requests/active'), {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
         })
-        const requests = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.requests)
-          ? res.data.requests
-          : Array.isArray(res.data?.data)
-          ? res.data.data
-          : []
-        this.activeRequests = requests
+        const requests = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.requests) ? res.data.requests : Array.isArray(res.data?.data) ? res.data.data : []
+        this.activeRequests = requests.map(r => this.normalizeService(r))
         if (requests.length > 0 && this.activeRequests.length < requests.length) {
           this.notificationSound.play().catch(() => {})
         }
@@ -606,8 +381,7 @@ export default {
       try {
         const authStore = useAuthStore()
         const serviceId = this.modalService?.id
-        const providerId =
-          this.modalService?.provider?.id || this.modalService?.user_id
+        const providerId = this.modalService?.provider?.id || this.modalService?.user_id
         if (!serviceId || !providerId) return
         const payload = {
           service_id: serviceId,
@@ -616,15 +390,10 @@ export default {
           payment_method: 'efectivo',
           additional_details: specDetails || '',
         }
-        const res = await api.post(
-          this.buildPath('requests/create'),
-          payload,
-          {
-            headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
-          }
-        )
-        if (!res.data?.success)
-          throw new Error(res.data?.error || 'No se pudo crear la solicitud')
+        const res = await api.post(this.buildPath('requests/create'), payload, {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud')
         this.modalService.requestId = res.data.requestId
         this.modalService.status = res.data.status || 'pending'
         this.lastSpecDetails = specDetails
@@ -639,11 +408,7 @@ export default {
         })
       } catch (err) {
         console.error(err)
-        this.$swal?.fire({
-          icon: 'error',
-          title: this.$t('error') || 'Error',
-          text: err.message,
-        })
+        this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
       }
     },
     async onProviderResponse(status) {
@@ -653,25 +418,25 @@ export default {
       } else {
         const { isConfirmed } = await this.$swal.fire({
           icon: status === 'rejected' ? 'error' : 'warning',
-          title:
-            status === 'rejected'
-              ? this.$t('request_rejected')
-              : this.$t('provider_busy'),
+          title: status === 'rejected' ? this.$t('request_rejected') : this.$t('provider_busy'),
           showCancelButton: true,
           confirmButtonText: this.$t('try_again'),
           cancelButtonText: this.$t('cancel'),
         })
         if (isConfirmed) {
           this.showRequestConfirmation = true
-          this.$nextTick(() => {
-            this.onConfirmRequest(this.lastSpecDetails)
-          })
+          this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
         } else {
           this.resetFlow()
         }
       }
     },
     openPaymentModal() {
+      const current = this.activeRequests.find(r => r.id === this.modalService.requestId);
+      if (current) {
+        this.modalService = this.normalizeService({ ...this.modalService, ...current });
+        console.log("📦 Datos enviados al modal:", this.modalService);
+      }
       this.showServiceDetails = false
       this.showRequestConfirmation = false
       this.showProviderContact = false
@@ -684,22 +449,14 @@ export default {
     handlePaymentSubmit(method) {
       if (!this.modalService?.requestId) return
       this.resetFlow()
-      this.$swal.fire({
-        icon: 'success',
-        title: this.$t('payment_completed'),
-        text: `${this.modalService?.title || ''} - ${method}`,
-        timer: 2000,
-        showConfirmButton: false,
-      })
+      this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false })
       this.fetchServices()
       this.fetchActiveRequests()
       this.fetchHistory()
     },
     handleRetry() {
       this.resetFlow()
-      this.$nextTick(() => {
-        this.onConfirmRequest(this.lastSpecDetails)
-      })
+      this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
     },
     statusLabel(status) {
       const map = {
@@ -722,50 +479,28 @@ export default {
     tabClass(tab) {
       return [
         'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
-        this.selectedTab === tab
-          ? 'bg-blue-600 text-white shadow-md'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+        this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
       ]
     },
-//    openLiveTracking(request) {
- 
-
-
-
-openLiveTracking(request) {
-  console.log("🔍 Request crudo desde activeRequests:", request);
-  console.log("📍 provider_avatar_url:", request.provider_avatar_url);
-  console.log("📍 provider_address:", request.provider_address);
-  console.log("📍 service_image_url:", request.service_image_url);
-
-
-
-
-
-
- console.log("Request desde activeRequests:", request);
-
-  this.liveOrder = {
-    id: request.id,
-    serviceName: request.service_title || 'Servicio',
-    description: request.service_description || 'Sin descripción',
-    price: request.service_price || 0,
-    payment_method: request.payment_method || 'Efectivo',
-    created_at: request.created_at || request.date,
-    address: request.provider_address || 'No especificada',
-    provider: {
-      name: request.service_provider_name || 'Proveedor',
-      avatar_url: request.provider_avatar_url
-        ? `http://localhost:8000${request.provider_avatar_url}`
-        : '/img/default-provider.png',
-      rating: request.provider_rating || null,
-      phone: request.provider_phone || null,
-      current_address: request.provider_address || 'No especificada',
+    openLiveTracking(request) {
+      this.liveOrder = {
+        id: request.id,
+        serviceName: request.service_title || 'Servicio',
+        description: request.service_description || 'Sin descripción',
+        price: request.service_price || 0,
+        payment_method: request.payment_method || 'Efectivo',
+        created_at: request.created_at || request.date,
+        address: request.provider_address || 'No especificada',
+        provider: {
+          name: request.service_provider_name || 'Proveedor',
+          avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+          rating: request.provider_rating || null,
+          phone: request.provider_phone || null,
+          current_address: request.provider_address || 'No especificada',
+        },
+      };
+      this.showLiveTracking = true;
     },
-  };
-
-  this.showLiveTracking = true;
-} ,
   },
   computed: {
     notifications() {
@@ -784,6 +519,13 @@ openLiveTracking(request) {
         this.fetchFaq()
       }
       if (tab === 'history') this.fetchHistory()
+    },
+    notifications(newVal) {
+      const last = newVal[0]
+      if (last?.event === 'status_changed') {
+        const req = this.activeRequests.find(r => r.id === last.request_id)
+        if (req) req.status = last.status
+      }
     },
   },
   mounted() {

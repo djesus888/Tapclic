@@ -86,15 +86,41 @@ public function create(array $data): bool
         return $stmt->execute([$id, $userId]);
     }
 
-    public function getAvailable($userId) {
-        $stmt = $this->conn->prepare(
-            "SELECT * FROM {$this->table} 
-             WHERE user_id != ? 
-             AND status = 'active' 
-             AND isAvailable = 1 
-             ORDER BY created_at DESC"
-        );
-        $stmt->execute([$userId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+
+public function getAvailable($userId): array
+{
+    $query = "
+        SELECT
+            s.*,
+            u.avatar_url  AS provider_avatar_url,
+            u.address     AS provider_address,
+            u.phone       AS provider_phone,
+            (
+                SELECT JSON_ARRAYAGG(
+                    JSON_OBJECT(
+                        'method_type',    ppm.method_type,
+                        'bank_name',      ppm.bank_name,
+                        'holder_name',    ppm.holder_name,
+                        'id_number',      ppm.id_number,
+                        'phone_number',   ppm.phone_number,
+                        'account_number', ppm.account_number,
+                        'email',          ppm.email
+                    )
+                )
+                FROM provider_payment_methods ppm
+                WHERE ppm.provider_id = s.user_id   -- dueño del servicio
+                  AND ppm.is_active   = 1
+                  AND ppm.method_type IN ('pago_movil','transferencia','paypal','zelle','binance')
+            ) AS payment_methods
+        FROM {$this->table} s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.status     = 'active'
+          AND s.isAvailable = 1
+        ORDER BY s.created_at DESC
+    ";
+
+    $stmt = $this->conn->prepare($query);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 }

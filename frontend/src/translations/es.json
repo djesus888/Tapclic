@@ -32,7 +32,9 @@
     "error": "Error"
   },
   "conversations": "Conversaciones",
-  "confirm": "Confirmar",
+  "confirm": {
+    "delete": "¿Eliminar este método?"
+  },
   "confirmServiceRequest": "Confirmar solicitud de servicio",
   "confirm_password": "Confirmar contraseña",
   "contact_support": "Contactar soporte",
@@ -171,5 +173,57 @@
   "user": "Usuario",
   "wallet": "Billetera",
   "welcome": "Bienvenido a TapClic",
-  "your_services": "Tus servicios"
+  "your_services": "Tus servicios",
+  "actions": {
+    "add": "Agregar",
+    "update": "Actualizar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "cancel": "Cancelar"
+  },
+  "errors": {
+    "load": "Error al cargar",
+    "save": "Error al guardar",
+    "delete": "Error al eliminar",
+    "toggle": "Error al cambiar estado"
+  },
+  "validations": {
+    "holderRequired": "Titular obligatorio",
+    "idRequired": "CI/RIF obligatorio",
+    "max20": "Máx 20 caracteres",
+    "max50": "Máx 50 caracteres",
+    "invalidEmail": "Email inválido"
+  },
+  "methods": {
+    "pagoMovil": "Pago Móvil",
+    "transferencia": "Transferencia",
+    "zelle": "Zelle",
+    "paypal": "PayPal",
+    "binance": "Binance"
+  },
+  "paymentMethods": {
+    "title": "Mis Métodos de Pago",
+    "type": "Tipo",
+    "holder": "Titular",
+    "idNumber": "CI/RIF",
+    "phone": "Teléfono",
+    "bank": "Banco",
+    "account": "Cuenta",
+    "active": "Activo",
+    "id": "CI",
+    "empty": "No hay métodos registrados"
+},
+"wallet": {
+  "title": "Mi Billetera",
+  "currentBalance": "Saldo actual",
+  "recharge": "Recargar",
+  "withdraw": "Retirar",
+  "rechargeTitle": "Recargar billetera",
+  "withdrawTitle": "Retirar fondos",
+  "noDescription": "Sin descripción",
+  "enterAmount": "Introduce el monto",
+  "operationSuccess": "Operación completada",
+  "loadFailed": "No se pudo cargar la billetera",
+  "invalidAmount": "Introduce un monto válido"
+  }
 }

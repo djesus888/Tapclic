@@ -175,9 +175,10 @@
           <!-- Proveedor -->
           <template v-else-if="authStore.user?.role === 'provider'">
             <RouterLink to="/" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📊 {{ $t('dashboard') }}</RouterLink>
-            <RouterLink to="/routes" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛣️ {{ $t('myRoutes') }}</RouterLink>
+            <RouterLink to="/routes" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛣️ {{ $t('my Routes') }}</RouterLink>
             <RouterLink to="/services" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('myServices') }}</RouterLink>
             <RouterLink to="/services/new" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">➕ {{ $t('addService') }}</RouterLink>
+            <RouterLink to="/payment" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">➕ {{ $t('payment_method') }}</RouterLink>
             <RouterLink to="/earnings" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📈 {{ $t('myEarnings') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛡️ {{ $t('profile') }}</RouterLink>
@@ -188,10 +189,10 @@
           <!-- Administrador -->
           <template v-else-if="authStore.user?.role === 'admin'">
             <RouterLink to="/dashboard" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🔑 {{ $t('adminDashboard') }}</RouterLink>
-            <RouterLink to="/users" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">👥 {{ $t('manageUsers') }}</RouterLink>
-            <RouterLink to="/drivers" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛡️ {{ $t('manageProviders') }}</RouterLink>
-            <RouterLink to="/services" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('manageServices') }}</RouterLink>
-            <RouterLink to="/reports" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📊 {{ $t('reports') }}</RouterLink>
+            <RouterLink to="/admin/users" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">👥 {{ $t('manageUsers') }}</RouterLink>
+            <RouterLink to="/provider" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛡️ {{ $t('manageProviders') }}</RouterLink>
+            <RouterLink to="/admin/services" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('manageServices') }}</RouterLink>
+            <RouterLink to="/admin/reports" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📊 {{ $t('reports') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">👤 {{ $t('profile') }}</RouterLink>
             <RouterLink to="/wallet" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💰 {{ $t('wallet') }}</RouterLink>

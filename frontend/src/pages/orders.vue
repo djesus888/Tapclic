@@ -30,6 +30,10 @@
           <div>
             <p class="font-semibold">{{ order.service_name }}</p>
             <p class="text-sm text-gray-500">{{ order.provider_name }}</p>
+            <!-- ✅ STATUS VISIBLE Y ACTUALIZADO -->
+            <p :class="statusColor(order.status)" class="text-xs font-medium mt-1">
+              {{ statusLabel(order.status) }}
+            </p>
           </div>
           <div class="flex space-x-2 mt-2 sm:mt-0">
             <button
@@ -88,17 +92,19 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import api from '@/axio'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'
+import { useSocketStore } from '@/stores/socketStore'
 
 export default {
   name: 'Orders',
   setup() {
     const authStore = useAuthStore()
     const { t } = useI18n()
+    const socketStore = useSocketStore()
 
     const activeOrders = ref([])
     const historyOrders = ref([])
@@ -106,19 +112,77 @@ export default {
     const isModalOpen = ref(false)
     const selectedOrder = ref(null)
 
-    const fetchOrders = async () => {
-      try {
-        const { data } = await api.get('/orders', {
-          headers: { Authorization: `Bearer ${authStore.token}` }
-        })
-        activeOrders.value = data.active || []
-        historyOrders.value = data.history || []
-      } catch (err) {
-        console.error('Error al obtener pedidos:', err)
-        Swal.fire(t('orders.error'), t('orders.loadFailed'), 'error')
+    // ✅ STATUS FUNCTIONS
+    const statusLabel = (status) => {
+      const map = {
+        pending: t('orders.pending') || 'Pendiente',
+        accepted: t('orders.accepted') || 'Aceptada',
+        in_progress: t('orders.inProgress') || 'En progreso',
+        on_the_way: t('orders.onTheWay') || 'En camino',
+        arrived: t('orders.arrived') || 'Llegó',
+        completed: t('orders.completed') || 'Completada',
+        cancelled: t('orders.cancelled') || 'Cancelada',
       }
+      return map[status] || status
     }
 
+    const statusColor = (status) => {
+      const map = {
+        pending: 'text-yellow-600',
+        accepted: 'text-green-600',
+        in_progress: 'text-blue-600',
+        on_the_way: 'text-indigo-600',
+        arrived: 'text-purple-600',
+        completed: 'text-green-700',
+        cancelled: 'text-red-600',
+      }
+      return map[status] || 'text-gray-600'
+    }
+
+    // ✅ FETCH ORDERS
+    const fetchOrders = async () => {
+  try {
+    const authStore = useAuthStore()
+    
+    // ✅ Pedidos activos
+    const activeRes = await api.get('/api/requests/active', {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    const activeRaw = Array.isArray(activeRes.data)
+      ? activeRes.data
+      : activeRes.data?.requests || activeRes.data?.data || []
+    
+    // ✅ Historial
+    const historyRes = await api.get('/api/requests/history', {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    const historyRaw = Array.isArray(historyRes.data)
+      ? historyRes.data
+      : historyRes.data?.data || []
+
+    // ✅ Mapea al formato que espera orders.vue
+    activeOrders.value = activeRaw.map(r => ({
+      id: r.id,
+      service_name: r.service_title || 'Servicio',
+      provider_name: r.service_provider_name || 'Proveedor',
+      status: r.status || 'pending'
+    }))
+
+    historyOrders.value = historyRaw.map(r => ({
+      id: r.id,
+      service_name: r.service_title || 'Servicio',
+      provider_name: r.service_provider_name || 'Proveedor',
+      status: r.status || 'completed',
+      date: r.created_at || r.date
+    }))
+
+  } catch (err) {
+    console.error('Error al obtener pedidos:', err)
+    Swal.fire(t('orders.error'), t('orders.loadFailed'), 'error')
+  }
+}
+
+    // ✅ COMPLETE ORDER
     const markAsCompleted = async (orderId) => {
       try {
         await api.post(`/orders/${orderId}/complete`, {}, {
@@ -132,6 +196,7 @@ export default {
       }
     }
 
+    // ✅ CHAT & MODAL
     const startChat = (providerName) => {
       window.location.href = `/chat/${encodeURIComponent(providerName)}`
     }
@@ -140,6 +205,19 @@ export default {
       selectedOrder.value = order
       isModalOpen.value = true
     }
+
+    // ✅ WEBSOCKET – ACTUALIZACIÓN EN TIEMPO REAL
+    watch(
+      () => socketStore.notifications,
+      (newVal) => {
+        const last = newVal[0]
+        if (last?.event === 'status_changed') {
+          const order = activeOrders.value.find(o => o.id === last.request_id)
+          if (order) order.status = last.status
+        }
+      },
+      { deep: true }
+    )
 
     onMounted(fetchOrders)
 
@@ -150,6 +228,8 @@ export default {
       selectedTab,
       isModalOpen,
       selectedOrder,
+      statusLabel,
+      statusColor,
       markAsCompleted,
       startChat,
       openHistoryModal

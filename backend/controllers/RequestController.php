@@ -19,7 +19,7 @@ class RequestController {
     }
 
     private function emitWs($payload) {
-        $url = 'http://localhost:3001/emit';      // Puerto corregido 3001
+        $url = 'http://localhost:3001/emit';
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
@@ -58,6 +58,8 @@ class RequestController {
             $this->accept($auth);
         } elseif (preg_match('/\/api\/requests\/finalized/', $path) && $method === 'POST') {
             $this->finalized($auth);
+        } elseif (preg_match('/\/api\/requests\/arrived/', $path) && $method ==='POST') {           
+            $this->arrived($auth);
         } elseif (preg_match('/\/api\/requests\/busy/', $path) && $method === 'POST') {
             $this->busy($auth);
         } elseif (preg_match('/\/api\/requests\/active/', $path) && $method === 'GET') {
@@ -74,11 +76,45 @@ class RequestController {
             } else {
                 $this->historyUser($auth);
             }
-        } else {
+        }
+        // ➜ NUEVAS RUTAS PARA EL TIMELINE (sin tocar lo anterior)
+        elseif (preg_match('/\/api\/requests\/in_progress/', $path) && $method === 'POST') {
+            $this->in_progress($auth, 'in_progress');
+        } elseif (preg_match('/\/api\/requests\/on_the_way/', $path) && $method === 'POST') {
+            $this->on_the_way($auth, 'on_the_way');
+        } elseif (preg_match('/\/api\/requests\/completed/', $path) && $method === 'POST') {
+            $this->updateStatus($auth, 'completed');
+        }
+        else {
             echo json_encode(["error" => "Ruta no válida"]);
         }
     }
 
+    /* ---------- MÉTODO ÚNICO PARA CAMBIAR ESTADO Y EMITIR ---------- */
+    private function updateStatus($auth, string $newStatus) {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $requestId = $data['id'] ?? null;
+        if (!$requestId) {
+            echo json_encode(["success" => false, "message" => "Falta ID"]);
+            return;
+        }
+        $updated = $this->model->updateStatus($requestId, $auth->id, $newStatus);
+        $request = $this->model->getById($requestId);
+        if ($updated && $request) {
+            $this->emitWs([
+                'event'        => 'status_changed',
+                'request_id'   => (int)$requestId,
+                'status'       => $newStatus,
+                'receiver_id'  => $request['user_id'],
+                'receiver_role'=> 'user'
+            ]);
+            echo json_encode(["success" => true]);
+        } else {
+            echo json_encode(["success" => false, "message" => "No autorizado"]);
+        }
+    }
+
+    /* ---------- RESTO DE MÉTODOS (SIN CAMBIOS) ---------- */
     private function create($auth) {
         $data = json_decode(file_get_contents("php://input"), true);
         $data['user_id'] = $auth->id;
@@ -207,6 +243,151 @@ class RequestController {
         }
         echo json_encode(["success" => $updated]);
     }
+
+
+private function in_progress($auth)
+{
+    $input = json_decode(file_get_contents("php://input"), true);
+    $requestId = $input['id'] ?? null;
+
+    if (!$requestId) {
+        echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
+        return;
+    }
+
+    // Cambiar estado a "in_progress"
+    $updated = $this->model->updateStatus($requestId, $auth->id, 'in_progress');
+    $request = $this->model->getById($requestId);
+
+    if ($updated && $request) {
+        // Notificación para el usuario
+        $this->model->saveNotification([
+            'sender_id'   => $auth->id,
+            'receiver_id' => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'       => 'Servicio en progreso',
+            'message'     => 'El proveedor ha comenzado el servicio'
+        ]);
+
+        // Evento WebSocket
+        $this->emitWs([
+            'receiver_id'   => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'         => 'Servicio en progreso',
+            'message'       => 'El proveedor ha comenzado el servicio'
+        ]);
+
+        // (Opcional) también avisar al mismo provider
+        $this->emitWs([
+            'receiver_id'   => $auth->id,
+            'receiver_role' => 'provider',
+            'type'          => 'request.status_changed',
+            'request_id'    => $requestId,
+            'status'        => 'in_progress',
+            'updated_at'    => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    echo json_encode(["success" => $updated]);
+}
+
+
+private function on_the_way($auth)
+{
+    $input = json_decode(file_get_contents("php://input"), true);
+    $requestId = $input['id'] ?? null;
+
+    if (!$requestId) {
+        echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
+        return;
+    }
+
+    // Cambiar estado a "on_the_way"
+    $updated = $this->model->updateStatus($requestId, $auth->id, 'on_the_way');
+    $request = $this->model->getById($requestId);
+
+    if ($updated && $request) {
+        // Notificación para el usuario
+        $this->model->saveNotification([
+            'sender_id'   => $auth->id,
+            'receiver_id' => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'       => 'Proveedor en camino',
+            'message'     => 'El proveedor está en camino a tu ubicación'
+        ]);
+
+        // Evento WebSocket
+        $this->emitWs([
+            'receiver_id'   => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'         => 'Proveedor en camino',
+            'message'       => 'El proveedor está en camino a tu ubicación'
+        ]);
+
+        // (Opcional) también avisar al mismo provider
+        $this->emitWs([
+            'receiver_id'   => $auth->id,
+            'receiver_role' => 'provider',
+            'type'          => 'request.status_changed',
+            'request_id'    => $requestId,
+            'status'        => 'on_the_way',
+            'updated_at'    => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    echo json_encode(["success" => $updated]);
+}
+
+
+private function arrived($auth)
+{
+    $input = json_decode(file_get_contents("php://input"), true);
+    $requestId = $input['id'] ?? null;
+
+    if (!$requestId) {
+        echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
+        return;
+    }
+
+    // Cambiar estado a "arrived"
+    $updated = $this->model->updateStatus($requestId, $auth->id, 'arrived');
+    $request = $this->model->getById($requestId);
+
+    if ($updated && $request) {
+        // Notificación para el usuario
+        $this->model->saveNotification([
+            'sender_id'   => $auth->id,
+            'receiver_id' => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'       => 'Proveedor llegó',
+            'message'     => 'El proveedor ha llegado a tu ubicación'
+        ]);
+
+        // Evento WebSocket
+        $this->emitWs([
+            'receiver_id'   => $request['user_id'],
+            'receiver_role' => 'user',
+            'title'         => 'Proveedor llegó',
+            'message'       => 'El proveedor ha llegado a tu ubicación'
+        ]);
+
+        // (Opcional) también avisar al mismo provider
+        $this->emitWs([
+            'receiver_id'   => $auth->id,
+            'receiver_role' => 'provider',
+            'type'          => 'request.status_changed',
+            'request_id'    => $requestId,
+            'status'        => 'arrived',
+            'updated_at'    => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    echo json_encode(["success" => $updated]);
+}
+
+
+
+
 
     private function reject($auth) {
         $data = json_decode(file_get_contents("php://input"), true);

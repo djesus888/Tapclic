@@ -4,12 +4,7 @@
       <!-- Header -->
       <header class="bg-blue-600 text-white px-4 py-3 flex items-center shadow z-10">
         <button @click="$emit('close')" class="mr-3 p-1 rounded-full hover:bg-blue-700">
-          <svg
-            class="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -31,51 +26,65 @@
         </div>
       </div>
 
-      <!-- Bottom Sheet Swipeable -->
+      <!-- Bottom Sheet -->
       <div
         ref="sheet"
         class="bottom-sheet bg-white rounded-t-2xl shadow-lg max-h-[70vh] overflow-y-auto"
         :style="{ transform: `translateY(${translateY}px)` }"
       >
-        <!-- Drag handle -->
         <div class="drag-handle w-full h-6 flex justify-center items-center">
           <div class="w-12 h-1 bg-gray-300 rounded-full"></div>
         </div>
 
-        <!-- Contenido -->
-        <div class="p-4 space-y-3 text-sm">
-          <!-- Info del proveedor -->
-          <div class="flex items-center gap-3">
-            <img
-              :src="order.provider?.avatar_url || '/img/default-provider.png'"
-              alt="Provider"
-              class="w-12 h-12 rounded-full object-cover"
-            />
-            <div>
-              <p class="font-semibold">{{ order.provider?.name || 'Proveedor' }}</p>
-              <p v-if="order.provider?.rating" class="text-yellow-500">⭐ {{ order.provider.rating }}</p>
+        <!-- Timeline -->
+        <div class="px-4 py-3 bg-gray-50 rounded-lg mb-4">
+          <div class="flex items-center justify-between relative">
+            <div class="absolute top-5 left-0 right-0 h-1 bg-gray-300 -z-10"></div>
+            <div
+              v-for="(step, idx) in timelineSteps"
+              :key="step.key"
+              class="flex flex-col items-center z-10"
+            >
+              <div
+                class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                :class="currentStepIndex >= idx ? 'bg-green-600' : 'bg-gray-300'"
+              >
+                {{ idx + 1 }}
+              </div>
+              <span class="text-[10px] mt-1 text-center">{{ $t(step.label) }}</span>
             </div>
           </div>
+        </div>
 
+        <!-- Info proveedor -->
+        <div class="flex items-center gap-3 px-4">
+          <img
+            :src="order.provider?.avatar_url || '/img/default-provider.png'"
+            alt="Provider"
+            class="w-12 h-12 rounded-full object-cover"
+          />
           <div>
-            <strong>{{ $t('order_number') }}:</strong> #{{ order.id }}<br />
-            <strong>{{ $t('service') }}:</strong> {{ order.serviceName || 'Servicio' }}
+            <p class="font-semibold">{{ order.provider?.name || 'Proveedor' }}</p>
+            <p v-if="order.provider?.rating" class="text-yellow-500">⭐ {{ order.provider.rating }}</p>
           </div>
+        </div>
 
-          <!-- Botones -->
-          <div class="flex gap-2">
-            <button @click="openChat" class="flex-1 bg-blue-500 text-white rounded-md py-2">💬 {{ $t('chat') }}</button>
-            <button @click="callProvider" class="flex-1 bg-green-500 text-white rounded-md py-2">📞 {{ $t('call') }}</button>
-            <button @click="triggerEmergency" class="flex-1 bg-red-500 text-white rounded-md py-2">🚨 {{ $t('emergency') }}</button>
-          </div>
-
-          <!-- Detalles -->
-          <h2 class="font-bold text-base pt-2">{{ $t('service_details') }}</h2>
+        <!-- Detalles -->
+        <div class="px-4 py-2 text-sm space-y-1">
+          <div><strong>{{ $t('order_number') }}:</strong> #{{ order.id }}</div>
+          <div><strong>{{ $t('service') }}:</strong> {{ order.serviceName || 'Servicio' }}</div>
           <div><strong>{{ $t('description') }}:</strong> {{ order.description || 'Sin descripción' }}</div>
           <div><strong>{{ $t('date') }}:</strong> {{ formatDate(order.created_at || order.date) }}</div>
           <div><strong>{{ $t('price') }}:</strong> ${{ Number(order.price || 0).toFixed(2) }}</div>
           <div><strong>{{ $t('location') }}:</strong> {{ order.address || 'No especificada' }}</div>
           <div><strong>{{ $t('payment_method') }}:</strong> {{ order.payment_method || 'No definido' }}</div>
+        </div>
+
+        <!-- Botones -->
+        <div class="px-4 pb-4 grid grid-cols-3 gap-2">
+          <button @click="openChat" class="bg-blue-500 text-white rounded-md py-2 text-xs">💬 {{ $t('chat') }}</button>
+          <button @click="callProvider" class="bg-green-500 text-white rounded-md py-2 text-xs">📞 {{ $t('call') }}</button>
+          <button @click="triggerEmergency" class="bg-red-500 text-white rounded-md py-2 text-xs">🚨 {{ $t('emergency') }}</button>
         </div>
       </div>
     </div>
@@ -83,137 +92,167 @@
 </template>
 
 <script>
+import { useI18n } from 'vue-i18n'
+import { useSocketStore } from '@/stores/socketStore'
+import api from '@/axio'
+
 export default {
   name: 'LiveOrderTracking',
-  props: {
-    order: { type: Object, required: true },
-  },
+  props: { order: { type: Object, required: true } },
   emits: ['close', 'open-chat'],
-  data: () => ({
-    mapUrl: null,
-    translateY: 0,
-    startY: 0,
-    dragging: false,
-  }),
+  data() {
+    return {
+      mapUrl: null,
+      translateY: 0,
+      startY: 0,
+      dragging: false,
+      timelineSteps: [
+        { key: 'accepted',    label: 'accepted' },
+        { key: 'in_progress', label: 'in_progress' },
+        { key: 'on_the_way',  label: 'on_the_way' },
+        { key: 'completed',   label: 'completed' }
+      ]
+    }
+  },
+  computed: {
+    currentStepIndex() {
+      return this.timelineSteps.findIndex(s => s.key === this.mappedStatus)
+    },
+    mappedStatus() {
+      switch (this.order.status) {
+        case 'accepted':    return 'accepted'
+        case 'in_progress': return 'in_progress'
+        case 'on_the_way':  return 'on_the_way'
+        case 'completed':   return 'completed'
+        default:            return 'accepted'
+      }
+    }
+  },
   mounted() {
-    this.loadMap();
-    this.pollStatus();
-    this.addSwipeListeners();
+    this.loadMap()
+    this.pollStatus()
+    this.addSwipeListeners()
+    this.listenStatusChanges()
   },
   beforeUnmount() {
-    this.removeSwipeListeners();
+    this.removeSwipeListeners()
+    this.stopListening()
   },
   methods: {
     loadMap() {
-      const origin = encodeURIComponent(this.order.provider?.current_address || '0,0');
-      const dest = encodeURIComponent(this.order.address || '0,0');
-      const key = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-      this.mapUrl = `https://www.google.com/maps/embed/v1/directions?key=${key}&origin=${origin}&destination=${dest}&mode=driving`;
+      const origin = encodeURIComponent(this.order.provider?.current_address || '0,0')
+      const dest   = encodeURIComponent(this.order.address || '0,0')
+      const key    = import.meta.env.VITE_GOOGLE_MAPS_KEY
+      this.mapUrl  = `https://www.google.com/maps/embed/v1/directions?key=${key}&origin=${origin}&destination=${dest}&mode=driving`
     },
     pollStatus() {
       const interval = setInterval(async () => {
         try {
-          const { data } = await this.$api.get(`/requests/${this.order.id}/status`);
-          this.order.status = data.status;
+          const { data } = await api.get(`/requests/${this.order.id}/status`)
+          this.order.status = data.status
           if (data.status === 'arrived') {
-            this.$toast?.info(this.$t('provider_arrived'));
-            clearInterval(interval);
+            this.$toast?.info(this.$t('provider_arrived'))
+            clearInterval(interval)
           }
         } catch {
-          clearInterval(interval);
+          clearInterval(interval)
         }
-      }, 15000);
+      }, 15000)
     },
     openChat() {
-      this.$emit('open-chat', this.order.provider);
+      // Aseguramos z-index superior al sheet
+      this.$emit('open-chat', this.order.provider)
     },
     callProvider() {
-      const phone = this.order.provider?.phone;
-      if (phone) window.open(`tel:${phone}`, '_self');
+      const phone = this.order.provider?.phone
+      if (phone) window.open(`tel:${phone}`, '_self')
     },
     triggerEmergency() {
-      this.$swal
-        ?.fire({
-          title: this.$t('emergency'),
-          text: this.$t('emergency_confirm'),
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#e02424',
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
-        })
-        .then(async (res) => {
-          if (res.isConfirmed) {
-            await this.$api.post('/emergency', { request_id: this.order.id });
-            this.$toast?.success(this.$t('alert_sent'));
-          }
-        });
+      this.$swal?.fire({
+        title: this.$t('emergency'),
+        text : this.$t('emergency_confirm'),
+        icon : 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e02424',
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText : this.$t('cancel')
+      }).then(async res => {
+        if (res.isConfirmed) {
+          await api.post('/emergency', { request_id: this.order.id })
+          this.$toast?.success(this.$t('alert_sent'))
+        }
+      })
     },
     formatDate(date) {
-      return new Date(date).toLocaleDateString();
+      return new Date(date).toLocaleDateString()
     },
-
-    // Swipe handlers
+    /* ---------- WEBSOCKET ---------- */
+    listenStatusChanges() {
+      const socket = useSocketStore()
+      socket.on('status_changed', payload => {
+        if (payload.request_id === this.order.id) {
+          this.order.status = payload.status
+        }
+      })
+    },
+    stopListening() {
+      useSocketStore().off('status_changed')
+    },
+    /* ---------- SWIPE ---------- */
     addSwipeListeners() {
-      const sheet = this.$refs.sheet;
-      sheet.addEventListener('touchstart', this.onTouchStart, { passive: true });
-      sheet.addEventListener('touchmove', this.onTouchMove, { passive: true });
-      sheet.addEventListener('touchend', this.onTouchEnd, { passive: true });
-      sheet.addEventListener('mousedown', this.onMouseDown);
+      const sheet = this.$refs.sheet
+      if (!sheet) return
+      sheet.addEventListener('touchstart', this.onTouchStart, { passive: true })
+      sheet.addEventListener('touchmove', this.onTouchMove, { passive: true })
+      sheet.addEventListener('touchend', this.onTouchEnd, { passive: true })
+      sheet.addEventListener('mousedown', this.onMouseDown)
     },
     removeSwipeListeners() {
-      const sheet = this.$refs.sheet;
-      if (!sheet) return;
-      sheet.removeEventListener('touchstart', this.onTouchStart);
-      sheet.removeEventListener('touchmove', this.onTouchMove);
-      sheet.removeEventListener('touchend', this.onTouchEnd);
-      sheet.removeEventListener('mousedown', this.onMouseDown);
-      window.removeEventListener('mousemove', this.onMouseMove);
-      window.removeEventListener('mouseup', this.onMouseUp);
+      const sheet = this.$refs.sheet
+      if (!sheet) return
+      sheet.removeEventListener('touchstart', this.onTouchStart)
+      sheet.removeEventListener('touchmove', this.onTouchMove)
+      sheet.removeEventListener('touchend', this.onTouchEnd)
+      sheet.removeEventListener('mousedown', this.onMouseDown)
+      window.removeEventListener('mousemove', this.onMouseMove)
+      window.removeEventListener('mouseup', this.onMouseUp)
     },
     onTouchStart(e) {
-      this.startY = e.touches[0].clientY;
-      this.dragging = true;
+      this.startY = e.touches[0].clientY
+      this.dragging = true
     },
     onTouchMove(e) {
-      if (!this.dragging) return;
-      const y = e.touches[0].clientY;
-      const delta = y - this.startY;
-      if (delta > 0) this.translateY = delta;
+      if (!this.dragging) return
+      const delta = e.touches[0].clientY - this.startY
+      if (delta > 0) this.translateY = delta
     },
     onTouchEnd() {
-      if (!this.dragging) return;
-      this.dragging = false;
-      if (this.translateY > 120) {
-        this.$emit('close');
-      } else {
-        this.translateY = 0;
-      }
+      if (!this.dragging) return
+      this.dragging = false
+      if (this.translateY > 120) this.$emit('close')
+      else this.translateY = 0
     },
     onMouseDown(e) {
-      this.startY = e.clientY;
-      this.dragging = true;
-      window.addEventListener('mousemove', this.onMouseMove);
-      window.addEventListener('mouseup', this.onMouseUp);
+      this.startY = e.clientY
+      this.dragging = true
+      window.addEventListener('mousemove', this.onMouseMove)
+      window.addEventListener('mouseup', this.onMouseUp)
     },
     onMouseMove(e) {
-      if (!this.dragging) return;
-      const delta = e.clientY - this.startY;
-      if (delta > 0) this.translateY = delta;
+      if (!this.dragging) return
+      const delta = e.clientY - this.startY
+      if (delta > 0) this.translateY = delta
     },
     onMouseUp() {
-      if (!this.dragging) return;
-      this.dragging = false;
-      window.removeEventListener('mousemove', this.onMouseMove);
-      window.removeEventListener('mouseup', this.onMouseUp);
-      if (this.translateY > 120) {
-        this.$emit('close');
-      } else {
-        this.translateY = 0;
-      }
-    },
-  },
-};
+      if (!this.dragging) return
+      this.dragging = false
+      window.removeEventListener('mousemove', this.onMouseMove)
+      window.removeEventListener('mouseup', this.onMouseUp)
+      if (this.translateY > 120) this.$emit('close')
+      else this.translateY = 0
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -230,5 +269,12 @@ export default {
 .drag-handle {
   cursor: grab;
   user-select: none;
+}
+
+/* Responsive font sizes */
+@media (max-width: 640px) {
+  .text-xs {
+    font-size: 0.65rem;
+  }
 }
 </style>
