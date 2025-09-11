@@ -37,6 +37,21 @@
         <p class="text-right text-xs text-gray-500">{{ form.description.length }}/250</p>
       </div>
 
+      <!-- Detalles del servicio / Service details -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          {{ $t('services.serviceDetails') }}
+        </label>
+        <textarea
+          v-model="form.service_details"
+          rows="4"
+          maxlength="1000"
+          :placeholder="$t('services.serviceDetailsPlaceholder')"
+          class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        ></textarea>
+        <p class="text-right text-xs text-gray-500">{{ form.service_details?.length || 0 }}/1000</p>
+      </div>
+
       <!-- Precio (solo entero) -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -176,6 +191,7 @@ export default {
     const form = ref({
       title: '',
       description: '',
+      service_details: '', // <-- nuevo campo
       price: null,
       category: '',
       location: '',
@@ -214,6 +230,7 @@ export default {
         const formData = new FormData()
         formData.append('title', form.value.title.trim())
         formData.append('description', form.value.description.trim())
+        formData.append('service_details', form.value.service_details.trim())
         formData.append('price', form.value.price)
         formData.append('category', form.value.category.trim())
         formData.append('location', form.value.location.trim())
@@ -222,9 +239,9 @@ export default {
           formData.append('image', imageFile.value)
         }
 
-        console.log('Token:', authStore.token) // <-- Verifica token
+        console.log('Token:', authStore.token)
         for (let pair of formData.entries()) {
-          console.log(pair[0], pair[1]) // <-- Verifica datos enviados
+          console.log(pair[0], pair[1])
         }
 
         await api.post('/services', formData, {

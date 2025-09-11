@@ -482,25 +482,31 @@ export default {
         this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
       ]
     },
-    openLiveTracking(request) {
-      this.liveOrder = {
-        id: request.id,
-        serviceName: request.service_title || 'Servicio',
-        description: request.service_description || 'Sin descripción',
-        price: request.service_price || 0,
-        payment_method: request.payment_method || 'Efectivo',
-        created_at: request.created_at || request.date,
-        address: request.provider_address || 'No especificada',
-        provider: {
-          name: request.service_provider_name || 'Proveedor',
-          avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
-          rating: request.provider_rating || null,
-          phone: request.provider_phone || null,
-          current_address: request.provider_address || 'No especificada',
-        },
-      };
-      this.showLiveTracking = true;
+  openLiveTracking(request) {
+  this.liveOrder = {
+    id: request.id,
+    serviceName: request.service_title || 'Servicio',
+    description: request.service_description || 'Sin descripción',
+    price: Number(request.service_price || 0),
+    payment_method: request.payment_method || 'Efectivo',
+    created_at: request.created_at || request.date,
+    address: request.provider_address || 'No especificada',
+    provider: {
+      name: request.service_provider_name || 'Proveedor',
+      avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+      rating: request.provider_rating || null,
+      phone: request.provider_phone || null,
+      current_address: request.provider_address || 'No especificada',
     },
+    // ✅ CRÍTICO: asegúrate de incluir estos datos para el pago
+    requestId: request.id,
+    provider_id: request.provider_id || request.service_provider_id,
+    user_id: request.user_id,
+    status: request.status || 'accepted',
+    payment_methods: request.payment_methods || [],
+  };
+  this.showLiveTracking = true;
+},
   },
   computed: {
     notifications() {

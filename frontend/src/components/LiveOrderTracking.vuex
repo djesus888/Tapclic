@@ -59,74 +59,59 @@
         <!-- Info proveedor -->
         <div class="flex items-center gap-3 px-4">
           <img
-            :src="localOrder.provider?.avatar_url || '/img/default-provider.png'"
+            :src="order.provider?.avatar_url || '/img/default-provider.png'"
             alt="Provider"
             class="w-12 h-12 rounded-full object-cover"
           />
           <div>
-            <p class="font-semibold">{{ localOrder.provider?.name || 'Proveedor' }}</p>
-            <p v-if="localOrder.provider?.rating" class="text-yellow-500">⭐ {{ localOrder.provider.rating }}</p>
+            <p class="font-semibold">{{ order.provider?.name || 'Proveedor' }}</p>
+            <p v-if="order.provider?.rating" class="text-yellow-500">⭐ {{ order.provider.rating }}</p>
           </div>
         </div>
 
         <!-- Detalles -->
         <div class="px-4 py-2 text-sm space-y-1">
-          <div><strong>{{ $t('order_number') }}:</strong> #{{ localOrder.id }}</div>
-          <div><strong>{{ $t('service') }}:</strong> {{ localOrder.serviceName || 'Servicio' }}</div>
-          <div><strong>{{ $t('description') }}:</strong> {{ localOrder.description || 'Sin descripción' }}</div>
-          <div><strong>{{ $t('date') }}:</strong> {{ formatDate(localOrder.created_at || localOrder.date) }}</div>
-          <div><strong>{{ $t('price') }}:</strong> ${{ Number(localOrder.price || 0).toFixed(2) }}</div>
-          <div><strong>{{ $t('location') }}:</strong> {{ localOrder.address || 'No especificada' }}</div>
-          <div><strong>{{ $t('payment_method') }}:</strong> {{ localOrder.payment_method || 'No definido' }}</div>
+          <div><strong>{{ $t('order_number') }}:</strong> #{{ order.id }}</div>
+          <div><strong>{{ $t('service') }}:</strong> {{ order.serviceName || 'Servicio' }}</div>
+          <div><strong>{{ $t('description') }}:</strong> {{ order.description || 'Sin descripción' }}</div>
+          <div><strong>{{ $t('date') }}:</strong> {{ formatDate(order.created_at || order.date) }}</div>
+          <div><strong>{{ $t('price') }}:</strong> ${{ Number(order.price || 0).toFixed(2) }}</div>
+          <div><strong>{{ $t('location') }}:</strong> {{ order.address || 'No especificada' }}</div>
+          <div><strong>{{ $t('payment_method') }}:</strong> {{ order.payment_method || 'No definido' }}</div>
         </div>
 
         <!-- Botones -->
         <div class="px-4 pb-4 grid grid-cols-3 gap-2">
           <button @click="openChat" class="bg-blue-500 text-white rounded-md py-2 text-xs">💬 {{ $t('chat') }}</button>
           <button @click="callProvider" class="bg-green-500 text-white rounded-md py-2 text-xs">📞 {{ $t('call') }}</button>
-          <button @click="openPayment" class="bg-purple-500 text-white rounded-md py-2 text-xs">💳 {{ $t('pay') }}</button>
+          <button @click="triggerEmergency" class="bg-red-500 text-white rounded-md py-2 text-xs">🚨 {{ $t('emergency') }}</button>
         </div>
       </div>
     </div>
-
-    <!-- Modal de pago -->
-    <PaymentModal
-      v-if="showPayment"
-      :is-open="showPayment"
-      :request="parsedOrder"
-      @on-payment-submit="handlePaymentSubmit"
-      @on-open-change="(val) => (showPayment = val)"
-    />
   </Teleport>
 </template>
 
 <script>
-import { useI18n } from 'vue-i18n'
+import { useI18n } fro8m 'vue-i18n'
 import { useSocketStore } from '@/stores/socketStore'
 import api from '@/axio'
-import PaymentModal from './PaymentModal.vue'
 
 export default {
   name: 'LiveOrderTracking',
-  components: { PaymentModal },
-  props: {
-    order: { type: Object, required: true }
-  },
-  emits: ['close', 'open-chat', 'update:order'],
+  props: { order: { type: Object, required: true } },
+  emits: ['close', 'open-chat'],
   data() {
     return {
-      localOrder: { ...this.order },
       mapUrl: null,
       translateY: 0,
       startY: 0,
       dragging: false,
       timelineSteps: [
-        { key: 'accepted', label: 'accepted' },
+        { key: 'accepted',    label: 'accepted' },
         { key: 'in_progress', label: 'in_progress' },
-        { key: 'on_the_way', label: 'on_the_way' },
-        { key: 'completed', label: 'completed' }
-      ],
-      showPayment: false
+        { key: 'on_the_way',  label: 'on_the_way' },
+        { key: 'completed',   label: 'completed' }
+      ]
     }
   },
   computed: {
@@ -134,121 +119,89 @@ export default {
       return this.timelineSteps.findIndex(s => s.key === this.mappedStatus)
     },
     mappedStatus() {
-      switch (this.localOrder.status) {
-        case 'accepted': return 'accepted'
+      switch (this.order.status) {
+        case 'accepted':    return 'accepted'
         case 'in_progress': return 'in_progress'
-        case 'on_the_way': return 'on_the_way'
-        case 'completed': return 'completed'
-        default: return 'accepted'
-      }
-    },
-    parsedOrder() {
-      return {
-        ...this.localOrder,
-        payment_methods: this.parsePaymentMethods(this.localOrder)
+        case 'on_the_way':  return 'on_the_way'
+        case 'completed':   return 'completed'
+        default:            return 'accepted'
       }
     }
   },
-  watch: {
-    order: {
-      immediate: true,
-      deep: true,
-      handler(newVal) { this.localOrder = { ...newVal } }
-    }
-  },
-  mounted() {
-    this.loadMap()
-    this.fetchStatusOnce()
-    this.pollStatus()
-    this.addSwipeListeners()
-    this.listenStatusChanges()
-  },
+ mounted() {
+  this.loadMap()
+  this.pollStatus()
+  this.addSwipeListeners()
+  this.listenStatusChanges()
+},
+
+
+
   beforeUnmount() {
     this.removeSwipeListeners()
     this.stopListening()
   },
   methods: {
     loadMap() {
-      const origin = encodeURIComponent(this.localOrder.provider?.current_address || '0,0')
-      const dest = encodeURIComponent(this.localOrder.address || '0,0')
-      const key = import.meta.env.VITE_GOOGLE_MAPS_KEY
-      this.mapUrl = `https://www.google.com/maps/embed/v1/directions?key=${key}&origin=${origin}&destination=${dest}&mode=driving`
-    },
-    async fetchStatusOnce() {
-      try {
-        const { data } = await api.get(`/requests/status/${this.localOrder.id}`)
-        this.localOrder = { ...this.localOrder, status: data.status }
-      } catch (err) {
-        console.warn('❌ Error al obtener estado inicial:', err)
-      }
+      const origin = encodeURIComponent(this.order.provider?.current_address || '0,0')
+      const dest   = encodeURIComponent(this.order.address || '0,0')
+      const key    = import.meta.env.VITE_GOOGLE_MAPS_KEY
+      this.mapUrl  = `https://www.google.com/maps/embed/v1/directions?key=${key}&origin=${origin}&destination=${dest}&mode=driving`
     },
     pollStatus() {
       const interval = setInterval(async () => {
         try {
-          const { data } = await api.get(`/requests/status/${this.localOrder.id}`)
-          this.localOrder = { ...this.localOrder, status: data.status }
+          const { data } = await api.get(`/requests/${this.order.id}/status`)
+          this.order.status = data.status
           if (data.status === 'arrived') {
-            this.localOrder = { ...this.localOrder, status: 'completed' }
             this.$toast?.info(this.$t('provider_arrived'))
             clearInterval(interval)
           }
-        } catch (err) {
-          console.warn('❌ Error en pollStatus:', err)
+        } catch {
           clearInterval(interval)
         }
       }, 15000)
     },
     openChat() {
-      this.$emit('close')
-      this.$emit('open-chat', {
-        id: this.localOrder.provider_id,
-        name: this.localOrder.provider?.name,
-        role: 'provider',
-        avatarUrl: this.localOrder.provider?.avatar_url,
-      })
+      // Aseguramos z-index superior al sheet
+      this.$emit('open-chat', this.order.provider)
     },
     callProvider() {
-      const phone = this.localOrder.provider?.phone
+      const phone = this.order.provider?.phone
       if (phone) window.open(`tel:${phone}`, '_self')
     },
-    openPayment() {
-      console.log('📦 parsedOrder:', this.parsedOrder)
-      console.log('💳 payment_methods:', this.parsedOrder.payment_methods)
-      this.showPayment = true
-    },
-    handlePaymentSubmit(method) {
+    triggerEmergency() {
       this.$swal?.fire({
-        icon: 'success',
-        title: this.$t('payment_completed'),
-        text: `${this.$t('paid_with')} ${method}`,
-        timer: 2000,
-        showConfirmButton: false
+        title: this.$t('emergency'),
+        text : this.$t('emergency_confirm'),
+        icon : 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e02424',
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText : this.$t('cancel')
+      }).then(async res => {
+        if (res.isConfirmed) {
+          await api.post('/emergency', { request_id: this.order.id })
+          this.$toast?.success(this.$t('alert_sent'))
+        }
       })
-      this.showPayment = false
     },
     formatDate(date) {
       return new Date(date).toLocaleDateString()
     },
-    parsePaymentMethods(order) {
-      const raw = order?.payment_methods
-      if (!raw) return []
-      try {
-        return typeof raw === 'string' ? JSON.parse(raw) : raw
-      } catch (e) {
-        console.warn('❌ Error parseando payment_methods:', e)
-        return []
-      }
-    },
+    /* ---------- WEBSOCKET ---------- */
     listenStatusChanges() {
-      useSocketStore().on('status_changed', payload => {
-        if (payload.request_id === this.localOrder.id) {
-          this.localOrder = { ...this.localOrder, status: payload.status }
+      const socket = useSocketStore()
+      socket.on('status_changed', payload => {
+        if (payload.request_id === this.order.id) {
+          this.order.status = payload.status
         }
       })
     },
     stopListening() {
       useSocketStore().off('status_changed')
     },
+    /* ---------- SWIPE ---------- */
     addSwipeListeners() {
       const sheet = this.$refs.sheet
       if (!sheet) return
@@ -315,10 +268,13 @@ export default {
   border-top-left-radius: 1rem;
   border-top-right-radius: 1rem;
 }
+
 .drag-handle {
   cursor: grab;
   user-select: none;
 }
+
+/* Responsive font sizes */
 @media (max-width: 640px) {
   .text-xs {
     font-size: 0.65rem;
