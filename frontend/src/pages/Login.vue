@@ -103,11 +103,13 @@
   </div>
 </template>
 
+
 <script>
 import { useAuthStore } from '@/stores/authStore'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSystemStore } from '@/stores/systemStore'
+import Swal from 'sweetalert2' // ✅ solo para mostrar el error bonito
 
 export default {
   setup() {
@@ -119,11 +121,18 @@ export default {
       identifier: '',
       password: '',
     })
-
     const showPassword = ref(false)
 
-    const handleLogin = () => {
-      auth.login(form.value)
+    /* ✅ NUEVO: manejamos el error real del backend sin tocar tu lógica */
+    const handleLogin = async () => {
+      try {
+        await auth.login(form.value) // ← tu función original
+      } catch (err) {
+        // ❗️Aquí leemos el mensaje que manda el backend
+        const msg = err.response?.data?.message || err.response?.data?.error || 'Error inesperado'
+        Swal.fire('Error', msg, 'error') // mostramos bonito
+        // (opcional) puedes hacer console.error(msg) si no quieres Swal
+      }
     }
 
     const goToForgotPassword = () => {
@@ -135,14 +144,14 @@ export default {
       auth.setLocale(newLocale)
     }
 
-    return { 
-      form, 
-      handleLogin, 
-      auth, 
-      showPassword, 
-      goToForgotPassword, 
+    return {
+      form,
+      handleLogin, // ← ahora es async y captura errores
+      auth,
+      showPassword,
+      goToForgotPassword,
       systemStore,
-      changeLocale 
+      changeLocale
     }
   }
 }

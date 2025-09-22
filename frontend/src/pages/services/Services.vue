@@ -86,7 +86,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import api from '@/axio'
+import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import Swal from 'sweetalert2'
 

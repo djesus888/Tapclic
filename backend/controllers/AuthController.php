@@ -12,14 +12,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../utils/jwt.php';
 
-class AuthController {
-    private $userModel;
+class AuthController
+{
+    private User $userModel;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->userModel = new User();
     }
 
-    public function login() {
+    /* ---------- LOGIN ---------- */
+    public function login(): void
+    {
         $data = json_decode(file_get_contents("php://input"), true);
         $identifier = trim($data['identifier'] ?? '');
         $password = $data['password'] ?? '';
@@ -37,6 +41,9 @@ class AuthController {
             return;
         }
 
+        // Actualizar última actividad
+        $this->userModel->updateLastSeen($user['id']);
+
         $payload = [
             "id"   => $user['id'],
             "role" => $user['role'],
@@ -48,12 +55,14 @@ class AuthController {
 
         echo json_encode([
             "success" => true,
-            "token" => $token,
-            "user" => $user
+            "token"   => $token,
+            "user"    => $user
         ]);
     }
 
-    public function register() {
+    /* ---------- REGISTRO ---------- */
+    public function register(): void
+    {
         $data = json_decode(file_get_contents("php://input"), true);
         $required = ['name', 'email', 'phone', 'password', 'role'];
 
@@ -83,20 +92,18 @@ class AuthController {
             return;
         }
 
-        if (!in_array($data['role'], ['admin', 'user', 'provider'])) {
+        if (!in_array($data['role'], ['admin', 'user', 'provider'], true)) {
             http_response_code(400);
             echo json_encode(["message" => "Rol no permitido"]);
             return;
         }
 
-        // Verificar si el email ya está registrado
         if ($this->userModel->findByEmail($data['email'])) {
             http_response_code(409);
             echo json_encode(["message" => "El correo electrónico ya está registrado."]);
             return;
         }
 
-        // Verificar si el teléfono ya está registrado
         if ($this->userModel->findByPhone($data['phone'])) {
             http_response_code(409);
             echo json_encode(["message" => "El número de teléfono ya está registrado."]);
@@ -106,10 +113,13 @@ class AuthController {
         $userId = $this->userModel->create($data);
         $user = $this->userModel->findById($userId);
 
+        // Actualizar última actividad
+        $this->userModel->updateLastSeen($userId);
+
         $payload = [
-            "id" => $userId,
+            "id"   => $userId,
             "role" => $user['role'],
-            "exp" => time() + (3600 * 24 * 7)
+            "exp"  => time() + (3600 * 24 * 7)
         ];
 
         $token = JwtHandler::encode($payload);
@@ -117,12 +127,14 @@ class AuthController {
 
         echo json_encode([
             "success" => true,
-            "token" => $token,
-            "user" => $user
+            "token"   => $token,
+            "user"    => $user
         ]);
     }
 
-    public function me() {
+    /* ---------- ME (cada petición autenticada) ---------- */
+    public function me(): void
+    {
         $headers = getallheaders();
         $auth = $headers['Authorization'] ?? '';
 
@@ -141,7 +153,12 @@ class AuthController {
             return;
         }
 
-        $user = $this->userModel->findById($decoded->id);
+        $userId = $decoded->id;
+
+        // Actualizar última actividad
+        $this->userModel->updateLastSeen($userId);
+
+        $user = $this->userModel->findById($userId);
         if (!$user) {
             http_response_code(404);
             echo json_encode(["message" => "Usuario no encontrado"]);
@@ -151,7 +168,7 @@ class AuthController {
         unset($user['password']);
         echo json_encode([
             "success" => true,
-            "user" => $user
+            "user"    => $user
         ]);
     }
 }

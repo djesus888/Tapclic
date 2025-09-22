@@ -62,13 +62,20 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/requests/status/\d+~', $request) ||
     preg_match('~/api/requests/reject~', $request) ||
     preg_match('~/api/requests/busy~', $request) ||
-    preg_match('~/api/requests/history~', $request) ||
     preg_match('~/api/requests/in_progress~', $request) ||
     preg_match('~/api/requests/on_the_way~', $request) ||
     preg_match('~/api/requests/arrived~', $request) ||
     preg_match('~/api/requests~', $request)
 ) {
     (new RequestController())->handle($method);
+
+// --- RUTAS HISTORIAL (NUEVAS) ---
+} elseif (
+    preg_match('~/api/history/?$~', $request) ||
+    preg_match('~/api/history/rate/?$~', $request) ||
+    preg_match('~/api/reviews/received/?$~', $request)
+) {
+    (new HistoryController())->handle($method);
 
 // --- RUTAS NOTIFICACIONES ---
 } elseif (
@@ -78,6 +85,14 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/notifications/?$~', $request)
 ) {
     (new NotificationController())->handle($method);
+
+/* --- RUTAS ÚTILES / REPORTES / RESPUESTA --- */
+} elseif ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $request)) {
+    (new HistoryController())->markHelpful();
+} elseif ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $request)) {
+    (new HistoryController())->report();
+} elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
+    (new HistoryController())->reply((int)$m[1]);
 
 // --- RUTAS PERFIL USUARIO ---
 } elseif (preg_match('~/api/profile/update~', $request)) {
@@ -177,9 +192,23 @@ if (preg_match('~/api/login~', $request)) {
 ) {
     (new SupportController())->handle($method);
 
-// --- RUTAS CONFIGURACIÓN DEL SISTEMA ---
-} elseif (preg_match('~/api/system/config~', $request)) {
+// --- RUTAS CONFIGURACIÓN DEL SISTEMA (NUEVAS) ---
+} elseif (preg_match('~/api/admin/system-config$~', $request) && $method === 'GET') {
+    (new AdminController())->getSystemConfig();
+} elseif (preg_match('~/api/admin/system-config$~', $request) && $method === 'PUT') {
+    (new AdminController())->updateSystemConfig();
+} elseif (preg_match('~/api/admin/upload-logo$~', $request) && $method === 'POST') {
+    (new AdminController())->uploadLogo();
+} elseif (preg_match('~/api/admin/upload-favicon$~', $request) && $method === 'POST') {
+    (new AdminController())->uploadFavicon();
+
+
+
+// --- RUTA GET DEL SISTEMA ---
+} elseif (preg_match('~/api/system~', $request)) {
     (new SystemController())->handle($method);
+
+
 
 // --- RUTA POR DEFECTO ---
 } else {

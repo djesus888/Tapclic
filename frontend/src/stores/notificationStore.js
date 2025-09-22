@@ -1,6 +1,6 @@
 // stores/notificationStore.js
 import { defineStore } from 'pinia'
-import api from '../axio' // Importamos el axios ya configurado
+import api from '@/axios' // Importamos el axios ya configurado
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({

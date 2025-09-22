@@ -1,0 +1,85 @@
+<template>
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4">Mis reseñas</h1>
+
+    <!-- Promedio -->
+    <div class="flex items-center gap-3 mb-6">
+      <StarRating :rating="average" class="text-xl" />
+      <span class="text-lg text-muted-foreground">{{ average }} ({{ total }})</span>
+    </div>
+
+    <!-- Lista -->
+    <div v-if="loading" class="space-y-4">
+      <div v-for="i in 3" :key="i" class="p-4 border rounded animate-pulse">
+        <div class="h-5 bg-gray-300 rounded w-1/3 mb-2"/>
+        <div class="h-4 bg-gray-200 rounded w-2/3"/>
+      </div>
+    </div>
+
+    <div v-else-if="!reviews.length" class="text-center text-muted-foreground">
+      Aún no has recibido reseñas.
+    </div>
+
+    <div v-else class="space-y-4">
+      <div
+        v-for="r in reviews"
+        :key="r.created_at"
+        class="p-4 border rounded-lg shadow-sm"
+      >
+        <div class="flex items-start gap-3">
+          <img
+            :src="r.user_avatar || '/default-avatar.png'"
+            alt="avatar"
+            class="w-10 h-10 rounded-full object-cover"
+          />
+          <div class="flex-1">
+            <p class="font-semibold">{{ r.user_name }}</p>
+            <p class="text-sm text-muted-foreground">{{ r.service_title }}</p>
+            <StarRating :rating="r.rating" class="mt-1" />
+            <p v-if="r.comment" class="mt-2 text-sm">{{ r.comment }}</p>
+            <p class="text-xs text-muted-foreground mt-2">
+              {{ dayjs(r.created_at).fromNow() }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/es'
+import { useAuthStore } from '@/stores/authStore'
+import { useI18n } from 'vue-i18n'
+import api from '@/axios'
+import StarRating from '@/components/StarRating.vue'
+
+dayjs.extend(relativeTime)
+dayjs.locale('es')
+
+const authStore = useAuthStore()
+const { t } = useI18n()
+
+const reviews = ref([])
+const average = ref(0)
+const total = ref(0)
+const loading = ref(true)
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/reviews/received', {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    reviews.value = data.reviews
+    average.value = data.average
+    total.value = data.total
+  } catch {
+    // Swal o toast
+  } finally {
+    loading.value = false
+  }
+})
+</script>

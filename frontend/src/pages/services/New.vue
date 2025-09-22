@@ -175,7 +175,7 @@
 
 <script>
 import { ref, computed } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'

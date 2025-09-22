@@ -82,15 +82,19 @@ const formattedPrice = computed(() => {
 /* Emitir objeto Target al abrir el chat */
 const openChat = () => {
   const provider = props.request?.provider
+  const avatar = provider?.avatar_url
+    ? `http://localhost:8000/uploads/avatars/${provider.avatar_url}`
+    : '/img/default-provider.png'
+
   const target = {
     id: provider?.id ?? props.request?.provider_id ?? props.request?.user_id,
     name: provider?.name ?? 'Proveedor',
     role: 'provider',
-    avatarUrl: provider?.avatar_url
+    avatarUrl: avatar
   }
-  // Disparar evento con el objeto completo
   emit('on-start-chat', target)
 }
+
 
 // defineEmits
 const emit = defineEmits([

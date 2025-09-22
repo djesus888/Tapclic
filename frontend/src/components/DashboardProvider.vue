@@ -48,6 +48,10 @@
           <button class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                   @click="busyRequest(req.id)">{{ $t('busy') }}</button>
         </div>
+        <div v-if="req.additional_details?.trim()" class="mt-3 text-sm text-gray-700 bg-yellow-50 border border-yellow-200 rounded p-2 flex items-start gap-2">
+          <span class="text-yellow-600 text-base">🔔</span>
+          <span class="whitespace-pre-wrap break-words">{{ req.additional_details }}</span>
+        </div>
       </div>
     </div>
 
@@ -64,8 +68,6 @@
         <p class="text-sm mt-2 text-gray-500">
           <strong>{{ $t('requested_by') }}:</strong> {{ sanitize(req.user_name || $t('user')) }}
         </p>
-
-        <!-- TIMELINE -->
         <details class="mt-3 text-xs">
           <summary class="cursor-pointer text-blue-600">{{ $t('timeline') }}</summary>
           <div class="mt-2 space-y-1">
@@ -75,11 +77,7 @@
             </div>
           </div>
         </details>
-
-        <!-- TIEMPO TRANSCURRIDO -->
         <p class="text-xs text-gray-500 mt-2">{{ $t('elapsed') }}: {{ elapsed(req.updated_at) }}</p>
-
-        <!-- ACTIONS DROPDOWN -->
         <div class="mt-4 relative">
           <button @click="toggleDropdown(req.id)"
                   class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full flex items-center justify-between">
@@ -97,8 +95,6 @@
             </button>
           </div>
         </div>
-
-        <!-- CHAT -->
         <div class="flex gap-2 mt-4">
           <button class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
                   @click="openChat(req.user_id, 'user')">💬</button>
@@ -153,45 +149,51 @@
       </div>
     </div>
 
-    <!-- HISTORY -->
-    <div v-if="activeTab === 'history'" class="grid gap-4 md:grid-cols-2" :key="'history-'+$i18n.locale">
+    <!-- HISTORY (LISTA) -->
+    <div v-if="activeTab === 'history'" class="space-y-2" :key="'history-'+$i18n.locale">
       <div v-if="historyLoading" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else-if="!historyRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_history_requests') }}
       </div>
-      <div v-for="req in historyRequests" :key="`${req.id}-${$i18n.locale}`"
-           class="card shadow rounded-lg overflow-hidden">
-        <div class="p-4 bg-gray-100">
-          <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
-          <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
-          <p class="text-sm mt-2 text-gray-500">
-            <strong>{{ $t('requested_by') }}:</strong> {{ sanitize(req.user_name || $t('user')) }}
-          </p>
+      <div v-for="req in historyRequests" :key="req.id"
+           class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer"
+           @click="openHistoryModal(req)">
+        <div class="flex-1">
+          <p class="font-semibold text-gray-800">{{ sanitize(req.service_title) }}</p>
+          <p class="text-sm" :class="statusColor(req.status)">{{ $t('status.'+req.status) }}</p>
         </div>
-        <div class="p-4 flex justify-between items-center bg-white">
-          <div>
-            <p class="text-sm mt-1 font-bold text-gray-700">{{ formatCurrency(req.service_price) }}</p>
-            <p class="text-xs text-gray-400 mt-2">{{ formatDate(req.updated_at) }}</p>
-            <p class="text-xs font-semibold mt-1"
-               :class="{'text-green-600':req.status==='completed','text-red-600':req.status==='cancelled','text-orange-600':req.status==='rejected'}">
-              {{ $t('status.'+req.status) }}
-            </p>
-            <p v-if="req.status === 'cancelled'" class="text-xs text-red-600 mt-1">
-              {{ $t('cancelled_by') }}: {{ req.cancelled_by }}
-            </p>
-          </div>
-          <span :class="statusColor(req.status)">{{ statusLabel(req.status) }}</span>
+        <div class="text-right">
+          <p class="font-bold text-green-600">{{ formatCurrency(req.service_price) }}</p>
         </div>
       </div>
     </div>
 
     <!-- CHAT MODAL -->
     <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null"/>
+
+    <!-- HISTORY DETAIL MODAL -->
+    <div v-if="historyModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50" @click.self="closeHistoryModal">
+      <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 p-6 space-y-4">
+        <h2 class="text-xl font-bold text-gray-800">{{ sanitize(selectedHistory.service_title) }}</h2>
+        <p class="text-sm text-gray-600">{{ sanitize(selectedHistory.service_description) }}</p>
+        <p class="text-sm"><strong>{{ $t('requested_by') }}:</strong> {{ sanitize(selectedHistory.user_name) }}</p>
+        <p class="text-sm"><strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ $t('status.'+selectedHistory.status) }}</span></p>
+        <p class="text-sm"><strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">{{ formatCurrency(selectedHistory.service_price) }}</span></p>
+        <p class="text-sm"><strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.updated_at) }}</p>
+        <div v-if="selectedHistory.status === 'cancelled'" class="text-sm text-red-600">
+          <strong>{{ $t('cancelled_by') }}:</strong> {{ selectedHistory.cancelled_by }}
+        </div>
+        <div class="flex justify-end">
+          <button @click="closeHistoryModal" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">{{ $t('close') }}</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script>
-import api from '@/axio'
+import api from '@/axios'
 import {useAuthStore} from '@/stores/authStore'
 import {useSocketStore} from '@/stores/socketStore'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
@@ -219,7 +221,9 @@ export default {
       showNewTicket: false,
       openDropdown: null,
       pulling: false,
-      pullStartY: 0
+      pullStartY: 0,
+      historyModal: false,
+      selectedHistory: {}
     }
   },
   watch: {
@@ -248,13 +252,11 @@ export default {
     this.providerId = auth.user?.id
     auth.loadLocale()
     await this.fetchAvailableRequests()
-
     socket.on('request.status_changed', (msg) => {
       if (msg.provider_id !== this.providerId) return
       this.updateRequestStatus(msg.request_id, msg.status, msg.updated_at)
       this.playSound()
     })
-
     this.$watch('activeTab', tab => {
       if (tab === 'in-progress') this.fetchActiveRequests()
       if (tab === 'history') this.fetchHistoryRequests()
@@ -262,7 +264,6 @@ export default {
     })
   },
   methods: {
-    /*  PULL-TO-REFRESH  */
     pullStart(e) { this.pulling = true; this.pullStartY = e.clientY },
     pullMove(e) {
       if (!this.pulling) return
@@ -275,8 +276,6 @@ export default {
       if (this.activeTab === 'in-progress') this.fetchActiveRequests()
       if (this.activeTab === 'history') this.fetchHistoryRequests()
     },
-
-    /*  HELPERS  */
     sanitize(str) { return (str || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') },
     formatDate(d, onlyTime) {
       const locale = this.$i18n.locale.value || 'es'
@@ -315,7 +314,7 @@ export default {
         accepted: ['in_progress', 'cancelled'],
         in_progress: ['on_the_way', 'cancelled'],
         on_the_way: ['arrived', 'cancelled'],
-        arrived: ['completed', 'cancelled'],
+        arrived: ['finalized', 'cancelled'],
         completed: [],
         cancelled: [],
         rejected: []
@@ -332,8 +331,14 @@ export default {
     timeline(req) {
       return [{status: req.status, updated_at: req.updated_at}]
     },
-
-    /*  CRUD  */
+    openHistoryModal(req) {
+      this.selectedHistory = req
+      this.historyModal = true
+    },
+    closeHistoryModal() {
+      this.historyModal = false
+      this.selectedHistory = {}
+    },
     async fetchAvailableRequests() {
       if (this.availableRequests.length) return
       this.availableLoading = true
@@ -357,8 +362,18 @@ export default {
       this.historyLoading = true
       try {
         const auth = useAuthStore()
-        const res = await api.get('/requests/history', {headers: {Authorization: `Bearer ${auth.token}`}})
-        this.historyRequests = Array.isArray(res.data.data) ? res.data.data : []
+        const res = await api.get('/history', {headers: {Authorization: `Bearer ${auth.token}`}})
+        this.historyRequests = (Array.isArray(res.data.history) ? res.data.history : [])
+          .map(h => ({
+            id: h.id,
+            service_title: h.service_title,
+            service_description: h.service_description || '',
+            service_price: h.service_price,
+            user_name: h.user_name,
+            updated_at: h.finished_at || h.updated_at,
+            status: h.status,
+            cancelled_by: h.cancelled_by
+          }))
       } catch (e) { console.error(e) } finally { this.historyLoading = false }
     },
     async fetchTickets() {
@@ -433,5 +448,5 @@ export default {
 </script>
 
 <style scoped>
-.card {@apply bg-white rounded-lg shadow-md overflow-hidden}
+.card { @apply bg-white rounded-lg shadow-md overflow-hidden }
 </style>

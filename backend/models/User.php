@@ -46,48 +46,54 @@ class User {
         return $this->conn->lastInsertId();
     }
 
-
-public function find(int $id): ?array{
-    $stmt = $this->conn->prepare("SELECT id, name, avatar_url, average_rating FROM users WHERE id = ? LIMIT 1");
-    $stmt->execute([$id]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $row ?: null;
-}
+    public function find(int $id): ?array{
+        $stmt = $this->conn->prepare("SELECT id, name, avatar_url, average_rating FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
 
     public function findById($id) {
-        $stmt = $this->conn->prepare("SELECT id, name, email, phone, role, avatar_url, address, business_address, service_categories, coverage_area, preferences  FROM {$this->table} WHERE id = ?");
+        $stmt = $this->conn->prepare("SELECT id, name, email, password, phone, role, avatar_url, address, business_address, service_categories, coverage_area, preferences  FROM {$this->table} WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-public function updateProfile($id, $data) {
-    $name = $data['name'] ?? '';
-    $email = $data['email'] ?? '';
-    $phone = $data['phone'] ?? ''; 
+    public function updateProfile($id, $data) {
+        $name = $data['name'] ?? '';
+        $email = $data['email'] ?? '';
+        $phone = $data['phone'] ?? '';
 
-   $query = "UPDATE {$this->table} SET 
-                name = :name, 
-                email = :email, 
-                phone = :phone, 
-                address = :address, 
-                business_address = :business_address, 
-                service_categories = :service_categories, 
-                coverage_area = :coverage_area, 
-                preferences = :preferences
-                WHERE id = :id";
-    $stmt = $this->conn->prepare($query);
-    return $stmt->execute([
-        ':name' => $data['name'],
-        ':email' => $data['email'],
-        ':phone' => $data['phone'],
-        ':address' => $data['address'],
-        ':business_address' => $data['business_address'],
-        ':service_categories' => $data['service_categories'],
-        ':coverage_area' => $data['coverage_area'],
-        ':preferences' => $data['preferences'],
-        ':id' => $id
-    ]);
-}
+        $query = "UPDATE {$this->table} SET
+                    name = :name,
+                    email = :email,
+                    phone = :phone,
+                    address = :address,
+                    business_address = :business_address,
+                    service_categories = :service_categories,
+                    coverage_area = :coverage_area,
+                    preferences = :preferences
+                    WHERE id = :id";
+        $stmt = $this->conn->prepare($query);
+        return $stmt->execute([
+            ':name' => $data['name'],
+            ':email' => $data['email'],
+            ':phone' => $data['phone'],
+            ':address' => $data['address'],
+            ':business_address' => $data['business_address'],
+            ':service_categories' => $data['service_categories'],
+            ':coverage_area' => $data['coverage_area'],
+            ':preferences' => $data['preferences'],
+            ':id' => $id
+        ]);
+    }
+
+    public function updateLastSeen(int $userId): void
+    {
+        $sql = "UPDATE users SET last_seen_at = NOW() WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([':id' => $userId]);
+    }
 
     public function updatePassword($id, $newPassword) {
         $hash = password_hash($newPassword, PASSWORD_DEFAULT);

@@ -18,7 +18,8 @@
       </nav>
     </div>
 
-    <!-- Contenido pestañas -->
+    <!-- Pestañas contenido -->
+    <!-- SERVICES -->
     <div id="panel-services" role="tabpanel" v-if="selectedTab === 'services'" aria-labelledby="tab-services">
       <div v-if="loading" class="text-center py-10">{{ $t('loading') }}...</div>
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -86,7 +87,7 @@
       </div>
     </div>
 
-    <!-- SOPORTE -->
+    <!-- SUPPORT -->
     <div id="panel-support" role="tabpanel" v-if="selectedTab === 'support'" aria-labelledby="tab-support" class="p-4">
       <div v-if="faqLoading" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else class="mb-8">
@@ -122,42 +123,56 @@
       </div>
     </div>
 
-    <!-- HISTORIAL -->
-    <div id="panel-history" role="tabpanel" v-if="selectedTab === 'history'" aria-labelledby="tab-history" class="p-4">
+    <!-- HISTORIAL (LISTADO) -->
+    <div id="panel-history" role="tabpanel" v-if="selectedTab === 'history'" aria-labelledby="tab-history" class="p-4 space-y-2">
       <div v-if="historyLoading" class="text-center py-10">{{ $t('loading') }}...</div>
-      <div v-else>
-        <div v-if="history.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_history') }}</div>
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div v-for="item in history" :key="item.id" class="card shadow rounded-lg overflow-hidden">
-            <div class="p-4 bg-gray-100">
-              <h2 class="font-bold text-lg">{{ sanitize(item.service_title || item.title) }}</h2>
-              <p class="text-sm text-gray-600">{{ $t('provider') }}: {{ sanitize(item.provider_name || item.providerName) }}</p>
-              <p class="text-sm text-gray-600">{{ $t('date') }}: {{ formatDate(item.completed_at || item.created_at) }}</p>
-            </div>
-            <div class="p-4 flex justify-between items-center bg-white">
-              <span :class="statusColor(item.status)">{{ statusLabel(item.status) }}</span>
-              <span class="text-lg font-bold text-primary">${{ Number(item.service_price || item.price || 0).toFixed(2) }}</span>
-            </div>
-          </div>
+      <div v-else-if="history.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_history') }}</div>
+      <div v-for="item in history" :key="item.id" class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer" @click="openHistoryModal(item)">
+        <div class="flex-1">
+          <p class="font-semibold text-gray-800">{{ sanitize(item.service_title || item.title) }}</p>
+          <p class="text-sm" :class="statusColor(item.status)">{{ statusLabel(item.status) }}</p>
         </div>
-      </div>
+        <div class="text-right">
+     <p class="font-bold text-green-600">
+    ${{ Number(item.service_price || item.price || 0).toFixed(2) }}
+    </p>
+    <p class="text-xs text-gray-400">
+    {{ formatDate(item.completed_at || item.created_at) }}
+     </p>
+     </div>
+    </div>
     </div>
 
     <!-- Modales -->
     <ServiceDetailsModal v-if="modalService" :is-open="showServiceDetails" :request="modalService" @on-request-service="goToRequestConfirmation" @on-open-change="(val) => (showServiceDetails = val)" @on-start-chat="openChat" />
     <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
-    <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
+    <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" :service-details="modalService" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
     <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId" @on-provider-response="onProviderResponse" @cancel="resetFlow" @openPayment="openPaymentModal" @retry-request="handleRetry" />
-    <PaymentModal v-if="modalService" v-model:isOpen="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
+    <PaymentModal v-if="modalService" v-model:is-open="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
+    <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket" @close="showNewTicket = false" @ticket-created="onTicketCreated" />
 
     <!-- LiveOrderTracking -->
     <LiveOrderTracking v-if="showLiveTracking" :order="liveOrder" @close="showLiveTracking = false" @open-chat="openChat" />
+
+    <!-- HISTORY DETAIL MODAL -->
+    <div v-if="historyModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50" @click.self="closeHistoryModal">
+      <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 p-6 space-y-4">
+        <h2 class="text-xl font-bold text-gray-800">{{ sanitize(selectedHistory.service_title || selectedHistory.title) }}</h2>
+        <p class="text-sm text-gray-600"><strong>{{ $t('provider') }}:</strong> {{ sanitize(selectedHistory.provider_name || selectedHistory.providerName) }}</p>
+        <p class="text-sm"><strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span></p>
+        <p class="text-sm"><strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span></p>
+        <p class="text-sm"><strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.completed_at || selectedHistory.created_at) }}</p>
+        <div class="flex justify-end">
+          <button @click="closeHistoryModal" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">{{ $t('close') }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { formatDate as utilFormatDate } from '@/utils/formatDate'
-import api from '@/axio'
+import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketStore } from '@/stores/socketStore'
 import ServiceDetailsModal from './ServiceDetailsModal.vue'
@@ -203,6 +218,8 @@ export default {
       lastSpecDetails: '',
       showLiveTracking: false,
       liveOrder: null,
+      historyModal: false,
+      selectedHistory: {},
     }
   },
   methods: {
@@ -275,6 +292,7 @@ export default {
 
       return {
         ...s,
+        service_details: s.service_details || '',
         provider: {
           id: p.id || s.provider_id || s.providerId || s.user_id || null,
           name: p.name || s.provider_name || '—',
@@ -343,7 +361,7 @@ export default {
       if (this.faqItems.length) return
       this.faqLoading = true
       try {
-        const res = await api.get('/api/support/faq')
+        const res = await api.get('/support/faq')
         this.faqItems = Array.isArray(res.data) ? res.data : res.data?.faq || []
       } catch (err) {
         console.error('Error cargando FAQ:', err)
@@ -356,10 +374,10 @@ export default {
       try {
         const authStore = useAuthStore()
         if (!authStore?.token) return
-        const res = await api.get(this.buildPath('requests/history'), {
+        const res = await api.get('/history', {
           headers: { Authorization: `Bearer ${authStore.token}` },
         })
-        this.history = Array.isArray(res.data?.data) ? res.data.data : []
+        this.history = Array.isArray(res.data?.history) ? res.data.history : []
       } catch (err) {
         console.error('Error loading history:', err)
       } finally {
@@ -372,6 +390,14 @@ export default {
         this.modalService = this.normalizeService(service)
         this.showServiceDetails = true
       })
+    },
+    openHistoryModal(item) {
+      this.selectedHistory = item
+      this.historyModal = true
+    },
+    closeHistoryModal() {
+      this.historyModal = false
+      this.selectedHistory = {}
     },
     goToRequestConfirmation() {
       this.showServiceDetails = false
@@ -482,31 +508,30 @@ export default {
         this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
       ]
     },
-  openLiveTracking(request) {
-  this.liveOrder = {
-    id: request.id,
-    serviceName: request.service_title || 'Servicio',
-    description: request.service_description || 'Sin descripción',
-    price: Number(request.service_price || 0),
-    payment_method: request.payment_method || 'Efectivo',
-    created_at: request.created_at || request.date,
-    address: request.provider_address || 'No especificada',
-    provider: {
-      name: request.service_provider_name || 'Proveedor',
-      avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
-      rating: request.provider_rating || null,
-      phone: request.provider_phone || null,
-      current_address: request.provider_address || 'No especificada',
+    openLiveTracking(request) {
+      this.liveOrder = {
+        id: request.id,
+        serviceName: request.service_title || 'Servicio',
+        description: request.service_description || 'Sin descripción',
+        price: Number(request.service_price || 0),
+        payment_method: request.payment_method || 'Efectivo',
+        created_at: request.created_at || request.date,
+        address: request.provider_address || 'No especificada',
+        provider: {
+          name: request.service_provider_name || 'Proveedor',
+          avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+          rating: request.provider_rating || null,
+          phone: request.provider_phone || null,
+          current_address: request.provider_address || 'No especificada',
+        },
+        requestId: request.id,
+        provider_id: request.provider_id || request.service_provider_id,
+        user_id: request.user_id,
+        status: request.status || 'accepted',
+        payment_methods: request.payment_methods || [],
+      };
+      this.showLiveTracking = true;
     },
-    // ✅ CRÍTICO: asegúrate de incluir estos datos para el pago
-    requestId: request.id,
-    provider_id: request.provider_id || request.service_provider_id,
-    user_id: request.user_id,
-    status: request.status || 'accepted',
-    payment_methods: request.payment_methods || [],
-  };
-  this.showLiveTracking = true;
-},
   },
   computed: {
     notifications() {

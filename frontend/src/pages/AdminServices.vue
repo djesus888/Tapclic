@@ -134,7 +134,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 
 /* ---------- datos ---------- */
 const services = ref([])

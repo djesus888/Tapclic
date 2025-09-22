@@ -39,7 +39,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 

@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { fileURLToPath, URL } from 'url'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { fileURLToPath, URL } from 'url';
 
 export default defineConfig({
   plugins: [vue()],
@@ -11,11 +11,19 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5173
+    port: 5173,
+    hmr: {
+      overlay: true
+    }
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: { format: 'es' }
+    }
+  },
+  optimizeDeps: {
+    exclude: ['@rollup/rollup-android-arm64']
   }
-})
-
+});

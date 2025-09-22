@@ -25,7 +25,7 @@ class Service
 
         $stmt = $this->conn->prepare($sql);
 
-        return $stmt->execute([
+        $saved = $stmt->execute([
             ':user_id'             => $data['user_id'],
             ':title'               => $data['title'],
             ':description'         => $data['description'],
@@ -40,6 +40,13 @@ class Service
             ':provider_rating'     => $data['provider_rating'] ?? 5.0,
             ':isAvailable'         => $data['isAvailable'] ?? 1,
         ]);
+
+        /* --------- notificación al administrador --------- */
+        if ($saved) {
+            $this->notifyAdminNewService($data['user_id'], $data['title']);
+        }
+
+        return $saved;
     }
 
     /* ----------  READ  ---------- */
@@ -122,5 +129,29 @@ class Service
     {
         $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE id = ? AND user_id = ?");
         return $stmt->execute([$id, $userId]);
+    }
+
+    /* -------------------------------------------------- */
+    /*  Notificación interna                              */
+    /* -------------------------------------------------- */
+    private function notifyAdminNewService(int $providerId, string $serviceTitle): void
+    {
+        // ID fijo del administrador (ajusta si usas otro)
+        $adminId = 1;
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO notifications
+                (sender_id, receiver_id, receiver_role, title, message, is_read)
+             VALUES
+                (:sender, :receiver, 'admin', :title, :msg, 0)"
+        );
+
+        $stmt->execute([
+            ':sender'   => $providerId,
+            ':receiver' => $adminId,
+            ':title'    => 'Nueva solicitud de servicio',
+            ':msg'      => "El proveedor #{$providerId} ha creado el servicio \"{$serviceTitle}\". "
+                         . "Revisa la solicitud para aprobacion",
+        ]);
     }
 }

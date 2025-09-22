@@ -167,6 +167,7 @@
             <RouterLink to="/orders" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('myOrders') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">👤 {{ $t('profile') }}</RouterLink>
+            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">  {{ $t('reviews') }}</RouterLink>         
             <RouterLink to="/wallet" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⚙️ {{ $t('settings') }}</RouterLink>
             <RouterLink to="/my_requests" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📨 {{ $t('requests') }}</RouterLink>
@@ -182,6 +183,7 @@
             <RouterLink to="/earnings" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📈 {{ $t('myEarnings') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛡️ {{ $t('profile') }}</RouterLink>
+            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">  {{ $t('reviews') }}</RouterLink>          
             <RouterLink to="/wallet" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⚙️ {{ $t('settings') }}</RouterLink>
           </template>

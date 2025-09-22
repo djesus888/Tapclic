@@ -7,8 +7,8 @@ import Register from '@/pages/Register.vue'
 import Dashboard from '@/pages/Dashboard.vue'
 import Profile from '@/pages/Profile.vue'
 import Wallet from '@/pages/Wallet.vue'
-import Config from '@/pages/config.vue'
-import Orders from '@/pages/orders.vue'
+import Config from '@/pages/Config.vue'
+import Orders from '@/pages/Orders.vue'
 import New from '@/pages/services/New.vue'
 import Services from '@/pages/services/Services.vue'
 import ChatList from '@/pages/ChatList.vue'
@@ -17,6 +17,7 @@ import PaymentMethod from '@/pages/PaymentMethod.vue'
 import AdminUser from '@/pages/AdminUser.vue'
 import AdminServices from '@/pages/AdminServices.vue'
 import AdminReports from '@/pages/AdminReports.vue'
+import Reviews from '@/pages/Reviews.vue'
 
 import DashboardUser from '@/components/DashboardUser.vue'
 import DashboardAdmin from '@/components/DashboardAdmin.vue'
@@ -44,6 +45,7 @@ const routes = [
       { path: 'admin/users', component: AdminUser }, 
       { path: 'admin/services', component: AdminServices },
       { path: 'admin/reports', component: AdminReports },
+      { path: 'reviews', component: Reviews },
 
       { path: 'dashboard/user', component: DashboardUser, meta: { role: 'user' } },
       { path: 'dashboard/admin', component: DashboardAdmin, meta: { role: 'admin' } },

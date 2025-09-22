@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import api from '@/axio'
+import api from '@/axios'
 
 export const useSystemStore = defineStore('system', {
   state: () => ({
@@ -13,7 +13,7 @@ export const useSystemStore = defineStore('system', {
       this.loading = true
       this.error = null
       try {
-        const res = await api.get('/system/config')
+        const res = await api.get('/system/system')
         this.config = res.data
       } catch (err) {
         console.error("Error cargando configuración del sistema:", err)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 
 interface ServiceRequest {

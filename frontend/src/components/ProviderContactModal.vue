@@ -93,7 +93,7 @@
 
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

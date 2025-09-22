@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, h } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'
 

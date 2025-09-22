@@ -154,7 +154,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import api from '@/axio';
+import api from '@/axios';
 
 const users = ref([]);
 const currentPage = ref(1);

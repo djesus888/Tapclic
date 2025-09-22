@@ -1,6 +1,7 @@
 <?php
 // backend/controllers/ServiceController.php
 
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../utils/jwt.php';
 
@@ -36,12 +37,23 @@ class ServiceController
     /* ----------  RATE LIMIT  ---------- */
     private function rateLimit(int $userId): bool
     {
-        $key   = "rate:service:$userId";
-        $redis = new Redis();
-        if (!$redis->connect('127.0.0.1')) return true;
-        $current = $redis->incr($key);
-        if ($current === 1) $redis->expire($key, 3600);
-        return $current <= 20;
+        $key = "rate:service:$userId";
+        try {
+            $redis = new Redis();
+            if (!$redis->connect('127.0.0.1')) {
+                throw new RedisException("Conexión rechazada");
+            }
+            $current = $redis->incr($key);
+            if ($current === 1) $redis->expire($key, 3600);
+            return $current <= 20;
+        } catch (RedisException $e) {
+            // Redis caído: permitimos pasar pero logueamos
+            error_log('Redis down: ' . $e->getMessage());
+            http_response_code(503);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Servicio temporalmente no disponible']);
+            exit;
+        }
     }
 
     /* ----------  WS NOTIFICATION  ---------- */
@@ -100,16 +112,24 @@ class ServiceController
         }
 
         $data = $this->extractServiceDataFromRequest();
-
         if (!$data) return;
 
         $data['user_id'] = $auth->id;
         $data['image_url'] = $this->handleImageUpload();
 
+        $db = (new Database())->getConnection();
+        $stmt = $db->prepare("SELECT name, avatar_url, average_rating FROM users WHERE id = :id");
+        $stmt->execute([':id' => $auth->id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $data['provider_name']       = $user['name'] ?? 'Proveedor';
+        $data['provider_avatar_url'] = $user['avatar_url'] ?? null;
+        $data['provider_rating']     = $user['average_rating'] ?? 5.0;
+
         if ($this->model->create($data)) {
             $this->emitWs([
-                'receiver_role' => 'user',
-                'receiver_id'   => 0,
+                'receiver_role' => 'admin',
+                'receiver_id'   => 1,
                 'title'         => 'Nuevo servicio disponible',
                 'message'       => 'Se ha añadido un nuevo servicio.'
             ]);

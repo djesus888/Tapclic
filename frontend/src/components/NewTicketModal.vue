@@ -81,7 +81,7 @@
 </template>
 
 <script>
-import api from '@/axio'
+import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 
 export default {

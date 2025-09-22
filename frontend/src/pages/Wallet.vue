@@ -99,7 +99,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'
-import api from '@/axio'
+import api from '@/axios'
 import Swal from 'sweetalert2'
 
 const { t } = useI18n()

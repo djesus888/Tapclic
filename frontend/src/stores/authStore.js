@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import axios from 'axios'
 import Swal from 'sweetalert2'
 import router from '@/router'
-import { i18n } from '@/i18n' // Asegúrate de que esta ruta sea correcta
+import { i18n } from '@/i18n' 
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({

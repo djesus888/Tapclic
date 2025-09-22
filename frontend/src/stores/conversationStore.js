@@ -1,7 +1,7 @@
 // src/stores/conversationStore.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import api from '@/axio'
+import api from '@/axios'
 import { io } from 'socket.io-client'
 
 export const useConversationStore = defineStore('conversation', () => {
