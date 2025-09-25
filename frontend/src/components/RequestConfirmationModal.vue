@@ -23,7 +23,7 @@
       <!-- COMENTARIOS OPCIONALES -->
       <div class="mt-4 flex items-center gap-2">
         <input type="checkbox" id="addSpec" v-model="addSpec" />
-        <label for="addSpec">{{ $t('addComments') }}</label>
+        <label for="addSpec">{{ $t('add condition in service request.') }}</label>
       </div>
 
       <textarea

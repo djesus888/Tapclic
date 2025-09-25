@@ -1,6 +1,5 @@
 <?php
 // controllers/RequestController.php
-
 require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
 
@@ -39,6 +38,12 @@ class RequestController
         if (!$auth) return $this->unauthorized();
 
         $path = $_SERVER['REQUEST_URI'];
+
+        // --- NUEVA RUTA: confirm-payment (redirige a PaymentController) ---
+        if (preg_match('/\/api\/requests\/confirm-payment/', $path) && $method === 'POST') {
+            (new PaymentController())->handle('confirm-payment');
+            return;
+        }
 
         if (preg_match('/\/api\/requests\/create/', $path) && $method === 'POST') {
             $this->create($auth);
@@ -123,6 +128,27 @@ class RequestController
     {
         $data = json_decode(file_get_contents("php://input"), true);
         $data['user_id'] = $auth->id;
+
+        /* ---------- BLOQUEO SOLICITUD DUPLICADA ---------- */
+        $userId     = $auth->id;
+        $serviceId  = $data['service_id']   ?? null;
+        $providerId = $data['provider_id']  ?? null;
+
+        if (!$serviceId || !$providerId) {
+            echo json_encode(["success" => false, "error" => "Faltan datos"]);
+            return;
+        }
+
+        $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
+        if ($exists) {
+            echo json_encode([
+                "success" => false,
+                "error"   => "Ya tienes una solicitud activa para este servicio con este proveedor."
+            ]);
+            return;
+        }
+        /* ---------- FIN BLOQUEO ---------- */
+
         $newId = $this->model->create($data);
         if ($newId) {
             $providerId = $data['provider_id'] ?? null;
@@ -471,7 +497,6 @@ class RequestController
 
             $this->archiveAndClean((int)$requestId, 'cancelled');
             echo json_encode(["success" => true]);
-
         } catch (Exception $e) {
             echo json_encode(["success" => false, "message" => $e->getMessage()]);
         }

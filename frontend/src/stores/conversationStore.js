@@ -2,65 +2,80 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '@/axios'
-import { io } from 'socket.io-client'
+import { useSocketStore } from './socketStore'   // ← usamos el store central
+import { useAuthStore }   from './authStore'
 
 export const useConversationStore = defineStore('conversation', () => {
-  /* ---------- Estado ---------- */
   const conversations = ref([])
   const messages      = ref({})
-  const socket        = ref(null)
   const loaded        = ref(false)
 
-  /* ---------- Computed ---------- */
   const unreadCount = computed(() =>
     conversations.value.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
   )
 
-  /* ---------- WebSocket ---------- */
-  function initSocket(userId) {
-    if (socket.value) return
-    socket.value = io(import.meta.env.VITE_WS_URL || window.location.origin, {
-      query: { userId },
+  /* ------------------------------------------------------------------ */
+  /*  1.  Inicialización del socket (solo UNA vez)                       */
+  /* ------------------------------------------------------------------ */
+  function initSocket() {
+    const socketStore = useSocketStore()
+    const authStore   = useAuthStore()
+
+    // si ya estamos escuchando, no hacemos nada
+    if (socketStore.socket?.hasListeners('newMessage')) return
+
+    const room = `user_${authStore.user.id}`
+
+    // Nos aprovechamos del socket YA conectado por socketStore
+    socketStore.on('connect', () => {
+      console.log('🔌 Chat conectado al WS')
+      socketStore.emit('join-room', room)
     })
 
-    socket.value.on('newMessage', ({ conversationId, message }) => {
+    socketStore.on('newMessage', ({ conversationId, message }) => {
       addMessage(conversationId, message)
     })
 
-    socket.value.on('messageRead', ({ conversationId, messageIds }) => {
+    socketStore.on('messageRead', ({ conversationId, messageIds }) => {
       markMessagesAsReadLocally(conversationId, messageIds)
     })
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  2.  Desconectar (cuando haga falta)                               */
+  /* ------------------------------------------------------------------ */
   function disconnectSocket() {
-    socket.value?.disconnect()
-    socket.value = null
+    const socketStore = useSocketStore()
+    socketStore.off('newMessage')
+    socketStore.off('messageRead')
+    // NO llamamos socket.disconnect() aquí; lo hace socketStore cuando proceda
   }
 
-  /* ---------- API ---------- */
+  /* ------------------------------------------------------------------ */
+  /*  3.  Resto de acciones (sin cambios)                               */
+  /* ------------------------------------------------------------------ */
   async function fetchConversations() {
-  try {
-    const { data: res } = await api.get('/conversations')
-    const list = Array.isArray(res) ? res : res.conversations || []
-    conversations.value = list.map(c => ({
-      ...c,
-      participants: Array.isArray(c.participants)
-        ? c.participants
-        : [c.participants || '?'],
-      lastMessage: c.lastMessage || { text: '', created_at: null },
-    }))
-  } catch (err) {
-    console.error('Error fetching conversations:', err)
-  } finally {
-    loaded.value = true
+    try {
+      const { data: res } = await api.get('/conversations')
+      const list = Array.isArray(res) ? res : res.conversations || []
+      conversations.value = list.map(c => ({
+        ...c,
+        participants: Array.isArray(c.participants)
+          ? c.participants
+          : [c.participants || '?'],
+        lastMessage: c.lastMessage || { text: '', created_at: null },
+      }))
+    } catch (err) {
+      console.error('Error fetching conversations:', err)
+    } finally {
+      loaded.value = true
+    }
   }
-}
-
 
   async function fetchMessages(conversationId) {
     try {
       const { data } = await api.get(`/conversations/${conversationId}/messages`)
-      messages.value[conversationId] = data
+      messages.value[conversationId] = Array.isArray(data) ? data : []
     } catch (err) {
       console.error('Error fetching messages:', err)
     }
@@ -70,7 +85,7 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       const { data } = await api.post(`/conversations/${conversationId}/messages`, { text })
       addMessage(conversationId, data)
-      socket.value?.emit('sendMessage', { conversationId, message: data })
+      useSocketStore().emit('sendMessage', { conversationId, message: data })
     } catch (err) {
       console.error('Error sending message:', err)
     }
@@ -80,17 +95,15 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       await api.post(`/conversations/${conversationId}/read`, { messageIds })
       markMessagesAsReadLocally(conversationId, messageIds)
-      socket.value?.emit('readMessages', { conversationId, messageIds })
+      useSocketStore().emit('readMessages', { conversationId, messageIds })
     } catch (err) {
       console.error('Error marking as read:', err)
     }
   }
 
-  /* ---------- Helpers ---------- */
   function addMessage(conversationId, message) {
     if (!messages.value[conversationId]) messages.value[conversationId] = []
-    messages.value[conversationId].push(message)
-
+    messages.value[conversationId].unshift(message)
     const conv = conversations.value.find(c => c.id === conversationId)
     if (conv) {
       conv.lastMessage = message
@@ -100,22 +113,20 @@ export const useConversationStore = defineStore('conversation', () => {
 
   function markMessagesAsReadLocally(conversationId, messageIds) {
     const conv = conversations.value.find(c => c.id === conversationId)
-    if (conv)
-      conv.unreadCount = Math.max(0, (conv.unreadCount || 0) - messageIds.length)
+    if (conv) conv.unreadCount = Math.max(0, (conv.unreadCount || 0) - messageIds.length)
 
     const msgs = messages.value[conversationId]
-    if (msgs)
+    if (msgs) {
       msgs.forEach(m => {
         if (messageIds.includes(m.id)) m.isRead = true
       })
+    }
   }
 
-  /* ---------- Navegación ---------- */
   function goToChat(conversationId, router) {
     router.push(`/chat/${conversationId}`)
   }
 
-  /* ---------- Exports ---------- */
   return {
     conversations,
     messages,

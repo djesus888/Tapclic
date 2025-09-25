@@ -39,12 +39,16 @@ class ServiceRequest
     public function getByUser($userId)
     {
         $query = "
-            SELECT sr.*,
-                   s.title AS service_title,
-                   s.description AS service_description,
-                   s.price AS service_price,
-                   s.provider_name AS service_provider_name,
-                   s.provider_avatar_url AS service_image
+            SELECT
+                sr.*,
+                s.title AS service_title,
+                s.description AS service_description,
+                s.price AS service_price,
+                s.provider_name AS service_provider_name,
+                s.provider_avatar_url AS service_image,
+                s.location AS service_location,
+                s.provider_rating AS service_provider_rating,
+                s.isAvailable AS service_is_available
             FROM {$this->table} sr
             LEFT JOIN services s ON sr.service_id = s.id
             WHERE sr.user_id = :id OR sr.provider_id = :id
@@ -134,7 +138,6 @@ class ServiceRequest
                   WHERE sr.status = 'pending'
                     AND sr.user_id = :user_id
                   ORDER BY sr.created_at DESC";
-
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -244,7 +247,10 @@ class ServiceRequest
         ]);
     }
 
-    public function updatePaymentStatus($id, $status)
+    /**
+     * Actualiza el campo payment_status y devuelve TRUE si al menos una fila fue afectada.
+     */
+    public function updatePaymentStatus(int $id, string $status): bool
     {
         $query = "UPDATE {$this->table}
                   SET payment_status = :status, updated_at = NOW()
@@ -258,7 +264,6 @@ class ServiceRequest
     }
 
     /* ----------  MÉTODOS PARA CANCELACIÓN  ---------- */
-
     public function cancel(int $requestId, int $actorId, string $actorRole): bool
     {
         if (!in_array($actorRole, ['user', 'provider'])) {
@@ -280,13 +285,29 @@ class ServiceRequest
         ]);
     }
 
+    public function existsOpenRequest(int $userId, int $serviceId, int $providerId): bool
+    {
+        $sql = "SELECT id FROM service_requests
+                WHERE user_id = :user
+                  AND service_id = :service
+                  AND provider_id = :provider
+                  AND status IN ('pending','accepted','in_progress')
+                LIMIT 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([
+            ':user'     => $userId,
+            ':service'  => $serviceId,
+            ':provider' => $providerId
+        ]);
+        return (bool) $stmt->fetchColumn();
+    }
+
     public function getCancellationInfo(int $requestId): ?array
     {
         $sql = "SELECT status, cancelled_by FROM {$this->table} WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':id' => $requestId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
         if ($row && $row['status'] === 'cancelled') {
             return ['cancelled_by' => $row['cancelled_by']];
         }
@@ -296,7 +317,6 @@ class ServiceRequest
     /* ----------------------------------------------------------
        N U E V O S   M É T O D O S   P A R A   C E R R A R
        ---------------------------------------------------------- */
-
     /**
      * Cierra la request (completed | cancelled | rejected)
      * y la traslada al historial.
@@ -327,27 +347,48 @@ class ServiceRequest
             }
 
             // Fallback manual
-$pdo->beginTransaction();
+            $pdo->beginTransaction();
 
-$sql = "INSERT INTO service_history
-          (user_id, service_id, request_id, service_title, service_price,
-           provider_name, status, finished_at, provider_id)
-        SELECT r.user_id, r.service_id, r.id,
-               s.title, s.price, s.provider_name, :st, NOW(), r.provider_id
-        FROM   service_requests r
-        JOIN   services s ON s.id = r.service_id
-        WHERE  r.id = :id";
-$pdo->prepare($sql)->execute(['id' => $reqId, 'st' => $status]);
+            /* --------------------------------------------------
+             * 1. Leer datos de pago ANTES de borrar la request
+             * -------------------------------------------------- */
+            $payData = $pdo->prepare("SELECT payment_status, payment_method FROM service_requests WHERE id = ?");
+            $payData->execute([$reqId]);
+            $payRow  = $payData->fetch(PDO::FETCH_ASSOC);
 
-// borrar el pago asociado
-$stmtPay = $pdo->prepare("DELETE FROM payments WHERE service_request_id = ?");
-$stmtPay->execute([$reqId]);
+            $finStatus = $payRow['payment_status'] ?? 'pending';
+            $finMethod = $payRow['payment_method'] ?? null;
 
-// borrar la request
-$stmtReq = $pdo->prepare("DELETE FROM service_requests WHERE id = ?");
-$stmtReq->execute([$reqId]);
+            /* --------------------------------------------------
+             * 2. INSERTAR en el historial CON los datos de pago
+             * -------------------------------------------------- */
+            $sql = "INSERT INTO service_history
+                      (user_id, service_id, request_id, service_title, service_price,
+                       provider_name, status, finished_at, provider_id,
+                       payment_status, payment_method)
+                    SELECT r.user_id, r.service_id, r.id,
+                           s.title, s.price, s.provider_name, :st, NOW(), r.provider_id,
+                           :payStatus, :payMethod
+                    FROM   service_requests r
+                    JOIN   services s ON s.id = r.service_id
+                    WHERE  r.id = :id";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':id'         => $reqId,
+                ':st'         => $status,
+                ':payStatus'  => $finStatus,
+                ':payMethod'  => $finMethod
+            ]);
 
-$pdo->commit();
+            // 3. Borrar el pago asociado
+            $stmtPay = $pdo->prepare("DELETE FROM payments WHERE service_request_id = ?");
+            $stmtPay->execute([$reqId]);
+
+            // 4. Borrar la request
+            $stmtReq = $pdo->prepare("DELETE FROM service_requests WHERE id = ?");
+            $stmtReq->execute([$reqId]);
+
+            $pdo->commit();
         } catch (Throwable $e) {
             $pdo->inTransaction() && $pdo->rollBack();
             throw $e;

@@ -34,7 +34,11 @@
       <div v-for="req in availableRequests" :key="`${req.id}-${$i18n.locale}`"
            class="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
         <div>
-          <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+            <!-- PAYMENT STATUS -->
+            <PaymentPill :status="req.payment_status" />
+          </div>
           <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
           <p class="text-sm mt-2 text-gray-500">{{ req.service_location }}</p>
           <p class="text-sm mt-2 text-gray-500">{{ sanitize(req.service_provider_name) }}</p>
@@ -63,11 +67,29 @@
       </div>
       <div v-for="req in inProgressRequests" :key="`${req.id}-${$i18n.locale}`"
            class="bg-white rounded-lg shadow p-4">
-        <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+          <!-- PAYMENT STATUS -->
+          <PaymentPill :status="req.payment_status" />
+        </div>
         <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
         <p class="text-sm mt-2 text-gray-500">
           <strong>{{ $t('requested_by') }}:</strong> {{ sanitize(req.user_name || $t('user')) }}
         </p>
+        <!-- CANCELLED BY -->
+        <p v-if="req.status === 'cancelled' && req.cancelled_by" class="text-xs text-red-600 mt-1">
+          {{ $t('cancelled_by') }}: {{ req.cancelled_by }}
+        </p>
+
+        <!-- BOTÓN CONFIRMAR PAGO (solo si está en verificación) -->
+        <div v-if="req.payment_status === 'verifying'" class="mt-3">
+          <button
+            class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600"
+            @click="confirmPayment(req.id)">
+            ✅ {{ $t('confirm_payment') }}
+          </button>
+        </div>
+
         <details class="mt-3 text-xs">
           <summary class="cursor-pointer text-blue-600">{{ $t('timeline') }}</summary>
           <div class="mt-2 space-y-1">
@@ -161,6 +183,9 @@
         <div class="flex-1">
           <p class="font-semibold text-gray-800">{{ sanitize(req.service_title) }}</p>
           <p class="text-sm" :class="statusColor(req.status)">{{ $t('status.'+req.status) }}</p>
+          <p class="text-xs text-gray-500 mt-1">
+            <PaymentPill :status="req.payment_status" />
+          </p>
         </div>
         <div class="text-right">
           <p class="font-bold text-green-600">{{ formatCurrency(req.service_price) }}</p>
@@ -178,9 +203,10 @@
         <p class="text-sm text-gray-600">{{ sanitize(selectedHistory.service_description) }}</p>
         <p class="text-sm"><strong>{{ $t('requested_by') }}:</strong> {{ sanitize(selectedHistory.user_name) }}</p>
         <p class="text-sm"><strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ $t('status.'+selectedHistory.status) }}</span></p>
+        <p class="text-sm"><strong>{{ $t('payment_status') }}:</strong> <PaymentPill :status="selectedHistory.payment_status" /></p>
         <p class="text-sm"><strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">{{ formatCurrency(selectedHistory.service_price) }}</span></p>
         <p class="text-sm"><strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.updated_at) }}</p>
-        <div v-if="selectedHistory.status === 'cancelled'" class="text-sm text-red-600">
+        <div v-if="selectedHistory.status === 'cancelled' && selectedHistory.cancelled_by" class="text-sm text-red-600">
           <strong>{{ $t('cancelled_by') }}:</strong> {{ selectedHistory.cancelled_by }}
         </div>
         <div class="flex justify-end">
@@ -198,10 +224,11 @@ import {useAuthStore} from '@/stores/authStore'
 import {useSocketStore} from '@/stores/socketStore'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
 import NewTicketModal from '@/components/NewTicketModal.vue'
+import PaymentPill from '@/components/PaymentPill.vue'   // <-- nuevo
 
 export default {
   name: 'DashboardProvider',
-  components: {ChatRoomModal, NewTicketModal},
+  components: {ChatRoomModal, NewTicketModal, PaymentPill},
   data() {
     return {
       tabs: [],
@@ -372,7 +399,8 @@ export default {
             user_name: h.user_name,
             updated_at: h.finished_at || h.updated_at,
             status: h.status,
-            cancelled_by: h.cancelled_by
+            cancelled_by: h.cancelled_by,
+            payment_status: h.payment_status
           }))
       } catch (e) { console.error(e) } finally { this.historyLoading = false }
     },
@@ -431,6 +459,23 @@ export default {
           this.playSound()
         }
       } catch (e) { console.error(e) }
+    },
+    // ✅ NUEVO: confirmar pago
+    async confirmPayment(requestId) {
+      try {
+        const auth = useAuthStore()
+        const res = await api.post('/requests/confirm-payment', {id: requestId}, {
+          headers: {Authorization: `Bearer ${auth.token}`}
+        })
+        if (res.data.success) {
+          // actualizar localmente
+          const idx = this.inProgressRequests.findIndex(r => r.id === requestId)
+          if (idx !== -1) this.inProgressRequests[idx].payment_status = 'paid'
+          this.playSound()
+        }
+      } catch (e) {
+        console.error(e)
+      }
     },
     updateRequestStatus(requestId, newStatus, updatedAt) {
       const idx = this.inProgressRequests.findIndex(r => r.id === requestId)

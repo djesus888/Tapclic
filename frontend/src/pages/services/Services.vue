@@ -7,16 +7,40 @@
     </router-link>
 
     <div v-if="services.length" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <div v-for="s in services" :key="s.id" class="border rounded-lg p-4 hover:shadow-lg cursor-pointer" @click="openEditModal(s)">
-        <img v-if="s.image_url" :src="getImageUrl(s.image_url)" :alt="$t('services.image')" class="w-full h-40 object-cover rounded mb-2" />
-        <h2 class="text-xl font-semibold">{{ s.title }}</h2>
-        <p class="text-gray-600">{{ s.description.slice(0, 60) }}...</p>
-        <p class="text-green-600 font-bold mt-1">${{ s.price }}</p>
-        <p class="text-sm text-gray-500">{{ s.category }} · {{ s.location }}</p>
-        <button class="mt-3 text-sm text-red-600 hover:underline" @click.stop="deleteService(s.id)">
-          {{ $t('services.delete') }}
-        </button>
-      </div>
+     
+<div
+  v-for="s in services"
+  :key="s.id"
+  class="relative border rounded-lg p-4 hover:shadow-lg cursor-pointer"
+  @click="openEditModal(s)"
+>
+  <!-- Badge estado -->
+  <span
+    class="absolute top-2 right-2 text-xs px-2 py-1 rounded-full font-semibold"
+    :class="statusColor(s.status)"
+  >
+    {{ $t(s.status) }}
+  </span>
+
+  <img
+    v-if="s.image_url"
+    :src="getImageUrl(s.image_url)"
+    :alt="$t('services.image')"
+    class="w-full h-40 object-cover rounded mb-2"
+  />
+  <h2 class="text-xl font-semibold">{{ s.title }}</h2>
+  <p class="text-gray-600">{{ s.description.slice(0, 60) }}...</p>
+  <p class="text-green-600 font-bold mt-1">${{ s.price }}</p>
+  <p class="text-sm text-gray-500">{{ s.category }} · {{ s.location }}</p>
+  <button
+    class="mt-3 text-sm text-red-600 hover:underline"
+    @click.stop="deleteService(s.id)"
+  >
+    {{ $t('services.delete') }}
+  </button>
+</div>
+
+
     </div>
 
     <div v-else class="text-center text-gray-500">{{ $t('services.noServices') }}</div>
@@ -115,6 +139,16 @@ const getImageUrl = (path) => {
   return path.startsWith('http') ? path : `http://localhost:8000${path}`
 }
 
+const statusColor = (status) => {
+  switch (status) {
+    case 'pending':  return 'bg-yellow-100 text-yellow-800'
+    case 'approved': return 'bg-green-100 text-green-800'
+    case 'rejected': return 'bg-red-100 text-red-800'
+    default:         return 'bg-gray-100 text-gray-800'
+  }
+}
+
+
 /* ----------  Cargar servicios  ---------- */
 const loadServices = async () => {
   try {
@@ -153,7 +187,7 @@ const deleteService = async (id) => {
     Swal.fire(t('common.success'), t('services.deleted'), 'success')
     loadServices()
   } catch (err) {
-    Swal.fire(t('common.error'), err.response?.data?.error || t('services.deleteError'), 'error')
+    Swal.fire(t('common.error'), err.response?.data?.message || t('services.deleteError'), 'error')
   }
 }
 

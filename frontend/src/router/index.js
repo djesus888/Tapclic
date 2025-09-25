@@ -18,6 +18,8 @@ import AdminUser from '@/pages/AdminUser.vue'
 import AdminServices from '@/pages/AdminServices.vue'
 import AdminReports from '@/pages/AdminReports.vue'
 import Reviews from '@/pages/Reviews.vue'
+import Requests from '@/pages/Requests.vue'
+import ServiceDetailPage from '@/pages/ServiceDetailPage.vue'
 
 import DashboardUser from '@/components/DashboardUser.vue'
 import DashboardAdmin from '@/components/DashboardAdmin.vue'
@@ -46,6 +48,8 @@ const routes = [
       { path: 'admin/services', component: AdminServices },
       { path: 'admin/reports', component: AdminReports },
       { path: 'reviews', component: Reviews },
+      { path: 'requests', component: Requests },
+      { path: 'service/:id', component: ServiceDetailPage },
 
       { path: 'dashboard/user', component: DashboardUser, meta: { role: 'user' } },
       { path: 'dashboard/admin', component: DashboardAdmin, meta: { role: 'admin' } },

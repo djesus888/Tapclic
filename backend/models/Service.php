@@ -49,6 +49,22 @@ class Service
         return $saved;
     }
 
+public function findById(int $id): ?array
+{
+    $stmt = $this->conn->prepare("
+        SELECT id, title, description, price, location, image_url,
+               provider_name, provider_avatar_url, provider_rating,
+               isAvailable, status, created_at,
+               user_id AS provider_id
+        FROM services
+        WHERE id = :id
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+}
+
+
     /* ----------  READ  ---------- */
     public function getByUser(int $userId): array
     {

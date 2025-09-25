@@ -36,6 +36,13 @@ if (preg_match('~/api/login~', $request)) {
     (new AuthController())->register();
 } elseif ($request === '/api/me') {
     (new AuthController())->me();
+} elseif ($request === '/api/refresh-token' && $method === 'POST') {
+    (new AuthController())->refreshToken();
+
+// --- RUTA INDIVIDUAL POR ID ---
+} elseif (preg_match('~/api/services/(\d+)$~', $request, $m) && $method === 'GET') {
+    $id = (int)$m[1];
+    (new ServiceController())->getById($id);
 
 // --- RUTAS SERVICIOS ---
 } elseif (
@@ -65,6 +72,7 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/requests/in_progress~', $request) ||
     preg_match('~/api/requests/on_the_way~', $request) ||
     preg_match('~/api/requests/arrived~', $request) ||
+    preg_match('~/api/requests/confirm-payment~', $request) ||
     preg_match('~/api/requests~', $request)
 ) {
     (new RequestController())->handle($method);
@@ -138,11 +146,9 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/payments~', $request)) {
     (new PaymentController())->handle($method);
 } elseif (preg_match('#^/api/provider/(\d+)/payment-methods$#', $request, $m)) {
-    // métodos públicos de un proveedor (para usuarios)
     $providerId = (int)$m[1];
     (new ProviderPaymentController())->getPublicMethods($providerId);
 } elseif (preg_match('#^/api/provider/payment-methods(/(\d+))?$#', $request, $m)) {
-    // CRUD propio del proveedor autenticado
     $id = isset($m[2]) ? (int)$m[2] : null;
     switch ($method) {
         case 'GET':
@@ -202,13 +208,9 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/admin/upload-favicon$~', $request) && $method === 'POST') {
     (new AdminController())->uploadFavicon();
 
-
-
 // --- RUTA GET DEL SISTEMA ---
 } elseif (preg_match('~/api/system~', $request)) {
     (new SystemController())->handle($method);
-
-
 
 // --- RUTA POR DEFECTO ---
 } else {

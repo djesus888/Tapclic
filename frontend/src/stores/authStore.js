@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import axios from 'axios'
 import Swal from 'sweetalert2'
 import router from '@/router'
-import { i18n } from '@/i18n' 
+import { i18n } from '@/i18n'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -29,12 +29,10 @@ export const useAuthStore = defineStore('auth', {
       this.locale = locale
       localStorage.setItem('userLocale', locale)
 
-      // Actualizar i18n global
       if (i18n && i18n.global) {
         i18n.global.locale.value = locale
       }
 
-      // Actualizar lang attribute en html
       document.documentElement.lang = locale
     },
 
@@ -46,7 +44,6 @@ export const useAuthStore = defineStore('auth', {
           i18n.global.locale.value = savedLocale
         }
       } else {
-        // Detectar idioma del navegador
         const browserLocale = navigator.language.substring(0, 2)
         const supportedLocales = ['es', 'en']
         const defaultLocale = supportedLocales.includes(browserLocale) ? browserLocale : 'es'
@@ -75,7 +72,6 @@ export const useAuthStore = defineStore('auth', {
 
         this.setAxiosToken(token)
 
-        // Usar traducciones de i18n
         const $t = i18n.global.t
         Swal.fire($t('success'), $t('registration_success'), 'success')
 
@@ -113,7 +109,6 @@ export const useAuthStore = defineStore('auth', {
 
         this.setAxiosToken(token)
 
-        // Cargar locale del usuario si está disponible
         if (user.locale) {
           this.setLocale(user.locale)
         } else {
@@ -128,7 +123,6 @@ export const useAuthStore = defineStore('auth', {
           timer: 1500,
           showConfirmButton: false,
           willClose: () => {
-            // Redirección por rol
             switch (user.role) {
               case 'admin':
                 router.push('/dashboard/admin')
@@ -154,6 +148,27 @@ export const useAuthStore = defineStore('auth', {
         throw error
       } finally {
         this.loading = false
+      }
+    },
+
+    async refreshToken() {
+      try {
+        const res = await axios.post('http://localhost:8000/api/refresh-token', {}, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        const { token, user } = res.data
+
+        this.token = token
+        this.user = user
+        localStorage.setItem('token', token)
+        localStorage.setItem('user', JSON.stringify(user))
+        this.setAxiosToken(token)
+
+        return token
+      } catch (err) {
+        console.error('❌ No se pudo refrescar el token:', err)
+        this.logout()
+        throw err
       }
     },
 
@@ -187,7 +202,6 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('role')
       localStorage.removeItem('userLocale')
 
-      // Resetear idioma al salir
       if (i18n && i18n.global) {
         i18n.global.locale.value = 'es'
       }
@@ -197,7 +211,6 @@ export const useAuthStore = defineStore('auth', {
       router.push('/login')
     },
 
-    // Método para inicializar el store con el idioma correcto
     initialize() {
       this.loadLocale()
       this.setAxiosToken(this.token)
@@ -205,7 +218,6 @@ export const useAuthStore = defineStore('auth', {
   }
 })
 
-// Inicializar el store al importar
 export function initializeAuthStore() {
   const auth = useAuthStore()
   auth.initialize()

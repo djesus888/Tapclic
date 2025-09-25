@@ -7,10 +7,16 @@ import { createPinia } from 'pinia'
 import { i18n } from './i18n'
 import Swal from 'sweetalert2'
 
+// Importar stores
+import { useSocketStore } from '@/stores/socketStore.js'
+import { useSystemStore } from '@/stores/systemStore.js'
+import { useNotificationStore } from '@/stores/notificationStore.js'
+import { initializeAuthStore } from '@/stores/authStore.js'
+
 // Inicializar Vue
 const app = createApp(App)
 
-// Manejo de errores de Vue
+// Manejo global de errores
 app.config.errorHandler = (err, instance, info) => {
   console.error('>>> ERROR DE VUE:', err.message, '\n', err.stack, '\nInfo:', info)
   Swal.fire({
@@ -20,8 +26,6 @@ app.config.errorHandler = (err, instance, info) => {
     width: 600
   })
 }
-
-// Errores globales JS
 window.addEventListener('error', (e) => {
   console.error('>>> ERROR CAPTURADO:', e.message, '\n', e.error?.stack || e.stack)
   Swal.fire({
@@ -31,8 +35,6 @@ window.addEventListener('error', (e) => {
     width: 600
   })
 })
-
-// Promesas no manejadas
 window.addEventListener('unhandledrejection', (e) => {
   console.error('>>> PROMISE RECHAZADA:', e.reason)
   Swal.fire({
@@ -46,20 +48,11 @@ window.addEventListener('unhandledrejection', (e) => {
 // Crear instancia de Pinia
 const pinia = createPinia()
 app.use(pinia)
-
-// Importar stores
-import { useSocketStore } from '@/stores/socketStore.js'
-import { useSystemStore } from '@/stores/systemStore.js'
-import { useNotificationStore } from '@/stores/notificationStore.js'
-
-// Propiedades globales
-app.config.globalProperties.$swal = Swal
-
-// Usar plugins
 app.use(router)
 app.use(i18n)
+app.config.globalProperties.$swal = Swal
 
-// Eruda desde CDN (solo en desarrollo)
+// Eruda para desarrollo
 if (import.meta.env.MODE === 'development') {
   const script = document.createElement('script')
   script.src = 'https://cdn.jsdelivr.net/npm/eruda'
@@ -70,20 +63,37 @@ if (import.meta.env.MODE === 'development') {
   document.body.appendChild(script)
 }
 
-// Inicializa stores y monta
+// Inicializar stores
+const authStore = initializeAuthStore() // 🔑 token ya disponible
 const systemStore = useSystemStore()
 const socketStore = useSocketStore()
 const notificationStore = useNotificationStore()
 
-systemStore.fetchConfig().then(() => {
-  socketStore.init()
-  app.mount('#app')
-}).catch(error => {
-  console.error('Error al cargar la configuración:', error)
-  Swal.fire({
-    icon: 'error',
-    title: 'Error de Inicialización',
-    text: 'No se pudo cargar la configuración inicial.',
-    width: 600
-  })
+// Escuchar cuando la app pasa a segundo plano o vuelve
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    console.log('😴 App en segundo plano → desconectando WS')
+    socketStore.disconnect()
+  } else {
+    console.log('👀 App activa → reconectando WS')
+    if (authStore.token && authStore.user) {
+      socketStore.connect(authStore.token, authStore.user)
+    }
+  }
 })
+
+// Inicializar configuración y socket
+systemStore.fetchConfig()
+  .then(() => {
+    socketStore.init() // ahora authStore.token ya está cargado
+    app.mount('#app')
+  })
+  .catch(error => {
+    console.error('Error al cargar la configuración:', error)
+    Swal.fire({
+      icon: 'error',
+      title: 'Error de Inicialización',
+      text: 'No se pudo cargar la configuración inicial.',
+      width: 600
+    })
+  })

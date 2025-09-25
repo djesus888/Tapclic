@@ -171,4 +171,54 @@ class AuthController
             "user"    => $user
         ]);
     }
+
+    /* ---------- REFRESH TOKEN ---------- */
+    public function refreshToken(): void
+    {
+        $headers = getallheaders();
+        $auth = $headers['Authorization'] ?? '';
+
+        if (!str_starts_with($auth, "Bearer ")) {
+            http_response_code(401);
+            echo json_encode(["message" => "Token no proporcionado"]);
+            return;
+        }
+
+        $token = str_replace("Bearer ", "", $auth);
+        $decoded = JwtHandler::decode($token);
+
+        if (!$decoded || !isset($decoded->id)) {
+            http_response_code(401);
+            echo json_encode(["message" => "Token inválido o expirado"]);
+            return;
+        }
+
+        $userId = $decoded->id;
+        $user = $this->userModel->findById($userId);
+
+        if (!$user) {
+            http_response_code(404);
+            echo json_encode(["message" => "Usuario no encontrado"]);
+            return;
+        }
+
+        // Actualizar última actividad
+        $this->userModel->updateLastSeen($userId);
+
+        // Generar nuevo token
+        $payload = [
+            "id"   => $user['id'],
+            "role" => $user['role'],
+            "exp"  => time() + (3600 * 24 * 7) // 7 días
+        ];
+
+        $newToken = JwtHandler::encode($payload);
+        unset($user['password']);
+
+        echo json_encode([
+            "success" => true,
+            "token"   => $newToken,
+            "user"    => $user
+        ]);
+    }
 }

@@ -96,19 +96,24 @@ class PaymentController {
                 throw new Exception("DB Error: " . implode(' | ', $errorInfo));
             }
 
-            // Actualizar status del request
-            try {
-                $serviceRequest = new ServiceRequest();
-                $serviceRequest->updatePaymentStatus($serviceRequestId, 'paid', $userId);
-            } catch (Exception $e) {
-                // No interrumpe el flujo
+            /* ----------------------------------------------------------
+             * Actualizar status del request – ahora SIEMPRE debe tirar
+             * excepción si falla, para no notificar prematuramente.
+             * ---------------------------------------------------------- */
+            $serviceRequest = new ServiceRequest();
+            $updated = $serviceRequest->updatePaymentStatus($serviceRequestId, 'paid', $userId);
+            if (!$updated) {
+                throw new Exception("No se pudo actualizar el estado del servicio a 'paid'");
             }
 
-            // Obtener datos del request para notificar
-            $req = (new ServiceRequest())->getById($serviceRequestId);
+            /* ----------------------------------------------------------
+             * Obtener los datos del request y notificar
+             * ---------------------------------------------------------- */
+            $req = $serviceRequest->getById($serviceRequestId);
             if ($req) {
                 // Notificar al proveedor
                 $this->emitWs([
+                    'sender_id'     => $userId,
                     'receiver_id'   => $req['provider_id'],
                     'receiver_role' => 'provider',
                     'title'         => 'Pago recibido',
@@ -117,6 +122,7 @@ class PaymentController {
 
                 // Notificar al usuario (confirmación)
                 $this->emitWs([
+                    'sender_id'     => $userId,
                     'receiver_id'   => $userId,
                     'receiver_role' => 'user',
                     'title'         => 'Pago registrado',
@@ -132,90 +138,87 @@ class PaymentController {
         }
     }
 
-
-public function getPublicMethods($providerId) {
-    $stmt = $this->conn->prepare("
-        SELECT method_type, bank_name, holder_name, id_number, phone_number, account_number, email, qr_url
-        FROM provider_payment_methods
-        WHERE provider_id = ? AND is_active = 1
-    ");
-    $stmt->execute([$providerId]);
-    $methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $formatted = [
-        'pagoMovil' => null,
-        'transferencia' => null,
-        'zelle' => null,
-        'paypal' => null,
-    ];
-
-    foreach ($methods as $m) {
-        switch ($m['method_type']) {
-            case 'pago_movil':
-                $formatted['pagoMovil'] = [
-                    'banco' => $m['bank_name'],
-                    'telefono' => $m['phone_number'],
-                    'cedula' => $m['id_number'],
-                ];
-                break;
-            case 'transferencia':
-                $formatted['transferencia'] = [
-                    'banco' => $m['bank_name'],
-                    'cuenta' => $m['account_number'],
-                    'cedula' => $m['id_number'],
-                ];
-                break;
-            case 'zelle':
-                $formatted['zelle'] = [
-                    'email' => $m['email'],
-                    'titular' => $m['holder_name'],
-                ];
-                break;
-            case 'paypal':
-                $formatted['paypal'] = [
-                    'email' => $m['email'],
-                    'titular' => $m['holder_name'],
-                ];
-                break;
-        }
-    }
-
-    echo json_encode(['paymentInfo' => $formatted]);
-}
-
-
-private function getMyMethods() {
-    $headers = getallheaders();
-    if (!isset($headers['Authorization'])) {
-        http_response_code(401);
-        echo json_encode(["error" => "No autorizado"]);
-        return;
-    }
-
-    $token = str_replace('Bearer ', '', $headers['Authorization']);
-    $userId = $this->validateToken($token);
-    if (!$userId) {
-        http_response_code(401);
-        echo json_encode(["error" => "Token inválido"]);
-        return;
-    }
-
-    try {
+    public function getPublicMethods($providerId) {
         $stmt = $this->conn->prepare("
-            SELECT * FROM provider_payment_methods 
-            WHERE provider_id = :provider_id 
-            ORDER BY created_at DESC
+            SELECT method_type, bank_name, holder_name, id_number, phone_number, account_number, email, qr_url
+            FROM provider_payment_methods
+            WHERE provider_id = ? AND is_active = 1
         ");
-        $stmt->execute([':provider_id' => $userId]);
+        $stmt->execute([$providerId]);
         $methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        echo json_encode(["methods" => $methods]);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(["error" => "Error interno", "details" => $e->getMessage()]);
-    }
-}
+        $formatted = [
+            'pagoMovil' => null,
+            'transferencia' => null,
+            'zelle' => null,
+            'paypal' => null,
+        ];
 
+        foreach ($methods as $m) {
+            switch ($m['method_type']) {
+                case 'pago_movil':
+                    $formatted['pagoMovil'] = [
+                        'banco' => $m['bank_name'],
+                        'telefono' => $m['phone_number'],
+                        'cedula' => $m['id_number'],
+                    ];
+                    break;
+                case 'transferencia':
+                    $formatted['transferencia'] = [
+                        'banco' => $m['bank_name'],
+                        'cuenta' => $m['account_number'],
+                        'cedula' => $m['id_number'],
+                    ];
+                    break;
+                case 'zelle':
+                    $formatted['zelle'] = [
+                        'email' => $m['email'],
+                        'titular' => $m['holder_name'],
+                    ];
+                    break;
+                case 'paypal':
+                    $formatted['paypal'] = [
+                        'email' => $m['email'],
+                        'titular' => $m['holder_name'],
+                    ];
+                    break;
+            }
+        }
+
+        echo json_encode(['paymentInfo' => $formatted]);
+    }
+
+    private function getMyMethods() {
+        $headers = getallheaders();
+        if (!isset($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode(["error" => "No autorizado"]);
+            return;
+        }
+
+        $token = str_replace('Bearer ', '', $headers['Authorization']);
+        $userId = $this->validateToken($token);
+        if (!$userId) {
+            http_response_code(401);
+            echo json_encode(["error" => "Token inválido"]);
+            return;
+        }
+
+        try {
+            $stmt = $this->conn->prepare("
+                SELECT * FROM provider_payment_methods
+                WHERE provider_id = :provider_id
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([':provider_id' => $userId]);
+            $methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(["methods" => $methods]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error interno", "details" => $e->getMessage()]);
+        }
+    }
 
     private function validateToken($token) {
         try {

@@ -44,88 +44,80 @@ class HistoryController
         }
     }
 
+    public function markHelpful(): void
+    {
+        $userId = $this->checkAuth(); // extrae id del token o 401
+        $input = json_decode(file_get_contents('php://input'), true);
+        $reviewId = $input['review_id'] ?? 0;
+        if (!$reviewId) { $this->send(400, 'Faltan datos'); return; }
 
+        // upsert
+        $stmt = $this->conn->prepare("
+            INSERT INTO review_helpful (review_id, user_id) VALUES (:rid, :uid)
+            ON DUPLICATE KEY UPDATE created_at = NOW()
+        ");
+        $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
+        $this->send(200, ['success' => true]);
+    }
 
-public function markHelpful(): void
-{
-    $userId = $this->checkAuth(); // extrae id del token o 401
-    $input = json_decode(file_get_contents('php://input'), true);
-    $reviewId = $input['review_id'] ?? 0;
+    public function report(): void
+    {
+        $userId = $this->checkAuth();
+        $input = json_decode(file_get_contents('php://input'), true);
+        $reviewId = $input['review_id'] ?? 0;
 
-    if (!$reviewId) { $this->send(400, 'Faltan datos'); return; }
+        if (!$reviewId) { $this->send(400, 'Faltan datos'); return; }
+        $stmt = $this->conn->prepare("
+            INSERT INTO review_reports (review_id, user_id, created_at)
+            VALUES (:rid, :uid, NOW())
+            ON DUPLICATE KEY UPDATE created_at = NOW()
+        ");
+        $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
+        $this->send(200, ['success' => true]);
+    }
 
-    // upsert
-    $stmt = $this->conn->prepare("
-        INSERT INTO review_helpful (review_id, user_id) VALUES (:rid, :uid)
-        ON DUPLICATE KEY UPDATE created_at = NOW()
-    ");
-    $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
-    $this->send(200, ['success' => true]);
-}
+    public function reply(int $reviewId): void
+    {
+        $providerId = $this->checkAuth();
+        $input = json_decode(file_get_contents('php://input'), true);
+        $message = trim($input['message'] ?? '');
 
-public function report(): void
-{
-    $userId = $this->checkAuth();
-    $input = json_decode(file_get_contents('php://input'), true);
-    $reviewId = $input['review_id'] ?? 0;
+        if (!$message) { $this->send(400, 'Mensaje vacío'); return; }
 
-    if (!$reviewId) { $this->send(400, 'Faltan datos'); return; }
+        // comprobar que el review es SUYO
+        $stmt = $this->conn->prepare("SELECT id FROM service_reviews WHERE id = :rid AND provider_id = :pid");
+        $stmt->execute([':rid' => $reviewId, ':pid' => $providerId]);
+        if (!$stmt->fetch()) { $this->send(403, 'No autorizado'); return; }
 
-    $stmt = $this->conn->prepare("
-        INSERT INTO review_reports (review_id, user_id, created_at)
-        VALUES (:rid, :uid, NOW())
-        ON DUPLICATE KEY UPDATE created_at = NOW()
-    ");
-    $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
-    $this->send(200, ['success' => true]);
-}
+        // borrar respuesta previa (opcional) e insertar nueva
+        $this->conn->prepare("DELETE FROM review_messages WHERE review_id = :rid AND sender_type = 'provider'")->execute([':rid' => $reviewId]);
+        $stmt = $this->conn->prepare("
+            INSERT INTO review_messages (review_id, sender_type, sender_id, message, created_at)
+            VALUES (:rid, 'provider', :sid, :msg, NOW())
+        ");
+        $stmt->execute([':rid' => $reviewId, ':sid' => $providerId, ':msg' => $message]);
+        $this->send(200, ['success' => true]);
+    }
 
-public function reply(int $reviewId): void
-{
-    $providerId = $this->checkAuth();
-    $input = json_decode(file_get_contents('php://input'), true);
-    $message = trim($input['message'] ?? '');
+    /* helper */
+    private function checkAuth(): int
+    {
+        $headers = getallheaders();
+        $auth = $headers['Authorization'] ?? '';
+        if (!str_starts_with($auth, 'Bearer ')) { $this->send(401, 'Token no proporcionado'); exit; }
+        $token = str_replace('Bearer ', '', $auth);
+        $decoded = JwtHandler::decode($token);
+        if (!$decoded || !isset($decoded->id)) { $this->send(401, 'Token inválido'); exit; }
+        return (int)$decoded->id;
+    }
 
-    if (!$message) { $this->send(400, 'Mensaje vacío'); return; }
-
-    // comprobar que el review es SUYO
-    $stmt = $this->conn->prepare("SELECT id FROM service_reviews WHERE id = :rid AND provider_id = :pid");
-    $stmt->execute([':rid' => $reviewId, ':pid' => $providerId]);
-    if (!$stmt->fetch()) { $this->send(403, 'No autorizado'); return; }
-
-    // borrar respuesta previa (opcional) e insertar nueva
-    $this->conn->prepare("DELETE FROM review_messages WHERE review_id = :rid AND sender_type = 'provider'")->execute([':rid' => $reviewId]);
-
-    $stmt = $this->conn->prepare("
-        INSERT INTO review_messages (review_id, sender_type, sender_id, message, created_at)
-        VALUES (:rid, 'provider', :sid, :msg, NOW())
-    ");
-    $stmt->execute([':rid' => $reviewId, ':sid' => $providerId, ':msg' => $message]);
-    $this->send(200, ['success' => true]);
-}
-
-/* helper */
-private function checkAuth(): int
-{
-    $headers = getallheaders();
-    $auth = $headers['Authorization'] ?? '';
-    if (!str_starts_with($auth, 'Bearer ')) { $this->send(401, 'Token no proporcionado'); exit; }
-    $token = str_replace('Bearer ', '', $auth);
-    $decoded = JwtHandler::decode($token);
-    if (!$decoded || !isset($decoded->id)) { $this->send(401, 'Token inválido'); exit; }
-    return (int)$decoded->id;
-}
-
-private function send(int $code, array $data): void
-{
-    http_response_code($code);
-    header('Content-Type: application/json');
-    echo json_encode($data);
-    exit();
-}
-
-
-
+    private function send(int $code, array $data): void
+    {
+        http_response_code($code);
+        header('Content-Type: application/json');
+        echo json_encode($data);
+        exit();
+    }
 
     public function rate(): void
     {
@@ -174,27 +166,25 @@ private function send(int $code, array $data): void
             return;
         }
 
+        // Normalizamos tags y photos
+        $tags  = json_encode(array_filter(explode(',', $input['tags'] ?? ''))) ?: '[]';
+        $photos = json_encode(array_filter(explode(',', $input['photos'] ?? ''))) ?: '[]';
 
-
-// Normalizamos tags y photos
-$tags  = json_encode(array_filter(explode(',', $input['tags'] ?? ''))) ?: '[]';
-$photos = json_encode(array_filter(explode(',', $input['photos'] ?? ''))) ?: '[]';
-
-$stmt = $this->conn->prepare("
-    INSERT INTO service_reviews 
-        (service_history_id, user_id, provider_id, rating, comment, tags, photos)
-    VALUES 
-        (:hid, :uid, :pid, :rating, :comment, :tags, :photos)
-");
-$stmt->execute([
-    ':hid' => $historyId,
-    ':uid' => $decoded->id,
-    ':pid' => $history['provider_id'],
-    ':rating' => $stars,
-    ':comment' => $comment,
-    ':tags' => $tags,
-    ':photos' => $photos
-      ]);
+        $stmt = $this->conn->prepare("
+            INSERT INTO service_reviews
+                (service_history_id, user_id, provider_id, rating, comment, tags, photos)
+            VALUES
+                (:hid, :uid, :pid, :rating, :comment, :tags, :photos)
+        ");
+        $stmt->execute([
+            ':hid' => $historyId,
+            ':uid' => $decoded->id,
+            ':pid' => $history['provider_id'],
+            ':rating' => $stars,
+            ':comment' => $comment,
+            ':tags' => $tags,
+            ':photos' => $photos
+        ]);
         $this->updateProviderAverage((int)$history['provider_id']);
         $this->notifyProviderEvaluated((int)$history['provider_id'], (int)$stars);
 
@@ -241,7 +231,6 @@ $stmt->execute([
             echo json_encode(['message' => 'Token no proporcionado']);
             return;
         }
-
         $token = str_replace('Bearer ', '', $auth);
         $decoded = JwtHandler::decode($token);
         if (!$decoded || !isset($decoded->id) || $decoded->role !== 'provider') {
@@ -251,33 +240,33 @@ $stmt->execute([
         }
 
         $stmt = $this->conn->prepare("
-    SELECT
-        sr.id,
-        sr.rating,
-        sr.comment,
-        sr.created_at,
-        sr.tags,
-        sr.photos,
-        u.name        AS user_name,
-        u.avatar_url  AS user_avatar,
-        sh.service_title,
-        COALESCE(hc.cnt, 0) AS helpful_count,
-        pm.message    AS provider_reply_message,
-        pm.created_at AS provider_reply_createdAt
-    FROM service_reviews sr
-    JOIN users u ON u.id = sr.user_id
-    JOIN service_history sh ON sh.id = sr.service_history_id
-    LEFT JOIN (
-        SELECT review_id, COUNT(*) AS cnt
-        FROM review_helpful
-        GROUP BY review_id
-    ) hc ON hc.review_id = sr.id
-    LEFT JOIN review_messages pm
-           ON pm.review_id = sr.id
-          AND pm.sender_type = 'provider'
-    WHERE sr.provider_id = :pid
-    ORDER BY sr.created_at DESC
-");
+            SELECT
+                sr.id,
+                sr.rating,
+                sr.comment,
+                sr.created_at,
+                sr.tags,
+                sr.photos,
+                u.name        AS user_name,
+                u.avatar_url  AS user_avatar,
+                sh.service_title,
+                COALESCE(hc.cnt, 0) AS helpful_count,
+                pm.message    AS provider_reply_message,
+                pm.created_at AS provider_reply_createdAt
+            FROM service_reviews sr
+            JOIN users u ON u.id = sr.user_id
+            JOIN service_history sh ON sh.id = sr.service_history_id
+            LEFT JOIN (
+                SELECT review_id, COUNT(*) AS cnt
+                FROM review_helpful
+                GROUP BY review_id
+            ) hc ON hc.review_id = sr.id
+            LEFT JOIN review_messages pm
+                   ON pm.review_id = sr.id
+                  AND pm.sender_type = 'provider'
+            WHERE sr.provider_id = :pid
+            ORDER BY sr.created_at DESC
+        ");
         $stmt->execute([':pid' => $decoded->id]);
         $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -302,7 +291,6 @@ $stmt->execute([
             echo json_encode(['message' => 'Token no proporcionado']);
             return;
         }
-
         $token = str_replace('Bearer ', '', $auth);
         $decoded = JwtHandler::decode($token);
         if (!$decoded || !isset($decoded->id)) {
@@ -311,11 +299,31 @@ $stmt->execute([
             return;
         }
 
-        if ($decoded->role === 'provider') {
-            $data = $this->history->getHistoryByProvider($decoded->id);
-        } else {
-            $data = $this->history->getHistoryByUser($decoded->id);
-        }
+        // ✅ INCLUIMOS payment_status y payment_method
+        $sql = "
+            SELECT
+                h.id,
+                h.service_title,
+                h.service_description,
+                h.service_price,
+                h.user_name,
+                h.user_avatar,
+                h.finished_at,
+                h.status,
+                h.cancelled_by,
+                h.payment_status,
+                h.payment_method
+            FROM service_history h
+            WHERE h.user_id = :userId OR h.provider_id = :providerId
+            ORDER BY h.finished_at DESC
+        ";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([
+            ':userId'    => $decoded->id,
+            ':providerId'=> $decoded->id
+        ]);
+        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode([
             'success' => true,

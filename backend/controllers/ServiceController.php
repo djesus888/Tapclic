@@ -74,6 +74,14 @@ class ServiceController
     /* ----------  ROUTER  ---------- */
     public function handle(string $method): void
     {
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header("Access-Control-Allow-Origin: http://localhost:5173");
+    header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization");
+    exit(0);
+}
+
         $auth = $this->auth();
         if (!$auth) {
             $this->unauthorized();
@@ -89,6 +97,7 @@ class ServiceController
             $method === 'POST' && preg_match('#/api/services/update/?$#', $path) => $this->update($auth),
             $method === 'POST' && preg_match('#/api/services/delete/?$#', $path) => $this->delete($auth),
             $method === 'GET'  && preg_match('#/api/services/?$#', $path)        => $this->available($auth),
+            $method === 'GET'  && preg_match('#/api/services/(\d+)$#', $path, $m) => $this->getById((int)$m[1]),
             default => $this->notFound()
         };
     }
@@ -99,6 +108,24 @@ class ServiceController
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Ruta no válida']);
     }
+
+
+     public function getById(int $id): void
+{
+    $service = $this->model->findById($id);
+
+    if (!$service) {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Servicio no encontrado']);
+        return;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode(['data' => $service]);
+}
+
+
 
     /* ----------  CREATE  ---------- */
     private function create(object $auth): void
@@ -195,32 +222,53 @@ class ServiceController
         }
     }
 
-    /* ----------  DELETE  ---------- */
-    private function delete(object $auth): void
-    {
-        header('Content-Type: application/json');
+/* ----------  DELETE  ---------- */
+private function delete(object $auth): void
+{
+    // CORS para que el navegador deje leer la respuesta
+    header("Access-Control-Allow-Origin: http://localhost:5173");
+    header("Access-Control-Allow-Methods: POST, OPTIONS");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $id    = $input['id'] ?? null;
-        if (!$id) {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID requerido']);
+    header('Content-Type: application/json');
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id    = $input['id'] ?? null;
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ID requerido']);
+        return;
+    }
+
+    try {
+        $deleted = $this->model->delete((int)$id, $auth->id);
+        if (!$deleted) {                     // 0 filas afectadas
+            http_response_code(404);
+            echo json_encode(['error' => 'Servicio no encontrado.']);
             return;
         }
 
-        if ($this->model->delete((int)$id, $auth->id)) {
-            $this->emitWs([
-                'receiver_role' => 'user',
-                'receiver_id'   => 0,
-                'title'         => 'Servicio eliminado',
-                'message'       => 'Un servicio ya no está disponible.'
+        $this->emitWs([
+            'receiver_role' => 'user',
+            'receiver_id'   => 0,
+            'title'         => 'Servicio eliminado',
+            'message'       => 'Un servicio ya no está disponible.'
+        ]);
+        echo json_encode(['message' => 'Servicio eliminado correctamente']);
+
+    } catch (PDOException $e) {
+        // MySQL: 1451 = fila referenciada por FK
+        if ($e->getCode() === '23000' || $e->getCode() === '1451') {
+            http_response_code(409);
+            echo json_encode([
+                'message' => 'No se puede eliminar el servicio porque tiene un servicio activo asociado.'
             ]);
-            echo json_encode(['message' => 'Servicio eliminado correctamente']);
         } else {
+            // cualquier otro error de BD
             http_response_code(500);
             echo json_encode(['error' => 'Error al eliminar el servicio']);
         }
     }
+}
 
     /* ----------  HELPERS  ---------- */
     private function extractServiceDataFromRequest(): ?array
