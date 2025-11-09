@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../middleware/Auth.php";
 // controllers/MessageController.php
 
 require_once __DIR__ . '/../models/Message.php';
@@ -16,27 +17,6 @@ class MessageController
         $this->conversationModel = new Conversation();
     }
 
-    private function authUser()
-    {
-        $headers = getallheaders();
-        $auth = $headers['Authorization'] ?? '';
-        if (!str_starts_with($auth, 'Bearer ')) {
-            http_response_code(401);
-            echo json_encode(["message" => "Token no proporcionado"]);
-            exit;
-        }
-
-        $token = str_replace('Bearer ', '', $auth);
-        $decoded = JwtHandler::decode($token);
-
-        if (!$decoded || !isset($decoded->id)) {
-            http_response_code(401);
-            echo json_encode(["message" => "Token inválido o expirado"]);
-            exit;
-        }
-
-        return $decoded;
-    }
 
     private function emitWs(array $payload): void
     {

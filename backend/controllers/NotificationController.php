@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../middleware/Auth.php";
 // controllers/NotificationController.php
 
 require_once __DIR__ . '/../models/Notification.php';
@@ -12,30 +13,9 @@ class NotificationController {
         header("Content-Type: application/json");
     }
 
-    private function auth() {
-        $headers = getallheaders();
-        $authHeader = $headers['Authorization'] ?? '';
-
-        if (!str_starts_with($authHeader, 'Bearer ')) {
-            http_response_code(401);
-            echo json_encode(["error" => "Token no proporcionado"]);
-            exit;
-        }
-
-        $token = str_replace("Bearer ", "", $authHeader);
-        $decoded = JwtHandler::decode($token);
-
-        if (!$decoded) {
-            http_response_code(401);
-            echo json_encode(["error" => "Token inválido o expirado"]);
-            exit;
-        }
-
-        return $decoded;
-    }
 
     public function handle($method) {
-        $auth = $this->auth();
+        $auth = Auth::verify();
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH); // limpia ?params
 
         if ($method === 'POST' && preg_match('/\/api\/notifications\/send/', $uri)) {

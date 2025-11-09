@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../middleware/Auth.php";
 // controllers/UserController.php
 
 require_once __DIR__ . '/../models/User.php';
@@ -11,14 +12,6 @@ class UserController {
         $this->userModel = new User();
     }
 
-    private function authUser() {
-        $headers = getallheaders();
-        $auth = $headers['Authorization'] ?? '';
-
-        if (!str_starts_with($auth, 'Bearer ')) return null;
-        $token = str_replace('Bearer ', '', $auth);
-        return JwtHandler::decode($token);
-    }
 
     private function isValidEmail($email) {
         return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;

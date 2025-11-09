@@ -1,14 +1,26 @@
 <?php
 // public/index.php
 
-/* ---------- CORS (ajusta a tu puerto de Vue) ---------- */
-header("Access-Control-Allow-Origin: http://localhost:5173");
+// --- CONFIGURACIÓN CORS (colocar al inicio del archivo, antes de cualquier salida) ---
+$allowed_origins = [
+    'http://localhost:8080',
+    'http://localhost:5173',
+];
+
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+if (in_array($origin, $allowed_origins)) {
+    header("Access-Control-Allow-Origin: $origin");
+} else {
+    // Fallback en caso de pruebas locales
+    header("Access-Control-Allow-Origin: http://localhost:8080");
+}
+
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Language");
 header("Access-Control-Allow-Credentials: true");
-header("Content-Type: application/json");
 
-/* ---------- OPTIONS (preflight) ---------- */
+// Manejar solicitudes preflight (OPTIONS)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
@@ -26,9 +38,9 @@ if (\SystemConfig::get('maintenance_mode', false)) {
 
 /* ---------- i18n dinámico (endpoint público) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $_SERVER['REQUEST_URI'] === '/api/system/i18n') {
-    $lang = $_SERVER['HTTP_X_LANGUAGE'] ?? 'es';               // idioma que envía Vue
-    $i18n = \SystemConfig::get('i18n', []);                    // JSON completo
-    echo json_encode($i18n[$lang] ?? []);                      // solo el idioma pedido
+    $lang = $_SERVER['HTTP_X_LANGUAGE'] ?? 'es';
+    $i18n = \SystemConfig::get('i18n', []);
+    echo json_encode($i18n[$lang] ?? []);
     exit();
 }
 

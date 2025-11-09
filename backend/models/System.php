@@ -11,19 +11,20 @@ class System {
     }
 
     // Obtener configuración (último registro activo o por ID)
-    public function getConfig($id = null) {
-        if ($id) {
-            $query = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        } else {
-            $query = "SELECT * FROM {$this->table} ORDER BY id DESC LIMIT 1";
-            $stmt = $this->conn->prepare($query);
-        }
-
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+public function getConfig($id = null) {
+    if ($id) {
+        $query = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+    } else {
+        // Solo registros activos
+        $query = "SELECT * FROM {$this->table} WHERE system_active = 1 ORDER BY id DESC LIMIT 1";
+        $stmt = $this->conn->prepare($query);
     }
+
+    $stmt->execute();
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
     // Actualizar configuración
     public function updateConfig($data) {

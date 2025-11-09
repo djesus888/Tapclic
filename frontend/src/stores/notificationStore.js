@@ -10,16 +10,24 @@ export const useNotificationStore = defineStore('notification', {
 
   actions: {
     async fetchNotificationsFromDB() {
-      try {
-        const { data } = await api.get('/notifications/mine')
-        this.notifications = data
-        this.unreadCount = data.filter(n => !n.is_read).length
-      } catch (error) {
-        console.error('❌ Error al obtener notificaciones desde la base de datos:', error)
-      }
-    },
+  try {
+    const res = await api.get('/notifications/mine')
+    // extrae el array que viene dentro de res.data.data o res.data
+    const list = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+      ? res.data.data
+      : res.data?.notifications || []
 
-    async markAllAsRead() {
+    this.notifications = list
+    this.unreadCount  = list.filter(n => !n.is_read).length
+  } catch (error) {
+    console.error('❌ Error al obtener notificaciones:', error)
+    this.notifications = []
+    this.unreadCount  = 0
+  }
+},
+  async markAllAsRead() {
       try {
         await api.post('/notifications/mark-all-read')
         this.notifications = this.notifications.map(n => ({ ...n, is_read: true }))
@@ -47,6 +55,25 @@ export const useNotificationStore = defineStore('notification', {
       if (!notification.is_read) {
         this.unreadCount++
       }
+    },
+    handleIncomingNotification(notification) {
+      this.notifications.unshift(notification)
+      if (!notification.is_read) {
+        this.unreadCount++
+      }
+    },
+
+    /* ↓↓↓ NUEVOS ↓↓↓ */
+    prependNotification(payload) {
+      this.notifications.unshift(payload)
+      this.unreadCount = this.notifications.filter(n => !n.is_read).length
+      this.playNotificationSound?.()
+    },
+
+    playNotificationSound() {
+      const audio = new Audio('/sounds/notification.mp3')
+      audio.volume = 0.6
+      audio.play().catch(() => {})
     }
   }
 })

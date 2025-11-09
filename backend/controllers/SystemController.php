@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/System.php';
 
 class SystemController {

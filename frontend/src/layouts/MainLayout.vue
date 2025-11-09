@@ -1,3 +1,4 @@
+<!-- src/layouts/MainLayout.vue -->
 <template>
   <div class="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col font-sans">
     <header
@@ -10,6 +11,7 @@
       <div class="flex items-center gap-4 px-4">
         <button
           @click="toggleUserPanel"
+          aria-label="Abrir menú"
           class="p-2 rounded-md hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
         >
           <span class="text-xl">☰</span>
@@ -22,6 +24,7 @@
         <div class="relative" ref="langDropdownRef">
           <button
             @click="toggleLangDropdown"
+            aria-label="Cambiar idioma"
             class="w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-100"
           >
             <span v-if="locale === 'es'" class="text-xl">🇪🇸</span>
@@ -35,7 +38,7 @@
               <button
                 v-for="(flag, lang) in availableLanguages"
                 :key="lang"
-                @click="setLocale(lang); langDropdownOpen = false"
+                @click="changeLocale(lang); langDropdownOpen = false"
                 class="flex items-center gap-2 px-3 py-2 w-full hover:bg-slate-100 text-left"
               >
                 <span class="text-xl">{{ flag }}</span>
@@ -47,25 +50,27 @@
         <!-- Notificaciones -->
         <button
           @click="togglePanel('notifications')"
+          aria-label="Notificaciones"
           class="relative p-2 rounded-full hover:bg-slate-100"
         >
           <span class="text-xl">🔔</span>
           <span
-            v-if="notificationStore.unreadCount > 0"
+            v-if="socketStore.unreadCount"
             class="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
           >
-            {{ notificationStore.unreadCount }}
+            {{ socketStore.unreadCount }}
           </span>
         </button>
 
-        <!-- Mensajes -->
+        <!-- Conversaciones -->
         <button
           @click="togglePanel('conversations')"
+          aria-label="Conversaciones"
           class="relative p-2 rounded-full hover:bg-slate-100"
         >
           <span class="text-xl">💬</span>
           <span
-            v-if="conversationStore.unreadCount > 0"
+            v-if="conversationStore.unreadCount"
             class="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
           >
             {{ conversationStore.unreadCount }}
@@ -76,7 +81,7 @@
 
     <div :style="{ height: isExpanded ? '88px' : '56px' }" />
 
-    <!-- Panel Notificaciones -->
+    <!-- ========== PANELES DERECHOS (SIN DIVIDIR) ========== -->
     <transition name="slide-right">
       <div
         v-if="activePanel === 'notifications'"
@@ -88,7 +93,7 @@
         </div>
         <div class="flex-1 overflow-y-auto divide-y">
           <div
-            v-for="notification in notificationStore.notifications"
+            v-for="notification in socketStore.notifications"
             :key="notification.id"
             @click="handleNotificationClick(notification)"
             class="p-4 cursor-pointer transition-colors"
@@ -102,7 +107,6 @@
       </div>
     </transition>
 
-    <!-- Panel Conversaciones -->
     <transition name="slide-right">
       <div
         v-if="activePanel === 'conversations'"
@@ -124,23 +128,22 @@
               class="p-4 cursor-pointer transition-colors"
               :class="conv.unreadCount > 0 ? 'bg-sky-50 hover:bg-sky-100' : 'hover:bg-slate-50'"
             >
-
-               <div class="flex items-center gap-3">
+              <div class="flex items-center gap-3">
                 <img
                   :src="avatarUrl(conv.otherAvatar)"
                   class="w-10 h-10 rounded-full object-cover"
                   :alt="conv.otherName"
                 />
-
-
-              <h3 class="font-semibold">{{ conv.participants.join(', ') }}</h3>
-              <p class="text-sm text-gray-600 truncate">
-                {{ conv.lastMessage?.text || $t('noMessages') }}
-              </p>
-              <p class="text-xs text-gray-400 mt-1">
-                {{ formatDate(conv.updated_at || conv.created_at) }}
-              </p>
-            </div>
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-semibold truncate">{{ conv.otherName }}</h3>
+                  <p class="text-sm text-gray-600 truncate">
+                    {{ conv.lastMessage?.text || $t('noMessages') }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-1">
+                    {{ formatDate(conv.updated_at || conv.created_at) }}
+                  </p>
+                </div>
+              </div>
             </div>
           </template>
           <div v-else class="p-6 text-center text-sm text-gray-500">
@@ -150,7 +153,7 @@
       </div>
     </transition>
 
-    <!-- Sidebar lateral izquierdo -->
+    <!-- ========== SIDEBAR IZQUIERDO ========== -->
     <transition name="slide-left">
       <aside
         v-if="showUserPanel"
@@ -168,7 +171,7 @@
             <RouterLink to="/orders" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('myOrders') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">👤 {{ $t('profile') }}</RouterLink>
-            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left"> ⭐ {{ $t('reviews') }}</RouterLink>         
+            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left"> ⭐ {{ $t('reviews') }}</RouterLink>
             <RouterLink to="/wallet" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⚙️ {{ $t('settings') }}</RouterLink>
           </template>
@@ -176,14 +179,14 @@
           <!-- Proveedor -->
           <template v-else-if="authStore.user?.role === 'provider'">
             <RouterLink to="/" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📊 {{ $t('dashboard') }}</RouterLink>
-            <RouterLink to="/routes" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛣️ {{ $t('my Routes') }}</RouterLink>
+            <RouterLink to="/routes" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛣️ {{ $t('myRoutes') }}</RouterLink>
             <RouterLink to="/services" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📦 {{ $t('myServices') }}</RouterLink>
-            <RouterLink to="/services/new" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">➕ {{ $t('addService') }}</RouterLink>
+            <RouterLink to="/services/new" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left"> ➕ {{ $t('addService') }}</RouterLink>
             <RouterLink to="/payment" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">➕ {{ $t('payment_method') }}</RouterLink>
             <RouterLink to="/earnings" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">📈 {{ $t('myEarnings') }}</RouterLink>
             <RouterLink to="/chats" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💬 {{ $t('chats') }}</RouterLink>
             <RouterLink to="/profile" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">🛡️ {{ $t('profile') }}</RouterLink>
-            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⭐  {{ $t('reviews') }}</RouterLink>          
+            <RouterLink to="/reviews" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⭐  {{ $t('reviews') }}</RouterLink>
             <RouterLink to="/wallet" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">💰 {{ $t('wallet') }}</RouterLink>
             <RouterLink to="/config" @click="showUserPanel = false" class="block p-2 hover:bg-sky-100 rounded text-left">⚙️ {{ $t('settings') }}</RouterLink>
           </template>
@@ -221,33 +224,31 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
-import { useNotificationStore } from '@/stores/notificationStore'
 import { useConversationStore } from '@/stores/conversationStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import { useSocketStore } from '@/stores/socketStore'
 import { formatDate } from '@/utils/formatDate'
+import api from '@/axios'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+/* ----------  STORES  ---------- */
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const conversationStore = useConversationStore()
+const socketStore = useSocketStore()
 const router = useRouter()
+const { locale, t } = useI18n()
 
-const activePanel = ref(null)
+/* ----------  ESTADO LOCAL  ---------- */
 const showUserPanel = ref(false)
+const activePanel = ref(null)
 const langDropdownOpen = ref(false)
 const langDropdownRef = ref(null)
 const isExpanded = ref(false)
-const { locale } = useI18n()
 const availableLanguages = { es: '🇪🇸', en: '🇺🇸' }
 
-// Guardar y restaurar idioma
-const setLocale = (lang) => {
-  locale.value = lang
-  localStorage.setItem('userLocale', lang)
-}
-
-const toggleLangDropdown = () => (langDropdownOpen.value = !langDropdownOpen.value)
+/* ----------  MÉTODOS  ---------- */
 const toggleUserPanel = () => {
   showUserPanel.value = !showUserPanel.value
   activePanel.value = null
@@ -256,53 +257,114 @@ const togglePanel = (panel) => {
   activePanel.value = activePanel.value === panel ? null : panel
   showUserPanel.value = false
 }
+const toggleLangDropdown = () => (langDropdownOpen.value = !langDropdownOpen.value)
+const changeLocale = (lang) => {
+  locale.value = lang
+  localStorage.setItem('userLocale', lang)
+  langDropdownOpen.value = false
+}
 const logout = () => {
   showUserPanel.value = false
   authStore.logout()
 }
-
 const onScroll = () => (isExpanded.value = window.scrollY < 100)
 const handleNotificationClick = (notification) => {
-  notificationStore.markAsRead(notification.id)
-  activePanel.value = null
-  if (notification.link) router.push(notification.link)
-}
+  // 1. Marco en FRONT (instantáneo)
+  socketStore.markAsRead(notification.id);
 
+  // 2. Guardo en BACKEND (persistente)
+  api.post('/notifications/read', { id: notification.id }, {
+    headers: { Authorization: `Bearer ${useAuthStore().token}` }
+  }).catch(err => console.error('❌ Error marcando leído:', err));
+
+  // 3. Cierro panel
+  activePanel.value = null;
+
+  // 4. Navegación opcional (tu lógica vieja)
+  if (notification.data_json) {
+    try {
+      const data = JSON.parse(notification.data_json);
+      if (data.link) {
+        router.push(data.link);
+        return;
+      }
+    } catch (e) {
+      console.warn('data_json inválido', e);
+    }
+  }
+  if (notification.link) router.push(notification.link);
+};
 
 const avatarUrl = (src) => {
   if (!src) return '/img/default-avatar.png'
   return src.startsWith('/') ? src : `http://localhost:8000/uploads/avatars/${src}`
 }
 
-
-
+/* ----------  CICLO DE VIDA  ---------- */
 onMounted(async () => {
-  // Restaurar idioma guardado
-  const savedLocale = localStorage.getItem('userLocale')
-  if (savedLocale) {
-    locale.value = savedLocale
-  }
-
-  // Cerrar dropdown si se hace clic fuera
+  window.addEventListener('scroll', onScroll)
   document.addEventListener('click', (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {
       langDropdownOpen.value = false
     }
   })
-  window.addEventListener('scroll', onScroll)
+
+  // 🔊 Desbloquea audio tras primer gesto del usuario
+  const unlockAudio = () => {
+    if (socketStore.notificationSound && socketStore.notificationSound.paused) {
+      socketStore.notificationSound.volume = 0
+      socketStore.notificationSound.play().catch(()=>0).then(()=>{
+        socketStore.notificationSound.pause()
+        socketStore.notificationSound.currentTime = 0
+        socketStore.notificationSound.volume = 0.6
+        socketStore._soundEnabled = true
+      })
+    }
+    document.removeEventListener('click', unlockAudio)
+    document.removeEventListener('touchstart', unlockAudio)
+  }
+  document.addEventListener('click', unlockAudio)
+  document.addEventListener('touchstart', unlockAudio)
 
   if (authStore.user) {
-    await notificationStore.fetchNotificationsFromDB()
-    await conversationStore.fetchConversations()
-    conversationStore.initSocket(authStore.user.id)
-    const socketStore = useSocketStore()
-    socketStore.init()
+    try {
+      // 1. Carga inicial
+      await notificationStore.fetchNotificationsFromDB()
+      await conversationStore.fetchConversations()
+
+      // 2. WebSocket único
+      socketStore.init()
+
+      // 3. Escucha en vivo (sin re-escuchar 'new-notification')
+      socketStore.on('new-message', (payload) => {
+        conversationStore.prependMessage?.(payload)
+      })
+      socketStore.on('conversation-updated', (payload) => {
+        conversationStore.updateConversation?.(payload)
+      })
+
+      // 4. Background / foreground
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          console.log('😴 App en segundo plano → desconectando WS')
+          socketStore.disconnect()
+        } else {
+          console.log('👀 App activa → reconectando WS')
+          socketStore.init()
+        }
+      })
+    } catch (err) {
+      console.error('❌ Error al inicializar:', err)
+    }
   }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
-  conversationStore.disconnectSocket()
+  // ✅ Desuscribe con referencias
+  socketStore.off('new-message')
+  socketStore.off('conversation-updated')
+  socketStore.disconnect()
 })
 </script>
 

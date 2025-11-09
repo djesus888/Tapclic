@@ -14,7 +14,6 @@
   "admin_panel": "Panel Admin",
   "services": "Servicios",
   "provider": "Proveedor",
-  "services": "Servicios",
   "status_completed": "Completado",
   "status_failed": "Fallido",
   "status_incomplete": "Incompleto",
@@ -184,7 +183,9 @@
   "status": {
     "cancelled": "Cancelado",
     "completed": "Completado",
-    "rejected": "Rechazado"
+    "rejected": "Rechazado",
+  "on_the_way": "En camino",
+  "accepted": "Aceptado"
   },
   "support": "Soporte",
   "tabs": "Pestañas",
@@ -244,5 +245,33 @@
     "active": "Activo",
     "id": "CI",
     "empty": "No hay métodos registrados"
-  }
+  },
+  "success": "Éxito",
+  "login_success": "Inicio de sesión exitoso",
+  "accept": "Aceptar",
+  "pending": "Pendiente",
+  "paid": "Pagado",
+  "rejected": "Rechazado",
+  "verifying": "Verificando",
+  "refunded": "Reembolsado",
+  "partially_refunded": "Parcialmente reembolsado",
+  "disputed": "Disputado",
+  "expired": "Expirado",
+  "confirmed": "Confirmado",
+  "failed": "Fallido",
+  "processing": "Procesando",
+  "cancelled_by_user": "Cancelado por el usuario",
+  "cancelled_by_provider": "Cancelado por el proveedor",
+  "payment": {
+    "on_hold": "Pago en espera"
+  },
+  "release_to_refresh": "Suelta para actualizar",
+  "timeline": "Línea de tiempo",
+  "status": {
+    "on_the_way": "En camino"
+  },
+  "elapsed": "Tiempo transcurrido",
+  "actions": "Acciones"
+
+
 }

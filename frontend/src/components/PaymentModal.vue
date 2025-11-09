@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -26,10 +26,10 @@ const reference = ref('')
 const captureFile = ref<File | null>(null)
 const loading = ref(false)
 
-// Debug: ver qué llega al modal
-watch(() => props.request, (newVal) => {
-  console.log("📦 Datos recibidos en PaymentModal:", JSON.stringify(newVal, null, 2))
-}, { immediate: true })
+/* ----------  Validación  ---------- */
+const needsRefOrCapture = computed(() => paymentMethod.value !== 'efectivo')
+const hasRefOrCapture = computed(() => !!reference.value.trim() || !!captureFile.value)
+const canSubmit = computed(() => !needsRefOrCapture.value || hasRefOrCapture.value)
 
 watch(() => props.isOpen, val => {
   if (val) {
@@ -45,6 +45,11 @@ function handleFileUpload(e: Event) {
 }
 
 async function submitPayment() {
+  if (needsRefOrCapture.value && !hasRefOrCapture.value) {
+    alert('Datos requeridos: ingresa el número de referencia o selecciona un capture.')
+    return
+  }
+
   const requestId = props.request?.requestId
   if (!requestId) {
     alert('Solicitud inválida')
@@ -60,14 +65,12 @@ async function submitPayment() {
     }
 
     const formData = new FormData()
-    formData.append('serviceRequestId', requestId.toString())
-    formData.append('paymentMethod', paymentMethod.value)
-    formData.append('reference', reference.value || '')
-    if (captureFile.value) formData.append('capture', captureFile.value)
+    formData.append('request_id', requestId.toString())
+    formData.append('payment_method', paymentMethod.value)
+    formData.append('reference', reference.value.trim())
+    if (captureFile.value) formData.append('proof_file', captureFile.value)
 
-    console.log('Enviando pago:', { requestId, paymentMethod: paymentMethod.value, reference: reference.value, captureFile: captureFile.value, token: authStore.token })
-
-    const res = await api.post('/payments', formData, {
+    const res = await api.post('/payments/create', formData, {
       headers: {
         Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'multipart/form-data'
@@ -144,7 +147,7 @@ async function submitPayment() {
         </div>
 
         <!-- Referencia y archivo -->
-        <div v-if="paymentMethod !== 'efectivo'" class="mt-4 space-y-2">
+        <div v-if="needsRefOrCapture" class="mt-4 space-y-2">
           <label for="reference" class="block font-medium">Código de Referencia / Capture</label>
           <div class="flex items-center gap-2">
             <input id="reference" type="text" v-model="reference" placeholder="Nro. de referencia" class="flex-grow border rounded px-2 py-1" />
@@ -156,7 +159,11 @@ async function submitPayment() {
         <!-- Footer -->
         <div class="mt-6 flex justify-end gap-2">
           <button @click="emit('update:isOpen', false)" class="px-4 py-2 border rounded">Cancelar</button>
-          <button @click="submitPayment" class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50" :disabled="loading">
+          <button
+            @click="submitPayment"
+            class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+            :disabled="loading || !canSubmit"
+          >
             <span v-if="loading">Procesando...</span>
             <span v-else>Realizar Pago</span>
           </button>
@@ -173,8 +180,6 @@ async function submitPayment() {
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
-
-/* Forzar que el modal esté siempre encima */
 .fixed {
   z-index: 9999 !important;
 }

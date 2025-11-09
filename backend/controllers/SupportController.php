@@ -1,14 +1,5 @@
 <?php
-// Habilitar CORS
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/SupportModel.php';
 require_once __DIR__ . '/../models/FaqModel.php';
 require_once __DIR__ . '/../utils/jwt.php';

@@ -1,3 +1,4 @@
+// src/stores/authStore.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import Swal from 'sweetalert2'
@@ -62,6 +63,11 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('Respuesta inválida del servidor al registrar.')
         }
 
+        /* ----  EVITA SETEO REDUNDANTE  ---- */
+        if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
+          return user
+        }
+
         this.token = token
         this.user = user
         this.role = user.role
@@ -97,6 +103,11 @@ export const useAuthStore = defineStore('auth', {
 
         if (!token || !user || !user.role) {
           throw new Error('Respuesta inválida del servidor al iniciar sesión.')
+        }
+
+        /* ----  EVITA SETEO REDUNDANTE  ---- */
+        if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
+          return
         }
 
         this.token = token
@@ -137,7 +148,6 @@ export const useAuthStore = defineStore('auth', {
             }
           }
         })
-
       } catch (error) {
         const $t = i18n.global.t
         Swal.fire(
@@ -157,6 +167,9 @@ export const useAuthStore = defineStore('auth', {
           headers: { Authorization: `Bearer ${this.token}` }
         })
         const { token, user } = res.data
+
+        /* ----  EVITA SETEO REDUNDANTE  ---- */
+        if (token === this.token) return token
 
         this.token = token
         this.user = user

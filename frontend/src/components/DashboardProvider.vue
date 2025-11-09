@@ -27,7 +27,7 @@
 
     <!-- AVAILABLE -->
     <div v-if="activeTab === 'available'" class="grid gap-4 md:grid-cols-2" :key="'available-'+$i18n.locale">
-      <div v-if="availableLoading" class="text-center py-10">{{ $t('loading') }}…</div>
+      <div v-if="loading.available" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else-if="!availableRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_available_requests') }}
       </div>
@@ -36,7 +36,6 @@
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
-            <!-- PAYMENT STATUS -->
             <PaymentPill :status="req.payment_status" />
           </div>
           <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
@@ -61,7 +60,7 @@
 
     <!-- IN-PROGRESS -->
     <div v-if="activeTab === 'in-progress'" class="grid gap-4 md:grid-cols-2" :key="'in-progress-'+$i18n.locale">
-      <div v-if="inProgressLoading" class="text-center py-10">{{ $t('loading') }}…</div>
+      <div v-if="loading.inProgress" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else-if="!inProgressRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_active_requests') }}
       </div>
@@ -69,7 +68,6 @@
            class="bg-white rounded-lg shadow p-4">
         <div class="flex items-center justify-between mb-2">
           <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
-          <!-- PAYMENT STATUS -->
           <PaymentPill :status="req.payment_status" />
         </div>
         <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
@@ -85,8 +83,8 @@
         <div v-if="req.payment_status === 'verifying'" class="mt-3">
           <button
             class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600"
-            @click="confirmPayment(req.id)">
-            ✅ {{ $t('confirm_payment') }}
+            @click="openProofModal(req.id)">
+            👁️ {{ $t('see_proof') }}
           </button>
         </div>
 
@@ -94,7 +92,7 @@
           <summary class="cursor-pointer text-blue-600">{{ $t('timeline') }}</summary>
           <div class="mt-2 space-y-1">
             <div v-for="(l,i) in timeline(req)" :key="i" class="flex justify-between">
-              <span>{{ $t('status.'+l.status) }}</span>
+              <span>{{ $t(l.status) }}</span>
               <span>{{ formatDate(l.updated_at, 'time') }}</span>
             </div>
           </div>
@@ -103,7 +101,7 @@
         <div class="mt-4 relative">
           <button @click="toggleDropdown(req.id)"
                   class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full flex items-center justify-between">
-            {{ $t('actions') }}
+            {{ $t('status') }}
             <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -126,7 +124,7 @@
 
     <!-- SUPPORT -->
     <div v-if="activeTab === 'support'" class="p-4" :key="'support-'+$i18n.locale">
-      <div v-if="faqLoading" class="text-center py-10">{{ $t('loading') }}…</div>
+      <div v-if="loading.faq" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else class="mb-8">
         <h2 class="text-xl font-semibold mb-4">{{ $t('faq') }}</h2>
         <div class="space-y-2">
@@ -143,7 +141,7 @@
           💬 {{ $t('contact_support') }}
         </button>
       </div>
-      <div v-if="supportLoading" class="text-center py-10 mt-8">{{ $t('loading') }}…</div>
+      <div v-if="loading.support" class="text-center py-10 mt-8">{{ $t('loading') }}…</div>
       <div v-else class="mt-8">
         <h2 class="text-xl font-semibold mb-4">{{ $t('my_tickets') }}</h2>
         <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">
@@ -173,7 +171,7 @@
 
     <!-- HISTORY (LISTA) -->
     <div v-if="activeTab === 'history'" class="space-y-2" :key="'history-'+$i18n.locale">
-      <div v-if="historyLoading" class="text-center py-10">{{ $t('loading') }}…</div>
+      <div v-if="loading.history" class="text-center py-10">{{ $t('loading') }}…</div>
       <div v-else-if="!historyRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_history_requests') }}
       </div>
@@ -193,42 +191,61 @@
       </div>
     </div>
 
-    <!-- CHAT MODAL -->
-    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null"/>
-
-    <!-- HISTORY DETAIL MODAL -->
-    <div v-if="historyModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50" @click.self="closeHistoryModal">
-      <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 p-6 space-y-4">
-        <h2 class="text-xl font-bold text-gray-800">{{ sanitize(selectedHistory.service_title) }}</h2>
-        <p class="text-sm text-gray-600">{{ sanitize(selectedHistory.service_description) }}</p>
-        <p class="text-sm"><strong>{{ $t('requested_by') }}:</strong> {{ sanitize(selectedHistory.user_name) }}</p>
-        <p class="text-sm"><strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ $t('status.'+selectedHistory.status) }}</span></p>
-        <p class="text-sm"><strong>{{ $t('payment_status') }}:</strong> <PaymentPill :status="selectedHistory.payment_status" /></p>
-        <p class="text-sm"><strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">{{ formatCurrency(selectedHistory.service_price) }}</span></p>
-        <p class="text-sm"><strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.updated_at) }}</p>
-        <div v-if="selectedHistory.status === 'cancelled' && selectedHistory.cancelled_by" class="text-sm text-red-600">
-          <strong>{{ $t('cancelled_by') }}:</strong> {{ selectedHistory.cancelled_by }}
-        </div>
-        <div class="flex justify-end">
-          <button @click="closeHistoryModal" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">{{ $t('close') }}</button>
-        </div>
-      </div>
-    </div>
-
+    <!-- MODALES -->
+    <ProofModal v-if="showProofModal"
+                :request-id="proofModalRequestId"
+                @close="onProofModalClose" />
+    <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket"
+                    @close="showNewTicket = false"
+                    @ticket-created="onTicketCreated"/>
+    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
   </div>
 </template>
 
 <script>
 import api from '@/axios'
-import {useAuthStore} from '@/stores/authStore'
-import {useSocketStore} from '@/stores/socketStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useSocketStore } from '@/stores/socketStore'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
 import NewTicketModal from '@/components/NewTicketModal.vue'
-import PaymentPill from '@/components/PaymentPill.vue'   // <-- nuevo
+import PaymentPill from '@/components/PaymentPill.vue'
+import ProofModal from '@/components/ProofModal.vue'
+
+const STATUS_FLOW = {
+  pending: ['accepted', 'rejected'],
+  accepted: ['in_progress', 'cancelled'],
+  in_progress: ['on_the_way', 'cancelled'],
+  on_the_way: ['arrived', 'cancelled'],
+  arrived: ['finalized', 'cancelled'],
+  finalized: ['completed'],
+  completed: [],
+  cancelled: [],
+  rejected: []
+}
+
+const STATUS_EMOJIS = {
+  pending: '⏳',
+  accepted: '👍',
+  rejected: '👎',
+  in_progress: '📦',
+  on_the_way: '🚚',
+  arrived: '📍',
+  finalized: '✅',
+  completed: '✅',
+  cancelled: '❌'
+}
+
+const STATUS_COLORS = {
+  completed: 'text-green-600',
+  cancelled: 'text-red-600',
+  rejected: 'text-orange-600',
+  finalized: 'text-green-700'
+}
 
 export default {
   name: 'DashboardProvider',
-  components: {ChatRoomModal, NewTicketModal, PaymentPill},
+  components: { ChatRoomModal, NewTicketModal, PaymentPill, ProofModal },
+
   data() {
     return {
       tabs: [],
@@ -238,260 +255,446 @@ export default {
       historyRequests: [],
       chatTarget: null,
       providerId: null,
-      availableLoading: false,
-      inProgressLoading: false,
-      historyLoading: false,
-      supportLoading: false,
-      faqLoading: false,
+      loading: {
+        available: false,
+        inProgress: false,
+        history: false,
+        support: false,
+        faq: false
+      },
       tickets: [],
       faqItems: [],
       showNewTicket: false,
       openDropdown: null,
       pulling: false,
       pullStartY: 0,
+      proofModalRequestId: null,
+      showProofModal: false,
+      selectedHistory: {},
       historyModal: false,
-      selectedHistory: {}
+      _unsubscribeListeners: []
     }
   },
+
   watch: {
     '$i18n.locale': {
       immediate: true,
       handler() {
         this.tabs = [
-          {value: 'available', label: this.$t('requests')},
-          {value: 'in-progress', label: this.$t('active')},
-          {value: 'support', label: this.$t('support')},
-          {value: 'history', label: this.$t('history')}
+          { value: 'available',   label: this.$t('requests') },
+          { value: 'in-progress', label: this.$t('active') },
+          { value: 'support',     label: this.$t('support') },
+          { value: 'history',     label: this.$t('history') }
         ]
-        this.$nextTick(() => {
-          if (this.activeTab === 'available') this.fetchAvailableRequests()
-          if (this.activeTab === 'in-progress') this.fetchActiveRequests()
-          if (this.activeTab === 'history') this.fetchHistoryRequests()
-          if (this.activeTab === 'support') { this.fetchTickets(); this.fetchFaq() }
-        })
+        if (this.providerId) {
+          this.$nextTick(() => this.syncRequests())
+        }
       }
     }
   },
-  async created() {
+
+  async mounted() {
     const auth = useAuthStore()
-    const socket = useSocketStore()
-    socket.init()
+    const socketStore = useSocketStore()
+    if (!socketStore.socket?.connected) socketStore.init()
+
+    this.setupSocketListeners(socketStore)
     this.providerId = auth.user?.id
-    auth.loadLocale()
+    await auth.loadLocale()
     await this.fetchAvailableRequests()
-    socket.on('request.status_changed', (msg) => {
-      if (msg.provider_id !== this.providerId) return
-      this.updateRequestStatus(msg.request_id, msg.status, msg.updated_at)
-      this.playSound()
-    })
-    this.$watch('activeTab', tab => {
-      if (tab === 'in-progress') this.fetchActiveRequests()
-      if (tab === 'history') this.fetchHistoryRequests()
-      if (tab === 'support') { this.fetchTickets(); this.fetchFaq() }
-    })
+
+    this.$watch('activeTab', () => this.syncRequests())
   },
+
+  beforeUnmount() {
+    this.cleanupSocketListeners()
+    this.resetModals()
+  },
+
   methods: {
-    pullStart(e) { this.pulling = true; this.pullStartY = e.clientY },
-    pullMove(e) {
-      if (!this.pulling) return
-      const dy = e.clientY - this.pullStartY
-      if (dy > 120) { this.pulling = false; this.syncRequests() }
+    /* ----------  Socket  ---------- */
+    setupSocketListeners(socketStore) {
+      const onRequestUpdated = ({ request }) => {
+        this.handleRequestUpdate(request)
+        socketStore.playNotificationSound()
+      }
+      const onPaymentUpdated = ({ request_id, payment_status }) => {
+        this.handlePaymentUpdate(request_id, payment_status)
+      }
+      this._unsubscribeListeners = [
+        socketStore.on('request_updated', onRequestUpdated),
+        socketStore.on('payment_updated', onPaymentUpdated)
+      ]
+      this._socketHandlers = { onRequestUpdated, onPaymentUpdated }
     },
-    pullEnd() { this.pulling = false },
-    syncRequests() {
-      if (this.activeTab === 'available') this.fetchAvailableRequests()
-      if (this.activeTab === 'in-progress') this.fetchActiveRequests()
-      if (this.activeTab === 'history') this.fetchHistoryRequests()
+
+    cleanupSocketListeners() {
+      this._unsubscribeListeners?.forEach(fn => { if (typeof fn === 'function') fn() })
+      this._unsubscribeListeners = []
+      this._socketHandlers = null
     },
-    sanitize(str) { return (str || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') },
-    formatDate(d, onlyTime) {
+
+    handleRequestUpdate(request) {
+      if (['accepted', 'rejected', 'busy'].includes(request.status)) {
+        this.availableRequests = this.availableRequests.filter(r => r.id !== request.id)
+      }
+      const idx = this.inProgressRequests.findIndex(r => r.id === request.id)
+      if (idx >= 0) {
+        // ✅ Vue 3: asignación directa
+        this.inProgressRequests[idx] = request
+      } else {
+        this.inProgressRequests.unshift(request)
+      }
+      if (['completed', 'cancelled', 'rejected', 'finalized'].includes(request.status)) {
+        this.updateHistory(request)
+      }
+    },
+
+    handlePaymentUpdate(request_id, payment_status) {
+      const req = this.inProgressRequests.find(r => r.id === request_id)
+      if (req) req.payment_status = payment_status
+    },
+
+    updateHistory(request) {
+      const hIdx = this.historyRequests.findIndex(h => h.id === request.id)
+      const normalized = this.normalizeHistory(request)
+      if (hIdx >= 0) {
+        this.historyRequests[hIdx] = normalized
+      } else {
+        this.historyRequests.unshift(normalized)
+      }
+    },
+
+    /* ----------  Utils  ---------- */
+    resetModals() {
+      this.chatTarget = null
+      this.showNewTicket = false
+      this.openDropdown = null
+      this.showProofModal = false
+      this.proofModalRequestId = null
+      this.historyModal = false
+      this.selectedHistory = {}
+    },
+
+    sanitize(str) {
+      if (!str || typeof str !== 'string') return str
+      const tempDiv = document.createElement('div')
+      tempDiv.textContent = str
+      return tempDiv.innerHTML
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/on\w+="[^"]*"/g, '')
+        .replace(/on\w+='[^']*'/g, '')
+        .replace(/javascript:/gi, '')
+    },
+
+    parsePaymentMethods(raw) {
+      try {
+        if (Array.isArray(raw)) return raw
+        if (typeof raw === 'string') return JSON.parse(raw)
+        return []
+      } catch {
+        return []
+      }
+    },
+
+    normalizeHistory(h) {
+      return { ...h, payment_methods: this.parsePaymentMethods(h.payment_methods) }
+    },
+
+    formatDate(d, onlyTime = false) {
+      if (!d) return ''
       const locale = this.$i18n.locale.value || 'es'
-      const opts = onlyTime ? {hour: '2-digit', minute: '2-digit', second: '2-digit'}
-                            : {year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'}
-      return new Date(d).toLocaleString(locale, opts)
+      const opts = onlyTime
+        ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+        : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+      try {
+        return new Date(d).toLocaleString(locale, opts)
+      } catch {
+        return d
+      }
     },
+
     formatCurrency(amount) {
       const locale = this.$i18n.locale.value || 'es'
-      return new Intl.NumberFormat(locale, {style: 'currency', currency: 'USD'}).format(amount || 0)
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(amount || 0)
     },
+
+    /* ----------  UI  ---------- */
     tabClass(tab) {
-      return ['px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
-        this.activeTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']
+      return [
+        'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
+        this.activeTab === tab
+          ? 'bg-blue-600 text-white shadow-md'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      ]
     },
+
+    statusLabel(status) {
+      const key = 'status.' + status
+      const translated = this.$t(key)
+      return translated === key ? status : translated
+    },
+
+    statusColor(status) {
+      return STATUS_COLORS[status] || 'text-gray-500'
+    },
+
+    emoji(status) {
+      return STATUS_EMOJIS[status] || '•'
+    },
+
+    allowedNext(status) {
+      return STATUS_FLOW[status] || []
+    },
+
+    toggleDropdown(id) {
+      this.openDropdown = this.openDropdown === id ? null : id
+    },
+
+    elapsed(updatedAt) {
+      if (!updatedAt) return '00:00:00'
+      try {
+        const seconds = Math.floor((Date.now() - new Date(updatedAt)) / 1000)
+        const hours = String(Math.floor(seconds / 3600)).padStart(2, '0')
+        const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')
+        const secs = String(seconds % 60).padStart(2, '0')
+        return `${hours}:${minutes}:${secs}`
+      } catch {
+        return '00:00:00'
+      }
+    },
+
+    /* FIX: función que faltaba */
+    timeline(req) {
+      return [
+        { status: req.status, updated_at: req.updated_at }
+      ]
+    },
+
+    /* ----------  Chat  ---------- */
     openChat(userId, role = 'user') {
-      const req = this.inProgressRequests.find(r => r.user_id === userId)
-      this.chatTarget = {id: userId, name: req?.user_name || this.$t('user'), role}
+      const request = this.inProgressRequests.find(r => r.user_id === userId)
+      this.chatTarget = { id: userId, name: request?.user_name || this.$t('user'), role }
     },
     openSupportChat() {
-      this.chatTarget = {id: 1, name: this.$t('support'), role: 'admin'}
+      this.chatTarget = { id: 1, name: this.$t('support'), role: 'admin' }
     },
-    statusLabel(s) { return this.$t('status.' + s) || s },
-    statusColor(s) {
-      const map = {completed: 'text-green-600', cancelled: 'text-red-600', rejected: 'text-orange-600'}
-      return map[s] || 'text-gray-500'
-    },
-    toggleDropdown(id) { this.openDropdown = this.openDropdown === id ? null : id },
-    emoji(st) {
-      const map = {accepted: '👍', rejected: '👎', in_progress: '📦', on_the_way: '🚚', arrived: '📍', completed: '✅', cancelled: '❌'}
-      return map[st] || '•'
-    },
-    allowedNext(status) {
-      const flow = {
-        pending: ['accepted', 'rejected'],
-        accepted: ['in_progress', 'cancelled'],
-        in_progress: ['on_the_way', 'cancelled'],
-        on_the_way: ['arrived', 'cancelled'],
-        arrived: ['finalized', 'cancelled'],
-        completed: [],
-        cancelled: [],
-        rejected: []
-      }
-      return flow[status] || []
-    },
-    elapsed(updatedAt) {
-      const s = Math.floor((Date.now() - new Date(updatedAt)) / 1000)
-      const h = String(Math.floor(s / 3600)).padStart(2, '0')
-      const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
-      const sec = String(s % 60).padStart(2, '0')
-      return `${h}:${m}:${sec}`
-    },
-    timeline(req) {
-      return [{status: req.status, updated_at: req.updated_at}]
-    },
-    openHistoryModal(req) {
-      this.selectedHistory = req
+
+    /* ----------  Modals  ---------- */
+    openHistoryModal(request) {
+      this.selectedHistory = request
       this.historyModal = true
     },
     closeHistoryModal() {
       this.historyModal = false
       this.selectedHistory = {}
     },
+    openProofModal(requestId) {
+      this.proofModalRequestId = requestId
+      this.showProofModal = true
+    },
+    onProofModalClose() {
+      this.showProofModal = false
+      this.fetchActiveRequests()
+    },
+
+    /* ----------  Data Fetching  ---------- */
+    syncRequests() {
+      const fetchMap = {
+        'available': () => this.fetchAvailableRequests(),
+        'in-progress': () => this.fetchActiveRequests(),
+        'history': () => this.fetchHistoryRequests(),
+        'support': () => { this.fetchTickets(); this.fetchFaq(); }
+      }
+      fetchMap[this.activeTab]?.()
+    },
+
+    pullStart(e) {
+      this.pulling = true
+      this.pullStartY = e.touches ? e.touches[0].clientY : e.clientY
+    },
+    pullMove(e) {
+      if (!this.pulling) return
+      const y = e.touches ? e.touches[0].clientY : e.clientY
+      const deltaY = y - this.pullStartY
+      if (deltaY > 120) { this.pulling = false; this.syncRequests(); }
+    },
+    pullEnd() {
+      this.pulling = false
+    },
+
     async fetchAvailableRequests() {
-      if (this.availableRequests.length) return
-      this.availableLoading = true
+      this.loading.available = true
       try {
         const auth = useAuthStore()
-        const res = await api.get('/requests/pending', {headers: {Authorization: `Bearer ${auth.token}`}})
-        this.availableRequests = Array.isArray(res.data.data) ? res.data.data : []
-      } catch (e) { console.error(e) } finally { this.availableLoading = false }
+        const res = await api.get('/requests/pending', {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        this.availableRequests = Array.isArray(res.data?.data) ? res.data.data : []
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      } finally {
+        this.loading.available = false
+      }
     },
+
     async fetchActiveRequests() {
-      if (this.inProgressRequests.length) return
-      this.inProgressLoading = true
+      this.loading.inProgress = true
       try {
         const auth = useAuthStore()
-        const res = await api.get('/requests/active', {headers: {Authorization: `Bearer ${auth.token}`}})
-        this.inProgressRequests = Array.isArray(res.data.data) ? res.data.data : []
-      } catch (e) { console.error(e) } finally { this.inProgressLoading = false }
+        const res = await api.get('/requests/active', {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        this.inProgressRequests = Array.isArray(res.data?.data) ? res.data.data : []
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      } finally {
+        this.loading.inProgress = false
+      }
     },
+
     async fetchHistoryRequests() {
-      if (this.historyRequests.length) return
-      this.historyLoading = true
+      this.loading.history = true
       try {
         const auth = useAuthStore()
-        const res = await api.get('/history', {headers: {Authorization: `Bearer ${auth.token}`}})
-        this.historyRequests = (Array.isArray(res.data.history) ? res.data.history : [])
-          .map(h => ({
-            id: h.id,
-            service_title: h.service_title,
-            service_description: h.service_description || '',
-            service_price: h.service_price,
-            user_name: h.user_name,
-            updated_at: h.finished_at || h.updated_at,
-            status: h.status,
-            cancelled_by: h.cancelled_by,
-            payment_status: h.payment_status
-          }))
-      } catch (e) { console.error(e) } finally { this.historyLoading = false }
+        const res = await api.get('/history', {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        const data = Array.isArray(res.data?.history) ? res.data.history : res.data || []
+        this.historyRequests = data.map(h => this.normalizeHistory(h))
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      } finally {
+        this.loading.history = false
+      }
     },
+
     async fetchTickets() {
-      if (this.tickets.length) return
-      this.supportLoading = true
+      if (this.tickets.length > 0) return
+      this.loading.support = true
       try {
         const auth = useAuthStore()
-        const res = await api.get('/support/tickets', {headers: {Authorization: `Bearer ${auth.token}`}})
-        this.tickets = Array.isArray(res.data) ? res.data : res.data?.tickets || []
-      } catch (e) { console.error(e) } finally { this.supportLoading = false }
+        const res = await api.get('/support/tickets', {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        this.tickets = Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || []
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      } finally {
+        this.loading.support = false
+      }
     },
+
     async fetchFaq() {
-      if (this.faqItems.length) return
-      this.faqLoading = true
+      if (this.faqItems.length > 0) return
+      this.loading.faq = true
       try {
         const res = await api.get('/support/faq')
-        this.faqItems = Array.isArray(res.data) ? res.data : res.data?.faq || []
-      } catch (e) { console.error(e) } finally { this.faqLoading = false }
+        this.faqItems = Array.isArray(res.data?.faq) ? res.data.faq : res.data || []
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      } finally {
+        this.loading.faq = false
+      }
     },
-    async acceptRequest(id) {
+
+    /* ----------  Actions  ---------- */
+    async executeRequestAction(id, endpoint, successMessage = null) {
       try {
-        const res = await api.post('/requests/accept', {id})
+        const res = await api.post(endpoint, { id })
         if (res.data.success) {
           this.availableRequests = this.availableRequests.filter(r => r.id !== id)
-          this.playSound()
-        }
-      } catch (e) { console.error(e) }
-    },
-    async rejectRequest(id) {
-      try {
-        const res = await api.post('/requests/reject', {id})
-        if (res.data.success) {
-          this.availableRequests = this.availableRequests.filter(r => r.id !== id)
-          this.playSound()
-        }
-      } catch (e) { console.error(e) }
-    },
-    async busyRequest(id) {
-      try {
-        const res = await api.post('/requests/busy', {id})
-        if (res.data.success) {
-          this.availableRequests = this.availableRequests.filter(r => r.id !== id)
-          this.playSound()
-        }
-      } catch (e) { console.error(e) }
-    },
-    async setStatus(requestId, newStatus) {
-      try {
-        const auth = useAuthStore()
-        const endpoint = `/requests/${newStatus}`
-        const res = await api.post(endpoint, {id: requestId}, {headers: {Authorization: `Bearer ${auth.token}`}})
-        if (res.data.success) {
-          this.updateRequestStatus(requestId, newStatus, res.data.updated_at || new Date().toISOString())
-          this.openDropdown = null
-          this.playSound()
-        }
-      } catch (e) { console.error(e) }
-    },
-    // ✅ NUEVO: confirmar pago
-    async confirmPayment(requestId) {
-      try {
-        const auth = useAuthStore()
-        const res = await api.post('/requests/confirm-payment', {id: requestId}, {
-          headers: {Authorization: `Bearer ${auth.token}`}
-        })
-        if (res.data.success) {
-          // actualizar localmente
-          const idx = this.inProgressRequests.findIndex(r => r.id === requestId)
-          if (idx !== -1) this.inProgressRequests[idx].payment_status = 'paid'
-          this.playSound()
+          useSocketStore().playNotificationSound()
+          if (successMessage) {
+            this.$swal?.fire({ icon: 'success', title: 'Éxito', text: successMessage })
+          }
         }
       } catch (e) {
         console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
       }
     },
-    updateRequestStatus(requestId, newStatus, updatedAt) {
-      const idx = this.inProgressRequests.findIndex(r => r.id === requestId)
-      if (idx === -1) return
-      this.inProgressRequests[idx].status = newStatus
-      this.inProgressRequests[idx].updated_at = updatedAt
+
+    async acceptRequest(id) {
+      await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada')
     },
-    onTicketCreated() { this.showNewTicket = false; this.fetchTickets() },
-    playSound() {
-      const socket = useSocketStore()
-      socket.playNotificationSound()
+
+    async rejectRequest(id) {
+      await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada')
+    },
+
+    async busyRequest(id) {
+      await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido')
+    },
+
+    async setStatus(requestId, newStatus) {
+      try {
+        const auth = useAuthStore()
+        const res = await api.post(`/requests/${newStatus}`, { id: requestId }, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        if (res.data.success) {
+          this.updateRequestStatus(requestId, newStatus, res.data.updated_at || new Date().toISOString())
+          this.openDropdown = null
+          useSocketStore().playNotificationSound()
+        }
+      } catch (e) {
+        console.error(e)
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+      }
+    },
+
+    updateRequestStatus(requestId, newStatus, updatedAt) {
+      const index = this.inProgressRequests.findIndex(r => r.id === requestId)
+      if (index === -1) return
+      // ✅ Vue 3: asignación directa
+      this.inProgressRequests[index].status = newStatus
+      this.inProgressRequests[index].updated_at = updatedAt
+    },
+
+    async confirmPayment(requestId) {
+      try {
+        const auth = useAuthStore()
+        const res = await api.post('/requests/confirm-payment', { id: requestId }, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        })
+        if (res.data.success) {
+          const index = this.inProgressRequests.findIndex(r => r.id === requestId)
+          if (index !== -1) {
+            this.inProgressRequests[index].payment_status = 'paid'
+          }
+          useSocketStore().playNotificationSound()
+        }
+      } catch (e) {
+        this.$swal?.fire({
+          icon: 'error',
+          title: 'Error',
+          text: this.$t('error_confirming_payment') || 'Error confirmando pago'
+        })
+      }
+    },
+
+    onTicketCreated() {
+      this.showNewTicket = false
+      this.fetchTickets()
     }
   }
 }
 </script>
 
 <style scoped>
-.card { @apply bg-white rounded-lg shadow-md overflow-hidden }
+.card {
+  @apply bg-white rounded-lg shadow-md overflow-hidden;
+}
+.pull-indicator {
+  transition: transform 0.3s ease;
+}
+.pull-indicator.pulling {
+  transform: translateY(50px);
+}
 </style>

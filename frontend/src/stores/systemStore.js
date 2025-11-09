@@ -13,7 +13,7 @@ export const useSystemStore = defineStore('system', {
       this.loading = true
       this.error = null
       try {
-        const res = await api.get('/system/system')
+        const res = await api.get('/system')
         this.config = res.data
       } catch (err) {
         console.error("Error cargando configuración del sistema:", err)

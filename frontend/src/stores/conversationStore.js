@@ -104,10 +104,22 @@ export const useConversationStore = defineStore('conversation', () => {
   function addMessage(conversationId, message) {
     if (!messages.value[conversationId]) messages.value[conversationId] = []
     messages.value[conversationId].unshift(message)
+
     const conv = conversations.value.find(c => c.id === conversationId)
     if (conv) {
       conv.lastMessage = message
       if (!message.isOwn) conv.unreadCount = (conv.unreadCount || 0) + 1
+    } else {
+      // Crear conversación mínima si no existe
+      conversations.value.unshift({
+        id: conversationId,
+        lastMessage: message,
+        participants: message.participants || [],
+        unreadCount: message.isOwn ? 0 : 1,
+        updated_at: message.created_at || new Date().toISOString(),
+        otherName: message.otherName || 'Usuario',
+        otherAvatar: message.otherAvatar || null
+      })
     }
   }
 
@@ -127,6 +139,17 @@ export const useConversationStore = defineStore('conversation', () => {
     router.push(`/chat/${conversationId}`)
   }
 
+  /* ----------  MÉTODOS PARA TIEMPO-REAL (llamados desde MainLayout)  ---------- */
+  function prependMessage(payload) {
+    // payload = { conversationId, message, ... }
+    addMessage(payload.conversationId, payload)
+  }
+
+  function updateConversation(payload) {
+    const idx = conversations.value.findIndex(c => c.id === payload.id)
+    if (idx !== -1) Object.assign(conversations.value[idx], payload)
+  }
+
   return {
     conversations,
     messages,
@@ -139,5 +162,7 @@ export const useConversationStore = defineStore('conversation', () => {
     sendMessage,
     markAsRead,
     goToChat,
+    prependMessage,
+    updateConversation,
   }
 })

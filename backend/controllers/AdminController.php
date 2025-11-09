@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../middleware/Auth.php";
 // controllers/AdminController.php
 
 require_once __DIR__ . '/../config/database.php';
@@ -22,20 +23,11 @@ class AdminController
         $this->conn         = (new Database())->getConnection();
     }
 
-    private function auth()
-    {
-        $headers = getallheaders();
-        $authHeader = $headers['Authorization'] ?? '';
-        if (!str_starts_with($authHeader, 'Bearer ')) {
-            return null;
-        }
-        return JwtHandler::decode(str_replace('Bearer ', '', $authHeader));
-    }
 
     /* ---------- verificación rápida admin ---------- */
     private function requireAdmin(): void
     {
-        $auth = $this->auth();
+        $auth = Auth::verify();
         if (($auth->role ?? '') !== 'admin') {
             http_response_code(401);
             echo json_encode(['error' => 'No autorizado']);

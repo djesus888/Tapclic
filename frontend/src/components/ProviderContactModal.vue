@@ -104,7 +104,6 @@ const props = defineProps({
   requestId: Number,
 })
 
-// Emitimos dos eventos: el que ya existía + retry-request
 const emit = defineEmits(['cancel', 'openPayment', 'retry-request'])
 
 const status = ref('pending')
@@ -118,13 +117,19 @@ const formatTime = (seconds) => {
   return `${m}:${s}`
 }
 
-// Función para detener todo
+const deleteRequest = async () => {
+  try {
+    await api.delete(`/requests/${props.requestId}`)
+  } catch (err) {
+    console.error('Error al eliminar solicitud:', err)
+  }
+}
+
 const stopProcess = () => {
   if (pollInterval) clearInterval(pollInterval)
   if (timerInterval) clearInterval(timerInterval)
 }
 
-// Reiniciar y empezar
 const reset = () => {
   status.value = 'pending'
   countdown.value = 90
@@ -142,9 +147,7 @@ const startProcess = () => {
 
   pollInterval = setInterval(async () => {
     try {
-      const { data } = await api.get(
-        `/requests/status/${props.requestId}`
-      )
+      const { data } = await api.get(`/requests/status/${props.requestId}`)
       if (['accepted', 'rejected', 'busy'].includes(data.status)) {
         status.value = data.status
         stopProcess()
@@ -155,15 +158,16 @@ const startProcess = () => {
   }, 3000)
 }
 
-// Handlers para los botones
-const handleCancel = () => {
+const handleCancel = async () => {
+  await deleteRequest()
   stopProcess()
   emit('cancel')
 }
 
-const handleRetry = () => {
+const handleRetry = async () => {
+  await deleteRequest()
   stopProcess()
-  emit('retry-request') // <-- Nuevo evento que DashboardUser escuchará
+  emit('retry-request')
 }
 
 watch(
@@ -180,6 +184,5 @@ watch(
 
 onUnmounted(stopProcess)
 
-// Exportamos startProcess para que el padre pueda llamarlo
 defineExpose({ startProcess, stopProcess })
 </script>

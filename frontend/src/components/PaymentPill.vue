@@ -11,20 +11,20 @@ export default {
   computed: {
     label() {
       const map = {
-        pending: this.$t('payment.pending'),
-        paid: this.$t('payment.paid'),
-        cancelled: this.$t('payment.cancelled'),
-        rejected: this.$t('payment.rejected'),
-        verifying: this.$t('payment.verifying'),
-        refunded: this.$t('payment.refunded'),
-        partially_refunded: this.$t('payment.partially_refunded'),
-        disputed: this.$t('payment.disputed'),
-        expired: this.$t('payment.expired'),
-        confirmed: this.$t('payment.confirmed'),
-        failed: this.$t('payment.failed'),
-        processing: this.$t('payment.processing'),
-        cancelled_by_user: this.$t('payment.cancelled_by_user'),
-        cancelled_by_provider: this.$t('payment.cancelled_by_provider'),
+        pending: this.$t('pending'),
+        paid: this.$t('paid'),
+        cancelled: this.$t('cancelled'),
+        rejected: this.$t('rejected'),
+        verifying: this.$t('verifying'),
+        refunded: this.$t('refunded'),
+        partially_refunded: this.$t('partially_refunded'),
+        disputed: this.$t('disputed'),
+        expired: this.$t('expired'),
+        confirmed: this.$t('confirmed'),
+        failed: this.$t('failed'),
+        processing: this.$t('processing'),
+        cancelled_by_user: this.$t('cancelled_by_user'),
+        cancelled_by_provider: this.$t('cancelled_by_provider'),
         on_hold: this.$t('payment.on_hold')
       }
       return map[this.status] || this.$t('payment.unknown')
