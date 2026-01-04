@@ -275,16 +275,16 @@ export default {
       _unsubscribeListeners: []
     }
   },
-
+                                     
   watch: {
     '$i18n.locale': {
       immediate: true,
       handler() {
         this.tabs = [
-          { value: 'available',   label: this.$t('requests') },
+          { value: 'available', label: this.$t('requests') },
           { value: 'in-progress', label: this.$t('active') },
-          { value: 'support',     label: this.$t('support') },
-          { value: 'history',     label: this.$t('history') }
+          { value: 'support', label: this.$t('support') },
+          { value: 'history', label: this.$t('history') }
         ]
         if (this.providerId) {
           this.$nextTick(() => this.syncRequests())
@@ -292,17 +292,17 @@ export default {
       }
     }
   },
-
+                                     
   async mounted() {
     const auth = useAuthStore()
     const socketStore = useSocketStore()
     if (!socketStore.socket?.connected) socketStore.init()
-
+    
     this.setupSocketListeners(socketStore)
     this.providerId = auth.user?.id
     await auth.loadLocale()
     await this.fetchAvailableRequests()
-
+    
     this.$watch('activeTab', () => this.syncRequests())
   },
 
@@ -310,7 +310,7 @@ export default {
     this.cleanupSocketListeners()
     this.resetModals()
   },
-
+                                     
   methods: {
     /* ----------  Socket  ---------- */
     setupSocketListeners(socketStore) {
@@ -327,13 +327,13 @@ export default {
       ]
       this._socketHandlers = { onRequestUpdated, onPaymentUpdated }
     },
-
+                                     
     cleanupSocketListeners() {
       this._unsubscribeListeners?.forEach(fn => { if (typeof fn === 'function') fn() })
       this._unsubscribeListeners = []
       this._socketHandlers = null
     },
-
+                                     
     handleRequestUpdate(request) {
       if (['accepted', 'rejected', 'busy'].includes(request.status)) {
         this.availableRequests = this.availableRequests.filter(r => r.id !== request.id)
@@ -364,7 +364,7 @@ export default {
         this.historyRequests.unshift(normalized)
       }
     },
-
+                                     
     /* ----------  Utils  ---------- */
     resetModals() {
       this.chatTarget = null
@@ -386,7 +386,7 @@ export default {
         .replace(/on\w+='[^']*'/g, '')
         .replace(/javascript:/gi, '')
     },
-
+                                     
     parsePaymentMethods(raw) {
       try {
         if (Array.isArray(raw)) return raw
@@ -396,7 +396,7 @@ export default {
         return []
       }
     },
-
+                                     
     normalizeHistory(h) {
       return { ...h, payment_methods: this.parsePaymentMethods(h.payment_methods) }
     },
@@ -413,12 +413,12 @@ export default {
         return d
       }
     },
-
+                                     
     formatCurrency(amount) {
       const locale = this.$i18n.locale.value || 'es'
       return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(amount || 0)
     },
-
+                                     
     /* ----------  UI  ---------- */
     tabClass(tab) {
       return [
@@ -434,7 +434,7 @@ export default {
       const translated = this.$t(key)
       return translated === key ? status : translated
     },
-
+                                     
     statusColor(status) {
       return STATUS_COLORS[status] || 'text-gray-500'
     },
@@ -442,11 +442,11 @@ export default {
     emoji(status) {
       return STATUS_EMOJIS[status] || '•'
     },
-
+                                     
     allowedNext(status) {
       return STATUS_FLOW[status] || []
     },
-
+                                     
     toggleDropdown(id) {
       this.openDropdown = this.openDropdown === id ? null : id
     },
@@ -463,23 +463,24 @@ export default {
         return '00:00:00'
       }
     },
-
+                                     
     /* FIX: función que faltaba */
     timeline(req) {
       return [
         { status: req.status, updated_at: req.updated_at }
       ]
     },
-
+                                     
     /* ----------  Chat  ---------- */
     openChat(userId, role = 'user') {
       const request = this.inProgressRequests.find(r => r.user_id === userId)
       this.chatTarget = { id: userId, name: request?.user_name || this.$t('user'), role }
     },
+                                     
     openSupportChat() {
       this.chatTarget = { id: 1, name: this.$t('support'), role: 'admin' }
     },
-
+                                     
     /* ----------  Modals  ---------- */
     openHistoryModal(request) {
       this.selectedHistory = request
@@ -497,7 +498,7 @@ export default {
       this.showProofModal = false
       this.fetchActiveRequests()
     },
-
+                                     
     /* ----------  Data Fetching  ---------- */
     syncRequests() {
       const fetchMap = {
@@ -508,7 +509,7 @@ export default {
       }
       fetchMap[this.activeTab]?.()
     },
-
+                                     
     pullStart(e) {
       this.pulling = true
       this.pullStartY = e.touches ? e.touches[0].clientY : e.clientY
@@ -571,7 +572,7 @@ export default {
         this.loading.history = false
       }
     },
-
+                                     
     async fetchTickets() {
       if (this.tickets.length > 0) return
       this.loading.support = true
@@ -602,7 +603,7 @@ export default {
         this.loading.faq = false
       }
     },
-
+                                     
     /* ----------  Actions  ---------- */
     async executeRequestAction(id, endpoint, successMessage = null) {
       try {
@@ -631,7 +632,7 @@ export default {
     async busyRequest(id) {
       await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido')
     },
-
+                                     
     async setStatus(requestId, newStatus) {
       try {
         const auth = useAuthStore()
@@ -640,15 +641,36 @@ export default {
         })
         if (res.data.success) {
           this.updateRequestStatus(requestId, newStatus, res.data.updated_at || new Date().toISOString())
+
+          // ⭐ Abrir modal para que el proveedor califique al cliente
+          if (newStatus === 'finalized') {
+            const req = this.inProgressRequests.find(r => r.id === requestId)
+            if (req) {
+              window.dispatchEvent(new CustomEvent('open-rating-modal', {
+                detail: {
+                  request_id: req.id,
+                  from_id: this.providerId,
+                  from_role: 'user',
+                  targetRole: 'provider',
+                  message: 'Quieres calificar a este cliente'
+                }
+              }))
+            }
+          }
+
           this.openDropdown = null
           useSocketStore().playNotificationSound()
+        } else {
+          // ✅ Manejar cuando success es false
+          this.$swal?.fire({ icon: 'error', title: 'Error', text: res.data.message })
         }
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        // ✅ CORREGIDO: Mostrar el mensaje real del backend
+        const errorMsg = e.response?.data?.message || e.message
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: errorMsg })
       }
     },
-
+                                     
     updateRequestStatus(requestId, newStatus, updatedAt) {
       const index = this.inProgressRequests.findIndex(r => r.id === requestId)
       if (index === -1) return
@@ -656,7 +678,7 @@ export default {
       this.inProgressRequests[index].status = newStatus
       this.inProgressRequests[index].updated_at = updatedAt
     },
-
+                                     
     async confirmPayment(requestId) {
       try {
         const auth = useAuthStore()

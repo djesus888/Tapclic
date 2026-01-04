@@ -102,39 +102,75 @@
     </section>
 
     <!-- Modal reseña -->
-    <div
-      v-if="reviewModal.open"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-    >
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-        <h3 class="text-lg font-semibold mb-4">{{ $t('reviewOrder') }}</h3>
-        <div class="flex justify-center gap-2 mb-4">
-          <button
-            v-for="n in 5"
-            :key="n"
-            @click="reviewModal.stars = n"
-            class="text-3xl"
-            :class="n <= reviewModal.stars ? 'text-yellow-400' : 'text-gray-300'"
-          >
-            ★
-          </button>
-        </div>
-        <textarea
-          v-model="reviewModal.comment"
-          class="w-full border rounded p-2"
-          rows="3"
-          :placeholder="$t('orders.commentPlaceholder')"
-        />
-        <div class="flex justify-end gap-2 mt-4">
-          <button @click="reviewModal.open = false" class="px-4 py-2 rounded border">
-            {{ $t('cancel') }}
-          </button>
-          <button @click="sendReview" class="px-4 py-2 rounded bg-blue-600 text-white">
-            {{ $t('send') }}
-          </button>
+    <Teleport to="body">
+      <div
+        v-if="reviewModal.open"
+        class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center"
+        @click.self="reviewModal.open = false"
+      >
+        <div class="w-full max-w-2xl bg-white rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Nueva reseña</h2>
+            <button @click="reviewModal.open = false" class="text-gray-500 hover:text-gray-800">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Estrellas -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Calificación *</label>
+            <div class="flex gap-2">
+              <button v-for="i in 5" :key="i" @click="reviewModal.stars = i" class="transition-transform hover:scale-110">
+                <svg class="w-8 h-8" :class="i <= reviewModal.stars ? 'text-yellow-400' : 'text-gray-300'" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Comentario -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Comentario</label>
+            <textarea v-model="reviewModal.comment" rows="4" maxlength="500" class="w-full border rounded-lg p-2 resize-none" placeholder="Cuéntanos tu experiencia..."/>
+            <div class="text-right text-xs text-gray-400 mt-1">{{ reviewModal.comment.length }}/500</div>
+          </div>
+
+          <!-- Tags rápidos -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Tags rápidos</label>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="tag in quickTags" :key="tag" @click="toggleTag(tag)" class="px-3 py-1 text-sm border rounded-full transition" :class="reviewModal.tags.includes(tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'">{{ tag }}</button>
+            </div>
+          </div>
+
+          <!-- Fotos -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Fotos (máx. 3)</label>
+            <div class="flex gap-2 mb-2">
+              <div v-for="(img, i) in reviewModal.photos" :key="i" class="relative">
+                <img :src="getImgSrc(img)" class="w-20 h-20 object-cover rounded border" alt="Foto adjunta"/>
+                <button @click="removePhoto(i)" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 grid place-items-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <button v-if="reviewModal.photos.length < 3" @click="openFilePicker" class="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-500 hover:text-gray-800">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span class="text-xs">Añadir</span>
+              </button>
+            </div>
+            <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFile"/>
+          </div>
+
+          <!-- Acciones -->
+          <div class="flex gap-2">
+            <button @click="reviewModal.open = false" class="flex-1 border py-2 rounded-lg">Cancelar</button>
+            <button @click="sendReview" :disabled="reviewModal.stars === 0" class="flex-1 bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50">Enviar</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -162,8 +198,13 @@ const reviewModal = reactive({
   open: false,
   order: null,
   stars: 0,
-  comment: ''
+  comment: '',
+  tags: [],
+  photos: []
 })
+
+const quickTags = ['Puntual', 'Profesional', 'Calidad', 'Limpio', 'Buen precio', 'Amable']
+const fileInput = ref()
 
 const statusLabel = s =>
   ({ pending: 'Pendiente', accepted: 'Aceptada', in_progress: 'En progreso', on_the_way: 'En camino', arrived: 'Llegó', completed: 'Completada', cancelled: 'Cancelada' }[s] || s)
@@ -177,6 +218,9 @@ const tabClass = tab =>
     : 'text-gray-600'
 
 const fmtDate = d => dayjs(d).fromNow()
+const getImgSrc = (img) => {
+  return img instanceof File ? URL.createObjectURL(img) : img
+}
 
 async function fetchOrders () {
   loading.value = true
@@ -244,20 +288,73 @@ function openReviewModal (order) {
   reviewModal.order = order
   reviewModal.stars = 0
   reviewModal.comment = ''
+  reviewModal.tags = []
+  reviewModal.photos = []
   reviewModal.open = true
 }
 
+function toggleTag (tag) {
+  if (reviewModal.tags.includes(tag)) {
+    reviewModal.tags = reviewModal.tags.filter(t => t !== tag)
+  } else {
+    reviewModal.tags.push(tag)
+  }
+}
+
+function removePhoto (idx) {
+  reviewModal.photos.splice(idx, 1)
+}
+
+function openFilePicker () {
+  fileInput.value?.click()
+}
+
+async function handleFile (e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (reviewModal.photos.length >= 3) return
+
+  reviewModal.photos.push(file)
+  e.target.value = ''
+}
+
 async function sendReview () {
+  if (reviewModal.stars === 0) return
   try {
-    await api.post('/api/history/rate', {
-      id: reviewModal.order.id,
-      stars: reviewModal.stars,
-      comment: reviewModal.comment
-    }, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    const payload = {
+      id: Number(reviewModal.order.id),
+      stars: Number(reviewModal.stars),
+      comment: reviewModal.comment,
+      tags: reviewModal.tags.join(','),
+      photos: reviewModal.photos.filter(p => !(p instanceof File)).join(',')
+    }
+
+    const headers = {
+      Authorization: `Bearer ${authStore.token}`,
+      'Content-Type': 'application/json'
+    }
+
+    const hasFilePhotos = reviewModal.photos.some(p => p instanceof File)
+
+    if (hasFilePhotos) {
+      const form = new FormData()
+      Object.keys(payload).forEach(k => form.append(k, payload[k]))
+      reviewModal.photos.forEach((file, idx) => {
+        if (file instanceof File) {
+          form.append('images[]', file)
+        }
+      })
+      await api.post('/api/history/rate', form, {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      })
+    } else {
+      await api.post('/api/history/rate', payload, { headers })
+    }
+
     reviewModal.open = false
     Swal.fire(t('orders.reviewSent'), '', 'success')
   } catch (err) {
-    if (err.response && err.response.status === 422 && err.response.data.message === 'already_rated') {
+    if (err.response && err.response.status === 409) {
       Swal.fire(t('orders.alreadyVoted'), '', 'info')
     } else {
       Swal.fire(t('error'), t('orders.reviewFailed'), 'error')

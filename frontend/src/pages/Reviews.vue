@@ -25,16 +25,31 @@
     </div>
 
     <div v-else class="space-y-4">
-      <div v-for="r in filtered" :key="r.id" class="p-4 border rounded-lg shadow-sm">
+      <div v-for="r in filtered" :key="r.id" class="p-4 border rounded-lg shadow-sm relative">
+        <!-- Menú derecha-arriba solo visible al dueño (quien escribió la reseña) -->
+        <div v-if="isOwner(r)" class="absolute top-2 right-2">
+          <button @click="openMenu(r)" class="text-muted-foreground hover:text-foreground">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+          <div v-if="menuOpen === r.id" class="absolute right-0 mt-1 w-40 bg-white border rounded shadow z-10">
+            <button @click="reportContent(r)" class="block w-full text-left px-3 py-2 text-sm text-destructive">
+              Denunciar reseña
+            </button>
+          </div>
+        </div>
+
         <div class="flex items-start gap-3">
           <img
-            :src="r.user_avatar || '/default-avatar.png'"
+            :src="r.user_avatar || r.provider_avatar || '/default-avatar.png'"
             alt="avatar"
             class="w-10 h-10 rounded-full object-cover"
             loading="lazy"
           />
           <div class="flex-1">
-            <p class="font-semibold">{{ r.user_name }}</p>
+            <p class="font-semibold">{{ r.user_name || r.provider_name }}</p>
             <p class="text-sm text-muted-foreground">{{ r.service_title }}</p>
             <StarRating :rating="r.rating" class="mt-1" />
 
@@ -63,38 +78,43 @@
               </span>
             </div>
 
-            <!-- Respuesta del proveedor -->
-            <div
-              v-if="r.provider_reply"
-              class="mt-3 p-3 bg-accent/10 rounded border border-accent/30 text-sm"
-            >
-              <p class="font-semibold text-accent">Respuesta del proveedor</p>
-              <p>{{ r.provider_reply.message }}</p>
+            <!-- Respuesta -->
+            <div v-if="(r.provider_reply || r.user_reply)" class="mt-3 p-3 bg-accent/10 rounded border border-accent/30 text-sm">
+              <p class="font-semibold text-accent">
+                {{ r.type === 'service_review' ? 'Respuesta del proveedor' : 'Tu respuesta' }}
+              </p>
+              <p>{{ (r.provider_reply || r.user_reply).message }}</p>
               <p class="text-xs text-muted-foreground mt-1">
-                {{ dayjs(r.provider_reply.created_at).fromNow() }}
+                {{ dayjs((r.provider_reply || r.user_reply).created_at).fromNow() }}
               </p>
             </div>
 
             <!-- Acciones -->
             <div class="flex items-center gap-3 mt-3 text-xs">
-              <button
-                type="button"
-                @click="markHelpful(r)"
-                class="text-muted-foreground hover:text-foreground"
-              >
-                Útil ({{ r.helpful_count || 0 }})
+              <button type="button" @click="markHelpful(r)" class="text-muted-foreground hover:text-foreground">
+                👍 {{ r.helpful_count || 0 }}
               </button>
-              <button
-                v-if="isProvider"
-                type="button"
-                @click="openReply(r)"
-                class="text-accent"
-              >
-                Responder
-              </button>
-              <button v-else type="button" @click="report(r)" class="text-destructive">
-                Reportar
-              </button>
+
+              <!-- Botón Responder/Actualizar SOLO para quien recibió la reseña -->
+              <template v-if="canReply(r)">
+                <button
+                  v-if="!(r.provider_reply || r.user_reply)"
+                  type="button"
+                  @click="openReply(r)"
+                  class="text-accent"
+                >
+                  Responder
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  @click="openUpdate(r)"
+                  class="text-accent"
+                >
+                  Actualizar
+                </button>
+              </template>
+
               <span class="text-muted-foreground ml-auto">
                 {{ dayjs(r.created_at).fromNow() }}
               </span>
@@ -109,6 +129,10 @@
   <ReviewFormModal
     v-if="showForm"
     :modelValue="currentEdit"
+    :mode="modalMode"
+    :targetRole="targetRole"
+    :authToken="authStore.token"
+    :serviceHistoryId="currentServiceHistoryId"
     @close="showForm = false"
     @save="handleSave"
   />
@@ -136,9 +160,34 @@ const reviews = ref<Review[]>([])
 const average = ref(0)
 const total = ref(0)
 const loading = ref(true)
+const menuOpen = ref<number | null>(null)
+const modalMode = ref<'new' | 'reply' | 'edit'>('reply') // ✅ Ahora incluye 'new'
+const targetRole = ref<'provider' | 'user'>('provider')
+const showForm = ref(false)
+const currentEdit = ref<Review | null>(null)
+const currentServiceHistoryId = ref<number | string | undefined>(undefined)
 
 /* ----------  ROLES  ---------- */
 const isProvider = computed(() => authStore.user?.role === 'provider')
+
+/* ----------  OWNER LOGIC: Quién puede denunciar  ---------- */
+const isOwner = (r: Review): boolean => {
+  if (!authStore.user?.id) return false
+  const userId = Number(authStore.user.id)
+  
+  if (r.type === 'service_review') return Number(r.user_id) === userId
+  if (r.type === 'user_review') return Number(r.provider_id) === userId
+  return false
+}
+
+/* ----------  REPLY LOGIC: Quién puede responder  ---------- */
+const canReply = (r: Review): boolean => {
+  if (!authStore.user?.role) return false
+  
+  if (r.type === 'service_review') return isProvider.value
+  if (r.type === 'user_review') return !isProvider.value
+  return false
+}
 
 /* ----------  DATA FETCH  ---------- */
 async function loadReviews() {
@@ -146,9 +195,19 @@ async function loadReviews() {
     const { data } = await api.get('/reviews/received', {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-    reviews.value = data.reviews
-    average.value = data.average
-    total.value = data.total
+
+    reviews.value = data.reviews.map((r: any) => ({
+      ...r,
+      // ✅ Determinar tipo correctamente por la tabla de origen
+      type: r.provider_reply !== undefined ? 'service_review' : 'user_review',
+      // ✅ Asegurar IDs numéricos para comparaciones
+      id: Number(r.id),
+      user_id: r.user_id ? Number(r.user_id) : undefined,
+      provider_id: r.provider_id ? Number(r.provider_id) : undefined
+    }))
+
+    average.value = data.average || 0
+    total.value = data.total || 0
   } catch (e) {
     console.error('Error cargando reseñas:', e)
   } finally {
@@ -162,15 +221,41 @@ onMounted(() => loadReviews())
 const { filters, filtered } = useReviews(reviews)
 
 /* ----------  MODAL  ---------- */
-const showForm = ref(false)
-const currentEdit = ref<Review | null>(null)
 
 function openReply(r: Review) {
+  // ✅ NO sobrescribir los datos originales
   currentEdit.value = {
-    ...r,
-    comment: r.provider_reply?.message || ''
+    id: r.id,
+    rating: r.rating,
+    comment: '', // Respuesta nueva empieza vacía
+    type: r.type
   } as Review
+  
+  modalMode.value = 'reply'
+  targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
+  currentServiceHistoryId.value = r.service_history_id
   showForm.value = true
+}
+
+function openUpdate(r: Review) {
+  const reply = r.type === 'service_review' ? r.provider_reply : r.user_reply
+  
+  // ✅ Cargar solo el mensaje de respuesta, no sobrescribir el comentario original
+  currentEdit.value = {
+    id: r.id,
+    rating: r.rating,
+    comment: reply?.message || '',
+    type: r.type
+  } as Review
+  
+  modalMode.value = 'edit'
+  targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
+  currentServiceHistoryId.value = r.service_history_id
+  showForm.value = true
+}
+
+function openMenu(r: Review) {
+  menuOpen.value = menuOpen.value === r.id ? null : r.id
 }
 
 /* ----------  ACTIONS  ---------- */
@@ -183,6 +268,25 @@ async function report(r: Review) {
     )
   } catch (e) {
     console.error('Error al reportar:', e)
+  }
+}
+
+async function reportContent(r: Review) {
+  try {
+    const reason = prompt('¿Motivo de la denuncia? (ofensiva, falsa, spam, etc.)')
+    if (!reason) return
+
+    await api.post(
+      '/reviews/report-content',
+      {
+        review_id: r.id,
+        reason,
+        comment: `Denunciado por el ${authStore.user?.role}: ${authStore.user?.name}`
+      },
+      { headers: { Authorization: `Bearer ${authStore.token}` } }
+    )
+  } catch (e) {
+    console.error('Error al denunciar:', e)
   }
 }
 
@@ -200,18 +304,34 @@ async function markHelpful(r: Review) {
 }
 
 async function handleSave(payload: any) {
+  if (!payload || typeof payload.comment !== 'string') {
+    console.warn('Save emitido sin payload válido')
+    return
+  }
+
+  const reviewId = currentEdit.value?.id
+  if (!reviewId) return
+
   try {
-    if (currentEdit.value) {
+    if (modalMode.value === 'reply') {
+      await api.post(
+        `/api/reviews/${reviewId}/reply`,
+        {
+          message: payload.comment,
+          targetRole: targetRole.value
+        },
+        { headers: { Authorization: `Bearer ${authStore.token}` } }
+      )
+    }
+
+    if (modalMode.value === 'edit') {
       await api.put(
-        `/reviews/${currentEdit.value.id}/reply`,
+        `/api/reviews/${reviewId}/reply`,
         { message: payload.comment },
         { headers: { Authorization: `Bearer ${authStore.token}` } }
       )
-    } else {
-      await api.post('/reviews', payload, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
     }
+
     showForm.value = false
     await loadReviews()
   } catch (e) {
@@ -224,7 +344,8 @@ async function handleSave(payload: any) {
 ---------------------------------------------------------- */
 function safePhotos(r: Review): string[] {
   try {
-    return Array.isArray(r.photos) ? r.photos : JSON.parse(r.photos || '[]')
+    const photosData = r.photos || '[]'
+    return Array.isArray(photosData) ? photosData : JSON.parse(photosData)
   } catch {
     return []
   }
@@ -232,7 +353,8 @@ function safePhotos(r: Review): string[] {
 
 function safeTags(r: Review): string[] {
   try {
-    return Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags || '[]')
+    const tagsData = r.tags || '[]'
+    return Array.isArray(tagsData) ? tagsData : JSON.parse(tagsData)
   } catch {
     return []
   }

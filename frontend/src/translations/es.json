@@ -6,6 +6,8 @@
     "profile_updated": "{user} actualizó su perfil",
     "service_accepted": "Servicio '{service}' fue aceptado",
     "service_created": "{user} creó un nuevo servicio",
+    "services": "Servicios",
+    "status": "Estado",
     "support_ticket_opened": "Nuevo ticket de soporte abierto"
   },
   "addComments": "Agregar comentarios",
@@ -184,8 +186,8 @@
     "cancelled": "Cancelado",
     "completed": "Completado",
     "rejected": "Rechazado",
-  "on_the_way": "En camino",
-  "accepted": "Aceptado"
+    "on_the_way": "En camino",
+    "accepted": "Aceptado"
   },
   "support": "Soporte",
   "tabs": "Pestañas",
@@ -272,6 +274,4 @@
   },
   "elapsed": "Tiempo transcurrido",
   "actions": "Acciones"
-
-
 }

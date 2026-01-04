@@ -5,6 +5,9 @@ import Swal from 'sweetalert2'
 import router from '@/router'
 import { i18n } from '@/i18n'
 
+const API_URL = import.meta.env.VITE_API_URL
+axios.defaults.baseURL = API_URL
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || null,
@@ -23,31 +26,31 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     setAxiosToken(token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      } else {
+        delete axios.defaults.headers.common['Authorization']
+      }
     },
 
     setLocale(locale) {
       this.locale = locale
       localStorage.setItem('userLocale', locale)
 
-      if (i18n && i18n.global) {
+      if (i18n?.global) {
         i18n.global.locale.value = locale
       }
-
       document.documentElement.lang = locale
     },
 
     loadLocale() {
       const savedLocale = localStorage.getItem('userLocale')
       if (savedLocale) {
-        this.locale = savedLocale
-        if (i18n && i18n.global) {
-          i18n.global.locale.value = savedLocale
-        }
+        this.setLocale(savedLocale)
       } else {
         const browserLocale = navigator.language.substring(0, 2)
-        const supportedLocales = ['es', 'en']
-        const defaultLocale = supportedLocales.includes(browserLocale) ? browserLocale : 'es'
+        const supported = ['es', 'en']
+        const defaultLocale = supported.includes(browserLocale) ? browserLocale : 'es'
         this.setLocale(defaultLocale)
       }
       return this.locale
@@ -56,14 +59,10 @@ export const useAuthStore = defineStore('auth', {
     async register(credentials) {
       this.loading = true
       try {
-        const res = await axios.post('http://localhost:8000/api/register', credentials)
+        const res = await axios.post('/api/register', credentials)
         const { token, user } = res.data
+        if (!token || !user || !user.role) throw new Error('Respuesta inválida del servidor al registrar.')
 
-        if (!token || !user || !user.role) {
-          throw new Error('Respuesta inválida del servidor al registrar.')
-        }
-
-        /* ----  EVITA SETEO REDUNDANTE  ---- */
         if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
           return user
         }
@@ -98,14 +97,10 @@ export const useAuthStore = defineStore('auth', {
     async login(credentials) {
       this.loading = true
       try {
-        const res = await axios.post('http://localhost:8000/api/login', credentials)
+        const res = await axios.post('/api/login', credentials)
         const { token, user } = res.data
+        if (!token || !user || !user.role) throw new Error('Respuesta inválida del servidor al iniciar sesión.')
 
-        if (!token || !user || !user.role) {
-          throw new Error('Respuesta inválida del servidor al iniciar sesión.')
-        }
-
-        /* ----  EVITA SETEO REDUNDANTE  ---- */
         if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
           return
         }
@@ -119,12 +114,7 @@ export const useAuthStore = defineStore('auth', {
         localStorage.setItem('role', user.role)
 
         this.setAxiosToken(token)
-
-        if (user.locale) {
-          this.setLocale(user.locale)
-        } else {
-          this.loadLocale()
-        }
+        user.locale ? this.setLocale(user.locale) : this.loadLocale()
 
         const $t = i18n.global.t
         Swal.fire({
@@ -133,20 +123,19 @@ export const useAuthStore = defineStore('auth', {
           text: $t('login_success'),
           timer: 1500,
           showConfirmButton: false,
-          willClose: () => {
-            switch (user.role) {
-              case 'admin':
-                router.push('/dashboard/admin')
-                break
-              case 'provider':
-                router.push('/dashboard/provider')
-                break
-              case 'user':
-              default:
-                router.push('/dashboard/user')
-                break
+          willClose: async () => {
+            // ✅ Redirección segura, sin duplicar navegación
+            const target =
+              user.role === 'admin'
+                ? '/dashboard/admin'
+                : user.role === 'provider'
+                ? '/dashboard/provider'
+                : '/dashboard/user'
+
+            if (router.currentRoute.value.path !== target) {
+              await router.replace(target)
             }
-          }
+          },
         })
       } catch (error) {
         const $t = i18n.global.t
@@ -163,16 +152,15 @@ export const useAuthStore = defineStore('auth', {
 
     async refreshToken() {
       try {
-        const res = await axios.post('http://localhost:8000/api/refresh-token', {}, {
-          headers: { Authorization: `Bearer ${this.token}` }
+        const res = await axios.post('/api/refresh-token', {}, {
+          headers: { Authorization: `Bearer ${this.token}` },
         })
         const { token, user } = res.data
-
-        /* ----  EVITA SETEO REDUNDANTE  ---- */
         if (token === this.token) return token
 
         this.token = token
         this.user = user
+
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))
         this.setAxiosToken(token)
@@ -187,9 +175,9 @@ export const useAuthStore = defineStore('auth', {
 
     async updateUserLocale(locale) {
       if (!this.token || !this.user) return
-
       try {
-        const res = await axios.post('http://localhost:8000/api/user/locale',
+        const res = await axios.post(
+          '/api/user/locale',
           { locale },
           { headers: { Authorization: `Bearer ${this.token}` } }
         )
@@ -215,24 +203,28 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('role')
       localStorage.removeItem('userLocale')
 
-      if (i18n && i18n.global) {
+      this.setAxiosToken(null)
+
+      if (i18n?.global) {
         i18n.global.locale.value = 'es'
       }
       document.documentElement.lang = 'es'
 
-      delete axios.defaults.headers.common['Authorization']
-      router.push('/login')
+      // ✅ Redirección única al login
+      const current = router.currentRoute.value.path
+      if (current !== '/login') {
+        router.replace('/login').catch(() => {})
+      }
     },
-
-    initialize() {
-      this.loadLocale()
-      this.setAxiosToken(this.token)
-    }
-  }
+  },
 })
 
+// ✅ Inicialización consistente del store
 export function initializeAuthStore() {
   const auth = useAuthStore()
-  auth.initialize()
+  if (auth.token) {
+    auth.setAxiosToken(auth.token)
+    auth.loadLocale()
+  }
   return auth
 }

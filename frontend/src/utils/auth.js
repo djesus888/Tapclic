@@ -40,8 +40,8 @@ function isTokenExpired(token) {
   return Date.now() / 1000 > payload.exp;
 }
 
-// Verifica la sesión actual
-function checkSession() {
+// Verifica la sesión actual (solo llamada manual desde main.js)
+async function checkSession() {
   const token = getToken();
   const path = window.location.pathname;
 
@@ -94,12 +94,4 @@ async function refreshToken() {
   }
 }
 
-// Ejecutar verificación solo si no estamos en /login
-document.addEventListener("DOMContentLoaded", () => {
-  checkSession();
-  // Refrescar token cada 5 minutos solo si hay sesión activa
-  if (getToken()) setInterval(refreshToken, 5 * 60 * 1000);
-});
-
-// Exportar funciones
-export { apiFetch, checkSession, getToken, setToken, clearToken };
+export { apiFetch, checkSession, getToken, setToken, clearToken, refreshToken };

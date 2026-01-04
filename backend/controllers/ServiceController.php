@@ -1,7 +1,6 @@
 <?php
-require_once __DIR__ . "/../middleware/Auth.php";
 // backend/controllers/ServiceController.php
-
+require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../utils/jwt.php';
@@ -20,7 +19,6 @@ class ServiceController
     }
 
     /* ----------  AUTH  ---------- */
-
     private function unauthorized(): void
     {
         http_response_code(401);
@@ -95,29 +93,26 @@ class ServiceController
         echo json_encode(['error' => 'Ruta no válida']);
     }
 
+    public function getById(int $id): void
+    {
+        $service = $this->model->findById($id);
+        
+        if (!$service) {
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Servicio no encontrado']);
+            return;
+        }
 
-     public function getById(int $id): void
-{
-    $service = $this->model->findById($id);
-
-    if (!$service) {
-        http_response_code(404);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Servicio no encontrado']);
-        return;
+        echo json_encode(['data' => $service]);
     }
-
-    header('Content-Type: application/json');
-    echo json_encode(['data' => $service]);
-}
-
-
 
     /* ----------  CREATE  ---------- */
     private function create(object $auth): void
     {
         header('Content-Type: application/json');
-
+        
         if (!$this->rateLimit($auth->id)) {
             http_response_code(429);
             echo json_encode(['error' => 'Demasiadas peticiones']);
@@ -144,7 +139,12 @@ class ServiceController
                 'receiver_role' => 'admin',
                 'receiver_id'   => 1,
                 'title'         => 'Nuevo servicio disponible',
-                'message'       => 'Se ha añadido un nuevo servicio.'
+                'message'       => 'Se ha añadido un nuevo servicio.',
+                'data_json'     => json_encode([
+                    'url' => '/admin/services',
+                    'action' => 'view_service',
+                    'notification_type' => 'new_service'
+                ])
             ]);
             echo json_encode(['message' => 'Servicio creado correctamente']);
         } else {
@@ -180,7 +180,7 @@ class ServiceController
     private function update(object $auth): void
     {
         header('Content-Type: application/json');
-
+        
         $id = $_POST['id'] ?? null;
         if (!$id) {
             http_response_code(400);
@@ -199,7 +199,12 @@ class ServiceController
                 'receiver_role' => 'user',
                 'receiver_id'   => 0,
                 'title'         => 'Servicio actualizado',
-                'message'       => 'Un servicio ha sido modificado.'
+                'message'       => 'Un servicio ha sido modificado.',
+                'data_json'     => json_encode([
+                    'url' => '/service/' . $id,
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update'
+                ])
             ]);
             echo json_encode(['message' => 'Servicio actualizado correctamente']);
         } else {
@@ -208,53 +213,53 @@ class ServiceController
         }
     }
 
-/* ----------  DELETE  ---------- */
-private function delete(object $auth): void
-{
-    // CORS para que el navegador deje leer la respuesta
-    header("Access-Control-Allow-Origin: http://localhost:5173");
-    header("Access-Control-Allow-Methods: POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Content-Type, Authorization");
-
-    header('Content-Type: application/json');
-    $input = json_decode(file_get_contents('php://input'), true);
-    $id    = $input['id'] ?? null;
-    if (!$id) {
-        http_response_code(400);
-        echo json_encode(['error' => 'ID requerido']);
-        return;
-    }
-
-    try {
-        $deleted = $this->model->delete((int)$id, $auth->id);
-        if (!$deleted) {                     // 0 filas afectadas
-            http_response_code(404);
-            echo json_encode(['error' => 'Servicio no encontrado.']);
+    /* ----------  DELETE  ---------- */
+    private function delete(object $auth): void
+    {
+       
+        header('Content-Type: application/json');
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        $id    = $input['id'] ?? null;
+        
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID requerido']);
             return;
         }
 
-        $this->emitWs([
-            'receiver_role' => 'user',
-            'receiver_id'   => 0,
-            'title'         => 'Servicio eliminado',
-            'message'       => 'Un servicio ya no está disponible.'
-        ]);
-        echo json_encode(['message' => 'Servicio eliminado correctamente']);
-
-    } catch (PDOException $e) {
-        // MySQL: 1451 = fila referenciada por FK
-        if ($e->getCode() === '23000' || $e->getCode() === '1451') {
-            http_response_code(409);
-            echo json_encode([
-                'message' => 'No se puede eliminar el servicio porque tiene un servicio activo asociado.'
+        try {
+            $deleted = $this->model->delete((int)$id, $auth->id);
+            if (!$deleted) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Servicio no encontrado.']);
+                return;
+            }
+            
+            $this->emitWs([
+                'receiver_role' => 'user',
+                'receiver_id'   => 0,
+                'title'         => 'Servicio eliminado',
+                'message'       => 'Un servicio ya no está disponible.',
+                'data_json'     => json_encode([
+                    'url' => '/dashboard/user',
+                    'action' => 'default',
+                    'notification_type' => 'service_deleted'
+                ])
             ]);
-        } else {
-            // cualquier otro error de BD
-            http_response_code(500);
-            echo json_encode(['error' => 'Error al eliminar el servicio']);
+            echo json_encode(['message' => 'Servicio eliminado correctamente']);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000' || $e->getCode() === '1451') {
+                http_response_code(409);
+                echo json_encode([
+                    'message' => 'No se puede eliminar el servicio porque tiene un servicio activo asociado.'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Error al eliminar el servicio']);
+            }
         }
     }
-}
 
     /* ----------  HELPERS  ---------- */
     private function extractServiceDataFromRequest(): ?array
@@ -283,11 +288,11 @@ private function delete(object $auth): void
     private function handleImageUpload(): ?string
     {
         if (empty($_FILES['image']['name'])) return null;
-
+        
         $file = $_FILES['image'];
         if ($file['error'] !== UPLOAD_ERR_OK) return null;
         if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
-
+        
         [$width, $height] = getimagesize($file['tmp_name']);
         if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
 

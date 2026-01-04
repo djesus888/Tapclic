@@ -69,9 +69,12 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (
     preg_match('~/api/history/?$~', $request) ||
     preg_match('~/api/history/rate/?$~', $request) ||
-    preg_match('~/api/reviews/received/?$~', $request)
+    preg_match('~/api/history/rate-user/?$~', $request) ||
+    preg_match('~/api/reviews/received/?$~', $request) ||
+    preg_match('~/api/history/by-request/\d+$~', $request)
 ) {
     (new HistoryController())->handle($method);
+
 
 // --- RUTAS NOTIFICACIONES ---
 } elseif (
@@ -89,6 +92,10 @@ if (preg_match('~/api/login~', $request)) {
     (new HistoryController())->report();
 } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
     (new HistoryController())->reply((int)$m[1]);
+} elseif ($method === 'POST' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
+    (new HistoryController())->createReply((int)$m[1]);
+} elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/?$~', $request, $m)) {
+    (new HistoryController())->updateReview((int)$m[1]);
 
 // --- RUTAS PERFIL USUARIO ---
 } elseif (preg_match('~/api/profile/update~', $request)) {

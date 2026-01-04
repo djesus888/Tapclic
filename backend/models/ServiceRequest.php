@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 
 class ServiceRequest
 {
-    public $conn; // expuesta para acceso rápido desde controller
+    public $conn;
     private $table = 'service_requests';
 
     public function __construct()
@@ -11,15 +11,12 @@ class ServiceRequest
         $this->conn = (new Database())->getConnection();
     }
 
-    /* ----------------------------------------------------------
-       INSERT: crea solicitud
-       ---------------------------------------------------------- */
     public function create($data): int
     {
         $query = "INSERT INTO {$this->table}
-            (service_id, user_id, provider_id, price, payment_method, additional_details, payment_status, created_at)
-            VALUES (:service_id, :user_id, :provider_id, :price, :payment_method, :additional_details, 'pending', NOW())";
-
+                  (service_id, user_id, provider_id, price, payment_method, additional_details, payment_status, created_at)
+                  VALUES (:service_id, :user_id, :provider_id, :price, :payment_method, :additional_details, 'pending', NOW())";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->bindValue(':service_id', $data['service_id'], PDO::PARAM_INT);
         $stmt->bindValue(':user_id', $data['user_id'], PDO::PARAM_INT);
@@ -35,9 +32,6 @@ class ServiceRequest
         return (int)$this->conn->lastInsertId();
     }
 
-    /* ----------------------------------------------------------
-       SELECTS varios
-       ---------------------------------------------------------- */
     public function getByUser($userId)
     {
         $query = "
@@ -56,6 +50,7 @@ class ServiceRequest
             WHERE sr.user_id = :id OR sr.provider_id = :id
             ORDER BY sr.created_at DESC
         ";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -76,6 +71,7 @@ class ServiceRequest
               AND sr.status = 'completed'
             ORDER BY sr.created_at DESC
         ";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -85,16 +81,17 @@ class ServiceRequest
     {
         $query = "
             SELECT sr.*,
-                     s.title AS service_title,
-                     s.description AS service_description,
-                     s.price AS service_price,
-                     s.provider_name AS service_provider_name,
-                     s.provider_avatar_url AS service_image
-                  FROM {$this->table} sr
-                  LEFT JOIN services s ON s.id = sr.service_id
-                  WHERE sr.status = 'pending'
-                  ORDER BY sr.created_at DESC
+                   s.title AS service_title,
+                   s.description AS service_description,
+                   s.price AS service_price,
+                   s.provider_name AS service_provider_name,
+                   s.provider_avatar_url AS service_image
+            FROM {$this->table} sr
+            LEFT JOIN services s ON s.id = sr.service_id
+            WHERE sr.status = 'pending'
+            ORDER BY sr.created_at DESC
         ";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -104,17 +101,18 @@ class ServiceRequest
     {
         $query = "
             SELECT sr.*,
-                     s.title AS service_title,
-                     s.description AS service_description,
-                     s.price AS service_price,
-                     s.provider_name AS service_provider_name,
-                     s.provider_avatar_url AS service_image
-                  FROM {$this->table} sr
-                  LEFT JOIN services s ON s.id = sr.service_id
-                  WHERE sr.status = 'pending'
-                    AND sr.provider_id = :provider_id
-                  ORDER BY sr.created_at DESC
+                   s.title AS service_title,
+                   s.description AS service_description,
+                   s.price AS service_price,
+                   s.provider_name AS service_provider_name,
+                   s.provider_avatar_url AS service_image
+            FROM {$this->table} sr
+            LEFT JOIN services s ON s.id = sr.service_id
+            WHERE sr.status = 'pending'
+              AND sr.provider_id = :provider_id
+            ORDER BY sr.created_at DESC
         ";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':provider_id' => $providerId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -124,25 +122,22 @@ class ServiceRequest
     {
         $query = "
             SELECT sr.*,
-                     s.title AS service_title,
-                     s.description AS service_description,
-                     s.price AS service_price,
-                     s.provider_name AS service_provider_name,
-                     s.provider_avatar_url AS service_image
-                  FROM {$this->table} sr
-                  LEFT JOIN services s ON s.id = sr.service_id
-                  WHERE sr.status = 'pending'
-                    AND sr.user_id = :user_id
-                  ORDER BY sr.created_at DESC
+                   s.title AS service_title,
+                   s.description AS service_description,
+                   s.price AS service_price,
+                   s.provider_name AS service_provider_name,
+                   s.provider_avatar_url AS service_image
+            FROM {$this->table} sr
+            LEFT JOIN services s ON s.id = sr.service_id
+            WHERE sr.status = 'pending'
+              AND sr.user_id = :user_id
+            ORDER BY sr.created_at DESC
         ";
+        
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
-    /* ----------------------------------------------------------
-       FUNCIONES CORREGIDAS PARA TRAER DATOS DE PROVEEDOR / USUARIO
-       ---------------------------------------------------------- */
 
     public function getActiveByUser(int $userId): array
     {
@@ -184,6 +179,7 @@ class ServiceRequest
               AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
             ORDER BY sr.updated_at DESC
         ";
+        
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -229,6 +225,7 @@ class ServiceRequest
               AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
             ORDER BY sr.updated_at DESC
         ";
+        
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':pid' => $providerId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -245,9 +242,10 @@ class ServiceRequest
     public function updateStatus(int $id, int $actorId, string $newStatus): bool
     {
         $sql = "UPDATE {$this->table}
-            SET status = :status, updated_at = NOW()
-            WHERE id = :id
-              AND (user_id = :actorId OR provider_id = :actorId)";
+                SET status = :status, updated_at = NOW()
+                WHERE id = :id
+                  AND (user_id = :actorId OR provider_id = :actorId)";
+        
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([
             ':status'  => $newStatus,
@@ -259,8 +257,8 @@ class ServiceRequest
     public function saveNotification($data)
     {
         $query = "INSERT INTO notifications
-                  (sender_id, receiver_id, receiver_role, title, message, is_read, created_at)
-                  VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, 0, NOW())";
+                  (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
+                  VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, :data_json, 0, NOW())";
 
         $stmt = $this->conn->prepare($query);
         return $stmt->execute([
@@ -268,7 +266,8 @@ class ServiceRequest
             ':receiver_id' => $data['receiver_id'],
             ':receiver_role' => $data['receiver_role'],
             ':title' => $data['title'],
-            ':message' => $data['message']
+            ':message' => $data['message'],
+            ':data_json' => $data['data_json'] ?? null
         ]);
     }
 
@@ -277,8 +276,9 @@ class ServiceRequest
         $sql = "UPDATE {$this->table}
                 SET payment_status = :status,
                     payment_proof_url = :proof,
-                    updated_at     = NOW()
+                    updated_at = NOW()
                 WHERE id = :id";
+        
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([':status' => $status, ':proof' => $proofUrl, ':id' => $requestId]);
     }
@@ -293,14 +293,14 @@ class ServiceRequest
         if ($req && $req['status'] === 'completed') {
             throw new Exception("No se puede cancelar un servicio finalizado");
         }
-
+        
         $sql = "UPDATE {$this->table}
                 SET status = 'cancelled',
                     cancelled_by = :actorRole,
                     updated_at = NOW()
                 WHERE id = :id
                   AND (user_id = :actorId OR provider_id = :actorId)";
-
+        
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([
             ':actorRole' => $actorRole,
@@ -329,18 +329,20 @@ class ServiceRequest
                   AND provider_id = :provider
                   AND status IN ('pending','accepted','in_progress')
                 LIMIT 1";
+        
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([
             ':user'     => $userId,
             ':service'  => $serviceId,
             ':provider' => $providerId
         ]);
+        
         return (bool) $stmt->fetchColumn();
     }
 
     public function delete(int $requestId, int $userId): bool
     {
-        $sql = 'DELETE FROM service_requests WHERE id = ? AND user_id = ?';
+        $sql = "DELETE FROM {$this->table} WHERE id = ? AND user_id = ?";
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([$requestId, $userId]) && $stmt->rowCount() > 0;
     }
@@ -359,7 +361,7 @@ class ServiceRequest
             $hasProc = (bool) $pdo->query(
                 "SELECT COUNT(*) FROM mysql.proc WHERE name = 'close_request'"
             )->fetchColumn();
-
+            
             if ($hasProc) {
                 $pdo->prepare("CALL close_request(:id, :st)")
                     ->execute(['id' => $reqId, 'st' => $status]);
@@ -367,14 +369,13 @@ class ServiceRequest
             }
 
             $pdo->beginTransaction();
-
-            $payData = $pdo->prepare("SELECT payment_status, payment_method FROM service_requests WHERE id = ?");
+            
+            $payData = $pdo->prepare("SELECT payment_status, payment_method FROM {$this->table} WHERE id = ?");
             $payData->execute([$reqId]);
             $payRow  = $payData->fetch(PDO::FETCH_ASSOC);
-
             $finStatus = $payRow['payment_status'] ?? 'pending';
             $finMethod = $payRow['payment_method'] ?? null;
-
+            
             $sql = "INSERT INTO service_history
                       (user_id, service_id, request_id, service_title, service_price,
                        provider_name, status, finished_at, provider_id,
@@ -382,9 +383,9 @@ class ServiceRequest
                     SELECT r.user_id, r.service_id, r.id,
                            s.title, s.price, s.provider_name, :st, NOW(), r.provider_id,
                            :payStatus, :payMethod
-                    FROM   service_requests r
-                    JOIN   services s ON s.id = r.service_id
-                    WHERE  r.id = :id";
+                    FROM {$this->table} r
+                    JOIN services s ON s.id = r.service_id
+                    WHERE r.id = :id";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':id'         => $reqId,
@@ -396,9 +397,9 @@ class ServiceRequest
             $stmtPay = $pdo->prepare("DELETE FROM payments WHERE service_request_id = ?");
             $stmtPay->execute([$reqId]);
 
-            $stmtReq = $pdo->prepare("DELETE FROM service_requests WHERE id = ?");
+            $stmtReq = $pdo->prepare("DELETE FROM {$this->table} WHERE id = ?");
             $stmtReq->execute([$reqId]);
-
+            
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();

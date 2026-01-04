@@ -1,248 +1,296 @@
 <template>
-  <div class="max-w-6xl mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-6">{{ $t('services.myServices') }}</h1>
-
-    <router-link to="/services/new" class="mb-6 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-      {{ $t('services.createNew') }}
-    </router-link>
-
-    <div v-if="services.length" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-     
-<div
-  v-for="s in services"
-  :key="s.id"
-  class="relative border rounded-lg p-4 hover:shadow-lg cursor-pointer"
-  @click="openEditModal(s)"
->
-  <!-- Badge estado -->
-  <span
-    class="absolute top-2 right-2 text-xs px-2 py-1 rounded-full font-semibold"
-    :class="statusColor(s.status)"
-  >
-    {{ $t(s.status) }}
-  </span>
-
-  <img
-    v-if="s.image_url"
-    :src="getImageUrl(s.image_url)"
-    :alt="$t('services.image')"
-    class="w-full h-40 object-cover rounded mb-2"
-  />
-  <h2 class="text-xl font-semibold">{{ s.title }}</h2>
-  <p class="text-gray-600">{{ s.description.slice(0, 60) }}...</p>
-  <p class="text-green-600 font-bold mt-1">${{ s.price }}</p>
-  <p class="text-sm text-gray-500">{{ s.category }} · {{ s.location }}</p>
-  <button
-    class="mt-3 text-sm text-red-600 hover:underline"
-    @click.stop="deleteService(s.id)"
-  >
-    {{ $t('services.delete') }}
-  </button>
-</div>
-
-
-    </div>
-
-    <div v-else class="text-center text-gray-500">{{ $t('services.noServices') }}</div>
-
-    <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeEditModal">
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">{{ $t('services.editService') }}</h2>
-
-        <form @submit.prevent="updateService" class="space-y-4">
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.title') }}</span>
-            <input v-model="form.title" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600" />
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.description') }}</span>
-            <textarea v-model="form.description" rows="3" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"></textarea>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.serviceDetails') }}</span>
-            <textarea v-model="form.service_details" rows="4" maxlength="1000" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"></textarea>
-            <p class="text-right text-xs text-gray-500">{{ (form.service_details || '').length }}/1000</p>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.price') }}</span>
-            <input v-model.number="form.price" type="number" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600" />
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.category') }}</span>
-            <input v-model="form.category" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600" />
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.location') }}</span>
-            <input v-model="form.location" class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600" />
-          </label>
-
-          <!-- imagen -->
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{{ $t('services.imageOptional') }}</span>
-            <div v-if="previewImage" class="flex items-end gap-4 mb-3">
-              <img :src="previewImage" alt="Preview" class="w-24 h-24 rounded-xl object-cover shadow" />
-              <button type="button" @click="triggerFilePicker" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600">Cambiar</button>
-            </div>
-            <div v-else @drop.prevent="handleDrop" @dragover.prevent @click="triggerFilePicker" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition">
-              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Arrastra una imagen o <span class="text-blue-600 dark:text-blue-400 font-medium">haz clic aquí</span></p>
-              <p class="text-xs text-gray-400">PNG, JPG hasta 2 MB</p>
-            </div>
-            <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onImageChange" />
-          </label>
-
-          <div class="flex justify-end space-x-3">
-            <button type="button" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" @click="closeEditModal">{{ $t('common.cancel') }}</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">{{ $t('common.save') }}</button>
+  <div class="p-4">
+    <!-- LISTADO DE SERVICIOS (copia exacta del DashboardUser) -->
+    <div v-if="loading" class="text-center py-10">{{ $t('loading') }}…</div>
+    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div
+        v-for="service in services"
+        :key="service.id"
+        class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition"
+        @click="openServiceDetails(service)"
+      >
+        <div class="p-4 flex justify-between items-start bg-gray-100">
+          <div>
+            <h2 class="font-bold text-lg">{{ sanitize(service.title) }}</h2>
+            <p class="text-sm text-gray-600">{{ sanitize(service.description) }}</p>
           </div>
-        </form>
+          <div class="text-right ml-4">
+            <p class="font-semibold">{{ formatDate(service.created_at) }}</p>
+            <span
+              :class="service.isAvailable === 1 && service.status === 'active' ? 'text-green-600' : 'text-red-600'"
+              class="text-xs font-medium"
+            >
+              {{ service.isAvailable === 1 && service.status === 'active' ? $t('available') : $t('not_available') }}
+            </span>
+          </div>
+        </div>
+        <div class="p-4 flex justify-between items-center bg-white">
+          <div class="flex items-center gap-3">
+            <img
+              :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'"
+              :alt="service.provider?.name || 'Ads'"
+              class="w-10 h-10 rounded-full object-cover"
+            />
+            <div>
+              <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
+              <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold text-primary">$ {{ service.price }}</span>
+          </div>
+        </div>
       </div>
     </div>
+    <div v-if="!loading && services.length === 0" class="text-center text-gray-500 py-10">
+      {{ $t('no_services_available') }}
+    </div>
+
+    <!-- MODALES (iguales a DashboardUser) -->
+    <ServiceDetailsModal
+      v-if="modalService"
+      :is-open="showServiceDetails"
+      :request="modalService"
+      @on-request-service="goToRequestConfirmation"
+      @on-open-change="(val) => (showServiceDetails = val)"
+      @on-start-chat="openChat"
+    />
+    <RequestConfirmationModal
+      v-if="modalService"
+      :is-open="showRequestConfirmation"
+      :service-details="modalService"
+      @confirm="onConfirmRequest"
+      @on-open-change="(val) => (showRequestConfirmation = val)"
+    />
+    <ProviderContactModal
+      v-if="showProviderContact && modalService"
+      ref="providerContactModal"
+      :is-open="showProviderContact"
+      :provider-name="modalService.provider?.name"
+      :request-id="modalService.requestId"
+      @on-provider-response="onProviderResponse"
+      @cancel="resetFlow"
+      @openPayment="openPaymentModal"
+      @retry-request="handleRetry"
+    />
+    <PaymentModal
+      v-if="modalService"
+      v-model:is-open="showPayment"
+      :is-open="showPayment"
+      :request="modalService"
+      @on-payment-submit="handlePaymentSubmit"
+      @on-open-change="(val) => (showPayment = val)"
+    />
+    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
+<script>
+/* -------  IMPORTS Y LÓGICA IDÉNTICOS A DashboardUser.vue  ------- */
+import { formatDate as utilFormatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
-import Swal from 'sweetalert2'
+import ServiceDetailsModal from '@/components/ServiceDetailsModal.vue'
+import RequestConfirmationModal from '@/components/RequestConfirmationModal.vue'
+import ProviderContactModal from '@/components/ProviderContactModal.vue'
+import PaymentModal from '@/components/PaymentModal.vue'
+import ChatRoomModal from '@/components/ChatRoomModal.vue'
 
-const { t } = useI18n()
-const authStore = useAuthStore()
-const services = ref([])
-const showModal = ref(false)
-
-const form = ref({
-  id: null,
-  title: '',
-  description: '',
-  service_details: '',
-  price: 0,
-  category: '',
-  location: '',
-  image: null
-})
-
-const previewImage = ref('')
-const fileInput = ref(null)
-
-/* ----------  utils  ---------- */
-const getImageUrl = (path) => {
-  if (!path) return ''
-  return path.startsWith('http') ? path : `http://localhost:8000${path}`
-}
-
-const statusColor = (status) => {
-  switch (status) {
-    case 'pending':  return 'bg-yellow-100 text-yellow-800'
-    case 'approved': return 'bg-green-100 text-green-800'
-    case 'rejected': return 'bg-red-100 text-red-800'
-    default:         return 'bg-gray-100 text-gray-800'
-  }
-}
-
-
-/* ----------  Cargar servicios  ---------- */
-const loadServices = async () => {
-  try {
-    const { data } = await api.get('/services/mine', {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    services.value = data
-  } catch (err) {
-    Swal.fire(t('common.error'), err.response?.data?.error || t('services.loadError'), 'error')
-  }
-}
-
-/* ----------  Eliminar servicio  ---------- */
-const deleteService = async (id) => {
-  const confirm = await Swal.fire({
-    title: t('services.confirmDeleteTitle'),
-    text: t('services.confirmDeleteText'),
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#6b7280',
-    confirmButtonText: t('common.yes'),
-    cancelButtonText: t('common.cancel'),
-    buttonsStyling: false,
-    customClass: {
-      confirmButton: 'px-4 py-2 rounded text-white bg-red-600 mr-2',
-      cancelButton: 'px-4 py-2 rounded text-white bg-green-600'
+export default {
+  name: 'ServicesPage',
+  components: {
+    ServiceDetailsModal,
+    RequestConfirmationModal,
+    ProviderContactModal,
+    PaymentModal,
+    ChatRoomModal,
+  },
+  data() {
+    return {
+      services: [],
+      loading: true,
+      modalService: null,
+      showServiceDetails: false,
+      showRequestConfirmation: false,
+      showProviderContact: false,
+      showPayment: false,
+      chatTarget: null,
+      lastSpecDetails: '',
     }
-  })
-  if (!confirm.isConfirmed) return
-
-  try {
-    await api.post('/services/delete', { id }, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    Swal.fire(t('common.success'), t('services.deleted'), 'success')
-    loadServices()
-  } catch (err) {
-    Swal.fire(t('common.error'), err.response?.data?.message || t('services.deleteError'), 'error')
-  }
+  },
+  methods: {
+    formatDate(date) {
+      return utilFormatDate(date)
+    },
+    sanitize(str) {
+      if (!str || typeof str !== 'string') return str
+      return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    },
+    resetFlow() {
+      this.showServiceDetails = false
+      this.showRequestConfirmation = false
+      this.showProviderContact = false
+      this.showPayment = false
+      this.chatTarget = null
+      this.modalService = null
+      this.lastSpecDetails = ''
+      const providerModal = this.$refs.providerContactModal
+      if (providerModal && typeof providerModal.stopProcess === 'function') {
+        providerModal.stopProcess()
+      }
+    },
+    normalizeService(s) {
+      const p = s.provider && typeof s.provider === 'object' ? s.provider : {}
+      let paymentInfo = {}
+      try {
+        const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || []
+        methods.forEach((m) => {
+          if (m.method_type === 'pago_movil') {
+            paymentInfo.pagoMovil = { banco: m.bank_name, telefono: m.phone_number, cedula: m.id_number }
+          }
+          if (m.method_type === 'transferencia') {
+            paymentInfo.transferencia = { banco: m.bank_name, cuenta: m.account_number, cedula: m.id_number }
+          }
+          if (m.method_type === 'paypal') {
+            paymentInfo.paypal = { email: m.email }
+          }
+          if (m.method_type === 'zelle') {
+            paymentInfo.zelle = { email: m.email }
+          }
+        })
+      } catch (e) {
+        console.warn('Error parseando payment_methods:', e)
+      }
+      return {
+        ...s,
+        service_details: s.service_details || '',
+        provider: {
+          id: p.id || s.provider_id || s.providerId || s.user_id || null,
+          name: p.name || s.provider_name || '—',
+          avatar_url: p.avatar_url || s.provider_avatar_url || '',
+          rating: p.rating ?? s.provider_rating ?? null,
+          paymentInfo: Object.keys(paymentInfo).length ? paymentInfo : undefined,
+        },
+      }
+    },
+    buildPath(resource) {
+      const base = api.defaults?.baseURL || ''
+      const hasApi = base.endsWith('/api') || base.includes('/api')
+      return hasApi ? `/${resource}` : `/api/${resource}`
+    },
+    async fetchServices() {
+      if (this.services.length) return
+      this.loading = true
+      try {
+        const authStore = useAuthStore()
+        const res = await api.get(this.buildPath('services'), {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.services) ? res.data.services : []
+        this.services = raw.map((s) => this.normalizeService(s))
+      } catch (err) {
+        console.error(err)
+      } finally {
+        this.loading = false
+      }
+    },
+    openServiceDetails(service) {
+      this.resetFlow()
+      this.$nextTick(() => {
+        this.modalService = this.normalizeService(service)
+        this.showServiceDetails = true
+      })
+    },
+    goToRequestConfirmation() {
+      this.showServiceDetails = false
+      this.showRequestConfirmation = true
+    },
+    async onConfirmRequest(specDetails) {
+      try {
+        const authStore = useAuthStore()
+        const serviceId = this.modalService?.id
+        const providerId = this.modalService?.provider?.id || this.modalService?.user_id
+        if (!serviceId || !providerId) return
+        const payload = {
+          service_id: serviceId,
+          provider_id: providerId,
+          price: Number(this.modalService.price) || 0,
+          payment_method: 'efectivo',
+          additional_details: specDetails || '',
+        }
+        const res = await api.post(this.buildPath('requests/create'), payload, {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud')
+        this.modalService.requestId = res.data.requestId
+        this.modalService.status = res.data.status || 'pending'
+        this.lastSpecDetails = specDetails
+        this.showRequestConfirmation = false
+        this.showProviderContact = true
+        this.$nextTick(() => {
+          const providerModal = this.$refs.providerContactModal
+          if (providerModal) {
+            providerModal.status = this.modalService.status
+            providerModal.startProcess()
+          }
+        })
+      } catch (err) {
+        console.error(err)
+        this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
+      }
+    },
+    async onProviderResponse(status) {
+      this.showProviderContact = false
+      if (status === 'accepted' && this.modalService?.requestId) {
+        this.openPaymentModal()
+      } else {
+        const { isConfirmed } = await this.$swal.fire({
+          icon: status === 'rejected' ? 'error' : 'warning',
+          title: status === 'rejected' ? this.$t('request_rejected') : this.$t('provider_busy'),
+          showCancelButton: true,
+          confirmButtonText: this.$t('try_again'),
+          cancelButtonText: this.$t('cancel'),
+        })
+        if (isConfirmed) {
+          this.showRequestConfirmation = true
+          this.$nextTick(() => {
+            this.onConfirmRequest(this.lastSpecDetails)
+          })
+        } else {
+          this.resetFlow()
+        }
+      }
+    },
+    openPaymentModal() {
+      this.showServiceDetails = false
+      this.showRequestConfirmation = false
+      this.showProviderContact = false
+      this.showPayment = true
+    },
+    handlePaymentSubmit(method) {
+      if (!this.modalService?.requestId) return
+      this.resetFlow()
+      this.$swal.fire({
+        icon: 'success',
+        title: this.$t('payment_completed'),
+        text: `${this.modalService?.title || ''} - ${method}`,
+        timer: 2000,
+        showConfirmButton: false,
+      })
+      this.fetchServices()
+    },
+    handleRetry() {
+      this.resetFlow()
+      this.$nextTick(() => {
+        this.onConfirmRequest(this.lastSpecDetails)
+      })
+    },
+    openChat(target) {
+      this.chatTarget = target
+    },
+  },
+  mounted() {
+    this.fetchServices()
+  },
 }
-
-/* ----------  Modal Editar  ---------- */
-const openEditModal = (service) => {
-  form.value = { ...service, image: null }
-  previewImage.value = getImageUrl(service.image_url)
-  showModal.value = true
-}
-
-const closeEditModal = () => {
-  showModal.value = false
-  form.value = { id: null, title: '', description: '', service_details: '', price: 0, category: '', location: '', image: null }
-  previewImage.value = ''
-}
-
-const triggerFilePicker = () => fileInput.value.click()
-
-const handleDrop = (e) => {
-  const file = e.dataTransfer.files[0]
-  if (file) onImageChange({ target: { files: [file] } })
-}
-
-const onImageChange = (e) => {
-  const file = e.target.files[0]
-  if (file) {
-    form.value.image = file
-    previewImage.value = URL.createObjectURL(file)
-  }
-}
-
-const updateService = async () => {
-  const formData = new FormData()
-  // 1. ID primero y obligatorio
-  formData.append('id', String(form.value.id))
-  // 2. resto
-  formData.append('title', form.value.title)
-  formData.append('description', form.value.description)
-  formData.append('service_details', form.value.service_details ?? '')
-  formData.append('price', String(form.value.price))
-  formData.append('category', form.value.category)
-  formData.append('location', form.value.location)
-  if (form.value.image) formData.append('image', form.value.image)
-
-  try {
-    await api.post('/services/update', formData, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    Swal.fire(t('common.success'), t('services.updated'), 'success')
-    closeEditModal()
-    loadServices()
-  } catch (err) {
-    Swal.fire(t('common.error'), err.response?.data?.error || t('services.updateError'), 'error')
-  }
-}
-
-onMounted(loadServices)
 </script>

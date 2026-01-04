@@ -18,8 +18,19 @@ class ConversationController
     }
 
     /* -------------------------------------------------- */
+private function authUser()
+{
+    $user = Auth::verify();
 
-    /* -------------------------------------------------- */
+    if (!$user || !isset($user->id) || !isset($user->role)) {
+        http_response_code(401);
+        echo json_encode(["message" => "Token inválido o no proporcionado"]);
+        exit;
+    }
+
+    return $user;
+}
+   /* -------------------------------------------------- */
     public function handle(string $method): void
     {
         switch ($method) {

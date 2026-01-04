@@ -6,12 +6,9 @@ require_once __DIR__ . '/../utils/jwt.php';
 class RequestController
 {
     private $model;
-
-    public function __construct()
-    {
+    public function __construct()                                   {
         $this->model = new ServiceRequest();
     }
-
     private function auth()
     {
         $headers = getallheaders();
@@ -20,55 +17,78 @@ class RequestController
         return JwtHandler::decode(str_replace("Bearer ", "", $auth));
     }
 
-    private function emitWs($payload)
+    /* ----------  EMISOR WEBSOCKET ROBUSTO  ---------- */
+    private function emitWs(array $payload, string $endpoint = '/emit'): bool
     {
-        $url = 'http://localhost:3001/emit';
+        $url  = "http://localhost:3001$endpoint";
+        $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($body === false) {
+            error_log('emitWs: JSON_ERROR – ' . json_last_error_msg());
+            return false;
+        }
+
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_exec($ch);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_HEADER         => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+
+        $raw   = curl_exec($ch);
+        $info  = curl_getinfo($ch);
+        $error = curl_error($ch);
         curl_close($ch);
+
+        $status = $info['http_code'] ?? 0;
+        $ok     = $status >= 200 && $status < 300;
+
+        if (!$ok || $error) {
+            error_log("emitWs ERROR – HTTP $status – cURL: $error – payload: $body");
+        } else {
+            error_log("emitWs OK    – HTTP $status – payload: $body");
+        }
+        return $ok;
+    }
+    /* ----------  MÉTODO AUXILIAR PARA EVENTOS NOMBRADOS  ---------- */                                                            private function emitWsEvent(string $event, array $payload, int $receiverId, string $receiverRole): bool
+    {                                                                   return $this->emitWs([
+            'event'         => $event,
+            'payload'       => $payload,                                    'receiver_id'   => $receiverId,
+            'receiver_role' => $receiverRole,                           ], '/emit-event');
     }
 
     public function handle($method)
     {
         $auth = $this->auth();
         if (!$auth) return $this->unauthorized();
-
         $path = $_SERVER['REQUEST_URI'];
-
-        // --- NUEVA RUTA: confirm-payment (redirige a PaymentController) ---
-        if (preg_match('/\/api\/requests\/confirm-payment/', $path) && $method === 'POST') {
+                                                                        if (preg_match('/\/api\/requests\/confirm-payment/', $path) && $method === 'POST') {
             (new PaymentController())->handle('confirm-payment');
             return;
         }
-
         if (preg_match('/\/api\/requests\/create/', $path) && $method === 'POST') {
-            $this->create($auth);
-        } elseif (preg_match('/\/api\/requests\/mine/', $path) && $method === 'GET') {
+            $this->create($auth);                                       } elseif (preg_match('/\/api\/requests\/mine/', $path) && $method === 'GET') {
             $this->mine($auth);
         } elseif (preg_match('/\/api\/requests\/completed/', $path) && $method === 'GET') {
             if ($auth->role === 'provider') {
                 $this->completedByProvider($auth);
-            } else {
-                $this->completed($auth);
+            } else {                                                            $this->completed($auth);
             }
-        } elseif (preg_match('/\/api\/requests\/pending/', $path) && $method === 'GET') {
-            if ($auth->role === 'provider') {
+        } elseif (preg_match('/\/api\/requests\/pending/', $path) && $method === 'GET') {                                                   if ($auth->role === 'provider') {
                 $result = $this->model->getPendingByProvider($auth->id);
             } elseif ($auth->role === 'user') {
                 $result = $this->model->getPendingByUser($auth->id);
-            } else {
-                $result = $this->model->getPending();
-            }
-            echo json_encode(["success" => true, "data" => $result]);
+            } else {                                                            $result = $this->model->getPending();
+            }                                                               echo json_encode(["success" => true, "data" => $result]);
         } elseif (preg_match('/\/api\/requests\/accept/', $path) && $method === 'POST') {
             $this->accept($auth);
         } elseif (preg_match('/\/api\/requests\/finalized/', $path) && $method === 'POST') {
-            $this->finalized($auth);
-        } elseif (preg_match('/\/api\/requests\/arrived/', $path) && $method === 'POST') {
+            $this->finalized($auth);                                    } elseif (preg_match('/\/api\/requests\/arrived/', $path) && $method === 'POST') {
             $this->arrived($auth);
         } elseif (preg_match('/\/api\/requests\/busy/', $path) && $method === 'POST') {
             $this->busy($auth);
@@ -84,87 +104,61 @@ class RequestController
             $this->in_progress($auth);
         } elseif (preg_match('/\/api\/requests\/on_the_way/', $path) && $method === 'POST') {
             $this->on_the_way($auth);
-        } else {
-            echo json_encode(["error" => "Ruta no válida"]);
+        } else {                                                            echo json_encode(["error" => "Ruta no válida"]);
         }
-    }
-
-    /* ---------- MÉTODO ÚNICO PARA CAMBIAR ESTADO Y EMITIR ---------- */
+    }                                                           
     private function updateStatus($auth, string $newStatus)
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $requestId = $data['id'] ?? null;
+    {                                                                   $data = json_decode(file_get_contents("php://input"), true);                                                                    $requestId = $data['id'] ?? null;
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta ID"]);
-            return;
-        }
-        $updated = $this->model->updateStatus($requestId, $auth->id, $newStatus);
-        $request = $this->model->getById($requestId);
-        if ($updated && $request) {
+            return;                                                     }                                                               $updated = $this->model->updateStatus($requestId, $auth->id, $newStatus);
+        $request = $this->model->getById($requestId);                   if ($updated && $request) {
             $this->emitWs([
-                'event'        => 'status_changed',
-                'request_id'   => (int)$requestId,
+                'event'        => 'status_changed',                             'request_id'   => (int)$requestId,
                 'status'       => $newStatus,
                 'receiver_id'  => $request['user_id'],
                 'receiver_role'=> 'user'
             ]);
             echo json_encode(["success" => true]);
         } else {
-            echo json_encode(["success" => false, "message" => "No autorizado"]);
-        }
+            echo json_encode(["success" => false, "message" => "No autorizado"]);                                                       }
     }
 
-    /* ---------- ARCHIVAR + BORRAR PAGOS ---------- */
-    private function archiveAndClean(int $requestId, string $finalStatus): void
-    {
-        $this->model->close($requestId, $finalStatus);
-        // Borrar el pago asociado (si existe)
-        $stmt = $this->model->conn->prepare("DELETE FROM payments WHERE service_request_id = ?");
-        $stmt->execute([$requestId]);
-    }
+    private function archiveAndClean(int $requestId, string $finalStatus): void                                                     {
+        $this->model->close($requestId, $finalStatus);              }
 
-    /* ---------- RESTO DE MÉTODOS ---------- */
     private function create($auth)
     {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $data['user_id'] = $auth->id;
-
-        /* ---------- BLOQUEO SOLICITUD DUPLICADA ---------- */
+        $data = json_decode(file_get_contents("php://input"), true);                                                                    $data['user_id'] = $auth->id;
         $userId     = $auth->id;
         $serviceId  = $data['service_id']   ?? null;
         $providerId = $data['provider_id']  ?? null;
 
-        if (!$serviceId || !$providerId) {
-            echo json_encode(["success" => false, "error" => "Faltan datos"]);
-            return;
-        }
+        if (!$serviceId || !$providerId) {                                  echo json_encode(["success" => false, "error" => "Faltan datos"]);
+            return;                                                     }
 
         $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
         if ($exists) {
-            echo json_encode([
-                "success" => false,
-                "error"   => "Ya tienes una solicitud activa para este servicio con este proveedor."
-            ]);
-            return;
+            echo json_encode([                                                  "success" => false,                                             "error"   => "Ya tienes una solicitud activa para este servicio con este proveedor."                                        ]);                                                             return;
         }
-        /* ---------- FIN BLOQUEO ---------- */
-
         $newId = $this->model->create($data);
         if ($newId) {
-            $providerId = $data['provider_id'] ?? null;
-            if ($providerId) {
+            $providerId = $data['provider_id'] ?? null;                     if ($providerId) {
                 $this->model->saveNotification([
                     'sender_id' => $auth->id,
                     'receiver_id' => $providerId,
                     'receiver_role' => 'provider',
                     'title' => 'Nueva solicitud',
-                    'message' => 'Tienes una nueva solicitud pendiente'
+                    'message' => 'Tienes una nueva solicitud pendiente',
+                    'data_json' => json_encode([
+                        'url' => '/dashboard/provider', // ✅ CORREGIDO: Ruta real
+                        'action' => 'view_request',
+                        'notification_type' => 'new_request'
+                    ])
                 ]);
                 $this->emitWs([
-                    'receiver_id' => $providerId,
-                    'receiver_role' => 'provider',
-                    'title' => 'Nueva solicitud',
-                    'message' => 'Tienes una nueva solicitud pendiente'
+                    'receiver_id' => $providerId,                                   'receiver_role' => 'provider',
+                    'title' => 'Nueva solicitud',                                   'message' => 'Tienes una nueva solicitud pendiente'
                 ]);
             }
             echo json_encode(["success" => true, "requestId" => (int)$newId, "status" => "pending"]);
@@ -172,61 +166,46 @@ class RequestController
             echo json_encode(["success" => false, "error" => "No se pudo crear la solicitud"]);
         }
     }
-
     private function mine($auth)
     {
         $result = $this->model->getByUser($auth->id);
         echo json_encode(["success" => true, "data" => $result]);
     }
-
     private function completed($auth)
-    {
-        $result = $this->model->getCompletedByUser($auth->id);
-        echo json_encode(["success" => true, "data" => $result]);
-    }
+    {                                                                   $result = $this->model->getCompletedByUser($auth->id);
+        echo json_encode(["success" => true, "data" => $result]);                                                                   }
 
-    private function completedByProvider($auth)
-    {
+    private function completedByProvider($auth)                     {
         $result = $this->model->getCompletedByProvider($auth->id);
         echo json_encode(["success" => true, "data" => $result]);
-    }
-
-    private function active($auth)
-    {
-        if ($auth->role === 'provider') {
-            $result = $this->model->getActiveByProvider($auth->id);
-        } else {
-            $result = $this->model->getActiveByUser($auth->id);
+    }                                                                                                                               private function active($auth)
+    {                                                                   if ($auth->role === 'provider') {                                   $result = $this->model->getActiveByProvider($auth->id);
+        } else {                                                            $result = $this->model->getActiveByUser($auth->id);
         }
         echo json_encode(["success" => true, "data" => $result]);
     }
-
-    private function busy($auth)
+                                                                    private function busy($auth)
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
-        $updated = $this->model->updateStatus($requestId, $auth->id, 'busy');
-        $request = $this->model->getById($requestId);
-        if ($updated && $request) {
+        if (!$requestId) {                                                  echo json_encode(["success" => false, "message" => "Falta el ID"]);
+            return;                                                     }                                                               $updated = $this->model->updateStatus($requestId, $auth->id, 'busy');                                                           $request = $this->model->getById($requestId);                   if ($updated && $request) {
             $this->model->saveNotification([
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => 'user',
                 'title' => 'Proveedor ocupado',
-                'message' => 'El proveedor está ocupado temporalmente'
+                'message' => 'El proveedor está ocupado temporalmente',
+                'data_json' => json_encode([
+                    'url' => '/requests', // ✅ CORRECTO: Ruta real
+                    'action' => 'view_request',
+                    'notification_type' => 'general'
+                ])
+            ]);                                                             $this->emitWs([
+                'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
+                'title' => 'Proveedor ocupado',                                 'message' => 'El proveedor está ocupado temporalmente'
             ]);
-            $this->emitWs([
-                'receiver_id' => $request['user_id'],
-                'receiver_role' => 'user',
-                'title' => 'Proveedor ocupado',
-                'message' => 'El proveedor está ocupado temporalmente'
-            ]);
-        }
-        echo json_encode(["success" => $updated]);
+        }                                                               echo json_encode(["success" => $updated]);
     }
 
     private function accept($auth)
@@ -235,104 +214,130 @@ class RequestController
         $ok = $this->model->updateStatus($data['id'], $auth->id, 'accepted');
         if ($ok) {
             $request = $this->model->getById($data['id']);
-            if ($request) {
-                $this->model->saveNotification([
-                    'sender_id' => $auth->id,
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
+            if ($request) {                                                     $this->model->saveNotification([                                    'sender_id' => $auth->id,
+                    'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
                     'title' => 'Solicitud aceptada',
-                    'message' => 'Tu solicitud fue aceptada por el proveedor'
+                    'message' => 'Tu solicitud fue aceptada por el proveedor',
+                    'data_json' => json_encode([
+                        'url' => '/service/' . $request['service_id'], // ✅ CORREGIDO: Ruta real con ID
+                        'action' => 'view_service',
+                        'notification_type' => 'service_update',
+                        'service_id' => $request['service_id']
+                    ])
                 ]);
                 $this->emitWs([
                     'receiver_id' => $request['user_id'],
                     'receiver_role' => 'user',
-                    'title' => 'Solicitud aceptada',
-                    'message' => 'Tu solicitud fue aceptada'
-                ]);
-            }
-        }
+                    'title' => 'Solicitud aceptada',                                'message' => 'Tu solicitud fue aceptada'
+                ]);                                                         }                                                           }
         echo json_encode(["success" => $ok]);
     }
 
-    private function finalized($auth)
-    {
-        $input = json_decode(file_get_contents("php://input"), true);
+private function finalized($auth)
+{
+    try {                                                               $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
 
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
+        if (!$requestId) {                                                  echo json_encode(["success" => false, "message" => "Falta el ID"]);
+            return;
+        }                                                                                                                               $request = $this->model->getById($requestId);
+        if (!$request) {
+            echo json_encode(["success" => false, "message" => "Solicitud no encontrada"]);
             return;
         }
 
-        try {
-            $updated = $this->model->updateStatus($requestId, $auth->id, 'completed');
-            if (!$updated) {
-                echo json_encode(["success" => false, "message" => "No se pudo finalizar"]);
-                return;
-            }
+        // 🔒 VALIDACIÓN DE PAGO
+        if (($request['payment_status'] ?? 'pending') !== 'paid') {
+            http_response_code(403);
+            echo json_encode([
+                "success" => false,
+                "message" => "No se puede finalizar el servicio sin pago confirmado"                                                        ]);
+            return;
+        }                                                       
+        $updated = $this->model->updateStatus($requestId, $auth->id, 'completed');                                                      if (!$updated) {
+            echo json_encode(["success" => false, "message" => "No se pudo finalizar"]);
+            return;                                                     }
 
-            $request = $this->model->getById($requestId);
-            if ($request) {
-                $this->model->saveNotification([
-                    'sender_id' => $auth->id,
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
-                    'title' => 'Servicio finalizado',
-                    'message' => 'El proveedor marcó el servicio como finalizado'
-                ]);
-                $this->emitWs([
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
-                    'title' => 'Servicio finalizado',
-                    'message' => 'El proveedor marcó el servicio como finalizado'
-                ]);
-            }
+        $request = $this->model->getById($requestId);                   if ($request) {
+            $this->model->saveNotification([
+                'sender_id' => $auth->id,
+                'receiver_id' => $request['user_id'],
+                'receiver_role' => 'user',
+                'title' => 'Servicio finalizado',
+                'message' => 'El proveedor marcó el servicio como finalizado',
+                'data_json' => json_encode([
+                    'url' => '/service/' . $request['service_id'], // ✅ CORREGIDO: Ruta real con ID
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update',
+                    'service_id' => $request['service_id']
+                ])
+            ]);
 
-            $this->archiveAndClean((int)$requestId, 'completed');
-            echo json_encode(["success" => true]);
+            $targetId   = ($auth->role === 'provider') ? $request['user_id'] : $request['provider_id'];
+            $targetRole = ($auth->role === 'provider') ? 'user' : 'provider';
+                                                                            $this->emitWs([
+                'receiver_id' => $targetId,
+                'receiver_role' => $targetRole,
+                'title' => 'Servicio finalizado',
+                'message' => 'El servicio ha sido finalizado'
+            ]);
+            // Evento nombrado para abrir modal de calificación
+            $ratingTargetId   = $targetId;
+            $ratingTargetRole = $targetRole;
 
-        } catch (Exception $e) {
-            echo json_encode(["success" => false, "message" => $e->getMessage()]);
+            $this->emitWsEvent(
+                'open_rating_modal',
+                [
+                    'request_id' => $requestId,                                     'from_id'    => $auth->id,
+                    'from_role'  => $auth->role,
+                    'message'    => 'Solicitar calificación'
+                ],
+                $ratingTargetId,                                                $ratingTargetRole
+            );
         }
-    }
 
-    private function in_progress($auth)
-    {
+        $this->archiveAndClean((int)$requestId, 'completed');
+        echo json_encode(["success" => true]);
+    } catch (Exception $e) {
+        echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    }
+}
+
+    private function in_progress($auth)                             {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
             return;
-        }
-
-        $updated = $this->model->updateStatus($requestId, $auth->id, 'in_progress');
+        }                                                               $updated = $this->model->updateStatus($requestId, $auth->id, 'in_progress');
         $request = $this->model->getById($requestId);
-
         if ($updated && $request) {
             $this->model->saveNotification([
                 'sender_id'   => $auth->id,
-                'receiver_id' => $request['user_id'],
-                'receiver_role' => 'user',
+                'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
                 'title'       => 'Servicio en progreso',
-                'message'     => 'El proveedor ha comenzado el servicio'
+                'message'     => 'El proveedor ha comenzado el servicio',
+                'data_json' => json_encode([
+                    'url' => '/service/' . $request['service_id'], // ✅ CORREGIDO: Ruta real con ID
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update',
+                    'service_id' => $request['service_id']
+                ])
             ]);
             $this->emitWs([
                 'receiver_id'   => $request['user_id'],
                 'receiver_role' => 'user',
-                'title'         => 'Servicio en progreso',
-                'message'       => 'El proveedor ha comenzado el servicio'
-            ]);
+                'title'         => 'Servicio en progreso',                      'message'       => 'El proveedor ha comenzado el servicio'                                                                  ]);
             $this->emitWs([
                 'receiver_id'   => $auth->id,
                 'receiver_role' => 'provider',
+                'title'         => 'Servicio en progreso',
+                'message'       => 'Has comenzado el servicio',
                 'type'          => 'request.status_changed',
                 'request_id'    => $requestId,
                 'status'        => 'in_progress',
-                'updated_at'    => date('Y-m-d H:i:s')
-            ]);
+                'updated_at'    => date('Y-m-d H:i:s')                      ]);
         }
-
         echo json_encode(["success" => $updated]);
     }
 
@@ -340,193 +345,132 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
             return;
         }
-
-        $updated = $this->model->updateStatus($requestId, $auth->id, 'on_the_way');
-        $request = $this->model->getById($requestId);
-
+        $updated = $this->model->updateStatus($requestId, $auth->id, 'on_the_way');                                                     $request = $this->model->getById($requestId);
         if ($updated && $request) {
             $this->model->saveNotification([
-                'sender_id'   => $auth->id,
-                'receiver_id' => $request['user_id'],
-                'receiver_role' => 'user',
+                'sender_id'   => $auth->id,                                     'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
                 'title'       => 'Proveedor en camino',
-                'message'     => 'El proveedor está en camino a tu ubicación'
+                'message'     => 'El proveedor está en camino a tu ubicación',
+                'data_json' => json_encode([
+                    'url' => '/service/' . $request['service_id'], // ✅ CORREGIDO: Ruta real con ID
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update',
+                    'service_id' => $request['service_id']
+                ])
             ]);
-            $this->emitWs([
-                'receiver_id'   => $request['user_id'],
-                'receiver_role' => 'user',
+            $this->emitWs([                                                     'receiver_id'   => $request['user_id'],                         'receiver_role' => 'user',
                 'title'         => 'Proveedor en camino',
                 'message'       => 'El proveedor está en camino a tu ubicación'
             ]);
-            $this->emitWs([
-                'receiver_id'   => $auth->id,
+            $this->emitWs([                                                     'receiver_id'   => $auth->id,
                 'receiver_role' => 'provider',
-                'type'          => 'request.status_changed',
+                'title'         => 'Estado: en camino',
+                'message'       => 'Has marcado que estás en camino',                                                                           'type'          => 'request.status_changed',
                 'request_id'    => $requestId,
                 'status'        => 'on_the_way',
                 'updated_at'    => date('Y-m-d H:i:s')
             ]);
-        }
-        echo json_encode(["success" => $updated]);
-    }
-
-    private function arrived($auth)
-    {
+        }                                                               echo json_encode(["success" => $updated]);                  }
+                                                                    private function arrived($auth)                                 {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
-            return;
-        }
-
-        $updated = $this->model->updateStatus($requestId, $auth->id, 'arrived');
-        $request = $this->model->getById($requestId);
-
+        if (!$requestId) {                                                  echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);                                             return;                                                     }                                                               $updated = $this->model->updateStatus($requestId, $auth->id, 'arrived');                                                        $request = $this->model->getById($requestId);
         if ($updated && $request) {
-            $this->model->saveNotification([
-                'sender_id'   => $auth->id,
-                'receiver_id' => $request['user_id'],
-                'receiver_role' => 'user',
-                'title'       => 'Proveedor llegó',
-                'message'     => 'El proveedor ha llegado a tu ubicación'
-            ]);
-            $this->emitWs([
-                'receiver_id'   => $request['user_id'],
-                'receiver_role' => 'user',
+            $this->model->saveNotification([                                    'sender_id'   => $auth->id,                                     'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',                                      'title'       => 'Proveedor llegó',
+                'message'     => 'El proveedor ha llegado a tu ubicación',
+                'data_json' => json_encode([
+                    'url' => '/service/' . $request['service_id'], // ✅ CORREGIDO: Ruta real con ID
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update',
+                    'service_id' => $request['service_id']
+                ])
+            ]);                                                             $this->emitWs([
+                'receiver_id'   => $request['user_id'],                         'receiver_role' => 'user',
                 'title'         => 'Proveedor llegó',
                 'message'       => 'El proveedor ha llegado a tu ubicación'
-            ]);
-            $this->emitWs([
+            ]);                                                             $this->emitWs([
                 'receiver_id'   => $auth->id,
-                'receiver_role' => 'provider',
-                'type'          => 'request.status_changed',
+                'receiver_role' => 'provider',                                  'title'         => 'Estado: llegado',
+                'message'       => 'Has marcado que llegaste a la ubicación',                                                                   'type'          => 'request.status_changed',
                 'request_id'    => $requestId,
                 'status'        => 'arrived',
-                'updated_at'    => date('Y-m-d H:i:s')
-            ]);
+                'updated_at'    => date('Y-m-d H:i:s')                      ]);
         }
-        echo json_encode(["success" => $updated]);
-    }
+        echo json_encode(["success" => $updated]);                  }
 
-    private function reject($auth)
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $requestId = $data['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
-
-        try {
-            $ok = $this->model->updateStatus($requestId, $auth->id, 'rejected');
-            if (!$ok) {
-                echo json_encode(["success" => false, "message" => "No se pudo rechazar"]);
-                return;
-            }
-
+    private function reject($auth)                                  {
+        $data = json_decode(file_get_contents("php://input"), true);                                                                    $requestId = $data['id'] ?? null;                               if (!$requestId) {                                                  echo json_encode(["success" => false, "message" => "Falta el ID"]);
+            return;                                                     }
+        try {                                                               $ok = $this->model->updateStatus($requestId, $auth->id, 'rejected');
+            if (!$ok) {                                                         echo json_encode(["success" => false, "message" => "No se pudo rechazar"]);                                                     return;                                                     }
             $request = $this->model->getById($requestId);
-            if ($request) {
-                $this->model->saveNotification([
+            if ($request) {                                                     $this->model->saveNotification([
                     'sender_id' => $auth->id,
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
+                    'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
                     'title' => 'Solicitud rechazada',
-                    'message' => 'Tu solicitud fue rechazada por el proveedor'
+                    'message' => 'Tu solicitud fue rechazada por el proveedor',
+                    'data_json' => json_encode([
+                        'url' => '/requests', // ✅ CORRECTO: Ruta real
+                        'action' => 'view_request',
+                        'notification_type' => 'general'
+                    ])
                 ]);
-                $this->emitWs([
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
+                $this->emitWs([                                                     'receiver_id' => $request['user_id'],                           'receiver_role' => 'user',
                     'title' => 'Solicitud rechazada',
                     'message' => 'Tu solicitud fue rechazada'
                 ]);
             }
-
-            $this->archiveAndClean((int)$requestId, 'rejected');
-            echo json_encode(["success" => true]);
-
+            $this->archiveAndClean((int)$requestId, 'rejected');            echo json_encode(["success" => true]);
         } catch (Exception $e) {
             echo json_encode(["success" => false, "message" => $e->getMessage()]);
         }
     }
-
-    private function cancel($auth)
-    {
-        $input = json_decode(file_get_contents("php://input"), true);
-        $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
-
-        $actorRole = ($auth->role === 'provider') ? 'provider' : 'user';
-
-        try {
-            $cancelled = $this->model->cancel((int)$requestId, $auth->id, $actorRole);
-            if (!$cancelled) {
-                echo json_encode(["success" => false, "message" => "No se pudo cancelar"]);
+                                                                    private function cancel($auth)                                  {
+        $input = json_decode(file_get_contents("php://input"), true);                                                                   $requestId = $input['id'] ?? null;
+        if (!$requestId) {                                                  echo json_encode(["success" => false, "message" => "Falta el ID"]);                                                             return;
+        }                                                               $actorRole = ($auth->role === 'provider') ? 'provider' : 'user';                                                                try {                                                               $cancelled = $this->model->cancel((int)$requestId, $auth->id, $actorRole);
+            if (!$cancelled) {                                                  echo json_encode(["success" => false, "message" => "No se pudo cancelar"]);
                 return;
-            }
-
-            $request = $this->model->getById($requestId);
-            if ($request) {
+            }                                                               $request = $this->model->getById($requestId);                   if ($request) {
                 $otherRole = ($actorRole === 'provider') ? 'user' : 'provider';
-                $otherId   = ($actorRole === 'provider') ? $request['user_id'] : $request['provider_id'];
-
-                $this->model->saveNotification([
+                $otherId   = ($actorRole === 'provider') ? $request['user_id'] : $request['provider_id'];                                       $this->model->saveNotification([
                     'sender_id'     => $auth->id,
-                    'receiver_id'   => $otherId,
-                    'receiver_role' => $otherRole,
+                    'receiver_id'   => $otherId,                                    'receiver_role' => $otherRole,
                     'title'         => 'Solicitud cancelada',
-                    'message'       => "La solicitud fue cancelada por el {$actorRole}"
+                    'message'       => "La solicitud fue cancelada por el {$actorRole}",
+                    'data_json' => json_encode([                                        'url' => '/requests', // ✅ CORRECTO: Ruta real
+                        'action' => 'view_request',
+                        'notification_type' => 'general'
+                    ])
                 ]);
                 $this->emitWs([
-                    'receiver_id'   => $otherId,
-                    'receiver_role' => $otherRole,
-                    'title'         => 'Solicitud cancelada',
+                    'receiver_id'   => $otherId,                                    'receiver_role' => $otherRole,                                  'title'         => 'Solicitud cancelada',
                     'message'       => "La solicitud fue cancelada por el {$actorRole}"
                 ]);
             }
-
             $this->archiveAndClean((int)$requestId, 'cancelled');
             echo json_encode(["success" => true]);
-        } catch (Exception $e) {
-            echo json_encode(["success" => false, "message" => $e->getMessage()]);
-        }
+        } catch (Exception $e) {                                            echo json_encode(["success" => false, "message" => $e->getMessage()]);                                                      }
     }
 
     private function getStatus($auth)
     {
         if (!preg_match('/\/api\/requests\/status\/(\d+)/', $_SERVER['REQUEST_URI'], $matches)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID de solicitud inválido']);
+            http_response_code(400);                                        echo json_encode(['error' => 'ID de solicitud inválido']);
             return;
-        }
-        $requestId = $matches[1];
-        $request = $this->model->getById($requestId);
+        }                                                               $requestId = $matches[1];                                       $request = $this->model->getById($requestId);
         if (!$request) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Solicitud no encontrada']);
-            return;
-        }
-        if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id) {
+            http_response_code(404);                                        echo json_encode(['error' => 'Solicitud no encontrada']);
+            return;                                                     }                                                               if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id) {
             http_response_code(403);
-            echo json_encode(['error' => 'No autorizado']);
-            return;
-        }
-        echo json_encode(['status' => $request['status']]);
-    }
+            echo json_encode(['error' => 'No autorizado']);                 return;                                                     }
+        echo json_encode(['status' => $request['status']]);         }
 
-    private function unauthorized()
-    {
-        http_response_code(401);
-        echo json_encode(["error" => "No autorizado"]);
+    private function unauthorized()                                 {
+        http_response_code(401);                                        echo json_encode(["error" => "No autorizado"]);
     }
 }

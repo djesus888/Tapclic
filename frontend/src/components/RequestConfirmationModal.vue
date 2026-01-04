@@ -7,8 +7,7 @@
       <details class="mt-3 text-sm">
         <summary class="cursor-pointer text-blue-600 hover:underline">
           {{ $t('checkDetailsBeforeSending') }}
-        </summary>
-
+        </summary>                                              
         <!-- DETALLES DEL SERVICIO -->
         <div class="mt-3 text-gray-700 whitespace-pre-wrap break-words">
           <template v-if="serviceDetails.service_details?.trim()">
@@ -24,8 +23,7 @@
       <div class="mt-4 flex items-center gap-2">
         <input type="checkbox" id="addSpec" v-model="addSpec" />
         <label for="addSpec">{{ $t('add condition in service request.') }}</label>
-      </div>
-
+      </div>                                                    
       <textarea
         v-if="addSpec"
         v-model="specDetails"
@@ -40,13 +38,26 @@
         {{ specDetails.length }}/200
       </p>
 
+      <!-- CONTRATO -->
+      <div class="mt-4 p-3 border rounded bg-gray-50 text-sm">
+        <p>
+          Al confirmar este servicio aceptas las condiciones del contrato:
+          el servicio será prestado según lo descrito y no habrá reembolso
+          una vez iniciado.
+        </p>
+        <label class="flex items-center mt-3 gap-2">
+          <input type="checkbox" v-model="acceptedContract" />
+          <span>Acepto las condiciones del servicio</span>
+        </label>
+      </div>
+
       <!-- BOTONES -->
       <div class="flex justify-end gap-2 mt-4">
         <button @click="closeModal" class="px-4 py-2 border rounded">{{ $t('cancel') }}</button>
         <button
           @click="submitRequest"
           class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="addSpec && specDetails.length > 200"
+          :disabled="(!acceptedContract) || (addSpec && specDetails.length > 200)"
         >
           {{ $t('confirm') }}
         </button>
@@ -70,6 +81,7 @@ const emit = defineEmits(['on-open-change', 'confirm'])
 
 const addSpec = ref(false)
 const specDetails = ref('')
+const acceptedContract = ref(false)
 
 const closeModal = () => {
   emit('on-open-change', false)
@@ -77,12 +89,20 @@ const closeModal = () => {
 }
 
 const submitRequest = () => {
-  emit('confirm', specDetails.value)
+  if (!acceptedContract.value) {
+    alert('Debes aceptar las condiciones del contrato.')
+    return
+  }
+  emit('confirm', {
+    details: specDetails.value,
+    contractAccepted: acceptedContract.value
+  })
 }
 
 const resetState = () => {
   addSpec.value = false
   specDetails.value = ''
+  acceptedContract.value = false
 }
 
 watch(() => props.isOpen, val => { if (!val) resetState() })

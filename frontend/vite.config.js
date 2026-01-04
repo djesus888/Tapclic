@@ -9,13 +9,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    hmr: {
-      overlay: true
-    }
-  },
+server: {
+  host: true,
+  port: 5173,
+  strictPort: true,
+  hmr: {
+    overlay: true
+  }
+},
   build: {
     outDir: 'dist',
     sourcemap: true,

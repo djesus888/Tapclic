@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . "/../middleware/Auth.php";
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../models/Payments.php';
+require_once __DIR__ . '/../config/database.php';               require_once __DIR__ . '/../models/Payments.php';
 require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
 
@@ -9,28 +8,21 @@ class PaymentController
 {
     private $conn;
     private $table = 'payments';
-
-    public function __construct()
+                                                                    public function __construct()
     {
         $this->conn = (new Database())->getConnection();
     }
-
-    /* ----------  UTILS  ---------- */
+                                                                    /* ----------  UTILS  ---------- */
     private function emitWs(array $payload): void
     {
         $ch = curl_init('http://localhost:3001/emit');
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 2,
-        ]);
+            CURLOPT_POSTFIELDS     => json_encode($payload),                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],                                                                   CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 2,                                ]);
         curl_exec($ch);
-        curl_close($ch);
-    }
-
-    private function emitWsEvent(string $receiverRole, int $receiverId, string $event, array $payload): void
+        curl_close($ch);                                            }
+                                                                    private function emitWsEvent(string $receiverRole, int $receiverId, string $event, array $payload): void
     {
         $ch = curl_init('http://localhost:3001/emit-event');
         curl_setopt_array($ch, [
@@ -43,15 +35,12 @@ class PaymentController
             ]),
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 2,
-        ]);
+            CURLOPT_TIMEOUT        => 2,                                ]);
         curl_exec($ch);
         curl_close($ch);
-    }
-
-    private function saveProof(int $requestId, array $file): ?string
-    {
-        $uploadDir = __DIR__ . '/../uploads/payments/';
+    }                                                           
+    private function saveProof(int $requestId, array $file): ?string                                                                {
+        $uploadDir = __DIR__ . '/../public/uploads/payments/';
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
         $ext  = pathinfo($file['name'], PATHINFO_EXTENSION);
         $name = "payment_{$requestId}_" . time() . ".$ext";
@@ -82,15 +71,13 @@ class PaymentController
 
         if (preg_match('/\/api\/payments\/create/', $path) && $method === 'POST') {
             $this->createPayment($auth);
-        } elseif (preg_match('/\/api\/payments\/mine/', $path) && $method === 'GET') {
-            $this->getMyPayments($auth);
+        } elseif (preg_match('/\/api\/payments\/mine/', $path) && $method === 'GET') {                                                      $this->getMyPayments($auth);
         } elseif (preg_match('/\/api\/payments\/public/', $path) && $method === 'GET') {
             $providerId = $_GET['provider_id'] ?? null;
             if (!$providerId) return $this->badRequest();
             $this->getPublicMethods((int)$providerId);
         } elseif (preg_match('/\/api\/payments\/confirm-payment/', $path) && $method === 'POST') {
-            $this->confirmPayment($auth);
-        } elseif (preg_match('/\/api\/payments\/reject-payment/', $path) && $method === 'POST') {
+            $this->confirmPayment($auth);                               } elseif (preg_match('/\/api\/payments\/reject-payment/', $path) && $method === 'POST') {
             $this->rejectPayment($auth);
         } elseif (preg_match('/\/api\/payments\/proof/', $path) && $method === 'GET') {
             $this->getProof($auth);
@@ -99,8 +86,7 @@ class PaymentController
         }
     }
 
-    /* ----------  CREAR PAGO  ---------- */
-    private function createPayment(object $auth): void
+    /* ----------  CREAR PAGO  ---------- */                        private function createPayment(object $auth): void
     {
         // ✅ LECTURA CORRECTA para multipart/form-data
         $requestId = $_POST['request_id']   ?? null;
@@ -134,17 +120,21 @@ class PaymentController
             return;
         }
 
-        $request = (new ServiceRequest())->getById((int)$requestId);
-
+        $request = (new ServiceRequest())->getById((int)$requestId);                                                            
         // notificación DB + WS
-        $notif = [
-            'sender_id'     => $auth->id,
+        $notif = [                                                          'sender_id'     => $auth->id,
             'receiver_id'   => $request['provider_id'],
-            'receiver_role' => 'provider',
-            'title'         => 'Pago registrado',
+            'receiver_role' => 'provider',                                  'title'         => 'Pago registrado',
             'message'       => $method === 'efectivo'
                 ? 'El cliente pagará en efectivo'
                 : 'Cliente subió comprobante – verifica el pago',
+            // ✅ CORREGIDO: Agregado data_json con URL real
+            'data_json'     => json_encode([
+                'url' => '/dashboard/provider',
+                'action' => 'default',
+                'notification_type' => 'general',
+                'request_id' => $requestId
+            ])
         ];
         (new ServiceRequest())->saveNotification($notif);
 
@@ -160,19 +150,16 @@ class PaymentController
             'payment_status' => 'verifying',
             'proof_url'      => $proofUrl,
             'method'         => $method,
-            'reference'      => $reference,
-        ]);
+            'reference'      => $reference,                             ]);
 
         echo json_encode([
             'success'   => true,
             'message'   => 'Pago registrado',
             'status'    => 'verifying',
             'proof_url' => $proofUrl,
-        ]);
-    }
+        ]);                                                         }
 
-    /* ----------  CONFIRMAR PAGO (provider)  ---------- */
-    private function confirmPayment(object $auth): void
+    /* ----------  CONFIRMAR PAGO (provider)  ---------- */      private function confirmPayment(object $auth): void
     {
         $input     = json_decode(file_get_contents('php://input'), true);
         $paymentId = $input['id'] ?? null;
@@ -227,15 +214,12 @@ class PaymentController
     /* ----------  RECHAZAR PAGO (provider)  ---------- */
     private function rejectPayment(object $auth): void
     {
-        $input     = json_decode(file_get_contents('php://input'), true);
-        $paymentId = $input['id'] ?? null;
+        $input     = json_decode(file_get_contents('php://input'), true);                                                               $paymentId = $input['id'] ?? null;
         if (!$paymentId) { $this->badRequest(); return; }
 
         $stmt = $this->conn->prepare("
-            SELECT p.id, p.status, p.service_request_id, sr.provider_id, sr.user_id
-            FROM payments p
-            JOIN service_requests sr ON sr.id = p.service_request_id
-            WHERE p.id = :pid
+            SELECT p.id, p.status, p.service_request_id, sr.provider_id, sr.user_id                                                         FROM payments p
+            JOIN service_requests sr ON sr.id = p.service_request_id                                                                        WHERE p.id = :pid
         ");
         $stmt->execute([':pid' => $paymentId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -252,8 +236,7 @@ class PaymentController
             $this->conn->prepare("UPDATE service_requests SET payment_status='pending', updated_at=NOW() WHERE id=?")
                        ->execute([$row['service_request_id']]);
             $this->conn->commit();
-        } catch (Throwable $e) {
-            $this->conn->rollBack();
+        } catch (Throwable $e) {                                            $this->conn->rollBack();
             throw $e;
         }
 
@@ -269,8 +252,7 @@ class PaymentController
         ]);
 
         echo json_encode(['success' => true]);
-    }
-
+    }                                                           
     /* ----------  VER COMPROBANTE  ---------- */
     private function getProof(object $auth): void
     {
@@ -300,11 +282,9 @@ class PaymentController
             'status'    => $row['status'],
         ]);
     }
-
-    /* ----------  MIS PAGOS (usuario)  ---------- */
+                                                                    /* ----------  MIS PAGOS (usuario)  ---------- */
     private function getMyPayments(object $auth): void
-    {
-        $stmt = $this->conn->prepare("
+    {                                                                   $stmt = $this->conn->prepare("
             SELECT p.*, s.title as service_title
             FROM payments p
             JOIN service_requests sr ON sr.id = p.service_request_id
@@ -316,10 +296,8 @@ class PaymentController
         $list = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['success' => true, 'data' => $list]);
     }
-
-    /* ----------  MÉTODOS PÚBLICOS  ---------- */
-    private function getPublicMethods(int $providerId): void
-    {
+                                                                    /* ----------  MÉTODOS PÚBLICOS  ---------- */
+    private function getPublicMethods(int $providerId): void        {
         $stmt = $this->conn->prepare("
             SELECT method_type, bank_name, holder_name, id_number, phone_number, account_number, email, qr_url
             FROM provider_payment_methods
@@ -333,18 +311,14 @@ class PaymentController
             'transferencia' => null,
             'zelle'         => null,
             'paypal'        => null,
-        ];
-
+        ];                                                      
         foreach ($raw as $m) {
-            switch ($m['method_type']) {
-                case 'pago_movil':
-                    $out['pagoMovil'] = [
-                        'banco'    => $m['bank_name'],
+            switch ($m['method_type']) {                                        case 'pago_movil':
+                    $out['pagoMovil'] = [                                               'banco'    => $m['bank_name'],
                         'telefono' => $m['phone_number'],
                         'cedula'   => $m['id_number'],
                     ];
-                    break;
-                case 'transferencia':
+                    break;                                                      case 'transferencia':
                     $out['transferencia'] = [
                         'banco'  => $m['bank_name'],
                         'cuenta' => $m['account_number'],
@@ -366,7 +340,6 @@ class PaymentController
             }
         }
 
-        echo json_encode(['paymentInfo' => $out]);
-    }
+        echo json_encode(['paymentInfo' => $out]);                  }
 }
 ?>

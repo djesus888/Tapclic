@@ -13,8 +13,8 @@ class Notification {
 
     public function send($data) {
         $query = "INSERT INTO {$this->table}
-                  (sender_id, receiver_id, receiver_role, title, message, is_read, created_at)
-                  VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, 0, NOW())";
+                  (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
+                  VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, :data_json, 0, NOW())";
 
         $stmt = $this->conn->prepare($query);
 
@@ -23,12 +23,13 @@ class Notification {
             ':receiver_id'   => $data['receiver_id'],
             ':receiver_role' => $data['receiver_role'],
             ':title'         => $data['title'],
-            ':message'       => $data['message']
+            ':message'       => $data['message'],
+            ':data_json'     => $data['data_json'] ?? null
         ]);
     }
 
     public function getForUser($userId, $role) {
-        $query = "SELECT id, title, message, is_read, created_at
+        $query = "SELECT id, title, message, data_json, is_read, created_at
                   FROM {$this->table}
                   WHERE receiver_id = :id AND receiver_role = :role
                   ORDER BY created_at DESC";
@@ -47,6 +48,7 @@ class Notification {
             $n['created_at'] = $n['created_at'] ? date('c', strtotime($n['created_at'])) : null;
             $n['title'] = $n['title'] ?? '';
             $n['message'] = $n['message'] ?? '';
+            $n['data_json'] = $n['data_json'] ?? null;
         }
 
         return $notifications;
@@ -64,3 +66,4 @@ class Notification {
         ]);
     }
 }
+?>

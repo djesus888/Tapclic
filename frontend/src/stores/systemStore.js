@@ -13,11 +13,16 @@ export const useSystemStore = defineStore('system', {
       this.loading = true
       this.error = null
       try {
-        const res = await api.get('/system')
+        console.log('🔥 fetchConfig: iniciando llamada al backend')
+        // timeout opcional de 5 segundos para no quedar colgado
+        const res = await api.get('/system', { timeout: 5000 })
         this.config = res.data
+        console.log('✅ fetchConfig: datos cargados', this.config)
+        return res.data
       } catch (err) {
-        console.error("Error cargando configuración del sistema:", err)
+        console.error('❌ Error cargando configuración del sistema:', err)
         this.error = err
+        return null
       } finally {
         this.loading = false
       }

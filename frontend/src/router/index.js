@@ -1,60 +1,53 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-
 import MainLayout from '@/layouts/MainLayout.vue'
-import Login from '@/pages/Login.vue'
-import Register from '@/pages/Register.vue'
-import Dashboard from '@/pages/Dashboard.vue'
-import Profile from '@/pages/Profile.vue'
-import Wallet from '@/pages/Wallet.vue'
-import Config from '@/pages/Config.vue'
-import Orders from '@/pages/Orders.vue'
-import New from '@/pages/services/New.vue'
-import Services from '@/pages/services/Services.vue'
-import ChatList from '@/pages/ChatList.vue'
-import ChatView from '@/pages/ChatView.vue'
-import PaymentMethod from '@/pages/PaymentMethod.vue'
-import AdminUser from '@/pages/AdminUser.vue'
-import AdminServices from '@/pages/AdminServices.vue'
-import AdminReports from '@/pages/AdminReports.vue'
-import Reviews from '@/pages/Reviews.vue'
-import Requests from '@/pages/Requests.vue'
-import ServiceDetailPage from '@/pages/ServiceDetailPage.vue'
-
-import DashboardUser from '@/components/DashboardUser.vue'
-import DashboardAdmin from '@/components/DashboardAdmin.vue'
-import DashboardProvider from '@/components/DashboardProvider.vue'
 
 const routes = [
+  { path: '/login',   component: () => import('@/pages/Login.vue') },
+  { path: '/register',component: () => import('@/pages/Register.vue') },
+
+  /* Ruta real para /dashboard que evita el doble redirect */
+  {
+    path: '/dashboard',
+    redirect: () => {
+      const auth = useAuthStore()
+      const role = auth.user?.role
+      return role ? `/dashboard/${role}` : '/login'
+    }
+  },
+
+  /* Redirige la raíz al dashboard sin bucles */
   { path: '/', redirect: '/dashboard' },
-  { path: '/login', component: Login },
-  { path: '/register', component: Register },
+
+  /* Layout protegido */
   {
     path: '/',
     component: MainLayout,
     meta: { requiresAuth: true },
     children: [
-      { path: 'dashboard', component: Dashboard },
-      { path: 'profile', component: Profile },
-      { path: 'wallet', component: Wallet },
-      { path: 'config', component: Config },
-      { path: 'orders', component: Orders },
-      { path: 'services/new', component: New },
-      { path: 'chats', component: ChatList },
-      { path: 'chat/:id', component: ChatView },
-      { path: 'services', component: Services },
-      { path: 'payment', component: PaymentMethod },
-      { path: 'admin/users', component: AdminUser }, 
-      { path: 'admin/services', component: AdminServices },
-      { path: 'admin/reports', component: AdminReports },
-      { path: 'reviews', component: Reviews },
-      { path: 'requests', component: Requests },
-      { path: 'service/:id', component: ServiceDetailPage },
+      { path: 'dashboard', component: () => import('@/pages/Dashboard.vue') },
+      { path: 'profile', component: () => import('@/pages/Profile.vue') },
+      { path: 'wallet', component: () => import('@/pages/Wallet.vue') },
+      { path: 'config', component: () => import('@/pages/Config.vue') },
+      { path: 'orders', component: () => import('@/pages/Orders.vue') },
+      { path: 'services/new', component: () => import('@/pages/services/NewServices.vue') },
+      { path: 'chats', component: () => import('@/pages/ChatList.vue') },
+      { path: 'chat/:id', component: () => import('@/pages/ChatView.vue') },
+      { path: 'services', component: () => import('@/pages/services/Services.vue') },
+      { path: 'myservices', component: () => import('@/pages/services/MyServices.vue') },     
+      { path: 'payment', component: () => import('@/pages/PaymentMethod.vue') },
+      { path: 'admin/users', component: () => import('@/pages/AdminUser.vue') },
+      { path: 'admin/services', component: () => import('@/pages/AdminServices.vue') },
+      { path: 'admin/reports', component: () => import('@/pages/AdminReports.vue') },
+      { path: 'reviews', component: () => import('@/pages/Reviews.vue') },
+      { path: 'requests', component: () => import('@/pages/Requests.vue') },
+      { path: 'service/:id', component: () => import('@/pages/ServiceDetailPage.vue') },
 
-      { path: 'dashboard/user', component: DashboardUser, meta: { role: 'user' } },
-      { path: 'dashboard/admin', component: DashboardAdmin, meta: { role: 'admin' } },
-      { path: 'dashboard/provider', component: DashboardProvider, meta: { role: 'provider' } },
-    ]
+      /* Dashboards por rol */
+      { path: 'dashboard/user',     component: () => import('@/components/DashboardUser.vue'),    meta: { role: 'user' } },
+      { path: 'dashboard/admin',    component: () => import('@/components/DashboardAdmin.vue'),   meta: { role: 'admin' } },
+      { path: 'dashboard/provider', component: () => import('@/components/DashboardProvider.vue'), meta: { role: 'provider' } },
+    ],
   },
 ]
 
@@ -67,17 +60,17 @@ router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
   const role = auth.user?.role
 
-  // Redirige a dashboard según rol si ya está logueado
+  /* Si ya está logueado y va a login/register, redirige a su dashboard */
   if ((to.path === '/login' || to.path === '/register') && role) {
     return next(`/dashboard/${role}`)
   }
 
-  // Requiere auth
+  /* Ruta protegida y sin token → login */
   if (to.meta.requiresAuth && !auth.token) {
     return next('/login')
   }
 
-  // Protección por rol
+  /* Ruta con rol requerido y no coincide → dashboard de su rol */
   if (to.meta.role && role !== to.meta.role) {
     return next(role ? `/dashboard/${role}` : '/login')
   }

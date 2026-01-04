@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . "/../middleware/Auth.php";
 // controllers/MessageController.php
-
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/Conversation.php';
 require_once __DIR__ . '/../utils/jwt.php';
@@ -17,6 +16,18 @@ class MessageController
         $this->conversationModel = new Conversation();
     }
 
+    private function authUser()
+    {
+        $user = Auth::verify();
+
+        if (!$user || !isset($user->id) || !isset($user->role)) {
+            http_response_code(401);
+            echo json_encode(["message" => "Token inválido o no proporcionado"]);
+            exit;
+        }
+        
+        return $user;
+    }
 
     private function emitWs(array $payload): void
     {
@@ -39,7 +50,6 @@ class MessageController
         $userId = $user->id;
         $userRole = $user->role;
 
-        // CORREGIDO: Usar target_id y target_role en lugar de provider_id
         $targetId = intval($data['target_id'] ?? $data['provider_id'] ?? 0);
         $targetRole = $data['target_role'] ?? '';
 
@@ -49,13 +59,11 @@ class MessageController
             exit;
         }
 
-        // NUEVO: Obtener o crear conversación
         $conversationId = $this->conversationModel->findOrCreate(
             $userId, $userRole,
             $targetId, $targetRole
         );
 
-        // CORREGIDO: Obtener mensajes por conversación
         $messages = $this->messageModel->getMessagesByConversation($conversationId);
 
         header('Content-Type: application/json');
@@ -92,14 +100,13 @@ class MessageController
         $ext = preg_replace('/[^a-z0-9]/', '', $ext);
         $filename = 'msg_' . bin2hex(random_bytes(8)) . '.' . $ext;
         $target   = $uploadDir . $filename;
-
         if (!move_uploaded_file($file['tmp_name'], $target)) {
             $this->jsonError(500, 'Failed to save file');
         }
 
         $baseUrl = $_ENV['APP_URL'] ?? 'http://localhost:8000';
         $imageUrl = rtrim($baseUrl, '/') . '/uploads/messages/' . $filename;
-
+        
         header('Content-Type: application/json');
         echo json_encode(['image_url' => $imageUrl]);
     }
@@ -116,7 +123,6 @@ class MessageController
     {
         $user = $this->authUser();
         $ids = $data['message_ids'] ?? [];
-
         if (!is_array($ids) || empty($ids)) {
             http_response_code(400);
             echo json_encode(['message' => 'Faltan message_ids']);
@@ -138,7 +144,7 @@ class MessageController
                 ]);
             }
         }
-
+        
         echo json_encode(['success' => true]);
         exit;
     }
@@ -149,7 +155,6 @@ class MessageController
         $senderId = $user->id;
         $senderType = $user->role;
 
-        // CORREGIDO: Obtener recipient_role correctamente
         $receiverId = intval($data['recipient_id'] ?? $data['provider_id'] ?? 0);
         $receiverType = $data['recipient_role'] ?? '';
         $text = trim($data['text'] ?? '');
@@ -160,29 +165,26 @@ class MessageController
 
         $type = empty($attachment_url) ? 'text' : 'image';
 
-        // CORREGIDO: Validar ambos campos
         if (!$receiverId || !$receiverType || ($text === '' && empty($attachment_url))) {
             http_response_code(400);
             echo json_encode(["message" => "Faltan datos requeridos (recipient_id, recipient_role o contenido)"]);
             exit;
         }
 
-        // NUEVO: Obtener o crear conversación
         $conversationId = $this->conversationModel->findOrCreate(
             $senderId, $senderType,
             $receiverId, $receiverType
         );
 
         try {
-            // CORREGIDO: Usar conversation_id y parámetros correctos
             $message = $this->messageModel->insertMessage(
-                $conversationId,    // NUEVO: conversation_id
-                $senderId,          // sender_id
-                $receiverId,        // receiver_id
-                $text,              // text
-                $type,              // type
-                $attachment_url,    // attachment_url
-                $senderType         // sender_type
+                $conversationId,
+                $senderId,
+                $receiverId,
+                $text,
+                $type,
+                $attachment_url,
+                $senderType
             );
         } catch (Throwable $e) {
             error_log("Excepción en insertMessage: " . $e->getMessage());
@@ -197,12 +199,17 @@ class MessageController
             exit;
         }
 
-        // CORREGIDO: Usar receiverType real en lugar de asumirlo
         $this->emitWs([
             'receiver_id'   => $receiverId,
-            'receiver_role' => $receiverType, // CORREGIDO: Usar el role real
+            'receiver_role' => $receiverType,
             'title'         => 'Nuevo mensaje',
-            'message'       => $text ?: 'Imagen'
+            'message'       => $text ?: 'Imagen',
+            'data_json'     => json_encode([
+                'url' => '/chat/' . $conversationId,
+                'action' => 'view_chat',
+                'notification_type' => 'new_message',
+                'conversation_id' => $conversationId
+            ])
         ]);
 
         header('Content-Type: application/json');

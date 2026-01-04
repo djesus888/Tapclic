@@ -169,7 +169,7 @@
   </div>
 </template>
 
--<script>
+<script>
 import { formatDate as utilFormatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
@@ -181,14 +181,7 @@ import PaymentModal from './PaymentModal.vue'
 import ChatRoomModal from './ChatRoomModal.vue'
 import NewTicketModal from './NewTicketModal.vue'
 import LiveOrderTracking from './LiveOrderTracking.vue'
-import PaymentPill from './PaymentPill.vue'
-
-const STATUS_CONFIG = {
-  completado: { label: 'Completado', color: 'text-green-600' },
-  fallido: { label: 'Fallido', color: 'text-red-600' },
-  inconcluso: { label: 'Inconcluso', color: 'text-yellow-600' },
-  cancelado: { label: 'Cancelado', color: 'text-gray-500' }
-}
+import PaymentPill from '@/components/PaymentPill.vue'
 
 export default {
   name: 'DashboardUser',
@@ -222,40 +215,12 @@ export default {
       history: [],
       historyLoading: false,
       chatTarget: null,
+      notificationSound: new Audio('/sounds/notification.mp3'),
       lastSpecDetails: '',
       showLiveTracking: false,
       liveOrder: null,
       historyModal: false,
       selectedHistory: {},
-      _unsubscribeListeners: []
-    }
-  },
-  computed: {
-    notifications() {
-      return useSocketStore().notifications
-    },
-    unreadNotifications() {
-      return useSocketStore().unreadCount
-    }
-  },
-  watch: {
-    selectedTab(tab) {
-      const tabActions = {
-        services: () => this.fetchServices(),
-        activeRequests: () => this.fetchActiveRequests(),
-        support: () => {
-          this.fetchTickets()
-          this.fetchFaq()
-        },
-        history: () => this.fetchHistory()
-      }
-      tabActions[tab]?.()
-    },
-    notifications(newVal) {
-      const lastNotification = newVal[0]
-      if (lastNotification?.event === 'status_changed') {
-        this.updateRequestStatus(lastNotification.request_id, lastNotification.status)
-      }
     }
   },
   methods: {
@@ -264,133 +229,168 @@ export default {
     },
     sanitize(str) {
       if (!str || typeof str !== 'string') return str
-      const tempDiv = document.createElement('div')
-      tempDiv.textContent = str
-      return tempDiv.innerHTML
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/on\w+="[^"]*"/g, '')
-        .replace(/on\w+='[^']*'/g, '')
+      return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     },
-    parsePaymentMethods(raw) {
-      try {
-        return typeof raw === 'string' ? JSON.parse(raw) : (raw || [])
-      } catch (e) {
-        console.warn('Error parseando payment_methods:', e)
-        return []
+    openChat(target) {
+      this.chatTarget = target
+    },
+    openSupportChat() {
+      this.openChat({
+        id: 1,
+        name: 'Soporte',
+        role: 'admin',
+        avatarUrl: '/img/support-avatar.png',
+      })
+    },
+    resetFlow() {
+      this.showServiceDetails = false
+      this.showRequestConfirmation = false
+      this.showProviderContact = false
+      this.showPayment = false
+      this.chatTarget = null
+      this.modalService = null
+      this.lastSpecDetails = ''
+      const providerModal = this.$refs.providerContactModal
+      if (providerModal && typeof providerModal.stopProcess === 'function') {
+        providerModal.stopProcess()
       }
     },
     normalizeService(s) {
-      const p = s.provider && typeof s.provider === 'object' ? s.provider : {}
-      let paymentInfo = {}
+      const p = s.provider && typeof s.provider === 'object' ? s.provider : {};
+      let paymentInfo = {};
+
       try {
-        const methods = this.parsePaymentMethods(s.payment_methods)
+        const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || [];
         methods.forEach(m => {
           if (m.method_type === 'pago_movil') {
             paymentInfo.pagoMovil = {
               banco: m.bank_name,
               telefono: m.phone_number,
-              cedula: m.id_number
-            }
+              cedula: m.id_number,
+            };
           }
           if (m.method_type === 'transferencia') {
             paymentInfo.transferencia = {
               banco: m.bank_name,
               cuenta: m.account_number,
-              cedula: m.id_number
-            }
+              cedula: m.id_number,
+            };
           }
           if (m.method_type === 'paypal') {
-            paymentInfo.paypal = { email: m.email }
+            paymentInfo.paypal = {
+              email: m.email,
+            };
           }
-   if (m.method_type === 'zelle') {
-            paymentInfo.zelle = { email: m.email }
+          if (m.method_type === 'zelle') {
+            paymentInfo.zelle = {
+              email: m.email,
+            };
           }
-        })
+        });
       } catch (e) {
-        console.warn('Error parsing payment methods', e)
+        console.warn("Error parseando payment_methods:", e);
       }
 
       return {
         ...s,
-        providerName: p.name || '',
-        providerAvatar: p.avatar || '/img/default-provider.png',
-        providerRating: p.rating || 0,
-        providerPhone: p.phone || '',
-        providerAddress: p.address || '',
-        paymentInfo
-      }
-    },
-    tabClass(tab) {
-      return [
-        'px-4 py-2 rounded-md font-semibold',
-        this.selectedTab === tab ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-200'
-      ]
-    },
-    statusLabel(status) {
-      return STATUS_CONFIG[status]?.label || status
-    },
-    statusColor(status) {
-      return STATUS_CONFIG[status]?.color || 'text-gray-500'
-    },
-    openLiveTracking(request) {
-      const serviceNormalized = this.normalizeService(request)
-      this.liveOrder = {
-        id: serviceNormalized.id,
-        title: serviceNormalized.service_title,
+        service_details: s.service_details || '',
         provider: {
-          name: serviceNormalized.providerName,
-          avatar: serviceNormalized.providerAvatar,
-          rating: serviceNormalized.providerRating,
-          phone: serviceNormalized.providerPhone,
-          address: serviceNormalized.providerAddress
+          id: p.id || s.provider_id || s.providerId || s.user_id || null,
+          name: p.name || s.provider_name || '—',
+          avatar_url: p.avatar_url || s.provider_avatar_url || '',
+          rating: p.rating ?? s.provider_rating ?? null,
+          paymentInfo: Object.keys(paymentInfo).length ? paymentInfo : undefined,
         },
-        price: serviceNormalized.service_price,
-        status: serviceNormalized.status
+      };
+    },
+    buildPath(resource) {
+      const base = api.defaults?.baseURL || ''
+      const hasApi = base.endsWith('/api') || base.includes('/api')
+      return hasApi ? `/${resource}` : `/api/${resource}`
+    },
+    async fetchServices() {
+      if (this.services.length) return
+      this.loading = true
+      try {
+        const authStore = useAuthStore()
+        const res = await api.get(this.buildPath('services'), {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.services) ? res.data.services : []
+        this.services = raw.map((s) => this.normalizeService(s))
+      } catch (err) {
+        console.error(err)
+      } finally {
+        this.loading = false
       }
-      this.showLiveTracking = true
+    },
+    async fetchActiveRequests() {
+      if (this.activeRequests.length) return
+      this.activeRequestsLoading = true
+      try {
+        const authStore = useAuthStore()
+        const res = await api.get(this.buildPath('requests/active'), {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        const requests = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.requests) ? res.data.requests : Array.isArray(res.data?.data) ? res.data.data : []
+        this.activeRequests = requests.map(r => this.normalizeService(r))
+        if (requests.length > 0 && this.activeRequests.length < requests.length) {
+          this.notificationSound.play().catch(() => {})
+        }
+      } catch (err) {
+        console.error('Error cargando solicitudes activas:', err)
+      } finally {
+        this.activeRequestsLoading = false
+      }
+    },
+    async fetchTickets() {
+      if (this.tickets.length) return
+      this.supportLoading = true
+      try {
+        const authStore = useAuthStore()
+        const res = await api.get(this.buildPath('support/tickets'), {
+          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        })
+        this.tickets = Array.isArray(res.data) ? res.data : res.data?.tickets || []
+      } catch (err) {
+        console.error('Error cargando tickets:', err)
+      } finally {
+        this.supportLoading = false
+      }
+    },
+    async fetchFaq() {
+      if (this.faqItems.length) return
+      this.faqLoading = true
+      try {
+        const res = await api.get('/support/faq')
+        this.faqItems = Array.isArray(res.data) ? res.data : res.data?.faq || []
+      } catch (err) {
+        console.error('Error cargando FAQ:', err)
+      } finally {
+        this.faqLoading = false
+      }
+    },
+    async fetchHistory() {
+      this.historyLoading = true
+      try {
+        const authStore = useAuthStore()
+        if (!authStore?.token) return
+        const res = await api.get('/history', {
+          headers: { Authorization: `Bearer ${authStore.token}` },
+        })
+        this.history = Array.isArray(res.data?.history) ? res.data.history : []
+      } catch (err) {
+        console.error('Error loading history:', err)
+      } finally {
+        this.historyLoading = false
+      }
     },
     openServiceDetails(service) {
-      this.modalService = this.normalizeService(service)
-      this.showServiceDetails = true
-    },
-    openChat(target) {
-      this.chatTarget = target
-    },
-    openPaymentModal(request) {
-      this.modalService = request
-      this.showPayment = true
-    },
-    resetFlow() {
-      this.showProviderContact = false
-      this.modalService = null
-    },
-    fetchServices() {
-      this.loading = true
-      api.get('/services').then(res => {
-        this.services = res.data.map(s => this.normalizeService(s))
-      }).finally(() => this.loading = false)
-    },
-    fetchActiveRequests() {
-      this.activeRequestsLoading = true
-      api.get('/active-requests').then(res => {
-        this.activeRequests = res.data.map(r => this.normalizeService(r))
-      }).finally(() => this.activeRequestsLoading = false)
-    },
-    fetchTickets() {
-      this.supportLoading = true
-      api.get('/support-tickets').then(res => this.tickets = res.data).finally(() => this.supportLoading = false)
-    },
-    fetchFaq() {
-      this.faqLoading = true
-      api.get('/faq').then(res => this.faqItems = res.data).finally(() => this.faqLoading = false)
-    },
-    fetchHistory() {
-      this.historyLoading = true
-      api.get('/history').then(res => this.history = res.data).finally(() => this.historyLoading = false)
-    },
-    onTicketCreated(ticket) {
-      this.tickets.push(ticket)
-      this.showNewTicket = false
+      this.resetFlow()
+      this.$nextTick(() => {
+        this.modalService = this.normalizeService(service)
+        this.showServiceDetails = true
+      })
     },
     openHistoryModal(item) {
       this.selectedHistory = item
@@ -400,23 +400,221 @@ export default {
       this.historyModal = false
       this.selectedHistory = {}
     },
-    updateRequestStatus(requestId, status) {
-      const idx = this.activeRequests.findIndex(r => r.id === requestId)
-      if (idx !== -1) this.activeRequests[idx].status = status
+    goToRequestConfirmation() {
+      this.showServiceDetails = false
+      this.showRequestConfirmation = true
+    },
+async onConfirmRequest(payload) {
+  try {
+    const { details, contractAccepted } = payload
+
+    // Validación contrato
+    if (!contractAccepted) {
+      this.$swal.fire({
+        icon: 'warning',
+        title: this.$t('Contrato'),
+        text: 'Debes aceptar las condiciones del servicio.'
+      })
+      return
     }
+
+    const authStore = useAuthStore()
+    const serviceId = this.modalService?.id
+    const providerId = this.modalService?.provider?.id || this.modalService?.user_id
+    if (!serviceId || !providerId) return
+
+    const payloadRequest = {
+      service_id: serviceId,
+      provider_id: providerId,
+      price: Number(this.modalService.price) || 0,
+      payment_method: 'efectivo',
+      additional_details: details || '',
+    }
+
+    const res = await api.post(this.buildPath('requests/create'), payloadRequest, {
+      headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+    })
+
+    if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud')
+
+    this.modalService.requestId = res.data.requestId
+    this.modalService.status = res.data.status || 'pending'
+    this.lastSpecDetails = details
+
+    this.showRequestConfirmation = false
+    this.showProviderContact = true
+    this.$nextTick(() => {
+      const providerModal = this.$refs.providerContactModal
+      if (providerModal) {
+        providerModal.status = this.modalService.status
+        providerModal.startProcess()
+      }
+    })
+  } catch (err) {
+    console.error(err)
+    this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
+  }
+},
+    async onProviderResponse(status) {
+      this.showProviderContact = false
+      if (status === 'accepted' && this.modalService?.requestId) {
+        this.openPaymentModal()
+      } else {
+        const { isConfirmed } = await this.$swal.fire({
+          icon: status === 'rejected' ? 'error' : 'warning',
+          title: status === 'rejected' ? this.$t('request_rejected') : this.$t('provider_busy'),
+          showCancelButton: true,
+          confirmButtonText: this.$t('try_again'),
+          cancelButtonText: this.$t('cancel'),
+        })
+        if (isConfirmed) {
+          this.showRequestConfirmation = true
+          this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
+        } else {
+          this.resetFlow()
+        }
+      }
+    },
+
+openPaymentModal(order = null) {
+  // 1. Si recibimos un order (desde LiveOrderTracking), inicializamos modalService
+  if (order) {
+    this.modalService = this.normalizeService(order);
+    console.log("📦 Order recibido de LiveOrderTracking:", this.modalService);
+  }
+
+  // 2. VERIFICACIÓN OBLIGATORIA: Si modalService sigue siendo null, detenemos
+  if (!this.modalService) {
+    console.error("❌ [DashboardUser] modalService es null. No se puede abrir el pago.");
+    return;
+  }
+
+  // 3. Actualizar con datos de activeRequests si existe
+  const current = this.activeRequests.find(r => r.id === this.modalService.requestId);
+  if (current) {
+    this.modalService = this.normalizeService({ ...this.modalService, ...current });
+    console.log("📦 Datos fusionados con activeRequests:", this.modalService);
+  }
+
+  // 4. Cerrar otros modales y abrir el de pago
+  this.showServiceDetails = false;
+  this.showRequestConfirmation = false;
+  this.showProviderContact = false;
+  this.showPayment = true;
+},
+  onTicketCreated() {
+      this.showNewTicket = false
+      this.fetchTickets()
+    },
+    handlePaymentSubmit(method) {
+      if (!this.modalService?.requestId) return
+      this.resetFlow()
+      this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false })
+      this.fetchServices()
+      this.fetchActiveRequests()
+      this.fetchHistory()
+    },
+    handleRetry() {
+      this.resetFlow()
+      this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
+    },
+    statusLabel(status) {
+      const map = {
+        completado: this.$t('status_completed') || 'Completado',
+        fallido: this.$t('status_failed') || 'Fallido',
+        inconcluso: this.$t('status_incomplete') || 'Inconcluso',
+        cancelado: this.$t('status_cancelled') || 'Cancelado',
+      }
+      return map[status] || status
+    },
+    statusColor(status) {
+      const map = {
+        completado: 'text-green-600',
+        fallido: 'text-red-600',
+        inconcluso: 'text-yellow-600',
+        cancelado: 'text-gray-500',
+      }
+      return map[status] || 'text-gray-500'
+    },
+    tabClass(tab) {
+      return [
+        'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
+        this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+      ]
+    },
+    openLiveTracking(request) {
+      this.liveOrder = {
+        id: request.id,
+        serviceName: request.service_title || 'Servicio',
+        description: request.service_description || 'Sin descripción',
+        price: Number(request.service_price || 0),
+        payment_method: request.payment_method || 'Efectivo',
+        created_at: request.created_at || request.date,
+        address: request.provider_address || 'No especificada',
+        provider: {
+          name: request.service_provider_name || 'Proveedor',
+          avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+          rating: request.provider_rating || null,
+          phone: request.provider_phone || null,
+          current_address: request.provider_address || 'No especificada',
+        },
+        requestId: request.id,
+        provider_id: request.provider_id || request.service_provider_id,
+        user_id: request.user_id,
+        status: request.status || 'accepted',
+        payment_methods: request.payment_methods || [],
+      };
+      this.showLiveTracking = true;
+    },
+  },
+  computed: {
+    notifications() {
+      return useSocketStore().notifications
+    },
+    unreadNotifications() {
+      return useSocketStore().unreadCount
+    },
+  },
+  watch: {
+    selectedTab(tab) {
+      if (tab === 'services') this.fetchServices()
+      if (tab === 'activeRequests') this.fetchActiveRequests()
+      if (tab === 'support') {
+        this.fetchTickets()
+        this.fetchFaq()
+      }
+      if (tab === 'history') this.fetchHistory()
+    },
+    notifications(newVal) {
+      const last = newVal[0]
+      if (last?.event === 'status_changed') {
+        const req = this.activeRequests.find(r => r.id === last.request_id)
+        if (req) req.status = last.status
+      }
+    },
   },
   mounted() {
     this.fetchServices()
     this.fetchActiveRequests()
     this.fetchTickets()
-    this.fetchFaq()
     this.fetchHistory()
-  }
+    this.fetchFaq()
+    useSocketStore().init()
+  },
+  beforeUnmount() {
+    useSocketStore().disconnect?.()
+  },
 }
 </script>
 
 <style scoped>
-.dashboard-user .card {
-  transition: all 0.2s;
+.dashboard-user {
+  padding-top: 1rem;
+}
+.text-green-600 {
+  color: #16a34a;
+}
+.text-red-600 {
+  color: #dc2626;
 }
 </style>

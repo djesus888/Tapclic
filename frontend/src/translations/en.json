@@ -6,6 +6,8 @@
     "profile_updated": "{user} updated their profile",
     "service_accepted": "Service '{service}' was accepted",
     "service_created": "{user} created a new service",
+"services": "Servicios",
+  "status": "Estado",
     "support_ticket_opened": "New support ticket opened"
   },
   "addComments": "Add comments",

@@ -16,143 +16,179 @@ export const useSocketStore = defineStore('socket', {
 
   actions: {
     /* ----------------------------------------------------------
-       Inicializa watcher sobre token → conecta/desconecta
-       ---------------------------------------------------------- */
+      Inicializa watcher sobre token → conecta/desconecta
+    ---------------------------------------------------------- */
     init() {
       const authStore = useAuthStore();
-      const notificationStore = useNotificationStore();
 
       watch(
         () => authStore.token,
         async (newToken) => {
-          console.log('watcher disparado:', { newToken });
           if (!newToken) {
-            console.log('❌ Token borrado; desconectando WS…');
             this.disconnect();
             return;
           }
+
           if (!this.socket?.connected) {
-            console.log('🔄 Token detectado; arrancando WS…');
-            try { await this.connect(newToken, authStore.user); }
-            catch (e) { console.error('❌ Falló conexión WS:', e.message); }
+            await this.connect(newToken, authStore.user);
             return;
           }
-          console.log('🔄 Token renovado; actualizando sin cerrar…');
+
+          // actualizar token sin desconectar
           this.socket.auth.token = newToken;
-          this.socket.emit('refresh-token', newToken, (res) => {
-            if (res?.error) {
-              console.error('❌ Refresh token rechazado:', res.error);
-              this.disconnect();
-            } else {
-              console.log('✅ Token actualizado en servidor');
-            }
-          });
+          this.socket.emit('refresh-token', newToken);
         }
       );
     },
 
     /* ----------------------------------------------------------
-       Conexión única y protegida
-       ---------------------------------------------------------- */
+      Conexión
+    ---------------------------------------------------------- */
     connect(token, user) {
       if (this.socket?.connected) return Promise.resolve(this.socket);
       if (this._creating) return this._creating;
 
-      console.log('📡 Creando WebSocket');
       if (!this.notificationSound) {
         this.notificationSound = new Audio('/sounds/notification.mp3');
         this.notificationSound.volume = 0.6;
-        this.notificationSound.addEventListener('error', () => {
-          console.warn('🔇 No se pudo cargar el sonido de notificación');
-          this._soundEnabled = false;
-        });
       }
 
       const room = user ? `${user.role}_${user.id}` : null;
+
+console.log('>>>> INTENTANDO CONECTAR a', import.meta.env.VITE_WS_URL || 'http://localhost:3001');
+
       const socket = io(import.meta.env.VITE_WS_URL || 'http://localhost:3001', {
         transports: ['websocket'],
         reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
         auth: { token },
-        query: { token }
+        query: { token },
       });
 
       this._creating = new Promise((resolve, reject) => {
         socket
           .on('connect', () => {
-            console.log('✅ Conectado a WebSocket:', socket.id);
-            if (room) {
-              socket.emit('join-room', room);
-              console.log('📌 Sala unida:', room);
-            }
-            this.socket = socket;
+console.log('>>>> EVENTO CONNECT EJECUTADO');
+     
 
-            // 🔥 SUSCRIPCIONES DENTRO DE connect
+
+       if (room) socket.emit('join-room', room);
+console.log('>>>> Me uni a la room:', room);
+ 
+           this.socket = socket;
+
+            // 🔔 Suscribir eventos, incluso después de reconexión
             this._subscribeEvents();
+
+console.log('>>>> _subscribeEvents ejecutado');
+
+
+
+            // Reentregar eventos pendientes que el backend haya guardado
+            if (socket.pendingEvents?.length) {
+              socket.pendingEvents.forEach(({ event, payload }) => {
+                socket.emit(event, payload);
+              });
+              socket.pendingEvents = [];
+            }
+
             resolve(socket);
           })
-          .on('connect_error', err => {
-            console.error('❌ Error de conexión:', err.message);
-            reject(err);
+         .on('connect_error', (err) => {
+  console.log('>>>> CONNECT_ERROR:', err.message);
+  reject(err);
+     })
+          .on('disconnect', (reason) => {
+            console.log('🔌 Desconectado:', reason);
           })
-          .on('disconnect', reason => {
-            console.log('🔌 Desconectado del WS:', reason);
-          })
-          .on('auth_error', msg => {
+          .on('auth_error', () => {
             socket.disconnect();
-            reject(new Error(msg.message || 'Auth failed'));
-          });
-      }).finally(() => { this._creating = null; });
+            reject();
+0          });
+      }).finally(() => {
+        this._creating = null;
+      });
 
       return this._creating;
     },
 
     /* ----------------------------------------------------------
-       SUSCRIPCIONES (siempre después de connect)
-       ---------------------------------------------------------- */
-    _subscribeEvents() {
-      const notificationStore = useNotificationStore();
+      SUSCRIPCIONES
+    ---------------------------------------------------------- */
+_subscribeEvents() {
+  const notificationStore = useNotificationStore();
 
-      // 1. Notificaciones en tiempo real
-      this.on('new-notification', (payload) => {
-        console.log('📣 Notificación recibida:', payload);
-        if (payload && typeof payload === 'object') {
-          notificationStore.list.unshift({
-            id: payload.id || Date.now(),
-            is_read: payload.is_read ?? 0,
-            ...payload
-          });
-          this.playNotificationSound();
-        }
-      });
+  // 🔔 Notificaciones normales
+  this.on('new-notification', (payload) => {
+ console.log('🔔 LLEGO new-notification con payload:', payload);
+window.dispatchEvent(new CustomEvent('show-notification-toast', { detail: payload }));
+ 
+    if (!payload) return;
 
-      // 2. Mensajes de chat (si usas)
-      this.on('new-message', (payload) => {
-        // tu lógica de chat
-      });
+    notificationStore.notifications.unshift({
+      id: payload.id || Date.now(),
+      is_read: payload.is_read ?? 0,
+      ...payload,
+    });
 
-      // 3. Actualización de solicitudes (user/provider)
-      this.on('request_updated', (payload) => {
-        console.log('📦 request_updated:', payload);
-        // Aquí puedes emitir un evento global o actualizar tienda correspondiente
-      });
-    },
+    this.playNotificationSound();
+  });
 
+// ⭐ Abrir modal de calificación
+this.on('open_rating_modal', (payload) => {
+  console.log('⭐ open_rating_modal:', payload);
+  window.dispatchEvent(new CustomEvent('open-rating-modal', { detail: payload }));
+});
+
+// 💰 Actualización de pago
+this.on('payment_updated', (payload) => {
+  console.log('💰 payment_updated:', payload);
+  window.dispatchEvent(new CustomEvent('payment-updated', { detail: payload }));
+});
+
+
+
+  // 📦 Actualizaciones de solicitud
+  this.on('request_updated', (payload) => {
+    console.log('request_updated:', payload);
+  });
+
+  // ⭐ Evento crítico: abrir modal de calificación
+  this.on('open_rating_modal', (payload) => {
+    console.log('⭐ open_rating_modal recibido:', payload);
+    window.dispatchEvent(
+      new CustomEvent('open-rating-modal', { detail: payload })
+    );
+  });
+},
     /* ----------------------------------------------------------
-       Helpers
-       ---------------------------------------------------------- */
-    on(event, handler) { this.socket?.on(event, handler); },
-    off(event, handler) { this.socket?.off(event, handler); },
-    emit(event, payload) { this.socket?.emit(event, payload); },
-
-    markAsRead(id) {
-      const notificationStore = useNotificationStore();
-      const idx = notificationStore.notifications.findIndex(n => n.id === id);
-      if (idx !== -1) notificationStore.notifications[idx].is_read = 1;
+      Helpers
+    ---------------------------------------------------------- */
+    on(event, handler) {
+      if (!this.socket) return;
+      this.socket.on(event, handler);
+      this._listeners.set(event, handler);
     },
 
-    clearNotifications() {
-      const notificationStore = useNotificationStore();
-      notificationStore.notifications = [];
+    off(event) {
+      if (!this.socket) return;
+      const handler = this._listeners.get(event);
+      if (handler) {
+        this.socket.off(event, handler);
+        this._listeners.delete(event);
+      }
+    },
+
+    emit(event, payload) {
+      if (!this.socket?.connected) {
+        // Guardar eventos si el socket está desconectado
+        if (!this.socket) this.socket = {};
+        if (!this.socket.pendingEvents) this.socket.pendingEvents = [];
+        this.socket.pendingEvents.push({ event, payload });
+      } else {
+        this.socket.emit(event, payload);
+      }
     },
 
     async playNotificationSound() {
@@ -160,31 +196,35 @@ export const useSocketStore = defineStore('socket', {
       try {
         this.notificationSound.currentTime = 0;
         await this.notificationSound.play();
-        this._soundEnabled = true;
-      } catch (err) {
-        console.warn('🔇 Autoplay bloqueado:', err.message);
-        this._soundEnabled = false;
-      }
+      } catch (_) {}
     },
 
     disconnect() {
       if (!this.socket) return;
-      console.log('🔌 Cerrando conexión manualmente');
-      this.socket.offAny?.();
-      this._listeners.forEach((h, ev) => this.socket.off(ev, h));
-      this._listeners.clear();
       this.socket.disconnect();
       this.socket = null;
-    }
+      this._listeners.clear();
+    },
+
+    /* ----------------------------------------------------------
+      FUNCIONES RESTAURADAS
+    ---------------------------------------------------------- */
+    markAsRead(id) {
+      const notificationStore = useNotificationStore();
+      const idx = notificationStore.notifications.findIndex((n) => n.id === id);
+      if (idx !== -1) notificationStore.notifications[idx].is_read = 1;
+    },
   },
-getters: {
-  notifications: (state) => {
-    const store = useNotificationStore();
-    return store.notifications; // ✅ notifications SÍ existe
+
+  getters: {
+    notifications: () => {
+      const store = useNotificationStore();
+      return store.notifications;
+    },
+
+    unreadCount: () => {
+      const store = useNotificationStore();
+      return store.notifications.filter((n) => !n.is_read).length;
+    },
   },
-  unreadCount: (state) => {
-    const store = useNotificationStore();
-    return store.notifications.filter(n => !n.is_read).length; 
-  }
-}
 });

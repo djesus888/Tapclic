@@ -37,7 +37,7 @@
           </div>
           <div class="p-4 flex justify-between items-center bg-white">
             <div class="flex items-center gap-3">
-              <img :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+              <img :src="service.image_url ? `${API_URL}${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
               <div>
                 <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
                 <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
@@ -75,7 +75,7 @@
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <div class="flex items-center gap-3">
-                <img :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+                <img :src="request.service_image_url ? `${API_URL}${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
                 <div>
                   <p class="font-semibold">{{ sanitize(request.service_provider_name || 'Ads') }}</p>
                   <p v-if="request.provider_rating" class="text-yellow-500 text-sm">⭐ {{ request.provider_rating }}</p>
@@ -197,6 +197,8 @@ export default {
   },
   data() {
     return {
+      // ✅ CORRECCIÓN: Aquí definimos la variable API_URL para usarla en el template
+      API_URL: import.meta.env.VITE_API_URL,
       services: [],
       loading: true,
       selectedTab: 'services',
@@ -215,25 +217,44 @@ export default {
       history: [],
       historyLoading: false,
       chatTarget: null,
-      notificationSound: new Audio('/sounds/notification.mp3'),
+      notificationSound: null,
       lastSpecDetails: '',
       showLiveTracking: false,
       liveOrder: null,
       historyModal: false,
       selectedHistory: {},
+      // Cache control
+      lastFetch: {
+        services: 0,
+        activeRequests: 0,
+        tickets: 0,
+        history: 0,
+        faq: 0
+      },
+      CACHE_TTL: 30000 // 30 segundos
     }
   },
   methods: {
     formatDate(date) {
       return utilFormatDate(date)
     },
+    
+    // Sanitización segura
     sanitize(str) {
-      if (!str || typeof str !== 'string') return str
-      return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      if (!str || typeof str !== 'string') return ''
+      const tempDiv = document.createElement('div')
+      tempDiv.textContent = str
+      return tempDiv.innerHTML
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/on\w+="[^"]*"/g, '')
+        .replace(/on\w+='[^']*'/g, '')
+        .replace(/javascript:/gi, '')
     },
+    
     openChat(target) {
       this.chatTarget = target
     },
+    
     openSupportChat() {
       this.openChat({
         id: 1,
@@ -242,6 +263,7 @@ export default {
         avatarUrl: '/img/support-avatar.png',
       })
     },
+    
     resetFlow() {
       this.showServiceDetails = false
       this.showRequestConfirmation = false
@@ -255,10 +277,11 @@ export default {
         providerModal.stopProcess()
       }
     },
+    
     normalizeService(s) {
       const p = s.provider && typeof s.provider === 'object' ? s.provider : {};
       let paymentInfo = {};
-
+      
       try {
         const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || [];
         methods.forEach(m => {
@@ -303,13 +326,19 @@ export default {
         },
       };
     },
+    
     buildPath(resource) {
       const base = api.defaults?.baseURL || ''
       const hasApi = base.endsWith('/api') || base.includes('/api')
       return hasApi ? `/${resource}` : `/api/${resource}`
     },
+    
     async fetchServices() {
-      if (this.services.length) return
+      const now = Date.now()
+      if (now - this.lastFetch.services < this.CACHE_TTL && this.services.length > 0) {
+        return
+      }
+      
       this.loading = true
       try {
         const authStore = useAuthStore()
@@ -318,14 +347,20 @@ export default {
         })
         const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.services) ? res.data.services : []
         this.services = raw.map((s) => this.normalizeService(s))
+        this.lastFetch.services = now
       } catch (err) {
         console.error(err)
       } finally {
         this.loading = false
       }
     },
+    
     async fetchActiveRequests() {
-      if (this.activeRequests.length) return
+      const now = Date.now()
+      if (now - this.lastFetch.activeRequests < this.CACHE_TTL && this.activeRequests.length > 0) {
+        return
+      }
+      
       this.activeRequestsLoading = true
       try {
         const authStore = useAuthStore()
@@ -334,8 +369,10 @@ export default {
         })
         const requests = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.requests) ? res.data.requests : Array.isArray(res.data?.data) ? res.data.data : []
         this.activeRequests = requests.map(r => this.normalizeService(r))
+        this.lastFetch.activeRequests = now
+        
         if (requests.length > 0 && this.activeRequests.length < requests.length) {
-          this.notificationSound.play().catch(() => {})
+          this.playNotification()
         }
       } catch (err) {
         console.error('Error cargando solicitudes activas:', err)
@@ -343,8 +380,13 @@ export default {
         this.activeRequestsLoading = false
       }
     },
+    
     async fetchTickets() {
-      if (this.tickets.length) return
+      const now = Date.now()
+      if (now - this.lastFetch.tickets < this.CACHE_TTL && this.tickets.length > 0) {
+        return
+      }
+      
       this.supportLoading = true
       try {
         const authStore = useAuthStore()
@@ -352,25 +394,38 @@ export default {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
         })
         this.tickets = Array.isArray(res.data) ? res.data : res.data?.tickets || []
+        this.lastFetch.tickets = now
       } catch (err) {
         console.error('Error cargando tickets:', err)
       } finally {
         this.supportLoading = false
       }
     },
+    
     async fetchFaq() {
-      if (this.faqItems.length) return
+      const now = Date.now()
+      if (now - this.lastFetch.faq < this.CACHE_TTL && this.faqItems.length > 0) {
+        return
+      }
+      
       this.faqLoading = true
       try {
         const res = await api.get('/support/faq')
         this.faqItems = Array.isArray(res.data) ? res.data : res.data?.faq || []
+        this.lastFetch.faq = now
       } catch (err) {
         console.error('Error cargando FAQ:', err)
       } finally {
         this.faqLoading = false
       }
     },
+    
     async fetchHistory() {
+      const now = Date.now()
+      if (now - this.lastFetch.history < this.CACHE_TTL && this.history.length > 0) {
+        return
+      }
+      
       this.historyLoading = true
       try {
         const authStore = useAuthStore()
@@ -379,12 +434,21 @@ export default {
           headers: { Authorization: `Bearer ${authStore.token}` },
         })
         this.history = Array.isArray(res.data?.history) ? res.data.history : []
+        this.lastFetch.history = now
       } catch (err) {
         console.error('Error loading history:', err)
       } finally {
         this.historyLoading = false
       }
     },
+    
+    playNotification() {
+      if (!this.notificationSound) {
+        this.notificationSound = new Audio('/sounds/notification.mp3')
+      }
+      this.notificationSound.play().catch(() => {})
+    },
+    
     openServiceDetails(service) {
       this.resetFlow()
       this.$nextTick(() => {
@@ -392,38 +456,58 @@ export default {
         this.showServiceDetails = true
       })
     },
+    
     openHistoryModal(item) {
       this.selectedHistory = item
       this.historyModal = true
     },
+    
     closeHistoryModal() {
       this.historyModal = false
       this.selectedHistory = {}
     },
+    
     goToRequestConfirmation() {
       this.showServiceDetails = false
       this.showRequestConfirmation = true
     },
-    async onConfirmRequest(specDetails) {
+    
+    async onConfirmRequest(payload) {
       try {
+        const { details, contractAccepted } = payload
+
+        if (!contractAccepted) {
+          this.$swal.fire({
+            icon: 'warning',
+            title: this.$t('Contrato'),
+            text: 'Debes aceptar las condiciones del servicio.'
+          })
+          return
+        }
+
         const authStore = useAuthStore()
         const serviceId = this.modalService?.id
         const providerId = this.modalService?.provider?.id || this.modalService?.user_id
         if (!serviceId || !providerId) return
-        const payload = {
+
+        const payloadRequest = {
           service_id: serviceId,
           provider_id: providerId,
           price: Number(this.modalService.price) || 0,
           payment_method: 'efectivo',
-          additional_details: specDetails || '',
+          additional_details: details || '',
         }
-        const res = await api.post(this.buildPath('requests/create'), payload, {
+
+        const res = await api.post(this.buildPath('requests/create'), payloadRequest, {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
         })
+
         if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud')
+
         this.modalService.requestId = res.data.requestId
         this.modalService.status = res.data.status || 'pending'
-        this.lastSpecDetails = specDetails
+        this.lastSpecDetails = details
+
         this.showRequestConfirmation = false
         this.showProviderContact = true
         this.$nextTick(() => {
@@ -438,6 +522,7 @@ export default {
         this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
       }
     },
+    
     async onProviderResponse(status) {
       this.showProviderContact = false
       if (status === 'accepted' && this.modalService?.requestId) {
@@ -458,33 +543,51 @@ export default {
         }
       }
     },
-    openPaymentModal() {
-      const current = this.activeRequests.find(r => r.id === this.modalService.requestId);
-      if (current) {
-        this.modalService = this.normalizeService({ ...this.modalService, ...current });
-        console.log("📦 Datos enviados al modal:", this.modalService);
+
+    openPaymentModal(order = null) {
+      if (order) {
+        this.modalService = this.normalizeService(order)
       }
+
+      if (!this.modalService) {
+        console.error("❌ [DashboardUser] modalService es null. No se puede abrir el pago.")
+        return
+      }
+
+      const current = this.activeRequests.find(r => r.id === this.modalService.requestId)
+      if (current) {
+        this.modalService = this.normalizeService({ ...this.modalService, ...current })
+      }
+      
       this.showServiceDetails = false
       this.showRequestConfirmation = false
       this.showProviderContact = false
       this.showPayment = true
     },
+    
     onTicketCreated() {
       this.showNewTicket = false
       this.fetchTickets()
     },
+    
     handlePaymentSubmit(method) {
       if (!this.modalService?.requestId) return
       this.resetFlow()
       this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false })
-      this.fetchServices()
+      
+      // Resetea cache para forzar actualización
+      this.lastFetch.activeRequests = 0
+      this.lastFetch.history = 0
+      
       this.fetchActiveRequests()
       this.fetchHistory()
     },
+    
     handleRetry() {
       this.resetFlow()
       this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
     },
+    
     statusLabel(status) {
       const map = {
         completado: this.$t('status_completed') || 'Completado',
@@ -494,6 +597,7 @@ export default {
       }
       return map[status] || status
     },
+    
     statusColor(status) {
       const map = {
         completado: 'text-green-600',
@@ -503,12 +607,14 @@ export default {
       }
       return map[status] || 'text-gray-500'
     },
+    
     tabClass(tab) {
       return [
         'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
         this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
       ]
     },
+    
     openLiveTracking(request) {
       this.liveOrder = {
         id: request.id,
@@ -520,7 +626,8 @@ export default {
         address: request.provider_address || 'No especificada',
         provider: {
           name: request.service_provider_name || 'Proveedor',
-          avatar_url: request.provider_avatar_url ? `http://localhost:8000/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+          // ✅ CORRECCIÓN: Aquí también usamos API_URL en lugar de import.meta.env.VITE_API_URL
+          avatar_url: request.provider_avatar_url ? `${this.API_URL}/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
           rating: request.provider_rating || null,
           phone: request.provider_phone || null,
           current_address: request.provider_address || 'No especificada',
@@ -530,10 +637,41 @@ export default {
         user_id: request.user_id,
         status: request.status || 'accepted',
         payment_methods: request.payment_methods || [],
-      };
-      this.showLiveTracking = true;
+      }
+      this.showLiveTracking = true
     },
+    
+    // Manejo de actualizaciones en tiempo real
+    async handleRealTimeRequestUpdate(requestId, newStatus) {
+      // Resetea cache para forzar recarga
+      this.lastFetch.activeRequests = 0
+      this.lastFetch.history = 0
+      
+      await this.fetchActiveRequests()
+      
+      if (this.showLiveTracking && this.liveOrder?.id === requestId) {
+        this.liveOrder.status = newStatus
+      }
+      
+      if (['completed', 'cancelled', 'rejected'].includes(newStatus)) {
+        await this.fetchHistory()
+      }
+      
+      this.playNotification()
+    },
+    
+    handleRealTimePaymentUpdate(requestId, paymentStatus) {
+      const req = this.activeRequests.find(r => r.id === requestId)
+      if (req) {
+        req.payment_status = paymentStatus
+      }
+      
+      if (this.showPayment && this.modalService?.requestId === requestId) {
+        this.modalService.payment_status = paymentStatus
+      }
+    }
   },
+  
   computed: {
     notifications() {
       return useSocketStore().notifications
@@ -542,35 +680,77 @@ export default {
       return useSocketStore().unreadCount
     },
   },
+  
   watch: {
     selectedTab(tab) {
-      if (tab === 'services') this.fetchServices()
-      if (tab === 'activeRequests') this.fetchActiveRequests()
-      if (tab === 'support') {
-        this.fetchTickets()
-        this.fetchFaq()
+      const fetchMap = {
+        services: () => this.fetchServices(),
+        activeRequests: () => this.fetchActiveRequests(),
+        support: () => { this.fetchTickets(); this.fetchFaq(); },
+        history: () => this.fetchHistory()
       }
-      if (tab === 'history') this.fetchHistory()
+      fetchMap[tab]?.()
     },
-    notifications(newVal) {
-      const last = newVal[0]
-      if (last?.event === 'status_changed') {
-        const req = this.activeRequests.find(r => r.id === last.request_id)
-        if (req) req.status = last.status
-      }
+    
+    notifications: {
+      handler(newNotifications) {
+        const last = newNotifications[0]
+        if (!last) return
+        
+        switch(last.event) {
+          case 'status_changed':
+          case 'request_updated':
+            this.handleRealTimeRequestUpdate(last.request_id, last.status)
+            break
+          case 'payment_updated':
+            this.handleRealTimePaymentUpdate(last.request_id, last.payment_status)
+            break
+        }
+      },
+      deep: true
     },
   },
-  mounted() {
-    this.fetchServices()
-    this.fetchActiveRequests()
-    this.fetchTickets()
-    this.fetchHistory()
-    this.fetchFaq()
-    useSocketStore().init()
+  
+  async mounted() {
+    const authStore = useAuthStore()
+    const socketStore = useSocketStore()
+    
+    // Inicialización segura del socket
+    if (!authStore.token) {
+      await authStore.refreshToken?.()
+    }
+    
+    if (!socketStore.socket?.connected && authStore.token) {
+      socketStore.init()
+    }
+    
+    // Precarga del sonido
+    this.notificationSound = new Audio('/sounds/notification.mp3')
+    
+    // Carga inicial de datos
+    await Promise.all([
+      this.fetchServices(),
+      this.fetchActiveRequests(),
+      this.fetchTickets(),
+      this.fetchHistory(),
+      this.fetchFaq()
+    ])
   },
+  
   beforeUnmount() {
+    const providerModal = this.$refs.providerContactModal
+    if (providerModal && typeof providerModal.stopProcess === 'function') {
+      providerModal.stopProcess()
+    }
+    
     useSocketStore().disconnect?.()
-  },
+    
+    // Limpia el audio
+    if (this.notificationSound) {
+      this.notificationSound.pause()
+      this.notificationSound = null
+    }
+  }
 }
 </script>
 
