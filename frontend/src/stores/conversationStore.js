@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '@/axios'
 import { useSocketStore } from './socketStore'   // ← usamos el store central
-import { useAuthStore }   from './authStore'
+import { useAuthStore } from './authStore'
 
 export const useConversationStore = defineStore('conversation', () => {
   const conversations = ref([])
@@ -14,17 +14,17 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
   )
 
-  /* ------------------------------------------------------------------ */
-  /*  1.  Inicialización del socket (solo UNA vez)                       */
-  /* ------------------------------------------------------------------ */
+  // -------------------------------------------------------
+  // 1. Inicialización del socket (solo UNA vez)
+  // -------------------------------------------------------
+  let _socketInitialized = false
+
   function initSocket() {
+    if (_socketInitialized) return
+
     const socketStore = useSocketStore()
     const authStore   = useAuthStore()
-
-    // si ya estamos escuchando, no hacemos nada
-    if (socketStore.socket?.hasListeners('newMessage')) return
-
-    const room = `user_${authStore.user.id}`
+    const room        = `user_${authStore.user.id}`
 
     // Nos aprovechamos del socket YA conectado por socketStore
     socketStore.on('connect', () => {
@@ -39,21 +39,24 @@ export const useConversationStore = defineStore('conversation', () => {
     socketStore.on('messageRead', ({ conversationId, messageIds }) => {
       markMessagesAsReadLocally(conversationId, messageIds)
     })
+
+    _socketInitialized = true
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  2.  Desconectar (cuando haga falta)                               */
-  /* ------------------------------------------------------------------ */
+  // -------------------------------------------------------
+  // 2. Desconectar (cuando haga falta)
+  // -------------------------------------------------------
   function disconnectSocket() {
     const socketStore = useSocketStore()
     socketStore.off('newMessage')
     socketStore.off('messageRead')
     // NO llamamos socket.disconnect() aquí; lo hace socketStore cuando proceda
+    _socketInitialized = false
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  3.  Resto de acciones (sin cambios)                               */
-  /* ------------------------------------------------------------------ */
+  // -------------------------------------------------------
+  // 3. Resto de acciones
+  // -------------------------------------------------------
   async function fetchConversations() {
     try {
       const { data: res } = await api.get('/conversations')
@@ -139,9 +142,10 @@ export const useConversationStore = defineStore('conversation', () => {
     router.push(`/chat/${conversationId}`)
   }
 
-  /* ----------  MÉTODOS PARA TIEMPO-REAL (llamados desde MainLayout)  ---------- */
+  // -------------------------------------------------------
+  // Métodos para tiempo-real (llamados desde MainLayout)
+  // -------------------------------------------------------
   function prependMessage(payload) {
-    // payload = { conversationId, message, ... }
     addMessage(payload.conversationId, payload)
   }
 

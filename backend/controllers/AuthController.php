@@ -26,6 +26,16 @@ class AuthController
         }
 
         $user = $this->userModel->findByEmailOrPhone($identifier);
+
+
+
+error_log("PASSWORD INGRESADA: " . $password);
+error_log("HASH BD: " . $user['password']);
+error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : 'FAIL'));
+
+
+
+
         if (!$user || !password_verify($password, $user['password'])) {
             http_response_code(401);
             echo json_encode(["message" => "Credenciales incorrectas"]);
@@ -162,6 +172,112 @@ class AuthController
             "user"    => $user
         ]);
     }
+
+
+
+
+/* ---------- RECUPERAR CONTRASEÑA ---------- */
+public function forgotPassword(): void
+{
+    $data = json_decode(file_get_contents("php://input"), true);
+    $method = $data['method'] ?? '';
+    $value  = trim($data['value'] ?? '');
+
+    if (!in_array($method, ['email', 'phone'], true) || empty($value)) {
+        http_response_code(400);
+        echo json_encode(["message" => "Método o valor inválido"]);
+        return;
+    }
+
+    $user = $method === 'email'
+        ? $this->userModel->findByEmail($value)
+        : $this->userModel->findByPhone($value);
+
+    // No revelar si el usuario existe o no
+    if (!$user) {
+        echo json_encode([
+            "success" => true,
+            "message" => "Si existe el usuario, se ha enviado un código"
+        ]);
+        return;
+    }
+
+    // Generar token seguro y expiración
+    $token = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
+    $this->userModel->setResetToken($user['id'], $token, $expires_at);
+
+    // Enviar correo o SMS
+    if ($method === 'email') {
+        $reset_link = "https://tusitio.com/reset-password?token=$token";
+        $subject = "Recupera tu contraseña";
+        $message = "Hola,\n\nHaz clic en este enlace para cambiar tu contraseña:\n$reset_link\n\nEste enlace expira en 15 minutos.";
+        $headers = "From: no-reply@tusitio.com\r\n";
+        mail($user['email'], $subject, $message, $headers);
+    } else {
+       
+require_once __DIR__ . '/../utils/SMS.php';
+
+if ($method === 'phone') {
+    $smsMessage = "Tu código de recuperación es: $token";
+    $sent = SMS::send($user['phone'], $smsMessage);
+    if (!$sent) {
+        http_response_code(500);
+        echo json_encode(["message" => "No se pudo enviar el SMS"]);
+        return;
+    }
+}
+
+
+    }
+
+    echo json_encode([
+        "success" => true,
+        "message" => "Si existe el usuario, se ha enviado un código"
+    ]);
+}
+
+/* ---------- CAMBIAR CONTRASEÑA ---------- */
+public function resetPassword(): void
+{
+    $data = json_decode(file_get_contents("php://input"), true);
+    $token = $data['token'] ?? '';
+    $newPassword = $data['password'] ?? '';
+
+    if (empty($token) || empty($newPassword)) {
+        http_response_code(400);
+        echo json_encode(["message" => "Token o contraseña no enviados"]);
+        return;
+    }
+
+    if (strlen($newPassword) < 6) {
+        http_response_code(400);
+        echo json_encode(["message" => "La contraseña debe tener al menos 6 caracteres"]);
+        return;
+    }
+
+    $user = $this->userModel->findByResetToken($token);
+
+    if (!$user || strtotime($user['reset_password_expires_at']) < time()) {
+        http_response_code(400);
+        echo json_encode(["message" => "Token inválido o expirado"]);
+        return;
+    }
+
+    $this->userModel->updatePassword($user['id'], $newPassword);
+
+    // Limpiar token
+    $this->userModel->setResetToken($user['id'], null, null);
+
+    echo json_encode([
+        "success" => true,
+        "message" => "Contraseña actualizada correctamente"
+    ]);
+}
+
+
+
 
     /* ---------- REFRESH TOKEN ---------- */
     public function refreshToken(): void

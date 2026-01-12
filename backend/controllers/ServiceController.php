@@ -4,6 +4,9 @@ require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../utils/jwt.php';
+require_once __DIR__ . '/../services/WebSocketService.php';
+
+use services\WebSocketService;
 
 class ServiceController
 {
@@ -46,21 +49,6 @@ class ServiceController
             echo json_encode(['error' => 'Servicio temporalmente no disponible']);
             exit;
         }
-    }
-
-    /* ----------  WS NOTIFICATION  ---------- */
-    private function emitWs(array $payload): void
-    {
-        $ch = curl_init('http://localhost:3001/emit');
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 2
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
     }
 
     /* ----------  ROUTER  ---------- */
@@ -135,7 +123,7 @@ class ServiceController
         $data['provider_rating']     = $user['average_rating'] ?? 5.0;
 
         if ($this->model->create($data)) {
-            $this->emitWs([
+            WebSocketService::emit([
                 'receiver_role' => 'admin',
                 'receiver_id'   => 1,
                 'title'         => 'Nuevo servicio disponible',
@@ -195,7 +183,7 @@ class ServiceController
         if ($imageUrl) $data['image_url'] = $imageUrl;
 
         if ($this->model->update((int)$id, $auth->id, $data)) {
-            $this->emitWs([
+            WebSocketService::emit([
                 'receiver_role' => 'user',
                 'receiver_id'   => 0,
                 'title'         => 'Servicio actualizado',
@@ -216,7 +204,6 @@ class ServiceController
     /* ----------  DELETE  ---------- */
     private function delete(object $auth): void
     {
-       
         header('Content-Type: application/json');
         
         $input = json_decode(file_get_contents('php://input'), true);
@@ -236,7 +223,7 @@ class ServiceController
                 return;
             }
             
-            $this->emitWs([
+            WebSocketService::emit([
                 'receiver_role' => 'user',
                 'receiver_id'   => 0,
                 'title'         => 'Servicio eliminado',

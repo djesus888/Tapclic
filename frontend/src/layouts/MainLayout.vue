@@ -86,15 +86,15 @@
     <!-- Overlay para cerrar paneles al hacer clic fuera -->
     <Teleport to="body">
       <Transition name="fade">
-        <div 
-          v-if="isAnyPanelOpen" 
-          class="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 transition-opacity" 
+        <div
+          v-if="isAnyPanelOpen"
+          class="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 transition-opacity"
           @click="closeAllPanels"
         />
       </Transition>
     </Teleport>
 
-    <div :style="{ height: isExpanded ? '88px' : '56px' }" />   
+    <div :style="{ height: isExpanded ? '88px' : '56px' }" />
 
     <!-- ========== PANELES DERECHOS CON LOADING STATE ========== -->
     <transition name="slide-right">
@@ -107,12 +107,12 @@
             ×
           </button>
         </div>
-        
+
         <!-- Skeleton loading -->
         <div v-if="socketStore.loading" class="flex-1 p-4 space-y-3">
           <div v-for="i in 3" :key="i" class="h-20 bg-slate-200 animate-pulse rounded"></div>
         </div>
-        
+
         <div v-else class="flex-1 overflow-y-auto divide-y">
           <div v-for="notification in socketStore.notifications"
             :key="notification.id"
@@ -121,7 +121,6 @@
             :class="!notification.is_read ? 'bg-sky-50 hover:bg-sky-100' : 'hover:bg-slate-50'"
           >
             <h3 class="font-semibold">{{ notification.title }}</h3>
-            <!-- Mensaje sanitizado para prevenir XSS -->
             <p class="text-sm text-gray-600" v-html="sanitizeMessage(notification.message)"></p>
             <p class="text-xs text-gray-400 mt-1">{{ formatDate(notification.created_at) }}</p>
           </div>
@@ -139,11 +138,11 @@
             ×
           </button>
         </div>
-        
+
         <div v-if="conversationStore.loading" class="flex-1 p-4 space-y-3">
           <div v-for="i in 3" :key="i" class="h-16 bg-slate-200 animate-pulse rounded"></div>
         </div>
-        
+
         <div v-else class="flex-1 overflow-y-auto divide-y">
           <template v-if="conversationStore.conversations.length">
             <div v-for="conv in conversationStore.conversations"
@@ -191,7 +190,6 @@
           </button>
         </div>
         <nav class="flex-1 p-4 space-y-2 text-sm">
-          <!-- Usuario -->
           <template v-if="authStore.user?.role === 'user'">
             <RouterLink v-for="item in userMenuItems" :key="item.to"
               :to="item.to"
@@ -201,7 +199,6 @@
               {{ item.icon }} {{ $t(item.label) }}
             </RouterLink>
           </template>
-          <!-- Proveedor -->
           <template v-else-if="authStore.user?.role === 'provider'">
             <RouterLink v-for="item in providerMenuItems" :key="item.to"
               :to="item.to"
@@ -211,7 +208,6 @@
               {{ item.icon }} {{ $t(item.label) }}
             </RouterLink>
           </template>
-          <!-- Administrador -->
           <template v-else-if="authStore.user?.role === 'admin'">
             <RouterLink v-for="item in adminMenuItems" :key="item.to"
               :to="item.to"
@@ -235,8 +231,8 @@
     </main>
 
     <!-- MODAL DE NOTIFICACIÓN -->
-    <NotificationModal 
-      :is-open="!!selectedNotification" 
+    <NotificationModal
+      :is-open="!!selectedNotification"
       :notification="selectedNotification || {}"
       @close="selectedNotification = null"
       @action="handleNotificationAction"
@@ -252,25 +248,28 @@ import DOMPurify from 'dompurify'
 import { useAuthStore } from '@/stores/authStore'
 import { useConversationStore } from '@/stores/conversationStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { useNotificationCacheStore } from '@/stores/notificationCacheStore'
 import { useSocketStore } from '@/stores/socketStore'
 import { formatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import NotificationModal from '@/layouts/NotificationModal.vue'
 
-/* ----------  CONFIGURACIÓN  ---------- */
 const HEADER_EXPANDED_HEIGHT = 88
 const HEADER_COLLAPSED_HEIGHT = 56
 const SCROLL_THRESHOLD = 100
 
-/* ----------  STORES  ---------- */
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const conversationStore = useConversationStore()
 const socketStore = useSocketStore()
 const router = useRouter()
 const { locale, t } = useI18n()
+const cache = useNotificationCacheStore()
 
-/* ----------  ESTADO LOCAL  ---------- */
+onMounted(() => {
+  notificationStore.initialize()
+})
+
 const showUserPanel = ref(false)
 const activePanel = ref(null)
 const langDropdownOpen = ref(false)
@@ -278,13 +277,11 @@ const langDropdownRef = ref(null)
 const isExpanded = ref(false)
 const selectedNotification = ref(null)
 
-// Definición de idiomas disponibles
 const availableLanguages = {
   es: '🇪🇸',
   en: '🇺🇸'
 }
 
-/* ----------  MENÚS DINÁMICOS  ---------- */
 const userMenuItems = [
   { to: '/', label: 'home', icon: '🏠' },
   { to: '/requests', label: 'requests', icon: '📨' },
@@ -322,10 +319,8 @@ const adminMenuItems = [
   { to: '/config', label: 'settings', icon: '⚙️' }
 ]
 
-/* ----------  COMPUTED  ---------- */
 const isAnyPanelOpen = computed(() => activePanel.value || showUserPanel.value)
 
-/* ----------  MÉTODOS  ---------- */
 const toggleUserPanel = () => {
   showUserPanel.value = !showUserPanel.value
   activePanel.value = null
@@ -352,75 +347,47 @@ const closeAllPanels = () => {
   langDropdownOpen.value = false
 }
 
-// Sanitización de mensajes para prevenir XSS
 const sanitizeMessage = (message) => {
   if (!message) return ''
   return DOMPurify.sanitize(message, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'span'] })
 }
 
-// Redirección inteligente de notificaciones con modal fallback
 const handleNotificationClick = async (notification) => {
   try {
-    // 1. Marcar como leída inmediatamente en UI
-    socketStore.markAsRead(notification.id)
-    
-    // 2. Validar token
+    try { socketStore.markAsRead(notification.id) } catch(e) { console.error(e) }
     const token = authStore.token
     if (!token || authStore.isTokenExpired?.()) {
       await authStore.refreshToken?.()
       return router.push('/login')
     }
-
-    // 3. Enviar al backend (no bloqueante)
     api.post('/notifications/read', { id: notification.id }, {
       headers: { Authorization: `Bearer ${token}` }
     }).catch(err => console.error('❌ Error marcando leído:', err))
-
-    // 4. Cerrar panel
     activePanel.value = null
 
-    // 5. Lógica de redirección
     let targetPath = null
-    
     if (notification.data_json) {
       try {
         const data = JSON.parse(notification.data_json)
         if (data.link) targetPath = data.link
-        
-        // Tipos específicos
-        if (data.type === 'order' && data.orderId) {
-          targetPath = `/orders/${data.orderId}`
-        } else if (data.type === 'service' && data.serviceId) {
-          targetPath = `/services/${data.serviceId}`
-        } else if (data.type === 'chat' && data.chatId) {
-          targetPath = `/chats/${data.chatId}`
-        }
+        if (data.type === 'order' && data.orderId) targetPath = `/orders/${data.orderId}`
+        else if (data.type === 'service' && data.serviceId) targetPath = `/services/${data.serviceId}`
+        else if (data.type === 'chat' && data.chatId) targetPath = `/chats/${data.chatId}`
       } catch (e) {
         console.warn('⚠️ data_json inválido:', e)
       }
     }
-    
-    if (!targetPath && notification.link) {
-      targetPath = notification.link
-    }
+    if (!targetPath && notification.link) targetPath = notification.link
 
-    // 6. Navegar o mostrar modal
-    if (targetPath) {
-      router.push(targetPath)
-    } else {
-      // Mostrar modal si no hay ruta
-      selectedNotification.value = notification
-    }
+    if (targetPath) router.push(targetPath)
+    else selectedNotification.value = notification
   } catch (error) {
     console.error('❌ Error en handleNotificationClick:', error)
   }
 }
 
-// Manejar acción del modal
 const handleNotificationAction = (notification) => {
-  if (notification.action_link) {
-    router.push(notification.action_link)
-  }
+  if (notification.action_link) router.push(notification.action_link)
   selectedNotification.value = null
 }
 
@@ -451,17 +418,23 @@ const onScroll = () => {
   isExpanded.value = window.scrollY < SCROLL_THRESHOLD
 }
 
-/* ----------  CICLO DE VIDA  ---------- */
+let clickOutsideListener = null
+let unlockAudio = null
+let visibilityChangeListener = null
+
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
-  
-  document.addEventListener('click', (e) => {
+
+  // Cerrar dropdown de idioma al hacer clic fuera
+  clickOutsideListener = (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {
       langDropdownOpen.value = false
     }
-  })
-  
-  const unlockAudio = () => {
+  }
+  document.addEventListener('click', clickOutsideListener)
+
+  // Desbloquear audio de notificación en dispositivos móviles
+  unlockAudio = () => {
     if (socketStore.notificationSound) {
       socketStore.notificationSound.volume = 0
       socketStore.notificationSound.play()
@@ -478,34 +451,25 @@ onMounted(async () => {
   }
   document.addEventListener('click', unlockAudio)
   document.addEventListener('touchstart', unlockAudio)
-  
+
+  // Inicializar datos
   if (authStore.user) {
     try {
       await Promise.all([
-        notificationStore.fetchNotificationsFromDB(),
+        notificationStore.loadNotificationsFromAPI(),
         conversationStore.fetchConversations()
       ])
-      
-      socketStore.init({
-        heartbeat: true,
-        heartbeatInterval: 30000
-      })
 
-      socketStore.on('new-message', (payload) => {
-        conversationStore.prependMessage?.(payload)
-      })
-      
-      socketStore.on('conversation-updated', (payload) => {
-        conversationStore.updateConversation?.(payload)
-      })
+      socketStore.init({ heartbeat: true, heartbeatInterval: 30000 })
+      socketStore.on('new-message', (payload) => conversationStore.prependMessage?.(payload))
+      socketStore.on('conversation-updated', (payload) => conversationStore.updateConversation?.(payload))
 
-      const debouncedReconnect = () => {
+      visibilityChangeListener = () => {
         if (!document.hidden && authStore.user) {
           socketStore.init()
         }
       }
-      
-      document.addEventListener('visibilitychange', debouncedReconnect)
+      document.addEventListener('visibilitychange', visibilityChangeListener)
     } catch (err) {
       console.error('❌ Error al inicializar:', err)
     }
@@ -514,6 +478,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
+  if (clickOutsideListener) document.removeEventListener('click', clickOutsideListener)
+  if (unlockAudio) {
+    document.removeEventListener('click', unlockAudio)
+    document.removeEventListener('touchstart', unlockAudio)
+  }
+  if (visibilityChangeListener) document.removeEventListener('visibilitychange', visibilityChangeListener)
+
   socketStore.off('new-message')
   socketStore.off('conversation-updated')
   socketStore.disconnect()
@@ -551,4 +522,3 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 </style>
-

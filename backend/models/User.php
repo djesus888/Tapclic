@@ -125,4 +125,37 @@ class User {
             ':id'   => $id
         ]);
     }
+
+/* ---------- RESET PASSWORD ---------- */
+
+public function setResetToken(int $userId, ?string $token, ?string $expiresAt): bool
+{
+    $sql = "UPDATE {$this->table} 
+            SET reset_password_token = :token, 
+                reset_password_expires_at = :expires 
+            WHERE id = :id";
+
+    $stmt = $this->conn->prepare($sql);
+    return $stmt->execute([
+        ':token'   => $token,
+        ':expires' => $expiresAt,
+        ':id'      => $userId
+    ]);
+}
+
+public function findByResetToken(string $token): ?array
+{
+    $sql = "SELECT id, reset_password_expires_at 
+            FROM {$this->table} 
+            WHERE reset_password_token = :token 
+            LIMIT 1";
+
+    $stmt = $this->conn->prepare($sql);
+    $stmt->execute([':token' => $token]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return $user ?: null;
+}
+
+
 }

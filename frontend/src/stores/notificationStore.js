@@ -1,79 +1,93 @@
-// stores/notificationStore.js
-import { defineStore } from 'pinia'
-import api from '@/axios' // Importamos el axios ya configurado
+// src/stores/notificationStore.js
+import { defineStore } from 'pinia';
+import api from '@/axios';
+import { useAuthStore } from './authStore';
+import { useSocketStore } from './socketStore';
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
     notifications: [],
-    unreadCount: 0
+    _initialized: false,
   }),
 
   actions: {
-    async fetchNotificationsFromDB() {
-  try {
-    const res = await api.get('/notifications/mine')
-    // extrae el array que viene dentro de res.data.data o res.data
-    const list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.data)
-      ? res.data.data
-      : res.data?.notifications || []
+    async initialize() {
+      if (this._initialized) return;
 
-    this.notifications = list
-    this.unreadCount  = list.filter(n => !n.is_read).length
-  } catch (error) {
-    console.error('❌ Error al obtener notificaciones:', error)
-    this.notifications = []
-    this.unreadCount  = 0
-  }
-},
-  async markAllAsRead() {
+      await this.loadNotificationsFromAPI();
+      this._initialized = true;
+
+      const socketStore = useSocketStore();
+      socketStore.init();
+
+      // Suscribirse a notificaciones en tiempo real
+      socketStore.on('new-notification', (notification) => {
+        this.addNotification(notification);
+      });
+
+      window.addEventListener('request-updated', () => this._invalidateCache());
+      window.addEventListener('payment-updated', () => this._invalidateCache());
+    },
+
+    async loadNotificationsFromAPI() {
       try {
-        await api.post('/notifications/mark-all-read')
-        this.notifications = this.notifications.map(n => ({ ...n, is_read: true }))
-        this.unreadCount = 0
-      } catch (error) {
-        console.error('❌ Error al marcar todas las notificaciones como leídas:', error)
+        const authStore = useAuthStore();
+        const response = await api.get('/notifications/mine', {
+          headers: { Authorization: `Bearer ${authStore.token}` },
+        });
+
+        const list = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data?.data)
+          ? response.data.data
+          : response.data?.notifications || [];
+
+        this.notifications = list;
+      } catch (err) {
+        console.error('Error loading notifications:', err);
       }
     },
 
-    async markAsRead(notificationId) {
-         const notification = this.notifications.find(n => n.id === notificationId)
-       if (notification && !notification.is_read) {
-       try {
-      await api.post(`/notifications/read`, { id: notificationId })
-      notification.is_read = true
-      this.unreadCount = this.notifications.filter(n => !n.is_read).length
-    } catch (error) {
-      console.error('❌ Error al marcar la notificación como leída:', error.response?.data || error.message)
-    }
-  }
-},
-
-    handleIncomingNotification(notification) {
-      this.notifications.unshift(notification)
-      if (!notification.is_read) {
-        this.unreadCount++
-      }
-    },
-    handleIncomingNotification(notification) {
-      this.notifications.unshift(notification)
-      if (!notification.is_read) {
-        this.unreadCount++
+    addNotification(notification) {
+      const exists = this.notifications.find((n) => n.id === notification.id);
+      if (!exists) {
+        this.notifications.unshift(notification);
+        this.playSound();
       }
     },
 
-    /* ↓↓↓ NUEVOS ↓↓↓ */
-    prependNotification(payload) {
-      this.notifications.unshift(payload)
-      this.unreadCount = this.notifications.filter(n => !n.is_read).length
-      this.playNotificationSound?.()
+    markAsRead(id) {
+      const idx = this.notifications.findIndex((n) => n.id === id);
+      if (idx !== -1) {
+        this.notifications[idx].is_read = true;
+      }
     },
 
-    playNotificationSound() {
-      const audio = new Audio('/sounds/notification.mp3')
-      audio.volume = 0.6
-      audio.play().catch(() => {})
-    }
-  }
-})
+    markAllAsRead() {
+      this.notifications = this.notifications.map((n) => ({ ...n, is_read: true }));
+    },
+
+    removeNotification(id) {
+      this.notifications = this.notifications.filter((n) => n.id !== id);
+    },
+
+    _invalidateCache() {
+      this._initialized = false;
+      console.log('🔄 Cache de notificaciones invalidado');
+      this.initialize(); // refresca inmediatamente
+    },
+
+    async playSound() {
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.6;
+        await audio.play();
+      } catch (_) {}
+    },
+  },
+
+  getters: {
+    unreadCount: (state) => state.notifications.filter((n) => !n.is_read).length,
+  },
+});
+

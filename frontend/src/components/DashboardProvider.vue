@@ -206,6 +206,7 @@
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketStore } from '@/stores/socketStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
 import NewTicketModal from '@/components/NewTicketModal.vue'
 import PaymentPill from '@/components/PaymentPill.vue'
@@ -272,379 +273,524 @@ export default {
       showProofModal: false,
       selectedHistory: {},
       historyModal: false,
-      _unsubscribeListeners: []
+      _lastPullRefresh: 0,
+      _pullRefreshCooldown: 5000,
+      _socketHandlers: {},
+      _unsubscribeFns: [],
+      _initialized: false,
+      socketHandlers: [],
+      // ✅ FIX: Sistema de cache
+      _lastFetch: {
+        support: 0,
+        history: 0,
+        faq: 0
+      },
+      _CACHE_TTL: 5000
     }
   },
-                                     
-  watch: {
-    '$i18n.locale': {
-      immediate: true,
-      handler() {
-        this.tabs = [
-          { value: 'available', label: this.$t('requests') },
-          { value: 'in-progress', label: this.$t('active') },
-          { value: 'support', label: this.$t('support') },
-          { value: 'history', label: this.$t('history') }
-        ]
-        if (this.providerId) {
-          this.$nextTick(() => this.syncRequests())
-        }
-      }
-    }
-  },
-                                     
+
   async mounted() {
-    const auth = useAuthStore()
-    const socketStore = useSocketStore()
-    if (!socketStore.socket?.connected) socketStore.init()
-    
-    this.setupSocketListeners(socketStore)
-    this.providerId = auth.user?.id
-    await auth.loadLocale()
-    await this.fetchAvailableRequests()
-    
-    this.$watch('activeTab', () => this.syncRequests())
+    const auth = useAuthStore();
+    const socketStore = useSocketStore();
+    const notificationStore = useNotificationStore();
+
+    try {
+      socketStore.init();
+      await notificationStore.initialize();
+
+      this.setupSocketHandlers(socketStore);
+      this.providerId = auth.user?.id;
+
+      await auth.loadLocale();
+      await this.initializeTabs();
+      await this.$nextTick();
+
+      // ✅ FIX: Cargar TODAS las secciones al inicio
+      await Promise.allSettled([
+        this.fetchAvailableRequests(),
+        this.fetchActiveRequests(),
+        this.fetchTickets(),
+        this.fetchFaq(),
+        this.fetchHistoryRequests()
+      ]);
+
+      this._initialized = true;
+    } catch (error) {
+      console.error('❌ Error inicializando DashboardProvider:', error);
+      this.$swal?.fire({ icon: 'error', title: 'Error', text: error.message });
+    }
+
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   },
 
   beforeUnmount() {
-    this.cleanupSocketListeners()
-    this.resetModals()
+    this.cleanupSocketHandlers();
+    this.resetModals();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   },
-                                     
+
   methods: {
-    /* ----------  Socket  ---------- */
-    setupSocketListeners(socketStore) {
-      const onRequestUpdated = ({ request }) => {
-        this.handleRequestUpdate(request)
-        socketStore.playNotificationSound()
+    async onVisibilityChange() {
+      if (!document.hidden && this._initialized) {
+        console.log('👀 Provider volvió de background → refrescando');
+        this._lastPullRefresh = 0;
+        await this.syncRequests();
       }
-      const onPaymentUpdated = ({ request_id, payment_status }) => {
-        this.handlePaymentUpdate(request_id, payment_status)
+    },
+
+    setupSocketHandlers(socketStore) {
+      this.cleanupSocketHandlers();
+
+      const onRequestUpdated = this.throttle((payload) => {
+        console.log('🔔 Provider: Evento request_updated recibido:', payload);
+        if (payload.request) {
+          this.handleRequestUpdate(payload.request);
+          socketStore.playNotificationSound();
+        }
+      }, 1000);
+
+      const onPaymentUpdated = this.throttle((payload) => {
+        console.log('🔔 Provider: Evento payment_updated recibido:', payload);
+        if (payload.request_id && payload.payment_status) {
+          this.handlePaymentUpdate(payload.request_id, payload.payment_status);
+        }
+      }, 1000);
+
+      const onNewNotification = this.throttle((notification) => {
+        console.log('🔔 Provider: Notificación recibida:', notification.event);
+        switch(notification.event) {
+          case 'status_changed':
+          case 'request_updated':
+            this.syncRequests();
+            break;
+        }
+      }, 1000);
+
+      socketStore.on('request_updated', onRequestUpdated);
+      socketStore.on('payment_updated', onPaymentUpdated);
+      socketStore.on('new-notification', onNewNotification);
+
+      this.socketHandlers = [
+        { event: 'request_updated', handler: onRequestUpdated },
+        { event: 'payment_updated', handler: onPaymentUpdated },
+        { event: 'new-notification', handler: onNewNotification }
+      ];
+    },
+
+    cleanupSocketHandlers() {
+      const socketStore = useSocketStore();
+      this.socketHandlers.forEach(({ event, handler }) => {
+        socketStore.off(event, handler);
+      });
+      this.socketHandlers = [];
+    },
+
+    throttle(func, limit) {
+      let inThrottle;
+      return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+          func.apply(context, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
+        }
       }
-      this._unsubscribeListeners = [
-        socketStore.on('request_updated', onRequestUpdated),
-        socketStore.on('payment_updated', onPaymentUpdated)
-      ]
-      this._socketHandlers = { onRequestUpdated, onPaymentUpdated }
     },
-                                     
-    cleanupSocketListeners() {
-      this._unsubscribeListeners?.forEach(fn => { if (typeof fn === 'function') fn() })
-      this._unsubscribeListeners = []
-      this._socketHandlers = null
+
+    async initializeTabs() {
+      this.tabs = [
+        { value: 'available', label: this.$t('requests') },
+        { value: 'in-progress', label: this.$t('active') },
+        { value: 'support', label: this.$t('support') },
+        { value: 'history', label: this.$t('history') }
+      ];
     },
-                                     
+
+    handleProviderRefresh() {
+      console.log('🔄 Provider dashboard refresh solicitado');
+      this.syncRequests();
+    },
+
+    pullStart(e) {
+      this.pulling = true;
+      this.pullStartY = e.touches ? e.touches[0].clientY : e.clientY;
+    },
+
+    pullMove(e) {
+      if (!this.pulling) return;
+      const y = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = y - this.pullStartY;
+
+      if (deltaY > 120) {
+        const now = Date.now();
+        if (now - this._lastPullRefresh > this._pullRefreshCooldown) {
+          this._lastPullRefresh = now;
+          this.pulling = false;
+          this.syncRequests();
+        } else {
+          console.log('⏳ Pull-to-refresh en cooldown');
+        }
+      }
+    },
+
+    pullEnd() {
+      this.pulling = false;
+    },
+
+    updateRequestStatus(requestId, newStatus, updatedAt) {
+      const index = this.inProgressRequests.findIndex(r => r.id === requestId);
+      if (index === -1) return;
+      const updated = [...this.inProgressRequests];
+      updated[index] = {
+        ...updated[index],
+        status: newStatus,
+        updated_at: updatedAt
+      };
+      this.inProgressRequests = updated;
+    },
+
     handleRequestUpdate(request) {
       if (['accepted', 'rejected', 'busy'].includes(request.status)) {
-        this.availableRequests = this.availableRequests.filter(r => r.id !== request.id)
+        this.availableRequests = this.availableRequests.filter(r => r.id !== request.id);
       }
-      const idx = this.inProgressRequests.findIndex(r => r.id === request.id)
+      const idx = this.inProgressRequests.findIndex(r => r.id === request.id);
       if (idx >= 0) {
-        // ✅ Vue 3: asignación directa
-        this.inProgressRequests[idx] = request
+        this.inProgressRequests[idx] = request;
       } else {
-        this.inProgressRequests.unshift(request)
+        this.inProgressRequests.unshift(request);
       }
       if (['completed', 'cancelled', 'rejected', 'finalized'].includes(request.status)) {
-        this.updateHistory(request)
+        this.updateHistory(request);
       }
     },
 
     handlePaymentUpdate(request_id, payment_status) {
-      const req = this.inProgressRequests.find(r => r.id === request_id)
-      if (req) req.payment_status = payment_status
+      const req = this.inProgressRequests.find(r => r.id === request_id);
+      if (req) req.payment_status = payment_status;
     },
 
     updateHistory(request) {
-      const hIdx = this.historyRequests.findIndex(h => h.id === request.id)
-      const normalized = this.normalizeHistory(request)
+      const hIdx = this.historyRequests.findIndex(h => h.id === request.id);
+      const normalized = this.normalizeHistory(request);
       if (hIdx >= 0) {
-        this.historyRequests[hIdx] = normalized
+        this.historyRequests[hIdx] = normalized;
       } else {
-        this.historyRequests.unshift(normalized)
+        this.historyRequests.unshift(normalized);
       }
     },
-                                     
-    /* ----------  Utils  ---------- */
+
     resetModals() {
-      this.chatTarget = null
-      this.showNewTicket = false
-      this.openDropdown = null
-      this.showProofModal = false
-      this.proofModalRequestId = null
-      this.historyModal = false
-      this.selectedHistory = {}
+      this.chatTarget = null;
+      this.showNewTicket = false;
+      this.openDropdown = null;
+      this.showProofModal = false;
+      this.proofModalRequestId = null;
+      this.historyModal = false;
+      this.selectedHistory = {};
     },
 
     sanitize(str) {
-      if (!str || typeof str !== 'string') return str
-      const tempDiv = document.createElement('div')
-      tempDiv.textContent = str
+      if (!str || typeof str !== 'string') return str;
+      const tempDiv = document.createElement('div');
+      tempDiv.textContent = str;
       return tempDiv.innerHTML
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/on\w+="[^"]*"/g, '')
         .replace(/on\w+='[^']*'/g, '')
-        .replace(/javascript:/gi, '')
+        .replace(/javascript:/gi, '');
     },
-                                     
+
     parsePaymentMethods(raw) {
       try {
-        if (Array.isArray(raw)) return raw
-        if (typeof raw === 'string') return JSON.parse(raw)
-        return []
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') return JSON.parse(raw);
+        return [];
       } catch {
-        return []
+        return [];
       }
     },
-                                     
+
     normalizeHistory(h) {
-      return { ...h, payment_methods: this.parsePaymentMethods(h.payment_methods) }
+      return { ...h, payment_methods: this.parsePaymentMethods(h.payment_methods) };
     },
 
     formatDate(d, onlyTime = false) {
-      if (!d) return ''
-      const locale = this.$i18n.locale.value || 'es'
+      if (!d) return '';
+      const locale = this.$i18n.locale.value || 'es';
       const opts = onlyTime
         ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
-        : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+        : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
       try {
-        return new Date(d).toLocaleString(locale, opts)
-      } catch {
-        return d
-      }
+        return new Date(d).toLocaleString(locale, opts);
+      } catch { return d; }
     },
-                                     
+
     formatCurrency(amount) {
-      const locale = this.$i18n.locale.value || 'es'
-      return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(amount || 0)
+      const locale = this.$i18n.locale.value || 'es';
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(amount || 0);
     },
-                                     
-    /* ----------  UI  ---------- */
+
     tabClass(tab) {
       return [
         'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
         this.activeTab === tab
           ? 'bg-blue-600 text-white shadow-md'
           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-      ]
+      ];
     },
 
     statusLabel(status) {
-      const key = 'status.' + status
-      const translated = this.$t(key)
-      return translated === key ? status : translated
+      const key = 'status.' + status;
+      const translated = this.$t(key);
+      return translated === key ? status : translated;
     },
-                                     
+
     statusColor(status) {
-      return STATUS_COLORS[status] || 'text-gray-500'
+      return STATUS_COLORS[status] || 'text-gray-500';
     },
 
     emoji(status) {
-      return STATUS_EMOJIS[status] || '•'
+      return STATUS_EMOJIS[status] || '•';
     },
-                                     
+
     allowedNext(status) {
-      return STATUS_FLOW[status] || []
+      return STATUS_FLOW[status] || [];
     },
-                                     
+
     toggleDropdown(id) {
-      this.openDropdown = this.openDropdown === id ? null : id
+      this.openDropdown = this.openDropdown === id ? null : id;
     },
 
     elapsed(updatedAt) {
-      if (!updatedAt) return '00:00:00'
+      if (!updatedAt) return '00:00:00';
       try {
-        const seconds = Math.floor((Date.now() - new Date(updatedAt)) / 1000)
-        const hours = String(Math.floor(seconds / 3600)).padStart(2, '0')
-        const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')
-        const secs = String(seconds % 60).padStart(2, '0')
-        return `${hours}:${minutes}:${secs}`
+        const seconds = Math.floor((Date.now() - new Date(updatedAt)) / 1000);
+        const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+        const secs = String(seconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${secs}`;
       } catch {
-        return '00:00:00'
+        return '00:00:00';
       }
     },
-                                     
-    /* FIX: función que faltaba */
+
     timeline(req) {
       return [
         { status: req.status, updated_at: req.updated_at }
-      ]
+      ];
     },
-                                     
-    /* ----------  Chat  ---------- */
+
     openChat(userId, role = 'user') {
-      const request = this.inProgressRequests.find(r => r.user_id === userId)
-      this.chatTarget = { id: userId, name: request?.user_name || this.$t('user'), role }
+      const request = this.inProgressRequests.find(r => r.user_id === userId);
+      this.chatTarget = { id: userId, name: request?.user_name || this.$t('user'), role };
     },
-                                     
+
     openSupportChat() {
-      this.chatTarget = { id: 1, name: this.$t('support'), role: 'admin' }
+      this.chatTarget = { id: 1, name: this.$t('support'), role: 'admin' };
     },
-                                     
-    /* ----------  Modals  ---------- */
+
     openHistoryModal(request) {
-      this.selectedHistory = request
-      this.historyModal = true
+      this.selectedHistory = request;
+      this.historyModal = true;
     },
+
     closeHistoryModal() {
-      this.historyModal = false
-      this.selectedHistory = {}
+      this.historyModal = false;
+      this.selectedHistory = {};
     },
+
     openProofModal(requestId) {
-      this.proofModalRequestId = requestId
-      this.showProofModal = true
+      this.proofModalRequestId = requestId;
+      this.showProofModal = true;
     },
+
     onProofModalClose() {
-      this.showProofModal = false
-      this.fetchActiveRequests()
+      this.showProofModal = false;
+      this.fetchActiveRequests();
     },
-                                     
-    /* ----------  Data Fetching  ---------- */
-    syncRequests() {
+
+    async syncRequests() {
+      const authStore = useAuthStore();
+      if (!authStore.token) {
+        console.warn('⚠️ No hay token, cancelando syncRequests');
+        return;
+      }
+
       const fetchMap = {
         'available': () => this.fetchAvailableRequests(),
         'in-progress': () => this.fetchActiveRequests(),
         'history': () => this.fetchHistoryRequests(),
         'support': () => { this.fetchTickets(); this.fetchFaq(); }
+      };
+
+      try {
+        await fetchMap[this.activeTab]?.();
+      } catch (error) {
+        console.error('❌ Error en syncRequests:', error);
       }
-      fetchMap[this.activeTab]?.()
-    },
-                                     
-    pullStart(e) {
-      this.pulling = true
-      this.pullStartY = e.touches ? e.touches[0].clientY : e.clientY
-    },
-    pullMove(e) {
-      if (!this.pulling) return
-      const y = e.touches ? e.touches[0].clientY : e.clientY
-      const deltaY = y - this.pullStartY
-      if (deltaY > 120) { this.pulling = false; this.syncRequests(); }
-    },
-    pullEnd() {
-      this.pulling = false
     },
 
     async fetchAvailableRequests() {
-      this.loading.available = true
+      const auth = useAuthStore();
+      if (!auth.token) {
+        this.loading.available = false;
+        return;
+      }
+
+      this.loading.available = true;
       try {
-        const auth = useAuthStore()
         const res = await api.get('/requests/pending', {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        })
-        this.availableRequests = Array.isArray(res.data?.data) ? res.data.data : []
+          headers: {
+            Authorization: `Bearer ${auth.token}`
+          }
+        });
+        this.availableRequests = Array.isArray(res.data?.data) ? res.data.data : [];
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
-        this.loading.available = false
+        this.loading.available = false;
       }
     },
 
     async fetchActiveRequests() {
-      this.loading.inProgress = true
+      const auth = useAuthStore();
+      if (!auth.token) {
+        this.loading.inProgress = false;
+        return;
+      }
+
+      this.loading.inProgress = true;
       try {
-        const auth = useAuthStore()
         const res = await api.get('/requests/active', {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        })
-        this.inProgressRequests = Array.isArray(res.data?.data) ? res.data.data : []
+          headers: {
+            Authorization: `Bearer ${auth.token}`
+          }
+        });
+        this.inProgressRequests = Array.isArray(res.data?.data) ? res.data.data : [];
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
-        this.loading.inProgress = false
+        this.loading.inProgress = false;
       }
     },
 
+    // ✅ FIX: Cache TTL para historial
     async fetchHistoryRequests() {
-      this.loading.history = true
-      try {
-        const auth = useAuthStore()
-        const res = await api.get('/history', {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        })
-        const data = Array.isArray(res.data?.history) ? res.data.history : res.data || []
-        this.historyRequests = data.map(h => this.normalizeHistory(h))
-      } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
-      } finally {
-        this.loading.history = false
+      const now = Date.now();
+      if (now - this._lastFetch.history < this._CACHE_TTL && this.historyRequests.length > 0) {
+        return;
       }
-    },
-                                     
-    async fetchTickets() {
-      if (this.tickets.length > 0) return
-      this.loading.support = true
+
+      const auth = useAuthStore();
+      if (!auth.token) {
+        this.loading.history = false;
+        return;
+      }
+
+      this.loading.history = true;
       try {
-        const auth = useAuthStore()
-        const res = await api.get('/support/tickets', {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        })
-        this.tickets = Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || []
+        const res = await api.get('/history', {
+          headers: {
+            Authorization: `Bearer ${auth.token}`
+          }
+        });
+        const data = Array.isArray(res.data?.history) ? res.data.history : res.data || [];
+        this.historyRequests = data.map(h => this.normalizeHistory(h));
+        this._lastFetch.history = now;
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
-        this.loading.support = false
+        this.loading.history = false;
       }
     },
 
-    async fetchFaq() {
-      if (this.faqItems.length > 0) return
-      this.loading.faq = true
+    // ✅ FIX: Cache TTL y eliminar early return
+    async fetchTickets() {
+      const now = Date.now();
+      if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) {
+        return;
+      }
+
+      const auth = useAuthStore();
+      if (!auth.token) {
+        this.loading.support = false;
+        return;
+      }
+
+      this.loading.support = true;
       try {
-        const res = await api.get('/support/faq')
-        this.faqItems = Array.isArray(res.data?.faq) ? res.data.faq : res.data || []
+        const res = await api.get('/support/tickets', {
+          headers: {
+            Authorization: `Bearer ${auth.token}`
+          }
+        });
+        this.tickets = Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || [];
+        this._lastFetch.support = now;
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
-        this.loading.faq = false
+        this.loading.support = false;
       }
     },
-                                     
-    /* ----------  Actions  ---------- */
+
+    // ✅ FIX: Cache TTL y eliminar early return
+    async fetchFaq() {
+      const now = Date.now();
+      if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) {
+        return;
+      }
+
+      this.loading.faq = true;
+      try {
+        const res = await api.get('/support/faq');
+        this.faqItems = Array.isArray(res.data?.faq) ? res.data.faq : res.data || [];
+        this._lastFetch.faq = now;
+      } catch (e) {
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
+      } finally {
+        this.loading.faq = false;
+      }
+    },
+
     async executeRequestAction(id, endpoint, successMessage = null) {
       try {
-        const res = await api.post(endpoint, { id })
+        const auth = useAuthStore();
+        const res = await api.post(endpoint, { id }, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
         if (res.data.success) {
-          this.availableRequests = this.availableRequests.filter(r => r.id !== id)
-          useSocketStore().playNotificationSound()
-          if (successMessage) {
-            this.$swal?.fire({ icon: 'success', title: 'Éxito', text: successMessage })
-          }
+          this.availableRequests = this.availableRequests.filter(r => r.id !== id);
+          useSocketStore().playNotificationSound();
+          if (successMessage) this.$swal?.fire({ icon: 'success', title: 'Éxito', text: successMessage });
         }
       } catch (e) {
-        console.error(e)
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message })
+        console.error(e);
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       }
     },
 
-    async acceptRequest(id) {
-      await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada')
-    },
+    async acceptRequest(id) { await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada'); },
+    async rejectRequest(id) { await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada'); },
+    async busyRequest(id) { await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido'); },
 
-    async rejectRequest(id) {
-      await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada')
-    },
-
-    async busyRequest(id) {
-      await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido')
-    },
-                                     
     async setStatus(requestId, newStatus) {
       try {
-        const auth = useAuthStore()
+        const auth = useAuthStore();
         const res = await api.post(`/requests/${newStatus}`, { id: requestId }, {
           headers: { Authorization: `Bearer ${auth.token}` }
-        })
+        });
         if (res.data.success) {
-          this.updateRequestStatus(requestId, newStatus, res.data.updated_at || new Date().toISOString())
-
-          // ⭐ Abrir modal para que el proveedor califique al cliente
+          this.updateRequestStatus(requestId, newStatus, res.data.updated_at || new Date().toISOString());
           if (newStatus === 'finalized') {
-            const req = this.inProgressRequests.find(r => r.id === requestId)
+            const req = this.inProgressRequests.find(r => r.id === requestId);
             if (req) {
               window.dispatchEvent(new CustomEvent('open-rating-modal', {
                 detail: {
@@ -654,56 +800,45 @@ export default {
                   targetRole: 'provider',
                   message: 'Quieres calificar a este cliente'
                 }
-              }))
+              }));
             }
           }
-
-          this.openDropdown = null
-          useSocketStore().playNotificationSound()
+          this.openDropdown = null;
+          useSocketStore().playNotificationSound();
         } else {
-          // ✅ Manejar cuando success es false
-          this.$swal?.fire({ icon: 'error', title: 'Error', text: res.data.message })
+          this.$swal?.fire({ icon: 'error', title: 'Error', text: res.data.message });
         }
       } catch (e) {
-        // ✅ CORREGIDO: Mostrar el mensaje real del backend
-        const errorMsg = e.response?.data?.message || e.message
-        this.$swal?.fire({ icon: 'error', title: 'Error', text: errorMsg })
+        const errorMsg = e.response?.data?.message || e.message;
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: errorMsg });
       }
     },
-                                     
-    updateRequestStatus(requestId, newStatus, updatedAt) {
-      const index = this.inProgressRequests.findIndex(r => r.id === requestId)
-      if (index === -1) return
-      // ✅ Vue 3: asignación directa
-      this.inProgressRequests[index].status = newStatus
-      this.inProgressRequests[index].updated_at = updatedAt
-    },
-                                     
+
     async confirmPayment(requestId) {
       try {
-        const auth = useAuthStore()
+        const auth = useAuthStore();
         const res = await api.post('/requests/confirm-payment', { id: requestId }, {
           headers: { Authorization: `Bearer ${auth.token}` }
-        })
+        });
         if (res.data.success) {
-          const index = this.inProgressRequests.findIndex(r => r.id === requestId)
-          if (index !== -1) {
-            this.inProgressRequests[index].payment_status = 'paid'
-          }
-          useSocketStore().playNotificationSound()
+          const index = this.inProgressRequests.findIndex(r => r.id === requestId);
+          if (index !== -1) this.inProgressRequests[index].payment_status = 'paid';
+          useSocketStore().playNotificationSound();
         }
       } catch (e) {
         this.$swal?.fire({
           icon: 'error',
           title: 'Error',
           text: this.$t('error_confirming_payment') || 'Error confirmando pago'
-        })
+        });
       }
     },
 
+    // ✅ FIX: Resetear cache al crear ticket
     onTicketCreated() {
-      this.showNewTicket = false
-      this.fetchTickets()
+      this.showNewTicket = false;
+      this._lastFetch.support = 0; // Forzar recarga
+      this.fetchTickets();
     }
   }
 }
@@ -712,11 +847,5 @@ export default {
 <style scoped>
 .card {
   @apply bg-white rounded-lg shadow-md overflow-hidden;
-}
-.pull-indicator {
-  transition: transform 0.3s ease;
-}
-.pull-indicator.pulling {
-  transform: translateY(50px);
 }
 </style>

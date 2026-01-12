@@ -1,22 +1,20 @@
-// src/stores/authStore.js
+// src/stores/authStore.js - VERSIÓN REFACTORIZADA
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import api from '@/axios' // Instancia por defecto
 import Swal from 'sweetalert2'
-import router from '@/router'
-import { i18n } from '@/i18n'
-
-const API_URL = import.meta.env.VITE_API_URL
-axios.defaults.baseURL = API_URL
+import router from '@/router' // Router por defecto
+import { i18n } from '@/i18n' // i18n por defecto
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || null,
     user: (() => {
       const stored = localStorage.getItem('user')
-      try {
-        return stored ? JSON.parse(stored) : null
-      } catch {
-        return null
+      try { 
+        return stored ? JSON.parse(stored) : null 
+      } catch { 
+        localStorage.removeItem('user') // Limpieza automática
+        return null 
       }
     })(),
     role: localStorage.getItem('role') || null,
@@ -25,25 +23,60 @@ export const useAuthStore = defineStore('auth', {
   }),
 
   actions: {
+    // HELPERS PRIVADOS (APIS INTERNA MEJORADA)
+    _saveAuthData({ token, user, role }) {
+      const data = { token, user: JSON.stringify(user), role }
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          localStorage.setItem(key, value)
+        }
+      })
+      this.token = token
+      this.user = user
+      this.role = role
+      this.setAxiosToken(token)
+    },
+
+    _clearAuthData() {
+      this.token = null
+      this.user = null
+      this.role = null
+      this.locale = 'es'
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('role')
+      localStorage.removeItem('userLocale')
+      this.setAxiosToken(null)
+    },
+
+    // INYECCIÓN DE DEPENDENCIAS (PARA TESTING)
+    _getDependencies() {
+      // Permite sobrescribir en tests
+      return {
+        apiInstance: api,
+        routerInstance: router,
+        i18nInstance: i18n,
+      }
+    },
+
     setAxiosToken(token) {
+      const { apiInstance } = this._getDependencies()
       if (token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        apiInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`
       } else {
-        delete axios.defaults.headers.common['Authorization']
+        delete apiInstance.defaults.headers.common['Authorization']
       }
     },
 
     setLocale(locale) {
+      const { i18nInstance } = this._getDependencies()
       this.locale = locale
       localStorage.setItem('userLocale', locale)
-
-      if (i18n?.global) {
-        i18n.global.locale.value = locale
-      }
+      if (i18nInstance?.global) i18nInstance.global.locale.value = locale
       document.documentElement.lang = locale
     },
 
-    loadLocale() {
+    async loadLocale() {
       const savedLocale = localStorage.getItem('userLocale')
       if (savedLocale) {
         this.setLocale(savedLocale)
@@ -56,36 +89,47 @@ export const useAuthStore = defineStore('auth', {
       return this.locale
     },
 
+    // NUEVA ACTION SOLICITADA
+    async loadFromStorage() {
+      const token = localStorage.getItem('token')
+      const user = localStorage.getItem('user')
+      
+      if (token && user) {
+        try {
+          this.token = token
+          this.user = JSON.parse(user)
+          this.role = localStorage.getItem('role')
+          this.setAxiosToken(token)
+          await this.loadLocale()
+        } catch (error) {
+          console.warn('⚠️ Datos corruptos en localStorage, limpiando...')
+          this._clearAuthData()
+        }
+      }
+    },
+
     async register(credentials) {
       this.loading = true
+      const { apiInstance } = this._getDependencies()
       try {
-        const res = await axios.post('/api/register', credentials)
+        const res = await apiInstance.post('/register', credentials)
         const { token, user } = res.data
-        if (!token || !user || !user.role) throw new Error('Respuesta inválida del servidor al registrar.')
-
-        if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
-          return user
+        if (!token || !user?.role) {
+          throw new Error('Respuesta inválida del servidor al registrar.')
         }
 
-        this.token = token
-        this.user = user
-        this.role = user.role
+        this._saveAuthData({ token, user, role: user.role })
 
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-        localStorage.setItem('role', user.role)
-
-        this.setAxiosToken(token)
-
-        const $t = i18n.global.t
+        const { i18nInstance } = this._getDependencies()
+        const $t = i18nInstance.global.t
         Swal.fire($t('success'), $t('registration_success'), 'success')
-
         return user
       } catch (error) {
-        const $t = i18n.global.t
+        const { i18nInstance } = this._getDependencies()
+        const $t = i18nInstance.global.t
         Swal.fire(
-          $t('error'),
-          error.response?.data?.message || error.message || $t('registration_failed'),
+          $t('error'), 
+          error.response?.data?.message || error.message || $t('registration_failed'), 
           'error'
         )
         throw error
@@ -96,27 +140,24 @@ export const useAuthStore = defineStore('auth', {
 
     async login(credentials) {
       this.loading = true
+      const { apiInstance, routerInstance, i18nInstance } = this._getDependencies()
       try {
-        const res = await axios.post('/api/login', credentials)
+        const res = await apiInstance.post('/login', credentials)
         const { token, user } = res.data
-        if (!token || !user || !user.role) throw new Error('Respuesta inválida del servidor al iniciar sesión.')
-
-        if (token === this.token && JSON.stringify(user) === JSON.stringify(this.user)) {
-          return
+        if (!token || !user?.role) {
+          throw new Error('Respuesta inválida del servidor al iniciar sesión.')
         }
 
-        this.token = token
-        this.user = user
-        this.role = user.role
+        this._saveAuthData({ token, user, role: user.role })
+        
+        // Carga de locale con await para consistencia
+        if (user.locale) {
+          this.setLocale(user.locale)
+        } else {
+          await this.loadLocale()
+        }
 
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-        localStorage.setItem('role', user.role)
-
-        this.setAxiosToken(token)
-        user.locale ? this.setLocale(user.locale) : this.loadLocale()
-
-        const $t = i18n.global.t
+        const $t = i18nInstance.global.t
         Swal.fire({
           icon: 'success',
           title: $t('success'),
@@ -124,24 +165,19 @@ export const useAuthStore = defineStore('auth', {
           timer: 1500,
           showConfirmButton: false,
           willClose: async () => {
-            // ✅ Redirección segura, sin duplicar navegación
-            const target =
-              user.role === 'admin'
-                ? '/dashboard/admin'
-                : user.role === 'provider'
-                ? '/dashboard/provider'
-                : '/dashboard/user'
-
-            if (router.currentRoute.value.path !== target) {
-              await router.replace(target)
+            const target = user.role === 'admin' ? '/dashboard/admin'
+                         : user.role === 'provider' ? '/dashboard/provider'
+                         : '/dashboard/user'
+            if (routerInstance.currentRoute.value.path !== target) {
+              await routerInstance.replace(target).catch(() => {})
             }
           },
         })
       } catch (error) {
-        const $t = i18n.global.t
+        const $t = i18nInstance.global.t
         Swal.fire(
-          $t('error'),
-          error.response?.data?.message || error.message || $t('invalid_credentials'),
+          $t('error'), 
+          error.response?.data?.message || error.message || $t('invalid_credentials'), 
           'error'
         )
         throw error
@@ -150,24 +186,29 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async refreshToken() {
+    async refreshToken(retries = 1) {
+      const { apiInstance } = this._getDependencies()
       try {
-        const res = await axios.post('/api/refresh-token', {}, {
+        const res = await apiInstance.post('/refresh-token', {}, {
           headers: { Authorization: `Bearer ${this.token}` },
         })
         const { token, user } = res.data
-        if (token === this.token) return token
-
-        this.token = token
-        this.user = user
-
-        localStorage.setItem('token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-        this.setAxiosToken(token)
-
-        return token
+        
+        // Solo actualizar si hay cambio
+        if (token && token !== this.token) {
+          this._saveAuthData({ token, user, role: user?.role || this.role })
+        }
+        
+        return token || this.token
       } catch (err) {
         console.error('❌ No se pudo refrescar el token:', err)
+        
+        // Lógica de reintento para errores de red
+        if (retries > 0 && (!err.response || err.code === 'ERR_NETWORK')) {
+          await new Promise(r => setTimeout(r, 500)) // Espera 500ms
+          return this.refreshToken(retries - 1)
+        }
+        
         this.logout()
         throw err
       }
@@ -175,13 +216,13 @@ export const useAuthStore = defineStore('auth', {
 
     async updateUserLocale(locale) {
       if (!this.token || !this.user) return
+      
+      const { apiInstance } = this._getDependencies()
       try {
-        const res = await axios.post(
-          '/api/user/locale',
-          { locale },
-          { headers: { Authorization: `Bearer ${this.token}` } }
-        )
-
+        const res = await apiInstance.post('/user/locale', { locale }, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
         if (res.data.success) {
           this.setLocale(locale)
           this.user.locale = locale
@@ -193,38 +234,39 @@ export const useAuthStore = defineStore('auth', {
     },
 
     logout() {
-      this.token = null
-      this.user = null
-      this.role = null
-      this.locale = 'es'
-
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('role')
-      localStorage.removeItem('userLocale')
-
-      this.setAxiosToken(null)
-
-      if (i18n?.global) {
-        i18n.global.locale.value = 'es'
-      }
+      const { routerInstance, i18nInstance } = this._getDependencies()
+      
+      this._clearAuthData()
+      
+      if (i18nInstance?.global) i18nInstance.global.locale.value = 'es'
       document.documentElement.lang = 'es'
 
-      // ✅ Redirección única al login
-      const current = router.currentRoute.value.path
-      if (current !== '/login') {
-        router.replace('/login').catch(() => {})
+      if (routerInstance.currentRoute.value.path !== '/login') {
+        routerInstance.replace('/login').catch(() => {})
       }
     },
   },
 })
 
-// ✅ Inicialización consistente del store
-export function initializeAuthStore() {
+// INICIALIZACIÓN MEJORADA (MANTIENE MISMA FIRMA PÚBLICA)
+export function initializeAuthStore(dependencies = {}) {
   const auth = useAuthStore()
+  
+  // Permitir inyección de dependencias para tests
+  if (Object.keys(dependencies).length > 0) {
+    auth._getDependencies = () => ({
+      api: api,
+      router: router,
+      i18n: i18n,
+      ...dependencies,
+    })
+  }
+
   if (auth.token) {
     auth.setAxiosToken(auth.token)
-    auth.loadLocale()
+    // Carga asíncrona sin bloquear
+    auth.loadLocale().catch(console.warn)
   }
+  
   return auth
 }

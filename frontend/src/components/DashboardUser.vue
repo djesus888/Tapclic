@@ -37,7 +37,7 @@
           </div>
           <div class="p-4 flex justify-between items-center bg-white">
             <div class="flex items-center gap-3">
-              <img :src="service.image_url ? `${API_URL}${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+              <img :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
               <div>
                 <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
                 <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
@@ -75,7 +75,7 @@
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <div class="flex items-center gap-3">
-                <img :src="request.service_image_url ? `${API_URL}${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+                <img :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
                 <div>
                   <p class="font-semibold">{{ sanitize(request.service_provider_name || 'Ads') }}</p>
                   <p v-if="request.provider_rating" class="text-yellow-500 text-sm">⭐ {{ request.provider_rating }}</p>
@@ -146,7 +146,7 @@
     <ServiceDetailsModal v-if="modalService" :is-open="showServiceDetails" :request="modalService" @on-request-service="goToRequestConfirmation" @on-open-change="(val) => (showServiceDetails = val)" @on-start-chat="openChat" />
     <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
     <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" :service-details="modalService" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
-    <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId" @on-provider-response="onProviderResponse" @cancel="resetFlow" @openPayment="openPaymentModal" @retry-request="handleRetry" />
+    <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId"  @cancel="resetFlow" @open-Payment="openPaymentModal" @retry-request="handleRetry" />
     <PaymentModal v-if="modalService" v-model:is-open="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
     <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket" @close="showNewTicket = false" @ticket-created="onTicketCreated" />
 
@@ -172,15 +172,16 @@
 <script>
 import { formatDate as utilFormatDate } from '@/utils/formatDate'
 import api from '@/axios'
+import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketStore } from '@/stores/socketStore'
-import ServiceDetailsModal from './ServiceDetailsModal.vue'
-import RequestConfirmationModal from './RequestConfirmationModal.vue'
-import ProviderContactModal from './ProviderContactModal.vue'
-import PaymentModal from './PaymentModal.vue'
-import ChatRoomModal from './ChatRoomModal.vue'
-import NewTicketModal from './NewTicketModal.vue'
-import LiveOrderTracking from './LiveOrderTracking.vue'
+import ServiceDetailsModal from '@/components/ServiceDetailsModal.vue'
+import RequestConfirmationModal from '@/components/RequestConfirmationModal.vue'
+import ProviderContactModal from '@/components/ProviderContactModal.vue'
+import PaymentModal from '@/components/PaymentModal.vue'
+import ChatRoomModal from '@/components/ChatRoomModal.vue'
+import NewTicketModal from '@/components/NewTicketModal.vue'
+import LiveOrderTracking from '@/components/LiveOrderTracking.vue'
 import PaymentPill from '@/components/PaymentPill.vue'
 
 export default {
@@ -195,9 +196,9 @@ export default {
     LiveOrderTracking,
     PaymentPill
   },
+
   data() {
     return {
-      // ✅ CORRECCIÓN: Aquí definimos la variable API_URL para usarla en el template
       API_URL: import.meta.env.VITE_API_URL,
       services: [],
       loading: true,
@@ -223,7 +224,6 @@ export default {
       liveOrder: null,
       historyModal: false,
       selectedHistory: {},
-      // Cache control
       lastFetch: {
         services: 0,
         activeRequests: 0,
@@ -231,15 +231,18 @@ export default {
         history: 0,
         faq: 0
       },
-      CACHE_TTL: 30000 // 30 segundos
+      CACHE_TTL: 5000,
+      hasError: false,
+      errorMessage: '',
+      socketHandlers: []
     }
   },
+
   methods: {
     formatDate(date) {
       return utilFormatDate(date)
     },
-    
-    // Sanitización segura
+
     sanitize(str) {
       if (!str || typeof str !== 'string') return ''
       const tempDiv = document.createElement('div')
@@ -250,11 +253,11 @@ export default {
         .replace(/on\w+='[^']*'/g, '')
         .replace(/javascript:/gi, '')
     },
-    
+
     openChat(target) {
       this.chatTarget = target
     },
-    
+
     openSupportChat() {
       this.openChat({
         id: 1,
@@ -263,7 +266,7 @@ export default {
         avatarUrl: '/img/support-avatar.png',
       })
     },
-    
+
     resetFlow() {
       this.showServiceDetails = false
       this.showRequestConfirmation = false
@@ -277,11 +280,11 @@ export default {
         providerModal.stopProcess()
       }
     },
-    
+
     normalizeService(s) {
       const p = s.provider && typeof s.provider === 'object' ? s.provider : {};
       let paymentInfo = {};
-      
+
       try {
         const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || [];
         methods.forEach(m => {
@@ -326,19 +329,20 @@ export default {
         },
       };
     },
-    
+
     buildPath(resource) {
       const base = api.defaults?.baseURL || ''
       const hasApi = base.endsWith('/api') || base.includes('/api')
       return hasApi ? `/${resource}` : `/api/${resource}`
     },
-    
+
     async fetchServices() {
+      this.hasError = false;
       const now = Date.now()
       if (now - this.lastFetch.services < this.CACHE_TTL && this.services.length > 0) {
         return
       }
-      
+
       this.loading = true
       try {
         const authStore = useAuthStore()
@@ -350,17 +354,20 @@ export default {
         this.lastFetch.services = now
       } catch (err) {
         console.error(err)
+        this.hasError = true;
+        this.errorMessage = err.response?.data?.message || 'Error al cargar servicios';
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: this.errorMessage })
       } finally {
         this.loading = false
       }
     },
-    
+
     async fetchActiveRequests() {
       const now = Date.now()
       if (now - this.lastFetch.activeRequests < this.CACHE_TTL && this.activeRequests.length > 0) {
         return
       }
-      
+
       this.activeRequestsLoading = true
       try {
         const authStore = useAuthStore()
@@ -370,7 +377,7 @@ export default {
         const requests = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.requests) ? res.data.requests : Array.isArray(res.data?.data) ? res.data.data : []
         this.activeRequests = requests.map(r => this.normalizeService(r))
         this.lastFetch.activeRequests = now
-        
+
         if (requests.length > 0 && this.activeRequests.length < requests.length) {
           this.playNotification()
         }
@@ -380,13 +387,13 @@ export default {
         this.activeRequestsLoading = false
       }
     },
-    
+
     async fetchTickets() {
       const now = Date.now()
       if (now - this.lastFetch.tickets < this.CACHE_TTL && this.tickets.length > 0) {
         return
       }
-      
+
       this.supportLoading = true
       try {
         const authStore = useAuthStore()
@@ -401,13 +408,13 @@ export default {
         this.supportLoading = false
       }
     },
-    
+
     async fetchFaq() {
       const now = Date.now()
       if (now - this.lastFetch.faq < this.CACHE_TTL && this.faqItems.length > 0) {
         return
       }
-      
+
       this.faqLoading = true
       try {
         const res = await api.get('/support/faq')
@@ -419,13 +426,13 @@ export default {
         this.faqLoading = false
       }
     },
-    
+
     async fetchHistory() {
       const now = Date.now()
       if (now - this.lastFetch.history < this.CACHE_TTL && this.history.length > 0) {
         return
       }
-      
+
       this.historyLoading = true
       try {
         const authStore = useAuthStore()
@@ -441,14 +448,14 @@ export default {
         this.historyLoading = false
       }
     },
-    
+
     playNotification() {
       if (!this.notificationSound) {
         this.notificationSound = new Audio('/sounds/notification.mp3')
       }
       this.notificationSound.play().catch(() => {})
     },
-    
+
     openServiceDetails(service) {
       this.resetFlow()
       this.$nextTick(() => {
@@ -456,22 +463,22 @@ export default {
         this.showServiceDetails = true
       })
     },
-    
+
     openHistoryModal(item) {
       this.selectedHistory = item
       this.historyModal = true
     },
-    
+
     closeHistoryModal() {
       this.historyModal = false
       this.selectedHistory = {}
     },
-    
+
     goToRequestConfirmation() {
       this.showServiceDetails = false
       this.showRequestConfirmation = true
     },
-    
+
     async onConfirmRequest(payload) {
       try {
         const { details, contractAccepted } = payload
@@ -522,7 +529,7 @@ export default {
         this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
       }
     },
-    
+
     async onProviderResponse(status) {
       this.showProviderContact = false
       if (status === 'accepted' && this.modalService?.requestId) {
@@ -558,36 +565,35 @@ export default {
       if (current) {
         this.modalService = this.normalizeService({ ...this.modalService, ...current })
       }
-      
+
       this.showServiceDetails = false
       this.showRequestConfirmation = false
       this.showProviderContact = false
       this.showPayment = true
     },
-    
+
     onTicketCreated() {
       this.showNewTicket = false
       this.fetchTickets()
     },
-    
+
     handlePaymentSubmit(method) {
       if (!this.modalService?.requestId) return
       this.resetFlow()
       this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false })
-      
-      // Resetea cache para forzar actualización
+
       this.lastFetch.activeRequests = 0
       this.lastFetch.history = 0
-      
+
       this.fetchActiveRequests()
       this.fetchHistory()
     },
-    
+
     handleRetry() {
       this.resetFlow()
       this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails) })
     },
-    
+
     statusLabel(status) {
       const map = {
         completado: this.$t('status_completed') || 'Completado',
@@ -597,7 +603,7 @@ export default {
       }
       return map[status] || status
     },
-    
+
     statusColor(status) {
       const map = {
         completado: 'text-green-600',
@@ -607,14 +613,14 @@ export default {
       }
       return map[status] || 'text-gray-500'
     },
-    
+
     tabClass(tab) {
       return [
         'px-4 py-2 rounded-md font-semibold cursor-pointer text-sm',
         this.selectedTab === tab ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
       ]
     },
-    
+
     openLiveTracking(request) {
       this.liveOrder = {
         id: request.id,
@@ -626,7 +632,6 @@ export default {
         address: request.provider_address || 'No especificada',
         provider: {
           name: request.service_provider_name || 'Proveedor',
-          // ✅ CORRECCIÓN: Aquí también usamos API_URL en lugar de import.meta.env.VITE_API_URL
           avatar_url: request.provider_avatar_url ? `${this.API_URL}/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
           rating: request.provider_rating || null,
           phone: request.provider_phone || null,
@@ -640,116 +645,151 @@ export default {
       }
       this.showLiveTracking = true
     },
-    
-    // Manejo de actualizaciones en tiempo real
+
     async handleRealTimeRequestUpdate(requestId, newStatus) {
-      // Resetea cache para forzar recarga
       this.lastFetch.activeRequests = 0
       this.lastFetch.history = 0
-      
+
       await this.fetchActiveRequests()
-      
+
       if (this.showLiveTracking && this.liveOrder?.id === requestId) {
         this.liveOrder.status = newStatus
       }
-      
+
       if (['completed', 'cancelled', 'rejected'].includes(newStatus)) {
         await this.fetchHistory()
       }
-      
+
       this.playNotification()
     },
-    
+
     handleRealTimePaymentUpdate(requestId, paymentStatus) {
       const req = this.activeRequests.find(r => r.id === requestId)
       if (req) {
         req.payment_status = paymentStatus
       }
-      
+
       if (this.showPayment && this.modalService?.requestId === requestId) {
         this.modalService.payment_status = paymentStatus
       }
-    }
-  },
-  
-  computed: {
-    notifications() {
-      return useSocketStore().notifications
     },
-    unreadNotifications() {
-      return useSocketStore().unreadCount
-    },
-  },
-  
-  watch: {
-    selectedTab(tab) {
+
+    handleDashboardRefresh() {
+      console.log('🔄 DashboardUser refresh solicitado');
+      const now = Date.now();
+      this.lastFetch.services = now - this.CACHE_TTL;
+      this.lastFetch.activeRequests = now - this.CACHE_TTL;
+      this.lastFetch.history = now - this.CACHE_TTL;
       const fetchMap = {
         services: () => this.fetchServices(),
         activeRequests: () => this.fetchActiveRequests(),
         support: () => { this.fetchTickets(); this.fetchFaq(); },
         history: () => this.fetchHistory()
-      }
-      fetchMap[tab]?.()
+      };
+      fetchMap[this.selectedTab]?.();
     },
-    
-    notifications: {
-      handler(newNotifications) {
-        const last = newNotifications[0]
-        if (!last) return
-        
-        switch(last.event) {
+
+    setupSocketHandlers() {
+      const socketStore = useSocketStore();
+      
+      const requestUpdatedHandler = (data) => {
+        console.log('🔔 Evento request_updated recibido:', data);
+        if (data.request_id && data.status) {
+          this.handleRealTimeRequestUpdate(data.request_id, data.status);
+        }
+      };
+
+      const paymentUpdatedHandler = (data) => {
+        console.log('🔔 Evento payment_updated recibido:', data);
+        if (data.request_id && data.payment_status) {
+          this.handleRealTimePaymentUpdate(data.request_id, data.payment_status);
+        }
+      };
+
+      const newNotificationHandler = (notification) => {
+        console.log('🔔 Notificación recibida:', notification.event);
+        switch(notification.event) {
           case 'status_changed':
           case 'request_updated':
-            this.handleRealTimeRequestUpdate(last.request_id, last.status)
-            break
+            this.lastFetch.activeRequests = 0;
+            this.lastFetch.history = 0;
+            this.fetchActiveRequests();
+            break;
           case 'payment_updated':
-            this.handleRealTimePaymentUpdate(last.request_id, last.payment_status)
-            break
+            this.lastFetch.activeRequests = 0;
+            this.fetchActiveRequests();
+            break;
         }
-      },
-      deep: true
+      };
+
+      socketStore.on('request_updated', requestUpdatedHandler);
+      socketStore.on('payment_updated', paymentUpdatedHandler);
+      socketStore.on('new-notification', newNotificationHandler);
+
+      this.socketHandlers = [
+        { event: 'request_updated', handler: requestUpdatedHandler },
+        { event: 'payment_updated', handler: paymentUpdatedHandler },
+        { event: 'new-notification', handler: newNotificationHandler }
+      ];
     },
+
+    cleanupSocketHandlers() {
+      const socketStore = useSocketStore();
+      this.socketHandlers.forEach(({ event, handler }) => {
+        socketStore.off(event, handler);
+      });
+      this.socketHandlers = [];
+    }
   },
-  
+
+  computed: {
+    notificationStore() {
+      return useNotificationStore();
+    }
+  },
+
+  watch: {
+    selectedTab(tab) {
+      const hidden = document.hidden;
+      if (!hidden) {
+        const fetchMap = {
+          services: () => { this.lastFetch.services = 0; this.fetchServices(); },
+          activeRequests: () => { this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); },
+          support: () => { this.lastFetch.tickets = 0; this.fetchTickets(); this.lastFetch.faq = 0; this.fetchFaq(); },
+          history: () => { this.lastFetch.history = 0; this.fetchHistory(); }
+        };
+        fetchMap[tab]?.();
+      }
+    }
+  },
+
   async mounted() {
-    const authStore = useAuthStore()
-    const socketStore = useSocketStore()
-    
-    // Inicialización segura del socket
-    if (!authStore.token) {
-      await authStore.refreshToken?.()
-    }
-    
-    if (!socketStore.socket?.connected && authStore.token) {
-      socketStore.init()
-    }
-    
-    // Precarga del sonido
-    this.notificationSound = new Audio('/sounds/notification.mp3')
-    
-    // Carga inicial de datos
-    await Promise.all([
+    const authStore = useAuthStore();
+    const socketStore = useSocketStore();
+
+    this.notificationSound = new Audio('/sounds/notification.mp3');
+
+    this.setupSocketHandlers();
+
+    await Promise.allSettled([
       this.fetchServices(),
       this.fetchActiveRequests(),
       this.fetchTickets(),
       this.fetchHistory(),
       this.fetchFaq()
-    ])
+    ]);
+
+    window.addEventListener('refresh-dashboard', this.handleDashboardRefresh);
   },
-  
+
   beforeUnmount() {
     const providerModal = this.$refs.providerContactModal
     if (providerModal && typeof providerModal.stopProcess === 'function') {
       providerModal.stopProcess()
     }
-    
-    useSocketStore().disconnect?.()
-    
-    // Limpia el audio
-    if (this.notificationSound) {
-      this.notificationSound.pause()
-      this.notificationSound = null
-    }
+
+    this.cleanupSocketHandlers();
+    window.removeEventListener('refresh-dashboard', this.handleDashboardRefresh);
   }
 }
 </script>

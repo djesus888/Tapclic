@@ -1,7 +1,13 @@
 {
+  "waiting_provider_response": "Esperando respuesta del proveedor",
+  "contacting_provider": "Contactando proveedor",
+
   "accepted": "Aceptada",
-  "account_issues": "Problemas de cuenta",
   "active": "Activos",
+  "Available": "Disponible",
+  "available": "Disponible",
+  "busy": "Ocupado",
+
   "activity": {
     "profile_updated": "{user} actualizó su perfil",
     "service_accepted": "Servicio '{service}' fue aceptado",
@@ -10,31 +16,30 @@
     "status": "Estado",
     "support_ticket_opened": "Nuevo ticket de soporte abierto"
   },
+
   "addComments": "Agregar comentarios",
   "addService": "Agregar servicio",
+
   "adminDashboard": "Panel de Admin",
   "admin_panel": "Panel Admin",
-  "services": "Servicios",
-  "provider": "Proveedor",
-  "status_completed": "Completado",
-  "status_failed": "Fallido",
-  "status_incomplete": "Incompleto",
-  "status_cancelled": "Cancelado",
   "admin_tools": "Panel Herramientas",
+
   "already_have_account": "¿Ya tienes cuenta?",
-  "Available": "Disponible",
-  "available": "Disponible",
-  "busy": "Ocupado",
+  "account_issues": "Problemas de cuenta",
+
   "call": "Llamar",
   "cancelled": "Cancelado",
   "category": "Categoría",
   "changeAvatar": "Cambiar avatar",
+
   "chat": "Chat",
   "chats": "Chats",
+
   "checkDetailsBeforeSending": "Revisa los detalles antes de enviar",
   "close": "Cerrar",
   "completed": "Completado",
   "completion_error": "Error al completar la solicitud.",
+
   "common": {
     "cancel": "Cancelar",
     "save": "Guardar cambios",
@@ -42,75 +47,109 @@
     "success": "Éxito",
     "error": "Error"
   },
+
   "conversations": "Conversaciones",
+
   "confirm": {
     "delete": "¿Eliminar este método?"
   },
+
   "confirmServiceRequest": "Confirmar solicitud de servicio",
   "confirm_password": "Confirmar contraseña",
+
   "contact_support": "Contactar soporte",
   "dashboard": "Panel",
+
   "date": "Fecha",
   "description": "Descripción",
+
   "email": "Correo electrónico",
   "emailPlaceholder": "ejemplo@correo.com",
   "email_or_phone": "Correo electrónico o teléfono",
+
   "enter_email_or_phone": "Introduce tu correo o teléfono",
   "enter_password": "Introduce tu contraseña",
+
   "error_fetching_pending": "Error al obtener solicitudes pendientes.",
+
   "faq": "Preguntas frecuentes",
+
   "forgot_password": "¿Olvidaste tu contraseña?",
+
   "history": "Historia",
   "history-placeholder": "Aquí se mostrará tu historial",
+
   "home": "Inicio",
   "in_progress": "En progreso",
+
   "latestActivities": "Últimas actividades",
   "live_tracking": "Seguimiento en vivo",
+
   "loading": "Cargando...",
   "location": "Ubicación",
+
   "login": "Iniciar sesión",
   "login_prompt": "Tu marketplace de servicios de confianza",
   "logging_in": "Ingresando...",
+
   "logout": "Cerrar sesión",
+
   "manageProviders": "Admin de proveedores",
   "manageServices": "Admin de Servicios",
   "manageUsers": "Admin de Usuarios",
+
   "menu": "Menú",
   "messages": "Mensajes",
+
   "myEarnings": "Mis ganancias",
   "myOrders": "Mis pedidos",
-  "myServices": "Mi Servicios",
+  "myServices": "Mis servicios",
   "myRequests": "Mis solicitudes",
+
   "my_requests": "Solicitudes",
   "my_tickets": "Mis tickets",
+
   "name": "Nombre",
   "namePlaceholder": "Tu nombre completo",
+
   "new_support_ticket": "Nuevo ticket de soporte",
   "new_ticket": "Nuevo ticket",
+
   "noConversations": "No hay conversaciones",
   "noFileSelected": "No se ha seleccionado ningún archivo",
+
   "no_account": "¿No tienes una cuenta?",
   "no_active_requests": "No tiene solicitudes en progreso.",
   "no_available_requests": "Aún no hay solicitudes de servicio.",
   "no_completed_requests": "Aún no hay solicitudes completadas.",
   "no_history_requests": "Aún no hay historial de solicitudes.",
+
   "no_notifications": "No tienes notificaciones",
   "no_support_tickets": "Sin tickets de soporte.",
+
   "not_available": "No disponible",
+
   "notifications": "Notificaciones",
   "on_the_way": "En camino",
+
   "order_number": "Número de orden",
+
   "other": "Otros",
+
   "password": "Contraseña",
+
   "pay": "Pagar",
-  "payment_completed": "Pago Completado",
+  "payment_completed": "Pago completado",
   "payment_method": "Método de pago",
   "payment_issues": "Problemas de pago",
+
   "phone": "Teléfono",
   "phonePlaceholder": "Ej: +52 555 123 4567",
+
   "price": "Precio",
+
   "profile": "Perfil",
-  "Profile": "Perfil",
+
   "profile_details": {
     "changeAvatar": "Cambiar avatar",
     "email": "Correo electrónico",
@@ -130,25 +169,36 @@
     "title": "Perfil",
     "updateFailed": "No se pudo actualizar el perfil."
   },
+
+  "provider": "Proveedor",
   "provider_info": "Información del proveedor",
   "provider_panel": "Panel Proveedor",
   "providerPanel": "Panel de proveedor",
+
   "register": "Registrarse",
   "register_here": "Regístrate aquí",
   "registering": "Registrando...",
+
   "reject": "Rechazar",
   "reports": "Reportes",
+
   "requested_by": "Solicitado por",
   "requests": "Solicitudes",
+
   "role": "Rol",
-  "save": "Guardar cambios",
+
   "saving": "Guardando...",
+
   "select_category": "Selecciona una categoría",
   "select_role": "Selecciona un rol",
+
   "send": "Enviar",
+
   "service": "Servicio",
   "servicePrice": "Precio del servicio",
+
   "service_issues": "Problemas con el servicio",
+
   "services": {
     "category": "Categoría",
     "categoryPlaceholder": "Ej: Tecnología",
@@ -160,7 +210,7 @@
     "deleted": "El servicio fue eliminado.",
     "description": "Descripción",
     "descriptionPlaceholder": "Describe brevemente qué incluye el servicio...",
-    "editService": "Editar Servicio",
+    "editService": "Editar servicio",
     "formIncomplete": "Por favor completa todos los campos requeridos correctamente.",
     "image": "Imagen del servicio",
     "imageOptional": "Imagen (opcional)",
@@ -180,22 +230,20 @@
     "updated": "Servicio actualizado correctamente.",
     "updateError": "No se pudo actualizar el servicio."
   },
+
   "settings": "Configuración",
   "show_password": "Mostrar contraseña",
-  "status": {
-    "cancelled": "Cancelado",
-    "completed": "Completado",
-    "rejected": "Rechazado",
-    "on_the_way": "En camino",
-    "accepted": "Aceptado"
-  },
+
   "support": "Soporte",
-  "tabs": "Pestañas",
+
   "technical_issues": "Problemas técnicos",
+
   "ticket_subject": "Asunto del ticket",
+
   "user": "Usuario",
+
   "wallet": {
-    "title": "Mi Billetera",
+    "title": "Mi billetera",
     "currentBalance": "Saldo actual",
     "recharge": "Recargar",
     "withdraw": "Retirar",
@@ -207,8 +255,10 @@
     "loadFailed": "No se pudo cargar la billetera",
     "invalidAmount": "Introduce un monto válido"
   },
+
   "welcome": "Bienvenido a TapClic",
   "your_services": "Tus servicios",
+
   "actions": {
     "add": "Agregar",
     "update": "Actualizar",
@@ -216,12 +266,14 @@
     "delete": "Eliminar",
     "cancel": "Cancelar"
   },
+
   "errors": {
     "load": "Error al cargar",
     "save": "Error al guardar",
     "delete": "Error al eliminar",
     "toggle": "Error al cambiar estado"
   },
+
   "validations": {
     "holderRequired": "Titular obligatorio",
     "idRequired": "CI/RIF obligatorio",
@@ -229,6 +281,7 @@
     "max50": "Máx 50 caracteres",
     "invalidEmail": "Email inválido"
   },
+
   "methods": {
     "pagoMovil": "Pago Móvil",
     "transferencia": "Transferencia",
@@ -236,8 +289,9 @@
     "paypal": "PayPal",
     "binance": "Binance"
   },
+
   "paymentMethods": {
-    "title": "Mis Métodos de Pago",
+    "title": "Mis métodos de pago",
     "type": "Tipo",
     "holder": "Titular",
     "idNumber": "CI/RIF",
@@ -248,8 +302,9 @@
     "id": "CI",
     "empty": "No hay métodos registrados"
   },
-  "success": "Éxito",
+
   "login_success": "Inicio de sesión exitoso",
+
   "accept": "Aceptar",
   "pending": "Pendiente",
   "paid": "Pagado",
@@ -262,16 +317,47 @@
   "confirmed": "Confirmado",
   "failed": "Fallido",
   "processing": "Procesando",
+
   "cancelled_by_user": "Cancelado por el usuario",
   "cancelled_by_provider": "Cancelado por el proveedor",
+
   "payment": {
     "on_hold": "Pago en espera"
   },
+
   "release_to_refresh": "Suelta para actualizar",
   "timeline": "Línea de tiempo",
-  "status": {
-    "on_the_way": "En camino"
-  },
   "elapsed": "Tiempo transcurrido",
-  "actions": "Acciones"
+
+  "forgot": {
+    "title": "Recuperar contraseña",
+    "method": "Método",
+    "email": "Correo electrónico",
+    "phone": "SMS (teléfono)",
+    "emailPlaceholder": "Ingresa tu correo electronico",
+    "phonePlaceholder": "04141234567",
+    "sendCode": "Enviar código",
+    "sending": "Enviando...",
+    "required": "Debes ingresar un valor",
+    "success": "Si existe el usuario, se ha enviado un código",
+    "error": "Ocurrió un error. Intenta nuevamente."
+  },
+
+  "resetPassword": {
+    "title": "Nueva contraseña",
+    "tokenLabel": "Código / Token",
+    "tokenPlaceholder": "Pega el código o token recibido",
+    "passwordLabel": "Nueva contraseña",
+    "passwordPlaceholder": "Mínimo 6 caracteres",
+    "confirmPasswordLabel": "Confirmar contraseña",
+    "submit": "Cambiar contraseña",
+    "loading": "Guardando...",
+    "success": "Contraseña actualizada correctamente",
+    "errors": {
+      "required": "Todos los campos son obligatorios",
+      "minLength": "La contraseña debe tener al menos 6 caracteres",
+      "notMatch": "Las contraseñas no coinciden",
+      "invalidToken": "Token inválido o expirado"
+    }
+  }
 }

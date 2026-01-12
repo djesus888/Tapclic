@@ -1,4 +1,7 @@
 {
+  "waiting_provider_response": "Waiting for provider response",
+  "contacting_provider": "Contacting provider",
+  "servicios": "Services",
   "accepted": "Accepted",
   "account_issues": "Account issues",
   "active": "Active",
@@ -6,8 +9,8 @@
     "profile_updated": "{user} updated their profile",
     "service_accepted": "Service '{service}' was accepted",
     "service_created": "{user} created a new service",
-"services": "Servicios",
-  "status": "Estado",
+    "services": "Services",
+    "status": "Status",
     "support_ticket_opened": "New support ticket opened"
   },
   "addComments": "Add comments",
@@ -182,13 +185,6 @@
   },
   "settings": "Settings",
   "show_password": "Show password",
-  "status": {
-    "cancelled": "Cancelled",
-    "completed": "Completed",
-    "rejected": "Rejected",
-  "on_the_way": "On the way",
-  "accepted": "Accepted"
-  },
   "support": "Support",
   "tabs": "Tabs",
   "technical_issues": "Technical issues",
@@ -267,13 +263,37 @@
   "payment": {
     "on_hold": "Payment on hold"
   },
-
   "release_to_refresh": "Release to refresh",
   "timeline": "Timeline",
-  "status": {
-    "on_the_way": "On the way"
-  },
   "elapsed": "Elapsed time",
-  "actions": "Actions"
-
+   "forgot": {
+     "title": "Recover password",
+     "method": "Method",
+     "email": "Email",
+     "phone": "SMS (phone)",
+     "emailPlaceholder": "Enter your email address",
+     "phonePlaceholder": "04141234567",
+     "sendCode": "Send code",
+     "sending": "Sending...",
+     "required": "You must enter a value",
+     "success": "If the user exists, a code has been sent",
+     "error": "An error occurred. Please try again."
+  },
+"resetPassword": {
+     "title": "New password",
+     "tokenLabel": "Code / Token",
+     "tokenPlaceholder": "Paste the received code or token",
+     "passwordLabel": "New password",
+     "passwordPlaceholder": "Minimum 6 characters",
+     "confirmPasswordLabel": "Confirm password",
+     "submit": "Change password",
+     "loading": "Saving...",
+     "success": "Password updated successfully",
+     "errors": {
+       "required": "All fields are required",
+       "minLength": "Password must be at least 6 characters",
+       "notMatch": "Passwords do not match",
+       "invalidToken": "Invalid or expired token"
+     }
+   }
 }

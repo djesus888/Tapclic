@@ -4,6 +4,9 @@ require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/Conversation.php';
 require_once __DIR__ . '/../utils/jwt.php';
+require_once __DIR__ . '/../services/WebSocketService.php';
+
+use services\WebSocketService;
 
 class MessageController
 {
@@ -19,29 +22,12 @@ class MessageController
     private function authUser()
     {
         $user = Auth::verify();
-
         if (!$user || !isset($user->id) || !isset($user->role)) {
             http_response_code(401);
             echo json_encode(["message" => "Token inválido o no proporcionado"]);
             exit;
         }
-        
         return $user;
-    }
-
-    private function emitWs(array $payload): void
-    {
-        $url = 'http://localhost:3001/emit';
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 2,
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
     }
 
     public function getMessages($data)
@@ -49,7 +35,6 @@ class MessageController
         $user = $this->authUser();
         $userId = $user->id;
         $userRole = $user->role;
-
         $targetId = intval($data['target_id'] ?? $data['provider_id'] ?? 0);
         $targetRole = $data['target_role'] ?? '';
 
@@ -58,14 +43,13 @@ class MessageController
             echo json_encode(["message" => "Faltan target_id o target_role"]);
             exit;
         }
-
+        
         $conversationId = $this->conversationModel->findOrCreate(
             $userId, $userRole,
             $targetId, $targetRole
         );
 
         $messages = $this->messageModel->getMessagesByConversation($conversationId);
-
         header('Content-Type: application/json');
         echo json_encode(["success" => true, "messages" => $messages]);
         exit;
@@ -95,7 +79,7 @@ class MessageController
         if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
             $this->jsonError(500, 'Cannot create directory');
         }
-
+        
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         $ext = preg_replace('/[^a-z0-9]/', '', $ext);
         $filename = 'msg_' . bin2hex(random_bytes(8)) . '.' . $ext;
@@ -106,7 +90,7 @@ class MessageController
 
         $baseUrl = $_ENV['APP_URL'] ?? 'http://localhost:8000';
         $imageUrl = rtrim($baseUrl, '/') . '/uploads/messages/' . $filename;
-        
+
         header('Content-Type: application/json');
         echo json_encode(['image_url' => $imageUrl]);
     }
@@ -128,14 +112,14 @@ class MessageController
             echo json_encode(['message' => 'Faltan message_ids']);
             exit;
         }
-
+        
         $ids = array_map('intval', $ids);
         $this->messageModel->markReadBatch($ids, $user->id);
-
+        
         foreach ($ids as $id) {
             $msg = $this->messageModel->getById($id);
             if ($msg) {
-                $this->emitWs([
+                WebSocketService::emit([
                     'receiver_id'   => $msg['sender_id'],
                     'receiver_role' => $msg['sender_type'],
                     'type'          => 'read',
@@ -144,7 +128,7 @@ class MessageController
                 ]);
             }
         }
-        
+
         echo json_encode(['success' => true]);
         exit;
     }
@@ -188,7 +172,7 @@ class MessageController
             );
         } catch (Throwable $e) {
             error_log("Excepción en insertMessage: " . $e->getMessage());
-            $this->emitWs([
+            WebSocketService::emit([
                 'receiver_id'   => 1,
                 'receiver_role' => 'admin',
                 'title'         => 'Error al guardar mensaje',
@@ -199,7 +183,7 @@ class MessageController
             exit;
         }
 
-        $this->emitWs([
+        WebSocketService::emit([
             'receiver_id'   => $receiverId,
             'receiver_role' => $receiverType,
             'title'         => 'Nuevo mensaje',

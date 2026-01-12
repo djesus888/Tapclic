@@ -5,8 +5,12 @@ import MainLayout from '@/layouts/MainLayout.vue'
 const routes = [
   { path: '/login',   component: () => import('@/pages/Login.vue') },
   { path: '/register',component: () => import('@/pages/Register.vue') },
+  { path: '/forgot-password', component: () => import('@/pages/ForgotPassword.vue') },
+  { path: '/reset-password',  component: () => import('@/pages/ResetPassword.vue') },
 
-  /* Ruta real para /dashboard que evita el doble redirect */
+
+  
+/* Ruta real para /dashboard que evita el doble redirect */
   {
     path: '/dashboard',
     redirect: () => {

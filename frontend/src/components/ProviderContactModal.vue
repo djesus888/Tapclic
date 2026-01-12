@@ -33,10 +33,7 @@
         <p class="text-red-600 text-lg">{{ $t('request_rejected') }}</p>
         <p>{{ $t('provider_rejected_request', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button
-            @click="handleCancel"
-            class="px-4 py-2 border rounded-lg"
-          >
+          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
             {{ $t('cancel') }}
           </button>
           <button
@@ -53,10 +50,7 @@
         <p class="text-yellow-600 text-lg">{{ $t('provider_busy') }}</p>
         <p>{{ $t('provider_is_busy', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button
-            @click="handleCancel"
-            class="px-4 py-2 border rounded-lg"
-          >
+          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
             {{ $t('cancel') }}
           </button>
           <button
@@ -73,10 +67,7 @@
         <p class="text-gray-600 text-lg">{{ $t('no_response') }}</p>
         <p>{{ $t('provider_no_response', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button
-            @click="handleCancel"
-            class="px-4 py-2 border rounded-lg"
-          >
+          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
             {{ $t('cancel') }}
           </button>
           <button
@@ -92,97 +83,226 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
-import api from '@/axios'
-import { useI18n } from 'vue-i18n'
+import { ref, watch, onBeforeUnmount, onUnmounted, onMounted } from 'vue';
+import { useSocketStore } from '@/stores/socketStore';
+import { useAuthStore } from '@/stores/authStore';
+import api from '@/axios';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n()
+const { t } = useI18n();
+const socketStore = useSocketStore();
+const authStore = useAuthStore();
 
 const props = defineProps({
   isOpen: Boolean,
   providerName: String,
-  requestId: Number,
-})
+  requestId: [Number, String],
+});
 
-const emit = defineEmits(['cancel', 'openPayment', 'retry-request'])
+const emit = defineEmits(['cancel', 'openPayment', 'retry-request']);
 
-const status = ref('pending')
-const countdown = ref(90)
-let pollInterval = null
-let timerInterval = null
+const status = ref('pending');
+const countdown = ref(90);
 
+let timerInterval = null;
+let pollingInterval = null;
+let socketHandler = null;
+
+/* ----------------------------------------------------------
+  UTILIDADES
+---------------------------------------------------------- */
 const formatTime = (seconds) => {
-  const m = String(Math.floor(seconds / 60)).padStart(2, '0')
-  const s = String(seconds % 60).padStart(2, '0')
-  return `${m}:${s}`
-}
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  return `${m}:${s}`;
+};
 
-const deleteRequest = async () => {
-  try {
-    await api.delete(`/requests/${props.requestId}`)
-  } catch (err) {
-    console.error('Error al eliminar solicitud:', err)
+const stopTimers = () => {
+  if (timerInterval) clearInterval(timerInterval);
+  if (pollingInterval) clearInterval(pollingInterval);
+};
+
+const cleanup = () => {
+  console.log('🧹 Limpiando ProviderContactModal...');
+  stopTimers();
+  
+  if (socketHandler) {
+    socketStore.off('request_updated', socketHandler);
+    socketStore.off('status_updated', socketHandler);
+    socketStore.off('request_update', socketHandler);
+    socketHandler = null;
   }
-}
+};
+
+/* ----------------------------------------------------------
+  SOCKET HANDLER
+---------------------------------------------------------- */
+const createSocketHandler = () => {
+  return (payload) => {
+    console.log('🔔 ProviderContactModal recibió evento:', payload);
+    
+    if (!payload || typeof payload !== 'object') return;
+    
+    const incomingId = String(payload.request_id || payload.id || '');
+    const currentId = String(props.requestId || '');
+    
+    if (incomingId !== currentId) {
+      console.log(`⏩ Ignorando evento para request ${incomingId} (modal está en ${currentId})`);
+      return;
+    }
+
+    const newStatus = payload.status;
+    if (['accepted', 'rejected', 'busy'].includes(newStatus)) {
+      console.log(`✅ Status actualizado: ${status.value} → ${newStatus}`);
+      status.value = newStatus;
+      stopTimers();
+    }
+  };
+};
+
+/* ----------------------------------------------------------
+  PROCESO
+---------------------------------------------------------- */
+const reset = () => {
+  status.value = 'pending';
+  countdown.value = 90;
+};
+
+const startPolling = () => {
+  if (pollingInterval) clearInterval(pollingInterval);
+  
+  pollingInterval = setInterval(async () => {
+    if (props.requestId && status.value === 'pending') {
+      try {
+        const res = await api.get(`/requests/${props.requestId}`, {
+          headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+        });
+        
+        const data = res.data?.data;
+        if (data?.status && data.status !== 'pending') {
+          const handler = createSocketHandler();
+          handler({ request_id: props.requestId, status: data.status });
+          stopPolling();
+        }
+      } catch (err) {
+        console.error('❌ Polling error:', err.message);
+      }
+    }
+  }, 3000);
+};
+
+const stopPolling = () => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+};
+
+const startProcess = async () => {
+  if (!props.requestId) return;
+  
+  console.log('🚀 Iniciando ProviderContactModal para request:', props.requestId);
+  
+  cleanup();
+  reset();
+  
+  // Asegurar conexión socket
+//  if (!socketStore.isConnected && authStore.token) {
+  //  try {
+    //  await socketStore.connect(authStore.token, authStore.user);
+   // } catch {
+     // console.warn('⚠️ Socket no conectado, usando polling fallback');
+   // }
+ // }
+  
+  // Configurar listener socket
+  socketHandler = createSocketHandler();
+  
+  // Intentar múltiples nombres de evento por compatibilidad
+  socketStore.off('request_updated', socketHandler);
+  socketStore.off('status_updated', socketHandler);
+  socketStore.off('request_update', socketHandler);
+  
+  socketStore.on('request_updated', socketHandler);
+  socketStore.on('status_updated', socketHandler);
+  
+  console.log('📡 Socket listeners registrados para request_updated y status_updated');
+  
+  startPolling();
+  
+  // Timer de cuenta regresiva
+  timerInterval = setInterval(() => {
+    countdown.value--;
+    if (countdown.value <= 0 && status.value === 'pending') {
+      status.value = 'no-response';
+      stopPolling();
+    }
+  }, 1000);
+};
 
 const stopProcess = () => {
-  if (pollInterval) clearInterval(pollInterval)
-  if (timerInterval) clearInterval(timerInterval)
-}
+  cleanup();
+};
 
-const reset = () => {
-  status.value = 'pending'
-  countdown.value = 90
-}
-
-const startProcess = () => {
-  stopProcess()
-  timerInterval = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0 && status.value === 'pending') {
-      status.value = 'no-response'
-      stopProcess()
-    }
-  }, 1000)
-
-  pollInterval = setInterval(async () => {
-    try {
-      const { data } = await api.get(`/requests/status/${props.requestId}`)
-      if (['accepted', 'rejected', 'busy'].includes(data.status)) {
-        status.value = data.status
-        stopProcess()
-      }
-    } catch (err) {
-      console.error(t('error_fetching_provider_status'), err)
-    }
-  }, 3000)
-}
+/* ----------------------------------------------------------
+  ACCIONES
+---------------------------------------------------------- */
+const deleteRequest = async () => {
+  try {
+    await api.delete(`/requests/${props.requestId}`);
+    console.log('🗑️ Solicitud eliminada:', props.requestId);
+  } catch (err) {
+    console.error('❌ Error al eliminar:', err);
+  }
+};
 
 const handleCancel = async () => {
-  await deleteRequest()
-  stopProcess()
-  emit('cancel')
-}
+  await deleteRequest();
+  cleanup();
+  emit('cancel');
+};
 
 const handleRetry = async () => {
-  await deleteRequest()
-  stopProcess()
-  emit('retry-request')
-}
+  await deleteRequest();
+  cleanup();
+  emit('retry-request');
+};
 
+/* ----------------------------------------------------------
+  WATCHERS & LIFECYCLE
+---------------------------------------------------------- */
 watch(
   () => props.isOpen,
-  (val) => {
-    if (val) {
-      reset()
-      startProcess()
+  (open) => {
+    if (open && props.requestId) {
+      startProcess();
     } else {
-      stopProcess()
+      cleanup();
     }
-  }
-)
+  },
+  { immediate: true }
+);
 
-onUnmounted(stopProcess)
+onBeforeUnmount(() => {
+  cleanup();
+});
 
-defineExpose({ startProcess, stopProcess })
+onUnmounted(() => {
+  cleanup();
+});
+
+onMounted(() => {
+  window.addEventListener('beforeunload', cleanup);
+});
+
+/* ----------------------------------------------------------
+  EXPONER MÉTODOS AL COMPONENTE PADRE
+---------------------------------------------------------- */
+defineExpose({
+  startProcess,
+  stopProcess,
+  formatTime,
+  status,
+  countdown
+});
 </script>

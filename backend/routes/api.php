@@ -27,6 +27,13 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($request === '/api/refresh-token' && $method === 'POST') {
     (new AuthController())->refreshToken();
 
+} elseif ($request === '/api/forgot-password' && $method === 'POST') {
+    (new AuthController())->forgotPassword();
+
+} elseif ($request === '/api/reset-password' && $method === 'POST') {
+    (new AuthController())->resetPassword();
+
+
 // --- RUTA INDIVIDUAL POR ID ---
 } elseif (preg_match('~/api/services/(\d+)$~', $request, $m) && $method === 'GET') {
     $id = (int)$m[1];

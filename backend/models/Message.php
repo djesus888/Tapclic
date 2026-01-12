@@ -4,6 +4,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/Conversation.php';
 
+use services\WebSocketService;
+
 class Message
 {
     private $db;
@@ -11,21 +13,6 @@ class Message
     public function __construct()
     {
         $this->db = (new Database())->getConnection();
-    }
-
-    private function emitWs(array $payload): void
-    {
-        $url = 'http://localhost:3001/emit';
-        $ch  = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 2,
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
     }
 
     // ✅ CORREGIDO: Ahora acepta senderType y receiverType
@@ -143,7 +130,7 @@ class Message
         } catch (Throwable $e) {
             $this->db->rollBack();
             error_log("❌ insertMessage error: " . $e->getMessage());
-            $this->emitWs([
+            WebSocketService::emit([
                 'receiver_id'   => 1,
                 'receiver_role' => 'admin',
                 'title'         => 'Error al guardar mensaje',
@@ -203,8 +190,7 @@ class Message
     }
 
     private function mapMessage(array $msg): array
-    {
-        return [
+    {                                                         return [
             'id'             => (int)$msg['id'],
             'conversation_id'=> (int)($msg['conversation_id'] ?? 0),
             'text'           => $msg['text'] ?? '',
@@ -212,8 +198,7 @@ class Message
             'type'           => $msg['type'],
             'status'         => $msg['status'],
             'created_at'     => $msg['created_at'],
-            'updated_at'     => $msg['updated_at'],
-            'avatar_url'     => $msg['avatar_url'] ?? null,
+            'updated_at'     => $msg['updated_at'],               'avatar_url'     => $msg['avatar_url'] ?? null,
             'attachment_url' => $msg['attachment_url'] ?? null,
             'read_at'        => $msg['read_at'] ?? null,
             'parent_id'      => isset($msg['parent_id']) ? (int)$msg['parent_id'] : null,

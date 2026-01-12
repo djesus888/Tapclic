@@ -3,7 +3,7 @@
         'name' => 'tapclic/backend',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '0fe9be6a62548597717d47c0b036e3fe4107883a',
+        'reference' => 'fbbe2aae3ccd3a68555bd5c8f90126ba1f011bd4',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -562,7 +562,7 @@
         'tapclic/backend' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '0fe9be6a62548597717d47c0b036e3fe4107883a',
+            'reference' => 'fbbe2aae3ccd3a68555bd5c8f90126ba1f011bd4',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -576,6 +576,15 @@
             'install_path' => __DIR__ . '/../theseer/tokenizer',
             'aliases' => array(),
             'dev_requirement' => true,
+        ),
+        'twilio/sdk' => array(
+            'pretty_version' => '8.10.1',
+            'version' => '8.10.1.0',
+            'reference' => '84fc8e4b2b5ff32d20e73b17718b13e5ed56bc8c',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../twilio/sdk',
+            'aliases' => array(),
+            'dev_requirement' => false,
         ),
     ),
 );
