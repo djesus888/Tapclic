@@ -1,6 +1,8 @@
 <template>
   <div class="max-w-2xl mx-auto p-4">
-    <h1 class="text-2xl font-bold mb-4">Mis Conversaciones</h1>
+    <h1 class="text-2xl font-bold mb-4">
+      Mis Conversaciones
+    </h1>
 
     <!-- Sin conversaciones -->
     <div
@@ -11,19 +13,22 @@
     </div>
 
     <!-- Lista de conversaciones -->
-    <ul v-else class="space-y-3">
+    <ul
+      v-else
+      class="space-y-3"
+    >
       <li
         v-for="conv in chatStore.conversations"
         :key="conv.id"
-        @click="openChat(conv.id)"
         class="flex items-center gap-4 p-3 bg-white rounded-lg shadow cursor-pointer hover:bg-gray-50 transition"
+        @click="openChat(conv.id)"
       >
         <!-- Avatar -->
         <img
           :src="avatarUrl(interlocutor(conv).avatar)"
           class="w-12 h-12 rounded-full object-cover"
           :alt="interlocutor(conv).name"
-        />
+        >
 
         <!-- Info -->
         <div class="flex-1 min-w-0">

@@ -1,6 +1,8 @@
 <template>
   <div>
-    <h3 class="font-semibold mb-2">{{ $t('service_progress') }}</h3>
+    <h3 class="font-semibold mb-2">
+      {{ $t('service_progress') }}
+    </h3>
     <div class="space-y-2">
       <div
         v-for="(step, idx) in steps"

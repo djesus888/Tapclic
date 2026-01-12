@@ -1,11 +1,18 @@
 <template>
   <div>
     <transition name="modal-fade">
-      <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-end z-50">
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-end z-50"
+      >
         <div class="bg-white w-full md:w-1/2 rounded-t-lg p-6 max-h-[80vh] overflow-y-auto">
           <div class="mb-4">
-            <h2 class="text-2xl font-bold">{{ item.title }}</h2>
-            <p class="text-gray-600">{{ item.description }}</p>
+            <h2 class="text-2xl font-bold">
+              {{ item.title }}
+            </h2>
+            <p class="text-gray-600">
+              {{ item.description }}
+            </p>
           </div>
 
           <div class="space-y-3">
@@ -21,7 +28,10 @@
 
             <div class="flex justify-between items-center text-sm">
               <span>{{ $t('status') }}</span>
-              <span :class="statusColor(item.status)" class="font-semibold">{{ $t(item.status) }}</span>
+              <span
+                :class="statusColor(item.status)"
+                class="font-semibold"
+              >{{ $t(item.status) }}</span>
             </div>
 
             <div class="flex justify-between items-center text-sm text-gray-700">

@@ -3,17 +3,23 @@
     <!-- Barra superior -->
     <header class="bg-white shadow-sm px-6 py-3 flex items-center justify-between">
       <!-- Nombre del sistema a la izquierda -->
-      <h1 class="text-xl font-bold text-gray-800">{{ systemStore.systemName }}</h1>
+      <h1 class="text-xl font-bold text-gray-800">
+        {{ systemStore.systemName }}
+      </h1>
 
       <!-- Selector de idioma a la derecha (igual que MainLayout) -->
       <div class="relative">
         <select
           v-model="$i18n.locale"
-          @change="changeLocale"
           class="bg-gray-100 border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          @change="changeLocale"
         >
-          <option value="es">🇪🇸 Español</option>
-          <option value="en">🇺🇸 English</option>
+          <option value="es">
+            🇪🇸 Español
+          </option>
+          <option value="en">
+            🇺🇸 English
+          </option>
         </select>
       </div>
     </header>
@@ -24,11 +30,11 @@
         <!-- Logo centrado encima del formulario -->
         <div class="flex justify-center mb-6">
           <img
+            v-if="systemStore.logo"
             :src="systemStore.logo"
             alt="Logo"
             class="h-20 w-auto object-contain"
-            v-if="systemStore.logo"
-          />
+          >
           <div
             v-else
             class="h-20 w-20 bg-blue-100 rounded-full flex items-center justify-center"
@@ -39,7 +45,9 @@
           </div>
         </div>
 
-        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">{{ $t('login') }}</h2>
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">
+          {{ $t('login') }}
+        </h2>
 
         <p class="text-sm text-gray-600 text-center mb-4">
           {{ $t('login_prompt') }}
@@ -54,7 +62,7 @@
               required
               class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               :placeholder="$t('enter_email_or_phone')"
-            />
+            >
           </div>
 
           <div class="mb-2">
@@ -65,12 +73,16 @@
               required
               class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               :placeholder="$t('enter_password')"
-            />
+            >
           </div>
 
           <div class="flex items-center justify-between mb-6 text-sm">
             <label class="flex items-center">
-              <input type="checkbox" v-model="showPassword" class="mr-2" />
+              <input
+                v-model="showPassword"
+                type="checkbox"
+                class="mr-2"
+              >
               {{ $t('show_password') }}
             </label>
 
@@ -94,7 +106,10 @@
 
         <p class="text-center text-sm text-gray-600 mt-6">
           {{ $t('no_account') }}
-          <router-link to="/register" class="text-blue-600 hover:underline">
+          <router-link
+            to="/register"
+            class="text-blue-600 hover:underline"
+          >
             {{ $t('register_here') }}
           </router-link>
         </p>

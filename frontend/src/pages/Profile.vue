@@ -4,14 +4,17 @@
       {{ $t('profile.title') }}
     </h2>
 
-    <form @submit.prevent="updateProfile" class="space-y-6">
+    <form
+      class="space-y-6"
+      @submit.prevent="updateProfile"
+    >
       <!-- Avatar -->
       <div class="flex items-center space-x-6">
         <img
           :src="previewAvatar || user?.avatar_url || defaultAvatar"
           alt="Avatar"
           class="w-24 h-24 rounded-full object-cover border border-gray-300"
-        />
+        >
         <div class="flex flex-col">
           <label
             for="avatar-upload"
@@ -23,13 +26,19 @@
             id="avatar-upload"
             type="file"
             accept="image/*"
-            @change="onAvatarChange"
             class="hidden"
-          />
-          <p v-if="avatarFile" class="mt-2 text-sm text-gray-600 truncate max-w-xs">
+            @change="onAvatarChange"
+          >
+          <p
+            v-if="avatarFile"
+            class="mt-2 text-sm text-gray-600 truncate max-w-xs"
+          >
             {{ avatarFile.name }}
           </p>
-          <p v-else class="mt-2 text-sm text-gray-400 italic">
+          <p
+            v-else
+            class="mt-2 text-sm text-gray-400 italic"
+          >
             {{ $t('noFileSelected') }}
           </p>
         </div>
@@ -41,12 +50,12 @@
           {{ $t('name') }}
         </label>
         <input
-          type="text"
           v-model="form.name"
+          type="text"
           :placeholder="$t('name')"
           required
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        >
       </div>
 
       <!-- Email -->
@@ -55,12 +64,12 @@
           {{ $t('email') }}
         </label>
         <input
-          type="email"
           v-model="form.email"
+          type="email"
           :placeholder="$t('email')"
           required
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        >
       </div>
 
       <!-- Teléfono -->
@@ -69,13 +78,13 @@
           {{ $t('phone') }}
         </label>
         <input
-          type="tel"
           v-model="form.phone"
+          type="tel"
           :placeholder="$t('phone')"
           pattern="^[+]?[\d\s\-]{7,15}$"
           title="Introduce un teléfono válido"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        >
       </div>
 
       <!-- Dirección personal -->
@@ -84,11 +93,11 @@
           {{ $t('address') }}
         </label>
         <input
-          type="text"
           v-model="form.address"
+          type="text"
           :placeholder="$t('address')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        >
       </div>
 
       <!-- Campos exclusivos para admin o provider -->
@@ -99,11 +108,11 @@
             {{ $t('businessAddress') }}
           </label>
           <input
-            type="text"
             v-model="form.business_address"
+            type="text"
             :placeholder="$t('businessAddress')"
             class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Categorías de servicio -->
@@ -115,7 +124,7 @@
             v-model="form.service_categories"
             :placeholder="$t('serviceCategoriesPlaceholder')"
             class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          ></textarea>
+          />
         </div>
 
         <!-- Área de cobertura -->
@@ -127,7 +136,7 @@
             v-model="form.coverage_area"
             :placeholder="$t('coverageAreaPlaceholder')"
             class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          ></textarea>
+          />
         </div>
       </template>
 
@@ -143,17 +152,30 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">
               {{ $t('language') }}
             </label>
-            <select v-model="pref.language" class="w-full border rounded-md p-2">
-              <option value="es">Español</option>
-              <option value="en">English</option>
-              <option value="pt">Português</option>
+            <select
+              v-model="pref.language"
+              class="w-full border rounded-md p-2"
+            >
+              <option value="es">
+                Español
+              </option>
+              <option value="en">
+                English
+              </option>
+              <option value="pt">
+                Português
+              </option>
             </select>
           </div>
 
           <!-- Tema -->
           <div>
             <label class="flex items-center mt-6">
-              <input type="checkbox" v-model="pref.dark" class="mr-2" />
+              <input
+                v-model="pref.dark"
+                type="checkbox"
+                class="mr-2"
+              >
               {{ $t('darkTheme') }}
             </label>
           </div>
@@ -164,11 +186,19 @@
               {{ $t('notifications') }}
             </label>
             <label class="flex items-center">
-              <input type="checkbox" v-model="pref.notifications.email" class="mr-2" />
+              <input
+                v-model="pref.notifications.email"
+                type="checkbox"
+                class="mr-2"
+              >
               {{ $t('notifyEmail') }}
             </label>
             <label class="flex items-center">
-              <input type="checkbox" v-model="pref.notifications.sms" class="mr-2" />
+              <input
+                v-model="pref.notifications.sms"
+                type="checkbox"
+                class="mr-2"
+              >
               {{ $t('notifySMS') }}
             </label>
           </div>

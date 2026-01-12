@@ -2,45 +2,115 @@
   <div class="dashboard-user p-4">
     <!-- Pestañas -->
     <div class="mb-6 border-b border-gray-300 bg-white sticky top-16 z-20 pb-1">
-      <nav class="flex space-x-2 justify-center max-w-md mx-auto" role="tablist" :aria-label="$t('tabs')">
-        <button role="tab" :aria-selected="selectedTab === 'services'" :tabindex="selectedTab === 'services' ? 0 : -1" aria-controls="panel-services" @click="selectedTab = 'services'" :class="tabClass('services')">
+      <nav
+        class="flex space-x-2 justify-center max-w-md mx-auto"
+        role="tablist"
+        :aria-label="$t('tabs')"
+      >
+        <button
+          role="tab"
+          :aria-selected="selectedTab === 'services'"
+          :tabindex="selectedTab === 'services' ? 0 : -1"
+          aria-controls="panel-services"
+          :class="tabClass('services')"
+          @click="selectedTab = 'services'"
+        >
           {{ $t('services') }}
         </button>
-        <button role="tab" :aria-selected="selectedTab === 'activeRequests'" :tabindex="selectedTab === 'activeRequests' ? 0 : -1" aria-controls="panel-activeRequests" @click="selectedTab = 'activeRequests'" :class="tabClass('activeRequests')">
+        <button
+          role="tab"
+          :aria-selected="selectedTab === 'activeRequests'"
+          :tabindex="selectedTab === 'activeRequests' ? 0 : -1"
+          aria-controls="panel-activeRequests"
+          :class="tabClass('activeRequests')"
+          @click="selectedTab = 'activeRequests'"
+        >
           {{ $t('active') }}
         </button>
-        <button role="tab" :aria-selected="selectedTab === 'support'" :tabindex="selectedTab === 'support' ? 0 : -1" aria-controls="panel-support" @click="selectedTab = 'support'" :class="tabClass('support')">
+        <button
+          role="tab"
+          :aria-selected="selectedTab === 'support'"
+          :tabindex="selectedTab === 'support' ? 0 : -1"
+          aria-controls="panel-support"
+          :class="tabClass('support')"
+          @click="selectedTab = 'support'"
+        >
           {{ $t('support') }}
         </button>
-        <button role="tab" :aria-selected="selectedTab === 'history'" :tabindex="selectedTab === 'history' ? 0 : -1" aria-controls="panel-history" @click="selectedTab = 'history'" :class="tabClass('history')">
+        <button
+          role="tab"
+          :aria-selected="selectedTab === 'history'"
+          :tabindex="selectedTab === 'history' ? 0 : -1"
+          aria-controls="panel-history"
+          :class="tabClass('history')"
+          @click="selectedTab = 'history'"
+        >
           {{ $t('history') }}
         </button>
       </nav>
     </div>
 
     <!-- SERVICES -->
-    <div id="panel-services" role="tabpanel" v-if="selectedTab === 'services'" aria-labelledby="tab-services">
-      <div v-if="loading" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div v-for="service in services" :key="service.id" class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition" @click="openServiceDetails(service)">
+    <div
+      v-if="selectedTab === 'services'"
+      id="panel-services"
+      role="tabpanel"
+      aria-labelledby="tab-services"
+    >
+      <div
+        v-if="loading"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else
+        class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+      >
+        <div
+          v-for="service in services"
+          :key="service.id"
+          class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition"
+          @click="openServiceDetails(service)"
+        >
           <div class="p-4 flex justify-between items-start bg-gray-100">
             <div>
-              <h2 class="font-bold text-lg">{{ sanitize(service.title) }}</h2>
-              <p class="text-sm text-gray-600">{{ sanitize(service.description) }}</p>
+              <h2 class="font-bold text-lg">
+                {{ sanitize(service.title) }}
+              </h2>
+              <p class="text-sm text-gray-600">
+                {{ sanitize(service.description) }}
+              </p>
             </div>
             <div class="text-right ml-4">
-              <p class="font-semibold">{{ formatDate(service.created_at) }}</p>
-              <span :class="service.isAvailable === 1 && service.status === 'active' ? 'text-green-600' : 'text-red-600'" class="text-xs font-medium">
+              <p class="font-semibold">
+                {{ formatDate(service.created_at) }}
+              </p>
+              <span
+                :class="service.isAvailable === 1 && service.status === 'active' ? 'text-green-600' : 'text-red-600'"
+                class="text-xs font-medium"
+              >
                 {{ service.isAvailable === 1 && service.status === 'active' ? $t('available') : $t('not_available') }}
               </span>
             </div>
           </div>
           <div class="p-4 flex justify-between items-center bg-white">
             <div class="flex items-center gap-3">
-              <img :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'" :alt="service.provider?.name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+              <img
+                :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'"
+                :alt="service.provider?.name || 'Ads'"
+                class="w-10 h-10 rounded-full object-cover"
+              >
               <div>
-                <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
-                <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
+                <p class="font-semibold">
+                  {{ sanitize(service.provider?.name || 'Desconocido') }}
+                </p>
+                <p
+                  v-if="service.provider?.rating"
+                  class="text-yellow-500 text-sm"
+                >
+                  ⭐ {{ service.provider.rating }}
+                </p>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -49,24 +119,58 @@
           </div>
         </div>
       </div>
-      <div v-if="!loading && services.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_services_available') }}</div>
+      <div
+        v-if="!loading && services.length === 0"
+        class="text-center text-gray-500 py-10"
+      >
+        {{ $t('no_services_available') }}
+      </div>
     </div>
 
     <!-- ACTIVE REQUESTS -->
-    <div id="panel-activeRequests" role="tabpanel" v-if="selectedTab === 'activeRequests'" aria-labelledby="tab-activeRequests">
-      <div v-if="activeRequestsLoading" class="text-center py-10">{{ $t('loading') }}…</div>
+    <div
+      v-if="selectedTab === 'activeRequests'"
+      id="panel-activeRequests"
+      role="tabpanel"
+      aria-labelledby="tab-activeRequests"
+    >
+      <div
+        v-if="activeRequestsLoading"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
       <div v-else>
-        <div v-if="activeRequests.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_active_requests') }}</div>
+        <div
+          v-if="activeRequests.length === 0"
+          class="text-center text-gray-500 py-10"
+        >
+          {{ $t('no_active_requests') }}
+        </div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div v-for="request in activeRequests" :key="request.id" class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition" @click="openLiveTracking(request)">
+          <div
+            v-for="request in activeRequests"
+            :key="request.id"
+            class="card shadow rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition"
+            @click="openLiveTracking(request)"
+          >
             <div class="p-4 flex justify-between items-start bg-gray-100">
               <div>
-                <h2 class="font-bold text-lg">{{ sanitize(request.service_title || 'Servicio Activo') }}</h2>
-                <p class="text-sm text-gray-600">{{ sanitize(request.service_description || '-') }}</p>
+                <h2 class="font-bold text-lg">
+                  {{ sanitize(request.service_title || 'Servicio Activo') }}
+                </h2>
+                <p class="text-sm text-gray-600">
+                  {{ sanitize(request.service_description || '-') }}
+                </p>
               </div>
               <div class="text-right ml-4">
-                <p class="font-semibold">{{ formatDate(request.created_at) }}</p>
-                <span :class="statusColor(request.status)" class="text-xs font-medium">{{ statusLabel(request.status) }}</span>
+                <p class="font-semibold">
+                  {{ formatDate(request.created_at) }}
+                </p>
+                <span
+                  :class="statusColor(request.status)"
+                  class="text-xs font-medium"
+                >{{ statusLabel(request.status) }}</span>
                 <!-- ESTADO DE PAGO -->
                 <div class="mt-1">
                   <PaymentPill :status="request.payment_status" />
@@ -75,10 +179,21 @@
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <div class="flex items-center gap-3">
-                <img :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'" :alt="request.service_name || 'Ads'" class="w-10 h-10 rounded-full object-cover" />
+                <img
+                  :src="request.service_image_url ? `http://localhost:8000${request.service_image_url}` : '/img/default-provider.png'"
+                  :alt="request.service_name || 'Ads'"
+                  class="w-10 h-10 rounded-full object-cover"
+                >
                 <div>
-                  <p class="font-semibold">{{ sanitize(request.service_provider_name || 'Ads') }}</p>
-                  <p v-if="request.provider_rating" class="text-yellow-500 text-sm">⭐ {{ request.provider_rating }}</p>
+                  <p class="font-semibold">
+                    {{ sanitize(request.service_provider_name || 'Ads') }}
+                  </p>
+                  <p
+                    v-if="request.provider_rating"
+                    class="text-yellow-500 text-sm"
+                  >
+                    ⭐ {{ request.provider_rating }}
+                  </p>
                 </div>
               </div>
               <div class="flex items-center gap-2">
@@ -91,29 +206,81 @@
     </div>
 
     <!-- SUPPORT -->
-    <div id="panel-support" role="tabpanel" v-if="selectedTab === 'support'" aria-labelledby="tab-support" class="p-4">
-      <div v-if="faqLoading" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else class="mb-8">
-        <h2 class="text-xl font-semibold mb-4">{{ $t('faq') }}</h2>
+    <div
+      v-if="selectedTab === 'support'"
+      id="panel-support"
+      role="tabpanel"
+      aria-labelledby="tab-support"
+      class="p-4"
+    >
+      <div
+        v-if="faqLoading"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else
+        class="mb-8"
+      >
+        <h2 class="text-xl font-semibold mb-4">
+          {{ $t('faq') }}
+        </h2>
         <div class="space-y-2">
-          <details v-for="(item, idx) in faqItems" :key="idx" class="bg-white rounded-md shadow px-4 py-2">
-            <summary class="cursor-pointer font-medium text-left">{{ sanitize(item.question) }}</summary>
-            <p class="text-sm text-gray-600 mt-2">{{ sanitize(item.answer) }}</p>
+          <details
+            v-for="(item, idx) in faqItems"
+            :key="idx"
+            class="bg-white rounded-md shadow px-4 py-2"
+          >
+            <summary class="cursor-pointer font-medium text-left">
+              {{ sanitize(item.question) }}
+            </summary>
+            <p class="text-sm text-gray-600 mt-2">
+              {{ sanitize(item.answer) }}
+            </p>
           </details>
         </div>
       </div>
       <div class="text-center">
-        <button @click="openSupportChat" class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700">💬 {{ $t('contact_support') }}</button>
+        <button
+          class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700"
+          @click="openSupportChat"
+        >
+          💬 {{ $t('contact_support') }}
+        </button>
       </div>
-      <div v-if="supportLoading" class="text-center py-10 mt-8">{{ $t('loading') }}…</div>
-      <div v-else class="mt-8">
-        <h2 class="text-xl font-semibold mb-4">{{ $t('my_tickets') }}</h2>
-        <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_support_tickets') }}</div>
+      <div
+        v-if="supportLoading"
+        class="text-center py-10 mt-8"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else
+        class="mt-8"
+      >
+        <h2 class="text-xl font-semibold mb-4">
+          {{ $t('my_tickets') }}
+        </h2>
+        <div
+          v-if="tickets.length === 0"
+          class="text-center text-gray-500 py-10"
+        >
+          {{ $t('no_support_tickets') }}
+        </div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div v-for="ticket in tickets" :key="ticket.id" class="card shadow rounded-lg overflow-hidden">
+          <div
+            v-for="ticket in tickets"
+            :key="ticket.id"
+            class="card shadow rounded-lg overflow-hidden"
+          >
             <div class="p-4 bg-gray-100">
-              <h2 class="font-bold text-lg truncate">{{ sanitize(ticket.subject) }}</h2>
-              <p class="text-sm text-gray-600 truncate">{{ sanitize(ticket.last_message) }}</p>
+              <h2 class="font-bold text-lg truncate">
+                {{ sanitize(ticket.subject) }}
+              </h2>
+              <p class="text-sm text-gray-600 truncate">
+                {{ sanitize(ticket.last_message) }}
+              </p>
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <span :class="statusColor(ticket.status)">{{ statusLabel(ticket.status) }}</span>
@@ -121,48 +288,155 @@
             </div>
           </div>
         </div>
-        <button v-if="!showNewTicket" @click="showNewTicket = true" class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl" :title="$t('new_ticket')">+</button>
-        <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket" @close="showNewTicket = false" @ticket-created="onTicketCreated" />
+        <button
+          v-if="!showNewTicket"
+          class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
+          :title="$t('new_ticket')"
+          @click="showNewTicket = true"
+        >
+          +
+        </button>
+        <NewTicketModal
+          v-if="showNewTicket"
+          :is-open="showNewTicket"
+          @close="showNewTicket = false"
+          @ticket-created="onTicketCreated"
+        />
       </div>
     </div>
 
     <!-- HISTORIAL (LISTADO) -->
-    <div id="panel-history" role="tabpanel" v-if="selectedTab === 'history'" aria-labelledby="tab-history" class="p-4 space-y-2">
-      <div v-if="historyLoading" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else-if="history.length === 0" class="text-center text-gray-500 py-10">{{ $t('no_history') }}</div>
-      <div v-for="item in history" :key="item.id" class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer" @click="openHistoryModal(item)">
+    <div
+      v-if="selectedTab === 'history'"
+      id="panel-history"
+      role="tabpanel"
+      aria-labelledby="tab-history"
+      class="p-4 space-y-2"
+    >
+      <div
+        v-if="historyLoading"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else-if="history.length === 0"
+        class="text-center text-gray-500 py-10"
+      >
+        {{ $t('no_history') }}
+      </div>
+      <div
+        v-for="item in history"
+        :key="item.id"
+        class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer"
+        @click="openHistoryModal(item)"
+      >
         <div class="flex-1">
-          <p class="font-semibold text-gray-800">{{ sanitize(item.service_title || item.title) }}</p>
-          <p class="text-sm" :class="statusColor(item.status)">{{ statusLabel(item.status) }}</p>
+          <p class="font-semibold text-gray-800">
+            {{ sanitize(item.service_title || item.title) }}
+          </p>
+          <p
+            class="text-sm"
+            :class="statusColor(item.status)"
+          >
+            {{ statusLabel(item.status) }}
+          </p>
         </div>
         <div class="text-right">
-          <p class="font-bold text-green-600">${{ Number(item.service_price || item.price || 0).toFixed(2) }}</p>
-          <p class="text-xs text-gray-400">{{ formatDate(item.completed_at || item.created_at) }}</p>
+          <p class="font-bold text-green-600">
+            ${{ Number(item.service_price || item.price || 0).toFixed(2) }}
+          </p>
+          <p class="text-xs text-gray-400">
+            {{ formatDate(item.completed_at || item.created_at) }}
+          </p>
         </div>
       </div>
     </div>
 
     <!-- MODALES -->
-    <ServiceDetailsModal v-if="modalService" :is-open="showServiceDetails" :request="modalService" @on-request-service="goToRequestConfirmation" @on-open-change="(val) => (showServiceDetails = val)" @on-start-chat="openChat" />
-    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
-    <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" :service-details="modalService" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
-    <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId"  @cancel="resetFlow" @open-Payment="openPaymentModal" @retry-request="handleRetry" />
-    <PaymentModal v-if="modalService" v-model:is-open="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
-    <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket" @close="showNewTicket = false" @ticket-created="onTicketCreated" />
+    <ServiceDetailsModal
+      v-if="modalService"
+      :is-open="showServiceDetails"
+      :request="modalService"
+      @on-request-service="goToRequestConfirmation"
+      @on-open-change="(val) => (showServiceDetails = val)"
+      @on-start-chat="openChat"
+    />
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
+    <RequestConfirmationModal
+      v-if="modalService"
+      :is-open="showRequestConfirmation"
+      :service-details="modalService"
+      @confirm="onConfirmRequest"
+      @on-open-change="(val) => (showRequestConfirmation = val)"
+    />
+    <ProviderContactModal
+      v-if="showProviderContact && modalService"
+      ref="providerContactModal"
+      :is-open="showProviderContact"
+      :provider-name="modalService.provider?.name"
+      :request-id="modalService.requestId"
+      @cancel="resetFlow"
+      @open-payment="openPaymentModal"
+      @retry-request="handleRetry"
+    />
+    <PaymentModal
+      v-if="modalService"
+      v-model:is-open="showPayment"
+      :is-open="showPayment"
+      :request="modalService"
+      @on-payment-submit="handlePaymentSubmit"
+      @on-open-change="(val) => (showPayment = val)"
+    />
+    <NewTicketModal
+      v-if="showNewTicket"
+      :is-open="showNewTicket"
+      @close="showNewTicket = false"
+      @ticket-created="onTicketCreated"
+    />
 
     <!-- LiveOrderTracking -->
-    <LiveOrderTracking v-if="showLiveTracking" :order="liveOrder" @close="showLiveTracking = false" @open-chat="openChat" @open-payment="openPaymentModal" />
+    <LiveOrderTracking
+      v-if="showLiveTracking"
+      :order="liveOrder"
+      @close="showLiveTracking = false"
+      @open-chat="openChat"
+      @open-payment="openPaymentModal"
+    />
 
     <!-- HISTORY DETAIL MODAL -->
-    <div v-if="historyModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50" @click.self="closeHistoryModal">
+    <div
+      v-if="historyModal"
+      class="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50"
+      @click.self="closeHistoryModal"
+    >
       <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 p-6 space-y-4">
-        <h2 class="text-xl font-bold text-gray-800">{{ sanitize(selectedHistory.service_title || selectedHistory.title) }}</h2>
-        <p class="text-sm text-gray-600"><strong>{{ $t('provider') }}:</strong> {{ sanitize(selectedHistory.provider_name || selectedHistory.providerName) }}</p>
-        <p class="text-sm"><strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span></p>
-        <p class="text-sm"><strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span></p>
-        <p class="text-sm"><strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.completed_at || selectedHistory.created_at) }}</p>
+        <h2 class="text-xl font-bold text-gray-800">
+          {{ sanitize(selectedHistory.service_title || selectedHistory.title) }}
+        </h2>
+        <p class="text-sm text-gray-600">
+          <strong>{{ $t('provider') }}:</strong> {{ sanitize(selectedHistory.provider_name || selectedHistory.providerName) }}
+        </p>
+        <p class="text-sm">
+          <strong>{{ $t('status') }}:</strong> <span :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span>
+        </p>
+        <p class="text-sm">
+          <strong>{{ $t('price') }}:</strong> <span class="font-bold text-green-600">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span>
+        </p>
+        <p class="text-sm">
+          <strong>{{ $t('date') }}:</strong> {{ formatDate(selectedHistory.completed_at || selectedHistory.created_at) }}
+        </p>
         <div class="flex justify-end">
-          <button @click="closeHistoryModal" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">{{ $t('close') }}</button>
+          <button
+            class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+            @click="closeHistoryModal"
+          >
+            {{ $t('close') }}
+          </button>
         </div>
       </div>
     </div>
@@ -236,6 +510,56 @@ export default {
       errorMessage: '',
       socketHandlers: []
     }
+  },
+
+  computed: {
+    notificationStore() {
+      return useNotificationStore();
+    }
+  },
+
+  watch: {
+    selectedTab(tab) {
+      const hidden = document.hidden;
+      if (!hidden) {
+        const fetchMap = {
+          services: () => { this.lastFetch.services = 0; this.fetchServices(); },
+          activeRequests: () => { this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); },
+          support: () => { this.lastFetch.tickets = 0; this.fetchTickets(); this.lastFetch.faq = 0; this.fetchFaq(); },
+          history: () => { this.lastFetch.history = 0; this.fetchHistory(); }
+        };
+        fetchMap[tab]?.();
+      }
+    }
+  },
+
+  async mounted() {
+    const authStore = useAuthStore();
+    const socketStore = useSocketStore();
+
+    this.notificationSound = new Audio('/sounds/notification.mp3');
+
+    this.setupSocketHandlers();
+
+    await Promise.allSettled([
+      this.fetchServices(),
+      this.fetchActiveRequests(),
+      this.fetchTickets(),
+      this.fetchHistory(),
+      this.fetchFaq()
+    ]);
+
+    window.addEventListener('refresh-dashboard', this.handleDashboardRefresh);
+  },
+
+  beforeUnmount() {
+    const providerModal = this.$refs.providerContactModal
+    if (providerModal && typeof providerModal.stopProcess === 'function') {
+      providerModal.stopProcess()
+    }
+
+    this.cleanupSocketHandlers();
+    window.removeEventListener('refresh-dashboard', this.handleDashboardRefresh);
   },
 
   methods: {
@@ -740,56 +1064,6 @@ export default {
       });
       this.socketHandlers = [];
     }
-  },
-
-  computed: {
-    notificationStore() {
-      return useNotificationStore();
-    }
-  },
-
-  watch: {
-    selectedTab(tab) {
-      const hidden = document.hidden;
-      if (!hidden) {
-        const fetchMap = {
-          services: () => { this.lastFetch.services = 0; this.fetchServices(); },
-          activeRequests: () => { this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); },
-          support: () => { this.lastFetch.tickets = 0; this.fetchTickets(); this.lastFetch.faq = 0; this.fetchFaq(); },
-          history: () => { this.lastFetch.history = 0; this.fetchHistory(); }
-        };
-        fetchMap[tab]?.();
-      }
-    }
-  },
-
-  async mounted() {
-    const authStore = useAuthStore();
-    const socketStore = useSocketStore();
-
-    this.notificationSound = new Audio('/sounds/notification.mp3');
-
-    this.setupSocketHandlers();
-
-    await Promise.allSettled([
-      this.fetchServices(),
-      this.fetchActiveRequests(),
-      this.fetchTickets(),
-      this.fetchHistory(),
-      this.fetchFaq()
-    ]);
-
-    window.addEventListener('refresh-dashboard', this.handleDashboardRefresh);
-  },
-
-  beforeUnmount() {
-    const providerModal = this.$refs.providerContactModal
-    if (providerModal && typeof providerModal.stopProcess === 'function') {
-      providerModal.stopProcess()
-    }
-
-    this.cleanupSocketHandlers();
-    window.removeEventListener('refresh-dashboard', this.handleDashboardRefresh);
   }
 }
 </script>

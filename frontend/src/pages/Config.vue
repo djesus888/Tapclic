@@ -10,7 +10,10 @@
         </p>
       </header>
 
-      <form @submit.prevent="saveConfig" novalidate>
+      <form
+        novalidate
+        @submit.prevent="saveConfig"
+      >
         <!-- Cuenta (todos) -->
         <section class="mb-10">
           <h2 class="text-lg font-semibold text-gray-800 mb-4">
@@ -26,7 +29,7 @@
                 type="text"
                 required
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              >
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -37,7 +40,7 @@
                 type="email"
                 required
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              >
             </div>
             <div class="sm:col-span-2">
               <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -47,7 +50,7 @@
                 v-model="form.phone"
                 type="tel"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              >
             </div>
           </div>
         </section>
@@ -66,8 +69,12 @@
                 v-model="form.language"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="es">Español</option>
-                <option value="en">English</option>
+                <option value="es">
+                  Español
+                </option>
+                <option value="en">
+                  English
+                </option>
               </select>
             </div>
             <div>
@@ -78,8 +85,12 @@
                 v-model="form.theme"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="light">{{ $t('config.light') }}</option>
-                <option value="dark">{{ $t('config.dark') }}</option>
+                <option value="light">
+                  {{ $t('config.light') }}
+                </option>
+                <option value="dark">
+                  {{ $t('config.dark') }}
+                </option>
               </select>
             </div>
             <div class="sm:col-span-2 flex items-center gap-2">
@@ -88,8 +99,11 @@
                 v-model="form.notifications"
                 type="checkbox"
                 class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <label for="notif" class="text-sm font-medium text-gray-700">
+              >
+              <label
+                for="notif"
+                class="text-sm font-medium text-gray-700"
+              >
                 {{ $t('config.notifications') }}
               </label>
             </div>
@@ -103,15 +117,18 @@
           </h2>
           <button
             type="button"
-            @click="showChangePassword = true"
             class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            @click="showChangePassword = true"
           >
             🔒 {{ $t('config.changePassword') }}
           </button>
         </section>
 
         <!-- Opciones de PROVEEDOR -->
-        <section v-if="isProvider" class="mb-10 border-t pt-6">
+        <section
+          v-if="isProvider"
+          class="mb-10 border-t pt-6"
+        >
           <h2 class="text-lg font-semibold text-blue-700 mb-4">
             {{ $t('config.providerSection') }}
           </h2>
@@ -124,7 +141,7 @@
                 v-model="form.business_address"
                 rows="2"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              ></textarea>
+              />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -134,7 +151,7 @@
                 v-model="form.coverage_area"
                 type="text"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              >
             </div>
             <div class="sm:col-span-2">
               <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -145,13 +162,16 @@
                 type="text"
                 placeholder="Ej: Cuidado de adultos, Limpieza"
                 class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              >
             </div>
           </div>
         </section>
 
         <!-- ADMIN ONLY -->
-        <section v-if="isAdmin" class="mb-10 border-t pt-6">
+        <section
+          v-if="isAdmin"
+          class="mb-10 border-t pt-6"
+        >
           <h2 class="text-lg font-semibold text-red-600 mb-4">
             {{ $t('config.adminSection') }}
           </h2>
@@ -166,9 +186,12 @@
               rows="5"
               class="w-full border rounded-lg p-3 text-sm font-mono"
               :class="{ 'border-red-500': errors.globalConfig }"
-              placeholder='{"key": "value"}'
-            ></textarea>
-            <p v-if="errors.globalConfig" class="text-red-500 text-xs mt-1">
+              placeholder="{&quot;key&quot;: &quot;value&quot;}"
+            />
+            <p
+              v-if="errors.globalConfig"
+              class="text-red-500 text-xs mt-1"
+            >
               {{ errors.globalConfig }}
             </p>
           </div>
@@ -177,8 +200,8 @@
           <div class="mt-4">
             <button
               type="button"
-              @click="$router.push('/admin/users')"
               class="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+              @click="$router.push('/admin/users')"
             >
               👥 {{ $t('config.manageUsers') }}
             </button>
@@ -203,7 +226,7 @@
     <ChangePasswordModal
       v-if="showChangePassword"
       @close="showChangePassword = false"
-      @passwordChanged="onPasswordChanged"
+      @password-changed="onPasswordChanged"
     />
   </div>
 </template>

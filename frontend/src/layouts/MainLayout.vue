@@ -11,26 +11,40 @@
     >
       <div class="flex items-center gap-4 px-4">
         <button
-          @click="toggleUserPanel"
           aria-label="Abrir menú"
           :aria-expanded="showUserPanel"
           class="p-2 rounded-md hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          @click="toggleUserPanel"
         >
-          <span aria-hidden="true" class="text-xl">☰</span>
+          <span
+            aria-hidden="true"
+            class="text-xl"
+          >☰</span>
         </button>
-        <h1 class="text-2xl font-bold text-slate-800 tracking-tight">TapClic</h1>
+        <h1 class="text-2xl font-bold text-slate-800 tracking-tight">
+          TapClic
+        </h1>
       </div>
 
       <div class="flex items-center gap-3 px-4">
         <!-- Idioma -->
-        <div class="relative z-[60]" ref="langDropdownRef">
+        <div
+          ref="langDropdownRef"
+          class="relative z-[60]"
+        >
           <button
-            @click="toggleLangDropdown"
             aria-label="Cambiar idioma"
             class="w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-100"
+            @click="toggleLangDropdown"
           >
-            <span v-if="locale === 'es'" class="text-xl">🇪🇸</span>
-            <span v-else-if="locale === 'en'" class="text-xl">🇺🇸</span>
+            <span
+              v-if="locale === 'es'"
+              class="text-xl"
+            >🇪🇸</span>
+            <span
+              v-else-if="locale === 'en'"
+              class="text-xl"
+            >🇺🇸</span>
           </button>
           <transition name="fade">
             <div
@@ -40,8 +54,8 @@
               <button
                 v-for="(flag, lang) in availableLanguages"
                 :key="lang"
-                @click="changeLocale(lang); langDropdownOpen = false"
                 class="flex items-center gap-2 px-3 py-2 w-full hover:bg-slate-100 text-left"
+                @click="changeLocale(lang); langDropdownOpen = false"
               >
                 <span class="text-xl">{{ flag }}</span>
               </button>
@@ -51,10 +65,10 @@
 
         <!-- Notificaciones -->
         <button
-          @click="togglePanel('notifications')"
           aria-label="Notificaciones"
           :aria-expanded="activePanel === 'notifications'"
           class="relative p-2 rounded-full hover:bg-slate-100"
+          @click="togglePanel('notifications')"
         >
           <span class="text-xl">🔔</span>
           <span
@@ -67,10 +81,10 @@
 
         <!-- Conversaciones -->
         <button
-          @click="togglePanel('conversations')"
           aria-label="Conversaciones"
           :aria-expanded="activePanel === 'conversations'"
           class="relative p-2 rounded-full hover:bg-slate-100"
+          @click="togglePanel('conversations')"
         >
           <span class="text-xl">💬</span>
           <span
@@ -98,67 +112,113 @@
 
     <!-- ========== PANELES DERECHOS CON LOADING STATE ========== -->
     <transition name="slide-right">
-      <div v-if="activePanel === 'notifications'"
+      <div
+        v-if="activePanel === 'notifications'"
         class="fixed top-16 right-0 bottom-0 w-80 bg-white shadow-2xl z-40 flex flex-col"
       >
         <div class="p-4 border-b flex items-center justify-between">
-          <h2 class="text-lg font-semibold">{{ $t('notifications') }}</h2>
-          <button @click="activePanel = null" class="text-gray-600 text-xl" aria-label="Cerrar">
+          <h2 class="text-lg font-semibold">
+            {{ $t('notifications') }}
+          </h2>
+          <button
+            class="text-gray-600 text-xl"
+            aria-label="Cerrar"
+            @click="activePanel = null"
+          >
             ×
           </button>
         </div>
 
         <!-- Skeleton loading -->
-        <div v-if="socketStore.loading" class="flex-1 p-4 space-y-3">
-          <div v-for="i in 3" :key="i" class="h-20 bg-slate-200 animate-pulse rounded"></div>
+        <div
+          v-if="socketStore.loading"
+          class="flex-1 p-4 space-y-3"
+        >
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="h-20 bg-slate-200 animate-pulse rounded"
+          />
         </div>
 
-        <div v-else class="flex-1 overflow-y-auto divide-y">
-          <div v-for="notification in socketStore.notifications"
+        <div
+          v-else
+          class="flex-1 overflow-y-auto divide-y"
+        >
+          <div
+            v-for="notification in socketStore.notifications"
             :key="notification.id"
-            @click="handleNotificationClick(notification)"
             class="p-4 cursor-pointer transition-colors"
             :class="!notification.is_read ? 'bg-sky-50 hover:bg-sky-100' : 'hover:bg-slate-50'"
+            @click="handleNotificationClick(notification)"
           >
-            <h3 class="font-semibold">{{ notification.title }}</h3>
-            <p class="text-sm text-gray-600" v-html="sanitizeMessage(notification.message)"></p>
-            <p class="text-xs text-gray-400 mt-1">{{ formatDate(notification.created_at) }}</p>
+            <h3 class="font-semibold">
+              {{ notification.title }}
+            </h3>
+            <p
+              class="text-sm text-gray-600"
+              v-html="sanitizeMessage(notification.message)"
+            />
+            <p class="text-xs text-gray-400 mt-1">
+              {{ formatDate(notification.created_at) }}
+            </p>
           </div>
         </div>
       </div>
     </transition>
 
     <transition name="slide-right">
-      <div v-if="activePanel === 'conversations'"
+      <div
+        v-if="activePanel === 'conversations'"
         class="fixed top-16 right-0 bottom-0 w-80 bg-white shadow-2xl z-40 flex flex-col"
       >
         <div class="p-4 border-b flex items-center justify-between">
-          <h2 class="text-lg font-semibold">{{ $t('conversations') }}</h2>
-          <button @click="activePanel = null" class="text-gray-600 text-xl" aria-label="Cerrar">
+          <h2 class="text-lg font-semibold">
+            {{ $t('conversations') }}
+          </h2>
+          <button
+            class="text-gray-600 text-xl"
+            aria-label="Cerrar"
+            @click="activePanel = null"
+          >
             ×
           </button>
         </div>
 
-        <div v-if="conversationStore.loading" class="flex-1 p-4 space-y-3">
-          <div v-for="i in 3" :key="i" class="h-16 bg-slate-200 animate-pulse rounded"></div>
+        <div
+          v-if="conversationStore.loading"
+          class="flex-1 p-4 space-y-3"
+        >
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="h-16 bg-slate-200 animate-pulse rounded"
+          />
         </div>
 
-        <div v-else class="flex-1 overflow-y-auto divide-y">
+        <div
+          v-else
+          class="flex-1 overflow-y-auto divide-y"
+        >
           <template v-if="conversationStore.conversations.length">
-            <div v-for="conv in conversationStore.conversations"
+            <div
+              v-for="conv in conversationStore.conversations"
               :key="conv.id"
-              @click="openConversation(conv)"
               class="p-4 cursor-pointer transition-colors"
               :class="conv.unreadCount > 0 ? 'bg-sky-50 hover:bg-sky-100' : 'hover:bg-slate-50'"
+              @click="openConversation(conv)"
             >
               <div class="flex items-center gap-3">
-                <img :src="avatarUrl(conv.otherAvatar)"
+                <img
+                  :src="avatarUrl(conv.otherAvatar)"
                   class="w-10 h-10 rounded-full object-cover"
                   :alt="conv.otherName"
                   loading="lazy"
-                />
+                >
                 <div class="flex-1 min-w-0">
-                  <h3 class="font-semibold truncate">{{ conv.otherName }}</h3>
+                  <h3 class="font-semibold truncate">
+                    {{ conv.otherName }}
+                  </h3>
                   <p class="text-sm text-gray-600 truncate">
                     {{ conv.lastMessage?.text || $t('noMessages') }}
                   </p>
@@ -169,7 +229,10 @@
               </div>
             </div>
           </template>
-          <div v-else class="p-6 text-center text-sm text-gray-500">
+          <div
+            v-else
+            class="p-6 text-center text-sm text-gray-500"
+          >
             {{ $t('noConversations') }}
           </div>
         </div>
@@ -178,48 +241,64 @@
 
     <!-- ========== SIDEBAR IZQUIERDO ========== -->
     <transition name="slide-left">
-      <aside v-if="showUserPanel"
+      <aside
+        v-if="showUserPanel"
         class="fixed top-16 left-0 bottom-0 w-64 bg-white shadow-2xl z-40 flex flex-col"
         role="complementary"
         aria-label="Menú principal"
       >
         <div class="p-4 border-b flex items-center justify-between">
-          <h2 class="text-lg font-semibold">{{ $t('menu') }}</h2>
-          <button @click="showUserPanel = false" class="text-gray-600 text-xl" aria-label="Cerrar">
+          <h2 class="text-lg font-semibold">
+            {{ $t('menu') }}
+          </h2>
+          <button
+            class="text-gray-600 text-xl"
+            aria-label="Cerrar"
+            @click="showUserPanel = false"
+          >
             ×
           </button>
         </div>
         <nav class="flex-1 p-4 space-y-2 text-sm">
           <template v-if="authStore.user?.role === 'user'">
-            <RouterLink v-for="item in userMenuItems" :key="item.to"
+            <RouterLink
+              v-for="item in userMenuItems"
+              :key="item.to"
               :to="item.to"
-              @click="showUserPanel = false"
               class="block p-2 hover:bg-sky-100 rounded text-left"
+              @click="showUserPanel = false"
             >
               {{ item.icon }} {{ $t(item.label) }}
             </RouterLink>
           </template>
           <template v-else-if="authStore.user?.role === 'provider'">
-            <RouterLink v-for="item in providerMenuItems" :key="item.to"
+            <RouterLink
+              v-for="item in providerMenuItems"
+              :key="item.to"
               :to="item.to"
-              @click="showUserPanel = false"
               class="block p-2 hover:bg-sky-100 rounded text-left"
+              @click="showUserPanel = false"
             >
               {{ item.icon }} {{ $t(item.label) }}
             </RouterLink>
           </template>
           <template v-else-if="authStore.user?.role === 'admin'">
-            <RouterLink v-for="item in adminMenuItems" :key="item.to"
+            <RouterLink
+              v-for="item in adminMenuItems"
+              :key="item.to"
               :to="item.to"
-              @click="showUserPanel = false"
               class="block p-2 hover:bg-sky-100 rounded text-left"
+              @click="showUserPanel = false"
             >
               {{ item.icon }} {{ $t(item.label) }}
             </RouterLink>
           </template>
 
-          <hr class="my-4" />
-          <button @click="logout" class="w-full text-left p-2 hover:bg-rose-100 rounded">
+          <hr class="my-4">
+          <button
+            class="w-full text-left p-2 hover:bg-rose-100 rounded"
+            @click="logout"
+          >
             🚪 {{ $t('logout') }}
           </button>
         </nav>

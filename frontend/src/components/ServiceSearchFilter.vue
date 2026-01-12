@@ -10,7 +10,7 @@
         type="text"
         class="w-full mt-1 p-2 border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-white"
         :placeholder="$t('search_services')"
-      />
+      >
     </div>
 
     <!-- Categoría -->
@@ -22,7 +22,9 @@
         v-model="filters.category"
         class="w-full mt-1 p-2 border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-white"
       >
-        <option value="">{{ $t('all_categories') }}</option>
+        <option value="">
+          {{ $t('all_categories') }}
+        </option>
         <option
           v-for="category in categories"
           :key="category"
@@ -44,27 +46,27 @@
           type="number"
           class="w-1/2 p-2 border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-white"
           placeholder="Min"
-        />
+        >
         <input
           v-model.number="filters.maxPrice"
           type="number"
           class="w-1/2 p-2 border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-white"
           placeholder="Max"
-        />
+        >
       </div>
     </div>
 
     <!-- Botones -->
     <div class="flex gap-2">
       <button
-        @click="applyFilters"
         class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        @click="applyFilters"
       >
         {{ $t('apply_filters') }}
       </button>
       <button
-        @click="clearFilters"
         class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 dark:bg-gray-600 dark:text-white"
+        @click="clearFilters"
       >
         {{ $t('clear_filters') }}
       </button>

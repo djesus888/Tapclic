@@ -4,7 +4,9 @@
     <div class="text-3xl mb-2">
       <slot name="icon" />
     </div>
-    <h3 class="text-lg font-semibold text-gray-800 dark:text-white">{{ title }}</h3>
+    <h3 class="text-lg font-semibold text-gray-800 dark:text-white">
+      {{ title }}
+    </h3>
     <p class="text-sm text-gray-500 mt-1">
       {{ subtitle }}
     </p>

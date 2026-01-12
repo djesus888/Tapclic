@@ -3,7 +3,7 @@
         'name' => 'tapclic/backend',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'fbbe2aae3ccd3a68555bd5c8f90126ba1f011bd4',
+        'reference' => '0e584f52e79f93e6fecd5bc345ac7b5ed27d7b58',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -562,7 +562,7 @@
         'tapclic/backend' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'fbbe2aae3ccd3a68555bd5c8f90126ba1f011bd4',
+            'reference' => '0e584f52e79f93e6fecd5bc345ac7b5ed27d7b58',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

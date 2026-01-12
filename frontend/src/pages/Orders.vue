@@ -1,6 +1,5 @@
 <template>
   <div class="max-w-5xl mx-auto p-4 sm:p-6 bg-white rounded-xl shadow-md mt-8">
-
     <!-- Tabs -->
     <div class="flex space-x-4 border-b mb-6">
       <button
@@ -20,16 +19,28 @@
     </div>
 
     <!-- Skeleton -->
-    <div v-if="loading" class="space-y-4">
-      <div v-for="i in 3" :key="i" class="p-4 border rounded animate-pulse">
-        <div class="h-5 bg-gray-300 rounded w-1/3 mb-2"/>
-        <div class="h-4 bg-gray-200 rounded w-2/3"/>
+    <div
+      v-if="loading"
+      class="space-y-4"
+    >
+      <div
+        v-for="i in 3"
+        :key="i"
+        class="p-4 border rounded animate-pulse"
+      >
+        <div class="h-5 bg-gray-300 rounded w-1/3 mb-2" />
+        <div class="h-4 bg-gray-200 rounded w-2/3" />
       </div>
     </div>
 
     <!-- Activas -->
     <section v-else-if="selectedTab === 'active'">
-      <p v-if="!activeOrders.length" class="text-center text-gray-500">{{ $t('orders.noActive') }}</p>
+      <p
+        v-if="!activeOrders.length"
+        class="text-center text-gray-500"
+      >
+        {{ $t('orders.noActive') }}
+      </p>
       <div
         v-for="o in activeOrders"
         :key="o.id"
@@ -37,31 +48,40 @@
       >
         <!-- Información -->
         <div class="min-w-0 flex-1">
-          <p class="font-semibold truncate">{{ o.serviceTitle }}</p>
-          <p class="text-sm text-gray-500 truncate">{{ o.providerName }}</p>
-          <p :class="statusColor(o.status)" class="text-xs font-medium mt-1">{{ statusLabel(o.status) }}</p>
+          <p class="font-semibold truncate">
+            {{ o.serviceTitle }}
+          </p>
+          <p class="text-sm text-gray-500 truncate">
+            {{ o.providerName }}
+          </p>
+          <p
+            :class="statusColor(o.status)"
+            class="text-xs font-medium mt-1"
+          >
+            {{ statusLabel(o.status) }}
+          </p>
         </div>
 
         <!-- Botones -->
         <div class="flex flex-wrap gap-2">
           <button
             v-if="authStore.user?.role === 'provider' && o.status === 'in_progress'"
-            @click="finaliseOrder(o.id)"
             class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+            @click="finaliseOrder(o.id)"
           >
             {{ $t('finalized') }}
           </button>
           <button
             v-if="['pending','accepted'].includes(o.status)"
-            @click="cancelOrder(o.id)"
             class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+            @click="cancelOrder(o.id)"
           >
             {{ $t('cancel') }}
           </button>
           <button
             v-if="o.status === 'completed'"
-            @click="openReviewModal(o)"
             class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            @click="openReviewModal(o)"
           >
             {{ $t('review') }}
           </button>
@@ -71,7 +91,12 @@
 
     <!-- Historial -->
     <section v-else>
-      <p v-if="!historyOrders.length" class="text-center text-gray-500">{{ $t('orders.noHistory') }}</p>
+      <p
+        v-if="!historyOrders.length"
+        class="text-center text-gray-500"
+      >
+        {{ $t('orders.noHistory') }}
+      </p>
       <div
         v-for="h in historyOrders"
         :key="h.id"
@@ -79,21 +104,25 @@
       >
         <!-- Información -->
         <div class="min-w-0 flex-1">
-          <p class="font-semibold truncate">{{ h.serviceTitle }}</p>
-          <p class="text-sm text-gray-500 truncate">{{ h.providerName }} – {{ fmtDate(h.finishedAt) }}</p>
+          <p class="font-semibold truncate">
+            {{ h.serviceTitle }}
+          </p>
+          <p class="text-sm text-gray-500 truncate">
+            {{ h.providerName }} – {{ fmtDate(h.finishedAt) }}
+          </p>
         </div>
 
         <!-- Botones -->
         <div class="flex flex-wrap gap-2">
           <button
-            @click="repeatOrder(h)"
             class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
+            @click="repeatOrder(h)"
           >
             {{ $t('repeat') }}
           </button>
           <button
-            @click="openReviewModal(h)"
             class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            @click="openReviewModal(h)"
           >
             {{ $t('review') }}
           </button>
@@ -110,10 +139,25 @@
       >
         <div class="w-full max-w-2xl bg-white rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Nueva reseña</h2>
-            <button @click="reviewModal.open = false" class="text-gray-500 hover:text-gray-800">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            <h2 class="text-lg font-semibold">
+              Nueva reseña
+            </h2>
+            <button
+              class="text-gray-500 hover:text-gray-800"
+              @click="reviewModal.open = false"
+            >
+              <svg
+                class="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -122,9 +166,19 @@
           <div class="mb-4">
             <label class="block text-sm font-medium mb-2">Calificación *</label>
             <div class="flex gap-2">
-              <button v-for="i in 5" :key="i" @click="reviewModal.stars = i" class="transition-transform hover:scale-110">
-                <svg class="w-8 h-8" :class="i <= reviewModal.stars ? 'text-yellow-400' : 'text-gray-300'" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+              <button
+                v-for="i in 5"
+                :key="i"
+                class="transition-transform hover:scale-110"
+                @click="reviewModal.stars = i"
+              >
+                <svg
+                  class="w-8 h-8"
+                  :class="i <= reviewModal.stars ? 'text-yellow-400' : 'text-gray-300'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
               </button>
             </div>
@@ -133,15 +187,31 @@
           <!-- Comentario -->
           <div class="mb-4">
             <label class="block text-sm font-medium mb-2">Comentario</label>
-            <textarea v-model="reviewModal.comment" rows="4" maxlength="500" class="w-full border rounded-lg p-2 resize-none" placeholder="Cuéntanos tu experiencia..."/>
-            <div class="text-right text-xs text-gray-400 mt-1">{{ reviewModal.comment.length }}/500</div>
+            <textarea
+              v-model="reviewModal.comment"
+              rows="4"
+              maxlength="500"
+              class="w-full border rounded-lg p-2 resize-none"
+              placeholder="Cuéntanos tu experiencia..."
+            />
+            <div class="text-right text-xs text-gray-400 mt-1">
+              {{ reviewModal.comment.length }}/500
+            </div>
           </div>
 
           <!-- Tags rápidos -->
           <div class="mb-4">
             <label class="block text-sm font-medium mb-2">Tags rápidos</label>
             <div class="flex flex-wrap gap-2">
-              <button v-for="tag in quickTags" :key="tag" @click="toggleTag(tag)" class="px-3 py-1 text-sm border rounded-full transition" :class="reviewModal.tags.includes(tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'">{{ tag }}</button>
+              <button
+                v-for="tag in quickTags"
+                :key="tag"
+                class="px-3 py-1 text-sm border rounded-full transition"
+                :class="reviewModal.tags.includes(tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'"
+                @click="toggleTag(tag)"
+              >
+                {{ tag }}
+              </button>
             </div>
           </div>
 
@@ -149,24 +219,76 @@
           <div class="mb-4">
             <label class="block text-sm font-medium mb-2">Fotos (máx. 3)</label>
             <div class="flex gap-2 mb-2">
-              <div v-for="(img, i) in reviewModal.photos" :key="i" class="relative">
-                <img :src="getImgSrc(img)" class="w-20 h-20 object-cover rounded border" alt="Foto adjunta"/>
-                <button @click="removePhoto(i)" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 grid place-items-center">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              <div
+                v-for="(img, i) in reviewModal.photos"
+                :key="i"
+                class="relative"
+              >
+                <img
+                  :src="getImgSrc(img)"
+                  class="w-20 h-20 object-cover rounded border"
+                  alt="Foto adjunta"
+                >
+                <button
+                  class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 grid place-items-center"
+                  @click="removePhoto(i)"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  ><path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  /></svg>
                 </button>
               </div>
-              <button v-if="reviewModal.photos.length < 3" @click="openFilePicker" class="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-500 hover:text-gray-800">
-                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              <button
+                v-if="reviewModal.photos.length < 3"
+                class="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-500 hover:text-gray-800"
+                @click="openFilePicker"
+              >
+                <svg
+                  class="w-6 h-6 mb-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                ><path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v16m8-8H4"
+                /></svg>
                 <span class="text-xs">Añadir</span>
               </button>
             </div>
-            <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFile"/>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleFile"
+            >
           </div>
 
           <!-- Acciones -->
           <div class="flex gap-2">
-            <button @click="reviewModal.open = false" class="flex-1 border py-2 rounded-lg">Cancelar</button>
-            <button @click="sendReview" :disabled="reviewModal.stars === 0" class="flex-1 bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50">Enviar</button>
+            <button
+              class="flex-1 border py-2 rounded-lg"
+              @click="reviewModal.open = false"
+            >
+              Cancelar
+            </button>
+            <button
+              :disabled="reviewModal.stars === 0"
+              class="flex-1 bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50"
+              @click="sendReview"
+            >
+              Enviar
+            </button>
           </div>
         </div>
       </div>

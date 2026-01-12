@@ -1,9 +1,10 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gray-100">
     <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-      <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">{{ $t('register') }}</h2>
+      <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">
+        {{ $t('register') }}
+      </h2>
       <form @submit.prevent="handleRegister">
-
         <!-- Nombre -->
         <div class="mb-4">
           <label class="block text-sm font-semibold text-gray-600">{{ $t('name') }}</label>
@@ -12,7 +13,7 @@
             type="text"
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Email -->
@@ -23,7 +24,7 @@
             type="email"
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Teléfono -->
@@ -34,35 +35,43 @@
             type="tel"
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Contraseña -->
         <div class="mb-4">
           <label class="block text-sm font-semibold text-gray-600">{{ $t('password') }}</label>
           <input
-            :type="showPassword ? 'text' : 'password'"
             v-model="form.password"
+            :type="showPassword ? 'text' : 'password'"
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Confirmar contraseña -->
         <div class="mb-4">
           <label class="block text-sm font-semibold text-gray-600">{{ $t('confirm_password') }}</label>
           <input
-            :type="showPassword ? 'text' : 'password'"
             v-model="form.confirmPassword"
+            :type="showPassword ? 'text' : 'password'"
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
         </div>
 
         <!-- Mostrar contraseña -->
         <div class="mb-4 flex items-center">
-          <input type="checkbox" v-model="showPassword" id="showPass" class="mr-2" />
-          <label for="showPass" class="text-sm text-gray-600">{{ $t('show_password') }}</label>
+          <input
+            id="showPass"
+            v-model="showPassword"
+            type="checkbox"
+            class="mr-2"
+          >
+          <label
+            for="showPass"
+            class="text-sm text-gray-600"
+          >{{ $t('show_password') }}</label>
         </div>
 
         <!-- Rol -->
@@ -73,9 +82,18 @@
             required
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="" disabled>{{ $t('select_role') }}</option>
-            <option value="user">{{ $t('client') }}</option>
-            <option value="provider">{{ $t('provider') }}</option>
+            <option
+              value=""
+              disabled
+            >
+              {{ $t('select_role') }}
+            </option>
+            <option value="user">
+              {{ $t('client') }}
+            </option>
+            <option value="provider">
+              {{ $t('provider') }}
+            </option>
           </select>
         </div>
 
@@ -91,7 +109,12 @@
 
       <p class="text-center mt-4 text-sm">
         {{ $t('already_have_account') }}
-        <router-link to="/login" class="text-blue-600 hover:underline">{{ $t('login') }}</router-link>
+        <router-link
+          to="/login"
+          class="text-blue-600 hover:underline"
+        >
+          {{ $t('login') }}
+        </router-link>
       </p>
     </div>
   </div>

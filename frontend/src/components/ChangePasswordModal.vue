@@ -10,14 +10,17 @@
             {{ $t('config.changePassword') }}
           </h3>
           <button
-            @click="$emit('close')"
             class="text-gray-400 hover:text-gray-600"
+            @click="$emit('close')"
           >
             ✕
           </button>
         </header>
 
-        <form @submit.prevent="changePassword" novalidate>
+        <form
+          novalidate
+          @submit.prevent="changePassword"
+        >
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">
               {{ $t('config.currentPassword') }}
@@ -27,7 +30,7 @@
               type="password"
               required
               class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
+            >
           </div>
 
           <div class="mb-4">
@@ -39,7 +42,7 @@
               type="password"
               required
               class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
+            >
           </div>
 
           <div class="mb-6">
@@ -51,15 +54,20 @@
               type="password"
               required
               class="w-full border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            <p v-if="error" class="text-red-500 text-xs mt-1">{{ error }}</p>
+            >
+            <p
+              v-if="error"
+              class="text-red-500 text-xs mt-1"
+            >
+              {{ error }}
+            </p>
           </div>
 
           <div class="flex justify-end gap-3">
             <button
               type="button"
-              @click="$emit('close')"
               class="px-4 py-2 border rounded-lg hover:bg-gray-100 transition"
+              @click="$emit('close')"
             >
               {{ $t('config.cancel') }}
             </button>

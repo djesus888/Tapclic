@@ -1,5 +1,8 @@
 <template>
-  <span class="px-2 py-1 rounded-full text-xs font-semibold select-none" :class="pillClass">
+  <span
+    class="px-2 py-1 rounded-full text-xs font-semibold select-none"
+    :class="pillClass"
+  >
     {{ label }}
   </span>
 </template>

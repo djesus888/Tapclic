@@ -1,57 +1,108 @@
 <template>
-  <div class="p-4 space-y-6"
-       @pointerdown="pullStart"
-       @pointermove="pullMove"
-       @pointerup="pullEnd"
-       @pointercancel="pullEnd"
-       ref="pullArea">
-
+  <div
+    ref="pullArea"
+    class="p-4 space-y-6"
+    @pointerdown="pullStart"
+    @pointermove="pullMove"
+    @pointerup="pullEnd"
+    @pointercancel="pullEnd"
+  >
     <!-- TABS -->
     <div class="mb-6 border-b border-gray-300 bg-white sticky top-16 z-20 pb-1">
-      <nav class="flex space-x-2 justify-center max-w-md mx-auto" role="tablist" :aria-label="$t('tabs')">
-        <button v-for="tab in tabs" :key="`${tab.value}-${$i18n.locale}`"
-                role="tab"
-                :aria-selected="activeTab === tab.value"
-                :tabindex="activeTab === tab.value ? 0 : -1"
-                @click="activeTab = tab.value"
-                :class="tabClass(tab.value)">
+      <nav
+        class="flex space-x-2 justify-center max-w-md mx-auto"
+        role="tablist"
+        :aria-label="$t('tabs')"
+      >
+        <button
+          v-for="tab in tabs"
+          :key="`${tab.value}-${$i18n.locale}`"
+          role="tab"
+          :aria-selected="activeTab === tab.value"
+          :tabindex="activeTab === tab.value ? 0 : -1"
+          :class="tabClass(tab.value)"
+          @click="activeTab = tab.value"
+        >
           {{ tab.label }}
         </button>
       </nav>
     </div>
 
     <!-- PULL-TO-REFRESH INDICATOR -->
-    <div v-if="pulling" class="text-center text-sm text-gray-500 mb-2">
+    <div
+      v-if="pulling"
+      class="text-center text-sm text-gray-500 mb-2"
+    >
       {{ $t('release_to_refresh') }}
     </div>
 
     <!-- AVAILABLE -->
-    <div v-if="activeTab === 'available'" class="grid gap-4 md:grid-cols-2" :key="'available-'+$i18n.locale">
-      <div v-if="loading.available" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else-if="!availableRequests.length" class="text-center py-10 text-gray-500">
+    <div
+      v-if="activeTab === 'available'"
+      :key="'available-'+$i18n.locale"
+      class="grid gap-4 md:grid-cols-2"
+    >
+      <div
+        v-if="loading.available"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else-if="!availableRequests.length"
+        class="text-center py-10 text-gray-500"
+      >
         {{ $t('no_available_requests') }}
       </div>
-      <div v-for="req in availableRequests" :key="`${req.id}-${$i18n.locale}`"
-           class="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
+      <div
+        v-for="req in availableRequests"
+        :key="`${req.id}-${$i18n.locale}`"
+        class="bg-white rounded-lg shadow p-4 flex flex-col justify-between"
+      >
         <div>
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+            <h3 class="text-lg font-semibold text-gray-800">
+              {{ sanitize(req.service_title) }}
+            </h3>
             <PaymentPill :status="req.payment_status" />
           </div>
-          <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
-          <p class="text-sm mt-2 text-gray-500">{{ req.service_location }}</p>
-          <p class="text-sm mt-2 text-gray-500">{{ sanitize(req.service_provider_name) }}</p>
-          <p class="text-sm mt-1 font-bold text-green-600">{{ formatCurrency(req.service_price) }}</p>
+          <p class="text-sm text-gray-600">
+            {{ sanitize(req.service_description) }}
+          </p>
+          <p class="text-sm mt-2 text-gray-500">
+            {{ req.service_location }}
+          </p>
+          <p class="text-sm mt-2 text-gray-500">
+            {{ sanitize(req.service_provider_name) }}
+          </p>
+          <p class="text-sm mt-1 font-bold text-green-600">
+            {{ formatCurrency(req.service_price) }}
+          </p>
         </div>
         <div class="flex gap-2 mt-4">
-          <button class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-                  @click="acceptRequest(req.id)">{{ $t('accept') }}</button>
-          <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                  @click="rejectRequest(req.id)">{{ $t('reject') }}</button>
-          <button class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
-                  @click="busyRequest(req.id)">{{ $t('busy') }}</button>
+          <button
+            class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+            @click="acceptRequest(req.id)"
+          >
+            {{ $t('accept') }}
+          </button>
+          <button
+            class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+            @click="rejectRequest(req.id)"
+          >
+            {{ $t('reject') }}
+          </button>
+          <button
+            class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+            @click="busyRequest(req.id)"
+          >
+            {{ $t('busy') }}
+          </button>
         </div>
-        <div v-if="req.additional_details?.trim()" class="mt-3 text-sm text-gray-700 bg-yellow-50 border border-yellow-200 rounded p-2 flex items-start gap-2">
+        <div
+          v-if="req.additional_details?.trim()"
+          class="mt-3 text-sm text-gray-700 bg-yellow-50 border border-yellow-200 rounded p-2 flex items-start gap-2"
+        >
           <span class="text-yellow-600 text-base">🔔</span>
           <span class="whitespace-pre-wrap break-words">{{ req.additional_details }}</span>
         </div>
@@ -59,100 +110,198 @@
     </div>
 
     <!-- IN-PROGRESS -->
-    <div v-if="activeTab === 'in-progress'" class="grid gap-4 md:grid-cols-2" :key="'in-progress-'+$i18n.locale">
-      <div v-if="loading.inProgress" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else-if="!inProgressRequests.length" class="text-center py-10 text-gray-500">
+    <div
+      v-if="activeTab === 'in-progress'"
+      :key="'in-progress-'+$i18n.locale"
+      class="grid gap-4 md:grid-cols-2"
+    >
+      <div
+        v-if="loading.inProgress"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else-if="!inProgressRequests.length"
+        class="text-center py-10 text-gray-500"
+      >
         {{ $t('no_active_requests') }}
       </div>
-      <div v-for="req in inProgressRequests" :key="`${req.id}-${$i18n.locale}`"
-           class="bg-white rounded-lg shadow p-4">
+      <div
+        v-for="req in inProgressRequests"
+        :key="`${req.id}-${$i18n.locale}`"
+        class="bg-white rounded-lg shadow p-4"
+      >
         <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-semibold text-gray-800">{{ sanitize(req.service_title) }}</h3>
+          <h3 class="text-lg font-semibold text-gray-800">
+            {{ sanitize(req.service_title) }}
+          </h3>
           <PaymentPill :status="req.payment_status" />
         </div>
-        <p class="text-sm text-gray-600">{{ sanitize(req.service_description) }}</p>
+        <p class="text-sm text-gray-600">
+          {{ sanitize(req.service_description) }}
+        </p>
         <p class="text-sm mt-2 text-gray-500">
           <strong>{{ $t('requested_by') }}:</strong> {{ sanitize(req.user_name || $t('user')) }}
         </p>
         <!-- CANCELLED BY -->
-        <p v-if="req.status === 'cancelled' && req.cancelled_by" class="text-xs text-red-600 mt-1">
+        <p
+          v-if="req.status === 'cancelled' && req.cancelled_by"
+          class="text-xs text-red-600 mt-1"
+        >
           {{ $t('cancelled_by') }}: {{ req.cancelled_by }}
         </p>
 
         <!-- BOTÓN CONFIRMAR PAGO (solo si está en verificación) -->
-        <div v-if="req.payment_status === 'verifying'" class="mt-3">
+        <div
+          v-if="req.payment_status === 'verifying'"
+          class="mt-3"
+        >
           <button
             class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600"
-            @click="openProofModal(req.id)">
+            @click="openProofModal(req.id)"
+          >
             👁️ {{ $t('see_proof') }}
           </button>
         </div>
 
         <details class="mt-3 text-xs">
-          <summary class="cursor-pointer text-blue-600">{{ $t('timeline') }}</summary>
+          <summary class="cursor-pointer text-blue-600">
+            {{ $t('timeline') }}
+          </summary>
           <div class="mt-2 space-y-1">
-            <div v-for="(l,i) in timeline(req)" :key="i" class="flex justify-between">
+            <div
+              v-for="(l,i) in timeline(req)"
+              :key="i"
+              class="flex justify-between"
+            >
               <span>{{ $t(l.status) }}</span>
               <span>{{ formatDate(l.updated_at, 'time') }}</span>
             </div>
           </div>
         </details>
-        <p class="text-xs text-gray-500 mt-2">{{ $t('elapsed') }}: {{ elapsed(req.updated_at) }}</p>
+        <p class="text-xs text-gray-500 mt-2">
+          {{ $t('elapsed') }}: {{ elapsed(req.updated_at) }}
+        </p>
         <div class="mt-4 relative">
-          <button @click="toggleDropdown(req.id)"
-                  class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full flex items-center justify-between">
+          <button
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full flex items-center justify-between"
+            @click="toggleDropdown(req.id)"
+          >
             {{ $t('status') }}
-            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            <svg
+              class="w-4 h-4 ml-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
-          <div v-if="openDropdown === req.id"
-               class="absolute right-0 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-            <button v-for="st in allowedNext(req.status)" :key="st"
-                    class="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                    @click="setStatus(req.id, st)">
+          <div
+            v-if="openDropdown === req.id"
+            class="absolute right-0 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-20"
+          >
+            <button
+              v-for="st in allowedNext(req.status)"
+              :key="st"
+              class="block w-full text-left px-4 py-2 hover:bg-gray-100"
+              @click="setStatus(req.id, st)"
+            >
               {{ emoji(st) }} {{ $t('status.'+st) }}
             </button>
           </div>
         </div>
         <div class="flex gap-2 mt-4">
-          <button class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                  @click="openChat(req.user_id, 'user')">💬</button>
+          <button
+            class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+            @click="openChat(req.user_id, 'user')"
+          >
+            💬
+          </button>
         </div>
       </div>
     </div>
 
     <!-- SUPPORT -->
-    <div v-if="activeTab === 'support'" class="p-4" :key="'support-'+$i18n.locale">
-      <div v-if="loading.faq" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else class="mb-8">
-        <h2 class="text-xl font-semibold mb-4">{{ $t('faq') }}</h2>
+    <div
+      v-if="activeTab === 'support'"
+      :key="'support-'+$i18n.locale"
+      class="p-4"
+    >
+      <div
+        v-if="loading.faq"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else
+        class="mb-8"
+      >
+        <h2 class="text-xl font-semibold mb-4">
+          {{ $t('faq') }}
+        </h2>
         <div class="space-y-2">
-          <details v-for="(item, idx) in faqItems" :key="`${idx}-${$i18n.locale}`"
-                   class="bg-white rounded-md shadow px-4 py-2">
-            <summary class="cursor-pointer font-medium text-left">{{ sanitize(item.question) }}</summary>
-            <p class="text-sm text-gray-600 mt-2">{{ sanitize(item.answer) }}</p>
+          <details
+            v-for="(item, idx) in faqItems"
+            :key="`${idx}-${$i18n.locale}`"
+            class="bg-white rounded-md shadow px-4 py-2"
+          >
+            <summary class="cursor-pointer font-medium text-left">
+              {{ sanitize(item.question) }}
+            </summary>
+            <p class="text-sm text-gray-600 mt-2">
+              {{ sanitize(item.answer) }}
+            </p>
           </details>
         </div>
       </div>
       <div class="text-center">
-        <button @click="openSupportChat"
-                class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700">
+        <button
+          class="bg-blue-600 text-white rounded-md px-6 py-2 font-semibold hover:bg-blue-700"
+          @click="openSupportChat"
+        >
           💬 {{ $t('contact_support') }}
         </button>
       </div>
-      <div v-if="loading.support" class="text-center py-10 mt-8">{{ $t('loading') }}…</div>
-      <div v-else class="mt-8">
-        <h2 class="text-xl font-semibold mb-4">{{ $t('my_tickets') }}</h2>
-        <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">
+      <div
+        v-if="loading.support"
+        class="text-center py-10 mt-8"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else
+        class="mt-8"
+      >
+        <h2 class="text-xl font-semibold mb-4">
+          {{ $t('my_tickets') }}
+        </h2>
+        <div
+          v-if="tickets.length === 0"
+          class="text-center text-gray-500 py-10"
+        >
           {{ $t('no_support_tickets') }}
         </div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div v-for="ticket in tickets" :key="`${ticket.id}-${$i18n.locale}`"
-               class="card shadow rounded-lg overflow-hidden">
+          <div
+            v-for="ticket in tickets"
+            :key="`${ticket.id}-${$i18n.locale}`"
+            class="card shadow rounded-lg overflow-hidden"
+          >
             <div class="p-4 bg-gray-100">
-              <h2 class="font-bold text-lg truncate">{{ sanitize(ticket.subject) }}</h2>
-              <p class="text-sm text-gray-600 truncate">{{ sanitize(ticket.last_message) }}</p>
+              <h2 class="font-bold text-lg truncate">
+                {{ sanitize(ticket.subject) }}
+              </h2>
+              <p class="text-sm text-gray-600 truncate">
+                {{ sanitize(ticket.last_message) }}
+              </p>
             </div>
             <div class="p-4 flex justify-between items-center bg-white">
               <span :class="statusColor(ticket.status)">{{ statusLabel(ticket.status) }}</span>
@@ -160,45 +309,86 @@
             </div>
           </div>
         </div>
-        <button v-show="!showNewTicket" @click="showNewTicket = true"
-                class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
-                :title="$t('new_ticket')">+</button>
-        <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket"
-                        @close="showNewTicket = false"
-                        @ticket-created="onTicketCreated"/>
+        <button
+          v-show="!showNewTicket"
+          class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
+          :title="$t('new_ticket')"
+          @click="showNewTicket = true"
+        >
+          +
+        </button>
+        <NewTicketModal
+          v-if="showNewTicket"
+          :is-open="showNewTicket"
+          @close="showNewTicket = false"
+          @ticket-created="onTicketCreated"
+        />
       </div>
     </div>
 
     <!-- HISTORY (LISTA) -->
-    <div v-if="activeTab === 'history'" class="space-y-2" :key="'history-'+$i18n.locale">
-      <div v-if="loading.history" class="text-center py-10">{{ $t('loading') }}…</div>
-      <div v-else-if="!historyRequests.length" class="text-center py-10 text-gray-500">
+    <div
+      v-if="activeTab === 'history'"
+      :key="'history-'+$i18n.locale"
+      class="space-y-2"
+    >
+      <div
+        v-if="loading.history"
+        class="text-center py-10"
+      >
+        {{ $t('loading') }}…
+      </div>
+      <div
+        v-else-if="!historyRequests.length"
+        class="text-center py-10 text-gray-500"
+      >
         {{ $t('no_history_requests') }}
       </div>
-      <div v-for="req in historyRequests" :key="req.id"
-           class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer"
-           @click="openHistoryModal(req)">
+      <div
+        v-for="req in historyRequests"
+        :key="req.id"
+        class="flex items-center justify-between p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer"
+        @click="openHistoryModal(req)"
+      >
         <div class="flex-1">
-          <p class="font-semibold text-gray-800">{{ sanitize(req.service_title) }}</p>
-          <p class="text-sm" :class="statusColor(req.status)">{{ $t('status.'+req.status) }}</p>
+          <p class="font-semibold text-gray-800">
+            {{ sanitize(req.service_title) }}
+          </p>
+          <p
+            class="text-sm"
+            :class="statusColor(req.status)"
+          >
+            {{ $t('status.'+req.status) }}
+          </p>
           <p class="text-xs text-gray-500 mt-1">
             <PaymentPill :status="req.payment_status" />
           </p>
         </div>
         <div class="text-right">
-          <p class="font-bold text-green-600">{{ formatCurrency(req.service_price) }}</p>
+          <p class="font-bold text-green-600">
+            {{ formatCurrency(req.service_price) }}
+          </p>
         </div>
       </div>
     </div>
 
     <!-- MODALES -->
-    <ProofModal v-if="showProofModal"
-                :request-id="proofModalRequestId"
-                @close="onProofModalClose" />
-    <NewTicketModal v-if="showNewTicket" :is-open="showNewTicket"
-                    @close="showNewTicket = false"
-                    @ticket-created="onTicketCreated"/>
-    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
+    <ProofModal
+      v-if="showProofModal"
+      :request-id="proofModalRequestId"
+      @close="onProofModalClose"
+    />
+    <NewTicketModal
+      v-if="showNewTicket"
+      :is-open="showNewTicket"
+      @close="showNewTicket = false"
+      @ticket-created="onTicketCreated"
+    />
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
   </div>
 </template>
 

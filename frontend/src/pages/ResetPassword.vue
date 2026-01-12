@@ -14,7 +14,7 @@
         type="text"
         class="w-full border rounded p-2"
         :placeholder="t('resetPassword.tokenPlaceholder')"
-      />
+      >
     </div>
 
     <!-- Nueva contraseña -->
@@ -27,7 +27,7 @@
         type="password"
         class="w-full border rounded p-2"
         :placeholder="t('resetPassword.passwordPlaceholder')"
-      />
+      >
     </div>
 
     <!-- Confirmar -->
@@ -39,7 +39,7 @@
         v-model="confirmPassword"
         type="password"
         class="w-full border rounded p-2"
-      />
+      >
     </div>
 
     <!-- Botón -->

@@ -10,18 +10,23 @@
       <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <!-- Header -->
         <div class="flex justify-between items-center border-b px-4 py-3">
-          <h2 class="text-lg font-semibold">{{ $t('new_support_ticket') }}</h2>
+          <h2 class="text-lg font-semibold">
+            {{ $t('new_support_ticket') }}
+          </h2>
           <button
-            @click="$emit('close')"
             class="text-gray-400 hover:text-gray-600"
             aria-label="Cerrar"
+            @click="$emit('close')"
           >
             ✕
           </button>
         </div>
 
         <!-- Body -->
-        <form @submit.prevent="submitTicket" class="px-4 py-4 space-y-4">
+        <form
+          class="px-4 py-4 space-y-4"
+          @submit.prevent="submitTicket"
+        >
           <!-- Título -->
           <div>
             <label class="block text-sm font-medium mb-1">{{ $t('ticket_subject') }}</label>
@@ -30,7 +35,7 @@
               type="text"
               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-            />
+            >
           </div>
 
           <!-- Descripción -->
@@ -41,19 +46,34 @@
               rows="4"
               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-            ></textarea>
+            />
           </div>
 
           <!-- Categoría (opcional) -->
           <div>
             <label class="block text-sm font-medium mb-1">{{ $t('category') }}</label>
-            <select v-model="form.category" class="w-full border border-gray-300 rounded-md px-3 py-2">
-              <option value="">{{ $t('select_category') }}</option>
-              <option value="payment">{{ $t('payment_issues') }}</option>
-              <option value="service">{{ $t('service_issues') }}</option>
-              <option value="technical">{{ $t('technical_issues') }}</option>
-              <option value="account">{{ $t('account_issues') }}</option>
-              <option value="other">{{ $t('other') }}</option>
+            <select
+              v-model="form.category"
+              class="w-full border border-gray-300 rounded-md px-3 py-2"
+            >
+              <option value="">
+                {{ $t('select_category') }}
+              </option>
+              <option value="payment">
+                {{ $t('payment_issues') }}
+              </option>
+              <option value="service">
+                {{ $t('service_issues') }}
+              </option>
+              <option value="technical">
+                {{ $t('technical_issues') }}
+              </option>
+              <option value="account">
+                {{ $t('account_issues') }}
+              </option>
+              <option value="other">
+                {{ $t('other') }}
+              </option>
             </select>
           </div>
 
@@ -61,8 +81,8 @@
           <div class="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              @click="$emit('close')"
               class="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-100"
+              @click="$emit('close')"
             >
               {{ $t('cancel') }}
             </button>
@@ -100,6 +120,12 @@ export default {
       }
     }
   },
+  // 👇 AGREGAR SOLO ESTAS 5 LÍNEAS
+  watch: {
+    '$i18n.locale'() {
+      this.$forceUpdate()
+    }
+  },
   methods: {
     async submitTicket() {
       this.loading = true
@@ -129,12 +155,6 @@ export default {
       } finally {
         this.loading = false
       }
-    }
-  },
-  // 👇 AGREGAR SOLO ESTAS 5 LÍNEAS
-  watch: {
-    '$i18n.locale'() {
-      this.$forceUpdate()
     }
   }
 }

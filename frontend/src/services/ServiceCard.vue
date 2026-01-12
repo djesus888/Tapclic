@@ -19,8 +19,16 @@
 
     <!-- Valoración -->
     <div class="mt-2 flex items-center gap-1 text-yellow-500">
-      <i class="ri-star-fill" v-for="n in Math.floor(service.rating)" :key="n" />
-      <i class="ri-star-line" v-for="n in 5 - Math.floor(service.rating)" :key="'e'+n" />
+      <i
+        v-for="n in Math.floor(service.rating)"
+        :key="n"
+        class="ri-star-fill"
+      />
+      <i
+        v-for="n in 5 - Math.floor(service.rating)"
+        :key="'e'+n"
+        class="ri-star-line"
+      />
       <span class="ml-1 text-gray-600 dark:text-gray-400 text-xs">
         {{ service.rating.toFixed(1) }} / 5 ({{ service.reviews_count }} {{ $t('reviews') }})
       </span>

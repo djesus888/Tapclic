@@ -9,9 +9,16 @@
       <label class="block mb-1 font-medium">
         {{ t('forgot.method') }}
       </label>
-      <select v-model="method" class="w-full border rounded p-2">
-        <option value="email">{{ t('forgot.email') }}</option>
-        <option value="phone">{{ t('forgot.phone') }}</option>
+      <select
+        v-model="method"
+        class="w-full border rounded p-2"
+      >
+        <option value="email">
+          {{ t('forgot.email') }}
+        </option>
+        <option value="phone">
+          {{ t('forgot.phone') }}
+        </option>
       </select>
     </div>
 
@@ -27,7 +34,7 @@
         :placeholder="method === 'email'
           ? t('forgot.emailPlaceholder')
           : t('forgot.phonePlaceholder')"
-      />
+      >
     </div>
 
     <!-- Botón -->

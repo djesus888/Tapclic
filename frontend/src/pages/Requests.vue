@@ -1,10 +1,14 @@
 <template>
   <div class="requests-view p-2 sm:p-4 max-w-5xl mx-auto">
-
     <!-- Título + nueva solicitud -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-      <h1 class="text-lg sm:text-2xl font-bold text-gray-800">{{ $t('my_requests') }}</h1>
-      <router-link to="/" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700">
+      <h1 class="text-lg sm:text-2xl font-bold text-gray-800">
+        {{ $t('my_requests') }}
+      </h1>
+      <router-link
+        to="/"
+        class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
+      >
         + {{ $t('new_service') }}
       </router-link>
     </div>
@@ -12,7 +16,12 @@
     <!-- Tabs horizontales SCROLL en móvil -->
     <div class="overflow-x-auto mb-4">
       <div class="flex space-x-2 border-b min-w-max">
-        <button v-for="tab in tabs" :key="tab.key" @click="filterStatus = tab.key" :class="tabClass(tab.key)">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          :class="tabClass(tab.key)"
+          @click="filterStatus = tab.key"
+        >
           {{ tab.label }}
         </button>
       </div>
@@ -20,56 +29,133 @@
 
     <!-- Buscador -->
     <div class="mb-4">
-      <input v-model="search" type="text" :placeholder="$t('search_service_provider')"
-        class="w-full sm:w-1/2 lg:w-1/3 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+      <input
+        v-model="search"
+        type="text"
+        :placeholder="$t('search_service_provider')"
+        class="w-full sm:w-1/2 lg:w-1/3 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+      >
     </div>
 
     <!-- Listado -->
-    <div v-if="loading" class="text-center py-10 text-sm">{{ $t('loading') }}...</div>
-    <div v-else-if="!filtered.length" class="text-center text-gray-500 py-10 text-sm">{{ $t('no_requests') }}</div>
+    <div
+      v-if="loading"
+      class="text-center py-10 text-sm"
+    >
+      {{ $t('loading') }}...
+    </div>
+    <div
+      v-else-if="!filtered.length"
+      class="text-center text-gray-500 py-10 text-sm"
+    >
+      {{ $t('no_requests') }}
+    </div>
 
     <!-- Cards: 1 columna móvil / 2 tablet / 3 desktop -->
-    <div v-else class="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="req in filtered" :key="req.id"
-        class="bg-white rounded-lg shadow hover:shadow-lg transition p-3 sm:p-4 flex flex-col justify-between text-xs sm:text-sm">
-
+    <div
+      v-else
+      class="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+    >
+      <div
+        v-for="req in filtered"
+        :key="req.id"
+        class="bg-white rounded-lg shadow hover:shadow-lg transition p-3 sm:p-4 flex flex-col justify-between text-xs sm:text-sm"
+      >
         <!-- Cabecera -->
         <div>
           <div class="flex justify-between items-start mb-2 gap-2">
             <span :class="statusBadge(req.status)">{{ statusLabel(req.status) }}</span>
             <span class="text-xs text-gray-500 whitespace-nowrap">{{ formatDate(req.created_at) }}</span>
           </div>
-          <h2 class="font-semibold text-sm sm:text-base">{{ sanitize(req.service_title) }}</h2>
-          <p class="text-gray-600 mb-2 break-words">{{ sanitize(req.service_description) }}</p>
+          <h2 class="font-semibold text-sm sm:text-base">
+            {{ sanitize(req.service_title) }}
+          </h2>
+          <p class="text-gray-600 mb-2 break-words">
+            {{ sanitize(req.service_description) }}
+          </p>
 
           <!-- Proveedor -->
           <div class="flex items-center gap-2 mb-3">
-            <img :src="avatar(req.provider_avatar_url)" class="w-8 h-8 rounded-full object-cover" />
+            <img
+              :src="avatar(req.provider_avatar_url)"
+              class="w-8 h-8 rounded-full object-cover"
+            >
             <div class="min-w-0">
-              <p class="font-medium truncate">{{ sanitize(req.provider_name) }}</p>
-              <p v-if="req.provider_rating" class="text-yellow-500 text-xs">⭐ {{ req.provider_rating }}</p>
+              <p class="font-medium truncate">
+                {{ sanitize(req.provider_name) }}
+              </p>
+              <p
+                v-if="req.provider_rating"
+                class="text-yellow-500 text-xs"
+              >
+                ⭐ {{ req.provider_rating }}
+              </p>
             </div>
           </div>
 
           <!-- Precio -->
-          <p class="text-base sm:text-lg font-bold text-green-600">${{ Number(req.service_price || 0).toFixed(2) }}</p>
+          <p class="text-base sm:text-lg font-bold text-green-600">
+            ${{ Number(req.service_price || 0).toFixed(2) }}
+          </p>
         </div>
 
         <!-- Acciones: icono + texto, se apilan si no caben -->
         <div class="mt-4 flex flex-wrap gap-2">
-          <button @click="openDetail(req)" class="btn-action btn-indigo">👁️ {{ $t('detail') }}</button>
-          <button v-if="canCancel(req.status)" @click="cancel(req)" class="btn-action btn-red">❌ {{ $t('cancel') }}</button>
-          <button v-if="canTrack(req.status)" @click="openTracking(req)" class="btn-action btn-green">🗺️ {{ $t('track') }}</button>
-          <button @click="openChat(req)" class="btn-action btn-gray">💬 {{ $t('chat') }}</button>
-          <button v-if="req.status === 'completed' && !req.reviewed" @click="openReview(req)" class="btn-action btn-yellow">⭐ {{ $t('review') }}</button>
-          <button v-if="req.status === 'completed'" @click="rehire(req)" class="btn-action btn-blue">🔁 {{ $t('rehire') }}</button>
+          <button
+            class="btn-action btn-indigo"
+            @click="openDetail(req)"
+          >
+            👁️ {{ $t('detail') }}
+          </button>
+          <button
+            v-if="canCancel(req.status)"
+            class="btn-action btn-red"
+            @click="cancel(req)"
+          >
+            ❌ {{ $t('cancel') }}
+          </button>
+          <button
+            v-if="canTrack(req.status)"
+            class="btn-action btn-green"
+            @click="openTracking(req)"
+          >
+            🗺️ {{ $t('track') }}
+          </button>
+          <button
+            class="btn-action btn-gray"
+            @click="openChat(req)"
+          >
+            💬 {{ $t('chat') }}
+          </button>
+          <button
+            v-if="req.status === 'completed' && !req.reviewed"
+            class="btn-action btn-yellow"
+            @click="openReview(req)"
+          >
+            ⭐ {{ $t('review') }}
+          </button>
+          <button
+            v-if="req.status === 'completed'"
+            class="btn-action btn-blue"
+            @click="rehire(req)"
+          >
+            🔁 {{ $t('rehire') }}
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Paginación -->
-    <div v-if="totalPages > 1" class="flex justify-center mt-6 gap-2 flex-wrap">
-      <button v-for="p in totalPages" :key="p" @click="page = p" :class="pageClass(p)">
+    <div
+      v-if="totalPages > 1"
+      class="flex justify-center mt-6 gap-2 flex-wrap"
+    >
+      <button
+        v-for="p in totalPages"
+        :key="p"
+        :class="pageClass(p)"
+        @click="page = p"
+      >
         {{ p }}
       </button>
     </div>
@@ -83,9 +169,24 @@
       @on-start-chat="openChatFromModal"
       @on-request-service="onRequestService"
     />
-    <LiveOrderTracking  v-if="trackingRequest" :order="trackingRequest" v-model:is-open="showTracking" @close="trackingRequest = null" />
-    <ReviewFormModal    v-if="reviewRequest" :request="reviewRequest" v-model:is-open="showReview" @close="reviewRequest = null" @review-sent="fetchRequests" />
-    <ChatRoomModal      v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
+    <LiveOrderTracking
+      v-if="trackingRequest"
+      v-model:is-open="showTracking"
+      :order="trackingRequest"
+      @close="trackingRequest = null"
+    />
+    <ReviewFormModal
+      v-if="reviewRequest"
+      v-model:is-open="showReview"
+      :request="reviewRequest"
+      @close="reviewRequest = null"
+      @review-sent="fetchRequests"
+    />
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
   </div>
 </template>
 

@@ -1,7 +1,12 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-30">
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-30"
+  >
     <div class="bg-white rounded-t-xl w-full max-w-md p-4">
-      <h2 class="text-xl font-semibold">{{ $t('confirmServiceRequest') }}</h2>
+      <h2 class="text-xl font-semibold">
+        {{ $t('confirmServiceRequest') }}
+      </h2>
 
       <!-- BOTÓN EXPANSIBLE -->
       <details class="mt-3 text-sm">
@@ -13,7 +18,10 @@
           <template v-if="serviceDetails.service_details?.trim()">
             {{ serviceDetails.service_details }}
           </template>
-          <span v-else class="text-gray-400 italic">
+          <span
+            v-else
+            class="text-gray-400 italic"
+          >
             {{ $t('noServiceDetails') }}
           </span>
         </div>
@@ -21,7 +29,11 @@
 
       <!-- COMENTARIOS OPCIONALES -->
       <div class="mt-4 flex items-center gap-2">
-        <input type="checkbox" id="addSpec" v-model="addSpec" />
+        <input
+          id="addSpec"
+          v-model="addSpec"
+          type="checkbox"
+        >
         <label for="addSpec">{{ $t('add condition in service request.') }}</label>
       </div>                                                    
       <textarea
@@ -31,10 +43,13 @@
         :placeholder="$t('additionalDetails')"
         maxlength="200"
         rows="4"
-      ></textarea>
+      />
 
       <!-- CONTADOR DE CARACTERES -->
-      <p v-if="addSpec" class="text-right text-xs text-gray-500 mt-1">
+      <p
+        v-if="addSpec"
+        class="text-right text-xs text-gray-500 mt-1"
+      >
         {{ specDetails.length }}/200
       </p>
 
@@ -46,18 +61,26 @@
           una vez iniciado.
         </p>
         <label class="flex items-center mt-3 gap-2">
-          <input type="checkbox" v-model="acceptedContract" />
+          <input
+            v-model="acceptedContract"
+            type="checkbox"
+          >
           <span>Acepto las condiciones del servicio</span>
         </label>
       </div>
 
       <!-- BOTONES -->
       <div class="flex justify-end gap-2 mt-4">
-        <button @click="closeModal" class="px-4 py-2 border rounded">{{ $t('cancel') }}</button>
         <button
-          @click="submitRequest"
+          class="px-4 py-2 border rounded"
+          @click="closeModal"
+        >
+          {{ $t('cancel') }}
+        </button>
+        <button
           class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="(!acceptedContract) || (addSpec && specDetails.length > 200)"
+          @click="submitRequest"
         >
           {{ $t('confirm') }}
         </button>

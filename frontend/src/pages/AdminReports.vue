@@ -4,22 +4,44 @@
 
     <!-- Cards -->
     <section class="cards">
-      <div class="card"><h3>Usuarios</h3><p>{{ stats.totalUsers }}</p></div>
-      <div class="card"><h3>Servicios Activos</h3><p>{{ stats.totalServices }}</p></div>
-      <div class="card"><h3>Solicitudes</h3><p>{{ stats.totalRequests }}</p></div>
-      <div class="card"><h3>Ingresos</h3><p>$ {{ stats.ingresos }}</p></div>
-      <div class="card"><h3>Tickets abiertos</h3>
-        <p>{{ stats.totalTickets }}
-          <router-link v-if="stats.totalTickets" to="/admin/tickets" class="badge danger">Ver</router-link>
+      <div class="card">
+        <h3>Usuarios</h3><p>{{ stats.totalUsers }}</p>
+      </div>
+      <div class="card">
+        <h3>Servicios Activos</h3><p>{{ stats.totalServices }}</p>
+      </div>
+      <div class="card">
+        <h3>Solicitudes</h3><p>{{ stats.totalRequests }}</p>
+      </div>
+      <div class="card">
+        <h3>Ingresos</h3><p>$ {{ stats.ingresos }}</p>
+      </div>
+      <div class="card">
+        <h3>Tickets abiertos</h3>
+        <p>
+          {{ stats.totalTickets }}
+          <router-link
+            v-if="stats.totalTickets"
+            to="/admin/tickets"
+            class="badge danger"
+          >
+            Ver
+          </router-link>
         </p>
       </div>
-      <div class="card"><h3>Rating promedio</h3><p>{{ stats.avgRating }} ⭐</p></div>
+      <div class="card">
+        <h3>Rating promedio</h3><p>{{ stats.avgRating }} ⭐</p>
+      </div>
     </section>
 
     <!-- Gráfico -->
     <section class="chart">
       <h3>Solicitudes últimos 30 días</h3>
-      <canvas ref="chartCanvas" width="400" height="150"></canvas>
+      <canvas
+        ref="chartCanvas"
+        width="400"
+        height="150"
+      />
     </section>
 
     <!-- Top servicios -->
@@ -28,7 +50,10 @@
       <table>
         <thead><tr><th>Servicio</th><th>Cantidad</th></tr></thead>
         <tbody>
-          <tr v-for="s in stats.topServicios" :key="s.title">
+          <tr
+            v-for="s in stats.topServicios"
+            :key="s.title"
+          >
             <td>{{ s.title }}</td><td>{{ s.veces }}</td>
           </tr>
         </tbody>

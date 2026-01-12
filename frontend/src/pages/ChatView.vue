@@ -5,8 +5,13 @@
       :target="target"
       @close="goBack"
     />
-    <div v-else class="flex items-center justify-center h-screen">
-      <p class="text-gray-500">Cargando conversación...</p>
+    <div
+      v-else
+      class="flex items-center justify-center h-screen"
+    >
+      <p class="text-gray-500">
+        Cargando conversación...
+      </p>
     </div>
   </div>
 </template>

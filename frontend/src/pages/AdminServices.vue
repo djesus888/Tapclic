@@ -8,13 +8,26 @@
         v-model="filters.search"
         placeholder="Buscar por título o descripción"
         @input="debouncedSearch"
-      />
-      <select v-model="filters.status" @change="fetchServices">
-        <option value="">Todos los estados</option>
-        <option value="pending">Pendiente</option>
-        <option value="active">Activo</option>
-        <option value="inactive">Inactivo</option>
-        <option value="completed">Completado</option>
+      >
+      <select
+        v-model="filters.status"
+        @change="fetchServices"
+      >
+        <option value="">
+          Todos los estados
+        </option>
+        <option value="pending">
+          Pendiente
+        </option>
+        <option value="active">
+          Activo
+        </option>
+        <option value="inactive">
+          Inactivo
+        </option>
+        <option value="completed">
+          Completado
+        </option>
       </select>
     </section>
 
@@ -26,45 +39,103 @@
             <th>ID</th>
             <th>Título</th>
             <th>Proveedor</th>
-            <th class="hide-sm">Categoría</th>
-            <th class="hide-sm">Precio</th>
-            <th class="hide-sm">Ubicación</th>
+            <th class="hide-sm">
+              Categoría
+            </th>
+            <th class="hide-sm">
+              Precio
+            </th>
+            <th class="hide-sm">
+              Ubicación
+            </th>
             <th>Estado</th>
-            <th class="hide-sm">Rating</th>
+            <th class="hide-sm">
+              Rating
+            </th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in services" :key="s.id">
-            <td data-label="ID">{{ s.id }}</td>
-            <td data-label="Título">{{ s.title }}</td>
-            <td data-label="Proveedor">{{ s.provider_name }}</td>
-            <td data-label="Categoría" class="hide-sm">{{ s.category }}</td>
-            <td data-label="Precio" class="hide-sm">${{ s.price }}</td>
-            <td data-label="Ubicación" class="hide-sm">{{ s.location }}</td>
+          <tr
+            v-for="s in services"
+            :key="s.id"
+          >
+            <td data-label="ID">
+              {{ s.id }}
+            </td>
+            <td data-label="Título">
+              {{ s.title }}
+            </td>
+            <td data-label="Proveedor">
+              {{ s.provider_name }}
+            </td>
+            <td
+              data-label="Categoría"
+              class="hide-sm"
+            >
+              {{ s.category }}
+            </td>
+            <td
+              data-label="Precio"
+              class="hide-sm"
+            >
+              ${{ s.price }}
+            </td>
+            <td
+              data-label="Ubicación"
+              class="hide-sm"
+            >
+              {{ s.location }}
+            </td>
             <td data-label="Estado">
               <span :class="['badge', s.status]">{{ s.status }}</span>
             </td>
-            <td data-label="Rating" class="hide-sm">{{ s.provider_rating }}</td>
+            <td
+              data-label="Rating"
+              class="hide-sm"
+            >
+              {{ s.provider_rating }}
+            </td>
             <td class="actions-cell">
-              <button class="btn-icon" @click="openEditModal(s)" title="Editar">✏️</button>
+              <button
+                class="btn-icon"
+                title="Editar"
+                @click="openEditModal(s)"
+              >
+                ✏️
+              </button>
               <button
                 v-if="s.status !== 'inactive'"
                 class="btn-icon suspend"
-                @click="toggleSuspend(s)"
                 title="Suspender"
-              >⏸️</button>
+                @click="toggleSuspend(s)"
+              >
+                ⏸️
+              </button>
               <button
                 v-else
                 class="btn-icon activate"
-                @click="toggleSuspend(s)"
                 title="Activar"
-              >▶️</button>
-              <button class="btn-icon delete" @click="remove(s)" title="Eliminar">🗑️</button>
+                @click="toggleSuspend(s)"
+              >
+                ▶️
+              </button>
+              <button
+                class="btn-icon delete"
+                title="Eliminar"
+                @click="remove(s)"
+              >
+                🗑️
+              </button>
             </td>
           </tr>
           <tr v-if="services.length === 0">
-            <td colspan="9" class="empty">Sin servicios</td>
+            <td
+              colspan="9"
+              class="empty"
+            >
+              Sin servicios
+            </td>
           </tr>
         </tbody>
       </table>
@@ -72,35 +143,57 @@
 
     <!-- Modal edición -->
     <Teleport to="body">
-      <div v-if="showModal" class="modal-backdrop" @click.self="closeModal">
+      <div
+        v-if="showModal"
+        class="modal-backdrop"
+        @click.self="closeModal"
+      >
         <div class="modal">
           <h3>Editar servicio #{{ form.id }}</h3>
           <form @submit.prevent="save">
             <!-- IMAGEN -->
-            <label v-if="form.image_url" class="image-label">
+            <label
+              v-if="form.image_url"
+              class="image-label"
+            >
               Imagen actual
-              <img :src="form.image_url" alt="Imagen del servicio" class="preview-img" />
+              <img
+                :src="form.image_url"
+                alt="Imagen del servicio"
+                class="preview-img"
+              >
             </label>
 
             <label>
               Título
-              <input v-model="form.title" required />
+              <input
+                v-model="form.title"
+                required
+              >
             </label>
             <label>
               Descripción
-              <textarea v-model="form.description" rows="3"></textarea>
+              <textarea
+                v-model="form.description"
+                rows="3"
+              />
             </label>
             <label>
               Categoría
-              <input v-model="form.category" />
+              <input v-model="form.category">
             </label>
             <label>
               Precio
-              <input v-model.number="form.price" type="number" min="0" required />
+              <input
+                v-model.number="form.price"
+                type="number"
+                min="0"
+                required
+              >
             </label>
             <label>
               Ubicación
-              <input v-model="form.location" />
+              <input v-model="form.location">
             </label>
             <label>
               Estado
@@ -119,11 +212,22 @@
                 step="0.1"
                 min="0"
                 max="5"
-              />
+              >
             </label>
             <div class="modal-actions">
-              <button type="submit" class="btn primary">Guardar</button>
-              <button type="button" class="btn secondary" @click="closeModal">Cancelar</button>
+              <button
+                type="submit"
+                class="btn primary"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                class="btn secondary"
+                @click="closeModal"
+              >
+                Cancelar
+              </button>
             </div>
           </form>
         </div>

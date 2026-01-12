@@ -2,40 +2,53 @@
 <template>
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="isOpen"
+      <div
+        v-if="isOpen"
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
         @click.self="close"
       >
         <!-- Overlay -->
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
         <!-- Modal -->
         <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
           <!-- Header -->
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-xl font-bold text-slate-800">{{ notification.title }}</h3>
-            <button @click="close" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+            <h3 class="text-xl font-bold text-slate-800">
+              {{ notification.title }}
+            </h3>
+            <button
+              class="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              @click="close"
+            >
               ×
             </button>
           </div>
 
           <!-- Body -->
           <div class="mb-6">
-            <p class="text-gray-600 whitespace-pre-wrap">{{ notification.message }}</p>
-            <p class="text-xs text-gray-400 mt-4">{{ formatDate(notification.created_at) }}</p>
+            <p class="text-gray-600 whitespace-pre-wrap">
+              {{ notification.message }}
+            </p>
+            <p class="text-xs text-gray-400 mt-4">
+              {{ formatDate(notification.created_at) }}
+            </p>
           </div>
 
           <!-- Footer con acciones -->
           <div class="flex gap-3 justify-end">
-            <button @click="close" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+            <button
+              class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              @click="close"
+            >
               {{ $t('close') }}
             </button>
             
             <!-- Botón para ir a la URL de la notificación -->
             <button 
               v-if="notificationUrl"
-              @click="goToUrl"
               class="px-4 py-2 bg-sky-600 text-white hover:bg-sky-700 rounded-lg"
+              @click="goToUrl"
             >
               {{ $t('viewDetails') }}
             </button>

@@ -3,12 +3,27 @@
     <div class="fixed inset-0 bg-white z-[60] flex flex-col">
       <!-- Header -->
       <header class="bg-blue-600 text-white px-4 py-3 flex items-center shadow z-10">
-        <button @click="$emit('close')" class="mr-3 p-1 rounded-full hover:bg-blue-700">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        <button
+          class="mr-3 p-1 rounded-full hover:bg-blue-700"
+          @click="$emit('close')"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
         </button>
-        <h1 class="font-semibold text-lg">{{ $t('live_tracking') }}</h1>
+        <h1 class="font-semibold text-lg">
+          {{ $t('live_tracking') }}
+        </h1>
       </header>
 
       <!-- Mapa -->
@@ -20,9 +35,14 @@
           allowfullscreen
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"
-        ></iframe>
-        <div v-else class="w-full h-full bg-gray-200 grid place-items-center">
-          <p class="text-gray-500">{{ $t('loading_map') }}</p>
+        />
+        <div
+          v-else
+          class="w-full h-full bg-gray-200 grid place-items-center"
+        >
+          <p class="text-gray-500">
+            {{ $t('loading_map') }}
+          </p>
         </div>
       </div>
 
@@ -33,14 +53,18 @@
         :style="{ transform: `translateY(${translateY}px)` }"
       >
         <div class="drag-handle w-full h-6 flex justify-center items-center">
-          <div class="w-12 h-1 bg-gray-300 rounded-full"></div>
+          <div class="w-12 h-1 bg-gray-300 rounded-full" />
         </div>
         
         <!-- Timeline -->
         <div class="px-4 py-3 bg-gray-50 rounded-lg mb-4">
           <div class="flex items-center justify-between relative">
-            <div class="absolute top-5 left-0 right-0 h-1 bg-gray-300 -z-10"></div>
-            <div v-for="(step, idx) in timelineSteps" :key="step.key" class="flex flex-col items-center z-10">
+            <div class="absolute top-5 left-0 right-0 h-1 bg-gray-300 -z-10" />
+            <div
+              v-for="(step, idx) in timelineSteps"
+              :key="step.key"
+              class="flex flex-col items-center z-10"
+            >
               <div
                 class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
                 :class="currentStepIndex >= idx ? 'bg-green-600' : 'bg-gray-300'"
@@ -58,10 +82,17 @@
             :src="localOrder.provider?.avatar_url || '/img/default-provider.png'"
             alt="Provider"
             class="w-12 h-12 rounded-full object-cover"
-          />
+          >
           <div>
-            <p class="font-semibold">{{ localOrder.provider?.name || 'Proveedor' }}</p>
-            <p v-if="localOrder.provider?.rating" class="text-yellow-500">⭐ {{ localOrder.provider.rating }}</p>
+            <p class="font-semibold">
+              {{ localOrder.provider?.name || 'Proveedor' }}
+            </p>
+            <p
+              v-if="localOrder.provider?.rating"
+              class="text-yellow-500"
+            >
+              ⭐ {{ localOrder.provider.rating }}
+            </p>
           </div>
         </div>
 
@@ -78,13 +109,22 @@
 
         <!-- Botones -->
         <div class="px-4 pb-4 grid grid-cols-3 gap-2">
-          <button @click="openChat" class="bg-blue-500 text-white rounded-md py-2 text-xs">
+          <button
+            class="bg-blue-500 text-white rounded-md py-2 text-xs"
+            @click="openChat"
+          >
             💬 {{ $t('chat') }}
           </button>
-          <button @click="callProvider" class="bg-green-500 text-white rounded-md py-2 text-xs">
+          <button
+            class="bg-green-500 text-white rounded-md py-2 text-xs"
+            @click="callProvider"
+          >
             📞 {{ $t('call') }}
           </button>
-          <button @click="openPayment" class="bg-purple-500 text-white rounded-md py-2 text-xs">
+          <button
+            class="bg-purple-500 text-white rounded-md py-2 text-xs"
+            @click="openPayment"
+          >
             💳 {{ $t('pay') }}
           </button>
         </div>

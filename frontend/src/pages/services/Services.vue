@@ -1,8 +1,16 @@
 <template>
   <div class="p-4">
     <!-- LISTADO DE SERVICIOS (copia exacta del DashboardUser) -->
-    <div v-if="loading" class="text-center py-10">{{ $t('loading') }}…</div>
-    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div
+      v-if="loading"
+      class="text-center py-10"
+    >
+      {{ $t('loading') }}…
+    </div>
+    <div
+      v-else
+      class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+    >
       <div
         v-for="service in services"
         :key="service.id"
@@ -11,11 +19,17 @@
       >
         <div class="p-4 flex justify-between items-start bg-gray-100">
           <div>
-            <h2 class="font-bold text-lg">{{ sanitize(service.title) }}</h2>
-            <p class="text-sm text-gray-600">{{ sanitize(service.description) }}</p>
+            <h2 class="font-bold text-lg">
+              {{ sanitize(service.title) }}
+            </h2>
+            <p class="text-sm text-gray-600">
+              {{ sanitize(service.description) }}
+            </p>
           </div>
           <div class="text-right ml-4">
-            <p class="font-semibold">{{ formatDate(service.created_at) }}</p>
+            <p class="font-semibold">
+              {{ formatDate(service.created_at) }}
+            </p>
             <span
               :class="service.isAvailable === 1 && service.status === 'active' ? 'text-green-600' : 'text-red-600'"
               class="text-xs font-medium"
@@ -30,10 +44,17 @@
               :src="service.image_url ? `http://localhost:8000${service.image_url}` : '/img/default-provider.png'"
               :alt="service.provider?.name || 'Ads'"
               class="w-10 h-10 rounded-full object-cover"
-            />
+            >
             <div>
-              <p class="font-semibold">{{ sanitize(service.provider?.name || 'Desconocido') }}</p>
-              <p v-if="service.provider?.rating" class="text-yellow-500 text-sm">⭐ {{ service.provider.rating }}</p>
+              <p class="font-semibold">
+                {{ sanitize(service.provider?.name || 'Desconocido') }}
+              </p>
+              <p
+                v-if="service.provider?.rating"
+                class="text-yellow-500 text-sm"
+              >
+                ⭐ {{ service.provider.rating }}
+              </p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -42,7 +63,10 @@
         </div>
       </div>
     </div>
-    <div v-if="!loading && services.length === 0" class="text-center text-gray-500 py-10">
+    <div
+      v-if="!loading && services.length === 0"
+      class="text-center text-gray-500 py-10"
+    >
       {{ $t('no_services_available') }}
     </div>
 
@@ -70,7 +94,7 @@
       :request-id="modalService.requestId"
       @on-provider-response="onProviderResponse"
       @cancel="resetFlow"
-      @openPayment="openPaymentModal"
+      @open-payment="openPaymentModal"
       @retry-request="handleRetry"
     />
     <PaymentModal
@@ -81,7 +105,11 @@
       @on-payment-submit="handlePaymentSubmit"
       @on-open-change="(val) => (showPayment = val)"
     />
-    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
   </div>
 </template>
 
@@ -117,6 +145,9 @@ export default {
       chatTarget: null,
       lastSpecDetails: '',
     }
+  },
+  mounted() {
+    this.fetchServices()
   },
   methods: {
     formatDate(date) {
@@ -288,9 +319,6 @@ export default {
     openChat(target) {
       this.chatTarget = target
     },
-  },
-  mounted() {
-    this.fetchServices()
   },
 }
 </script>

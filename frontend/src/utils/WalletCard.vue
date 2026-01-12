@@ -7,7 +7,9 @@
     <p class="text-3xl font-bold text-green-500">
       ${{ balance.toFixed(2) }}
     </p>
-    <p class="text-sm text-gray-500 mt-1">{{ $t('wallet.available') }}</p>
+    <p class="text-sm text-gray-500 mt-1">
+      {{ $t('wallet.available') }}
+    </p>
   </div>
 </template>
 

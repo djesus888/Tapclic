@@ -1,6 +1,5 @@
 <template>
   <div class="p-6 space-y-6">
-
     <!-- Tarjetas estadísticas -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       <div
@@ -10,11 +9,18 @@
       >
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-gray-500 text-sm">{{ t(`stats.${card.title}`) }}</p>
-            <h2 class="text-2xl font-bold">{{ card.value }}</h2>
+            <p class="text-gray-500 text-sm">
+              {{ t(`stats.${card.title}`) }}
+            </p>
+            <h2 class="text-2xl font-bold">
+              {{ card.value }}
+            </h2>
           </div>
           <div class="text-gray-400 text-3xl">
-            <component :is="card.icon" class="w-8 h-8" />
+            <component
+              :is="card.icon"
+              class="w-8 h-8"
+            />
           </div>
         </div>
       </div>
@@ -22,7 +28,9 @@
 
     <!-- Últimas actividades -->
     <div class="bg-white shadow rounded-lg p-4">
-      <h2 class="text-lg font-semibold mb-4">{{ t("latestActivities") }}</h2>
+      <h2 class="text-lg font-semibold mb-4">
+        {{ t("latestActivities") }}
+      </h2>
       <ul>
         <li
           v-for="(activity, index) in translatedActivities"

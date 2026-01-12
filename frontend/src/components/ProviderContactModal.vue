@@ -6,22 +6,30 @@
     <div class="bg-white rounded-xl w-full max-w-sm p-6 text-center">
       <!-- Estado pendiente -->
       <template v-if="status === 'pending'">
-        <p class="text-lg">{{ $t('contacting_provider', { name: providerName }) }}</p>
-        <p class="text-gray-600 mt-2">{{ $t('waiting_provider_response') }}</p>
+        <p class="text-lg">
+          {{ $t('contacting_provider', { name: providerName }) }}
+        </p>
+        <p class="text-gray-600 mt-2">
+          {{ $t('waiting_provider_response') }}
+        </p>
         <div class="mt-4 flex flex-col items-center space-y-2">
           <span class="text-3xl">⏳</span>
-          <p class="text-xl font-mono">{{ formatTime(countdown) }}</p>
+          <p class="text-xl font-mono">
+            {{ formatTime(countdown) }}
+          </p>
         </div>
       </template>
 
       <!-- Estado aceptado -->
       <template v-else-if="status === 'accepted'">
-        <p class="text-green-600 text-lg">{{ $t('service_accepted') }}</p>
+        <p class="text-green-600 text-lg">
+          {{ $t('service_accepted') }}
+        </p>
         <p>{{ $t('provider_accepted_request', { name: providerName }) }}</p>
         <div class="mt-4">
           <button
-            @click="$emit('openPayment')"
             class="px-4 py-2 bg-green-600 text-white rounded-lg"
+            @click="$emit('openPayment')"
           >
             {{ $t('proceed_to_payment') }}
           </button>
@@ -30,15 +38,20 @@
 
       <!-- Estado rechazado -->
       <template v-else-if="status === 'rejected'">
-        <p class="text-red-600 text-lg">{{ $t('request_rejected') }}</p>
+        <p class="text-red-600 text-lg">
+          {{ $t('request_rejected') }}
+        </p>
         <p>{{ $t('provider_rejected_request', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
+          <button
+            class="px-4 py-2 border rounded-lg"
+            @click="handleCancel"
+          >
             {{ $t('cancel') }}
           </button>
           <button
-            @click="handleRetry"
             class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            @click="handleRetry"
           >
             {{ $t('try_again') }}
           </button>
@@ -47,15 +60,20 @@
 
       <!-- Estado ocupado -->
       <template v-else-if="status === 'busy'">
-        <p class="text-yellow-600 text-lg">{{ $t('provider_busy') }}</p>
+        <p class="text-yellow-600 text-lg">
+          {{ $t('provider_busy') }}
+        </p>
         <p>{{ $t('provider_is_busy', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
+          <button
+            class="px-4 py-2 border rounded-lg"
+            @click="handleCancel"
+          >
             {{ $t('cancel') }}
           </button>
           <button
-            @click="handleRetry"
             class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            @click="handleRetry"
           >
             {{ $t('try_later') }}
           </button>
@@ -64,15 +82,20 @@
 
       <!-- Estado sin respuesta -->
       <template v-else-if="status === 'no-response'">
-        <p class="text-gray-600 text-lg">{{ $t('no_response') }}</p>
+        <p class="text-gray-600 text-lg">
+          {{ $t('no_response') }}
+        </p>
         <p>{{ $t('provider_no_response', { name: providerName }) }}</p>
         <div class="mt-4 flex justify-center gap-2">
-          <button @click="handleCancel" class="px-4 py-2 border rounded-lg">
+          <button
+            class="px-4 py-2 border rounded-lg"
+            @click="handleCancel"
+          >
             {{ $t('cancel') }}
           </button>
           <button
-            @click="handleRetry"
             class="px-4 py-2 bg-blue-600 text-white rounded-lg"
+            @click="handleRetry"
           >
             {{ $t('try_again') }}
           </button>

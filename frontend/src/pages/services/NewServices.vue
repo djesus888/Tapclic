@@ -4,7 +4,10 @@
       {{ $t('services.createTitle') }}
     </h2>
 
-    <form @submit.prevent="createService" class="space-y-6">
+    <form
+      class="space-y-6"
+      @submit.prevent="createService"
+    >
       <!-- Título -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -17,8 +20,10 @@
           maxlength="50"
           :placeholder="$t('services.titlePlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <p class="text-right text-xs text-gray-500">{{ form.title.length }}/50</p>
+        >
+        <p class="text-right text-xs text-gray-500">
+          {{ form.title.length }}/50
+        </p>
       </div>
 
       <!-- Descripción -->
@@ -33,8 +38,10 @@
           maxlength="250"
           :placeholder="$t('services.descriptionPlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        ></textarea>
-        <p class="text-right text-xs text-gray-500">{{ form.description.length }}/250</p>
+        />
+        <p class="text-right text-xs text-gray-500">
+          {{ form.description.length }}/250
+        </p>
       </div>
 
       <!-- Detalles del servicio / Service details -->
@@ -48,8 +55,10 @@
           maxlength="1000"
           :placeholder="$t('services.serviceDetailsPlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        ></textarea>
-        <p class="text-right text-xs text-gray-500">{{ form.service_details?.length || 0 }}/1000</p>
+        />
+        <p class="text-right text-xs text-gray-500">
+          {{ form.service_details?.length || 0 }}/1000
+        </p>
       </div>
 
       <!-- Precio (solo entero) -->
@@ -65,8 +74,10 @@
           required
           :placeholder="$t('services.pricePlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <p class="text-xs text-gray-500 mt-1">{{ $t('services.priceHint') }}</p>
+        >
+        <p class="text-xs text-gray-500 mt-1">
+          {{ $t('services.priceHint') }}
+        </p>
       </div>
 
       <!-- Categoría -->
@@ -81,8 +92,10 @@
           maxlength="30"
           :placeholder="$t('services.categoryPlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <p class="text-right text-xs text-gray-500">{{ form.category.length }}/30</p>
+        >
+        <p class="text-right text-xs text-gray-500">
+          {{ form.category.length }}/30
+        </p>
       </div>
 
       <!-- Ubicación -->
@@ -97,8 +110,10 @@
           maxlength="50"
           :placeholder="$t('services.locationPlaceholder')"
           class="w-full border border-gray-300 rounded-md shadow-sm p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <p class="text-right text-xs text-gray-500">{{ form.location.length }}/50</p>
+        >
+        <p class="text-right text-xs text-gray-500">
+          {{ form.location.length }}/50
+        </p>
       </div>
 
       <!-- Imagen con vista previa -->
@@ -107,12 +122,15 @@
           {{ $t('services.image') }}
         </label>
 
-        <div v-if="previewUrl" class="mb-3">
+        <div
+          v-if="previewUrl"
+          class="mb-3"
+        >
           <img
             :src="previewUrl"
             alt="Vista previa"
             class="w-full max-h-64 object-cover rounded-md border"
-          />
+          >
         </div>
 
         <label
@@ -135,16 +153,16 @@
           <input
             type="file"
             accept="image/*"
-            @change="onImageChange"
             class="hidden"
-          />
+            @change="onImageChange"
+          >
         </label>
 
         <button
           v-if="imageFile"
           type="button"
-          @click="removeImage"
           class="ml-2 text-sm text-red-600 hover:underline"
+          @click="removeImage"
         >
           {{ $t('services.removeImage') }}
         </button>
@@ -165,7 +183,10 @@
           <span v-if="loading">{{ $t('services.creating') }}</span>
           <span v-else>{{ $t('services.create') }}</span>
         </button>
-        <p v-if="!canSubmit && !loading" class="text-xs text-red-500 mt-2 text-center">
+        <p
+          v-if="!canSubmit && !loading"
+          class="text-xs text-red-500 mt-2 text-center"
+        >
           {{ $t('services.formIncomplete') }}
         </p>
       </div>

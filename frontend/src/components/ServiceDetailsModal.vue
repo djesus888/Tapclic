@@ -6,8 +6,12 @@
     @click.self="$emit('on-open-change', false)"
   >
     <div class="bg-white rounded-t-xl w-full max-w-md p-4">
-      <h2 class="text-xl font-semibold">{{ request.title || '—' }}</h2>
-      <p class="text-sm text-gray-600">{{ request.description || '—' }}</p>
+      <h2 class="text-xl font-semibold">
+        {{ request.title || '—' }}
+      </h2>
+      <p class="text-sm text-gray-600">
+        {{ request.description || '—' }}
+      </p>
 
       <div class="flex justify-between mt-4 text-sm text-gray-600">
         <div class="flex items-center gap-1">
@@ -27,17 +31,19 @@
           :src="request.image_url ? `http://localhost:8000${request.image_url}` : '/img/default-provider.png'"
           alt="Avatar"
           class="w-10 h-10 rounded-full"
-        />
+        >
         <div>
-          <p class="font-semibold">{{ request.provider?.name || '—' }}</p>
+          <p class="font-semibold">
+            {{ request.provider?.name || '—' }}
+          </p>
           <p>{{ request.provider?.rating ?? 'N/A' }} ⭐</p>
         </div>
 
         <!-- Botón abrir chat -->
         <button
-          @click="openChat"
           class="ml-auto bg-gray-100 p-2 rounded"
           title="Abrir chat"
+          @click="openChat"
         >
           💬
         </button>
@@ -50,15 +56,15 @@
 
       <div class="flex justify-end gap-2 mt-4">
         <button
-          @click="$emit('on-open-change', false)"
           class="px-4 py-2 border rounded"
+          @click="$emit('on-open-change', false)"
         >
           {{ $t('close') }}
         </button>
         <button
           v-if="request.isAvailable"
-          @click="$emit('on-request-service')"
           class="px-4 py-2 bg-blue-600 text-white rounded"
+          @click="$emit('on-request-service')"
         >
           {{ $t('requestService') }}
         </button>
