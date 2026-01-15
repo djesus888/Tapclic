@@ -469,7 +469,6 @@ export default {
       _unsubscribeFns: [],
       _initialized: false,
       socketHandlers: [],
-      // ✅ FIX: Sistema de cache
       _lastFetch: {
         support: 0,
         history: 0,
@@ -487,15 +486,29 @@ export default {
     try {
       socketStore.init();
       await notificationStore.initialize();
-
       this.setupSocketHandlers(socketStore);
       this.providerId = auth.user?.id;
-
       await auth.loadLocale();
       await this.initializeTabs();
       await this.$nextTick();
 
-      // ✅ FIX: Cargar TODAS las secciones al inicio
+      // ✅ VERIFICACIÓN DE CONEXIÓN
+      console.log('🔍 Provider ID:', this.providerId);
+      console.log('🔍 Socket conectado?', socketStore.isConnected);
+      console.log('🔍 Socket ID:', socketStore.socket?.id);
+
+      if (!socketStore.isConnected) {
+        await new Promise(resolve => {
+          const checkInterval = setInterval(() => {
+            if (socketStore.isConnected) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+      console.log('🔍 Room que debería unirse:', `provider_${this.providerId}`);
+
       await Promise.allSettled([
         this.fetchAvailableRequests(),
         this.fetchActiveRequests(),
@@ -558,14 +571,60 @@ export default {
         }
       }, 1000);
 
+      // ✅ HANDLER CORREGIDO PARA NUEVAS SOLICITUDES
+      const onNewRequest = this.throttle((payload) => {
+        console.log('🔔 Provider: Evento new_request_created recibido:', JSON.stringify(payload, null, 2));
+
+        try {
+          const normalizedRequest = {
+            id: payload.request_id,
+            service_id: payload.service_id,
+            service_title: payload.service_title || 'Servicio',
+            service_description: payload.service_description || '',
+            service_price: payload.service_price || 0,
+            service_image_url: payload.service_image_url || null,
+            service_provider_name: payload.user_name || 'Usuario',
+            service_location: payload.service_location || 'Ubicación no especificada',
+            user_id: payload.user_id,
+            user_name: payload.user_name || 'Usuario',
+            user_phone: payload.user_phone || null,
+            status: payload.status || 'pending',
+            payment_status: payload.payment_status || 'pending',
+            additional_details: payload.additional_details || '',
+            created_at: payload.created_at,
+            payment_methods: []
+          };
+
+          // ✅ Forzar reactividad con spread operator
+          this.availableRequests = [normalizedRequest, ...this.availableRequests];
+
+          socketStore.playNotificationSound();
+          this.$swal?.fire({
+            icon: 'info',
+            title: 'Nueva Solicitud',
+            text: `${payload.service_title} - $${payload.service_price}`,
+            timer: 4000,
+            showConfirmButton: false,
+            position: 'top-end',
+            toast: true
+          });
+
+          console.log('✅ Solicitud añadida a availableRequests. Total:', this.availableRequests.length);
+        } catch (error) {
+          console.error('❌ Error en onNewRequest:', error);
+        }
+      }, 1000);
+
       socketStore.on('request_updated', onRequestUpdated);
       socketStore.on('payment_updated', onPaymentUpdated);
       socketStore.on('new-notification', onNewNotification);
+      socketStore.on('new_request_created', onNewRequest);
 
       this.socketHandlers = [
         { event: 'request_updated', handler: onRequestUpdated },
         { event: 'payment_updated', handler: onPaymentUpdated },
-        { event: 'new-notification', handler: onNewNotification }
+        { event: 'new-notification', handler: onNewNotification },
+        { event: 'new_request_created', handler: onNewRequest }
       ];
     },
 
@@ -613,7 +672,6 @@ export default {
       if (!this.pulling) return;
       const y = e.touches ? e.touches[0].clientY : e.clientY;
       const deltaY = y - this.pullStartY;
-
       if (deltaY > 120) {
         const now = Date.now();
         if (now - this._lastPullRefresh > this._pullRefreshCooldown) {
@@ -829,7 +887,6 @@ export default {
         this.loading.available = false;
         return;
       }
-
       this.loading.available = true;
       try {
         const res = await api.get('/requests/pending', {
@@ -852,7 +909,6 @@ export default {
         this.loading.inProgress = false;
         return;
       }
-
       this.loading.inProgress = true;
       try {
         const res = await api.get('/requests/active', {
@@ -869,7 +925,6 @@ export default {
       }
     },
 
-    // ✅ FIX: Cache TTL para historial
     async fetchHistoryRequests() {
       const now = Date.now();
       if (now - this._lastFetch.history < this._CACHE_TTL && this.historyRequests.length > 0) {
@@ -900,7 +955,6 @@ export default {
       }
     },
 
-    // ✅ FIX: Cache TTL y eliminar early return
     async fetchTickets() {
       const now = Date.now();
       if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) {
@@ -930,7 +984,6 @@ export default {
       }
     },
 
-    // ✅ FIX: Cache TTL y eliminar early return
     async fetchFaq() {
       const now = Date.now();
       if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) {
@@ -1024,10 +1077,9 @@ export default {
       }
     },
 
-    // ✅ FIX: Resetear cache al crear ticket
     onTicketCreated() {
       this.showNewTicket = false;
-      this._lastFetch.support = 0; // Forzar recarga
+      this._lastFetch.support = 0;
       this.fetchTickets();
     }
   }

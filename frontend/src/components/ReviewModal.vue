@@ -135,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, watch, onUnmounted } from 'vue'
 import axios from 'axios'
 
 export interface Review {
@@ -152,6 +152,7 @@ const props = defineProps<{
   targetRole?: 'user' | 'provider';
   authToken?: string;
   serviceHistoryId?: number | string;
+  divId?: string; // ✅ NUEVO: ID para limpieza automática del DOM
 }>()
 
 const emit = defineEmits(['close', 'save'])
@@ -179,14 +180,14 @@ const blobUrls = new Set<string>()
 function initializeFromProps() {
   rating.value = props.modelValue?.rating || 0
   comment.value = props.modelValue?.comment || ''
-  
+
   const val = props.modelValue?.tags
   if (val) {
     tags.value = Array.isArray(val) ? val : val.split(',').filter(Boolean)
   } else {
     tags.value = []
   }
-  
+
   photos.value = props.modelValue?.photos
     ? (Array.isArray(props.modelValue.photos)
         ? props.modelValue.photos
@@ -204,8 +205,20 @@ function resolveSrc(img: Photo) {
   return url
 }
 
+// ✅ LIMPIEZA 1: Revocar URLs de blobs (cuando se cierra normalmente)
 onBeforeUnmount(() => {
   blobUrls.forEach(URL.revokeObjectURL)
+})
+
+// ✅ LIMPIEZA 2: Remover elemento DOM si quedó colgado (fallback seguro)
+onUnmounted(() => {
+  if (props.divId) {
+    const el = document.getElementById(props.divId)
+    if (el) {
+      el.remove()
+      console.log(`🧹 Elemento DOM #${props.divId} limpiado automáticamente`)
+    }
+  }
 })
 
 function toggleTag(t: string) {
@@ -250,7 +263,7 @@ async function submit() {
     alert('Error: ID de servicio no proporcionado')
     return
   }
-  
+
   if (rating.value === 0) {
     alert('Debes seleccionar una calificación')
     return
@@ -259,13 +272,13 @@ async function submit() {
   sending.value = true
   try {
     const form = new FormData()
-    
+
     // El backend espera 'id' no 'service_history_id' en rate()
     form.append('id', String(props.serviceHistoryId))
     form.append('rating', String(rating.value))
     form.append('comment', comment.value)
     form.append('tags', tags.value.join(','))
-    
+
     // Enviar fotos existentes cuando esté en modo edición
     if (isEdit.value) {
       const existingPhotos = photos.value.filter(p => typeof p === 'string')
@@ -273,7 +286,7 @@ async function submit() {
         form.append('existing_photos', JSON.stringify(existingPhotos))
       }
     }
-    
+
     // Enviar solo archivos nuevos
     photos.value.forEach(p => {
       if (p instanceof File) form.append('images[]', p)
@@ -286,19 +299,19 @@ async function submit() {
     await axios.post(
       `${import.meta.env.VITE_API_URL}${endpoint}`,
       form,
-      { 
-        headers: { 
+      {
+        headers: {
           Authorization: `Bearer ${props.authToken}`,
           'Content-Type': 'multipart/form-data'
-        } 
+        }
       }
     )
 
-    emit('save', { 
-      rating: rating.value, 
+    emit('save', {
+      rating: rating.value,
       comment: comment.value,
       tags: tags.value,
-      photos: photos.value 
+      photos: photos.value
     })
     emit('close')
     resetForm()

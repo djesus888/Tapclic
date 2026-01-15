@@ -113,58 +113,110 @@ class RequestController
         $this->model->close($requestId, $finalStatus);
     }
 
-    private function create($auth)
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $data['user_id'] = $auth->id;
-        $userId = $auth->id;
-        $serviceId = $data['service_id'] ?? null;
-        $providerId = $data['provider_id'] ?? null;
 
-        if (!$serviceId || !$providerId) {
-            echo json_encode(["success" => false, "error" => "Faltan datos"]);
-            return;
-        }
+private function create($auth)
+{
+    // Lee los datos de la solicitud
+    $data = json_decode(file_get_contents("php://input"), true);
+    $data['user_id'] = $auth->id;
+    $userId = $auth->id;
+    $serviceId = $data['service_id'] ?? null;
+    $providerId = $data['provider_id'] ?? null;
 
-        $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
-        if ($exists) {
-            echo json_encode([
-                "success" => false,
-                "error" => "Ya tienes una solicitud activa para este servicio con este proveedor."
-            ]);
-            return;
-        }
-        
-        $newId = $this->model->create($data);
-        if ($newId) {
-            $providerId = $data['provider_id'] ?? null;
-            if ($providerId) {
-                $this->model->saveNotification([
-                    'sender_id' => $auth->id,
-                    'receiver_id' => $providerId,
-                    'receiver_role' => 'provider',
-                    'title' => 'Nueva solicitud',
-                    'message' => 'Tienes una nueva solicitud pendiente',
-                    'data_json' => json_encode([
-                        'url' => '/dashboard/provider',
-                        'action' => 'view_request',
-                        'notification_type' => 'new_request'
-                    ])
-                ]);
-                
-                // Notificación WebSocket
-                WebSocketService::notify(
-                    $providerId,
-                    'provider',
-                    'Nueva solicitud',
-                    'Tienes una nueva solicitud pendiente'
-                );
-            }
-            echo json_encode(["success" => true, "requestId" => (int)$newId, "status" => "pending"]);
-        } else {
-            echo json_encode(["success" => false, "error" => "No se pudo crear la solicitud"]);
-        }
+    // Validación básica
+    if (!$serviceId || !$providerId) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "error" => "Faltan datos obligatorios"]);
+        return;
     }
+
+    // Verifica si ya existe una solicitud activa
+    $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
+    if ($exists) {
+        http_response_code(409);
+        echo json_encode([
+            "success" => false,
+            "error" => "Ya tienes una solicitud activa para este servicio con este proveedor."
+        ]);
+        return;
+    }
+
+    // ✅ CREA LA SOLICITUD PRIMERO (esto es lo más importante)
+    try {
+        $newId = $this->model->create($data);
+        if (!$newId) {
+            throw new Exception("El método create() no devolvió un ID válido");
+        }
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "error" => "Error en la base de datos: " . $e->getMessage()]);
+        return;
+    }
+
+        // ✅ OBTENER DATOS DEL SERVICIO (opcional, con logging)
+        $serviceData = null;
+        try {
+            $serviceData = $this->model->getServiceDetailsForRequest($serviceId);
+            error_log("DEBUG: Service details for ID $serviceId: " . json_encode($serviceData));
+        } catch (Exception $e) {
+            error_log("⚠️ No se pudo obtener datos del servicio para WebSocket: " . $e->getMessage());
+        }
+
+        // ✅ PREPARAR DATOS PARA WEBSOCKET (SIEMPRE, con valores seguros)
+        $wsPayload = [
+            'request_id' => (int)$newId,
+            'service_id' => $serviceId,
+            'service_title' => $serviceData['title'] ?? 'Servicio disponible',
+            'service_description' => $serviceData['description'] ?? '',
+            'service_price' => $serviceData['price'] ?? ($data['price'] ?? 0),
+            'service_image_url' => $serviceData['image_url'] ?? null,
+            'service_location' => $serviceData['location'] ?? 'Ubicación no especificada',
+            'user_id' => $userId,
+            'user_name' => $auth->name ?? 'Usuario',
+            'user_phone' => $auth->phone ?? null,
+            'status' => 'pending',
+            'payment_status' => 'pending',
+            'additional_details' => $data['additional_details'] ?? '',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        // ✅ EMITIR WEBSOCKET (SIEMPRE, con verificación de éxito)
+        try {
+            error_log("DEBUG: Emitiendo evento 'new_request_created' a provider_$providerId");
+            $success = WebSocketService::emitEvent('provider', $providerId, 'new_request_created', $wsPayload);
+            error_log("DEBUG: Resultado de emitEvent: " . ($success ? "✅ Éxito" : "❌ Falló"));
+        } catch (Exception $e) {
+            error_log("⚠️ Excepción en emitEvent: " . $e->getMessage());
+        }
+
+    // ✅ GUARDAR NOTIFICACIÓN EN BD (esto también es importante)
+    try {
+        $this->model->saveNotification([
+            'sender_id' => $auth->id,
+            'receiver_id' => $providerId,
+            'receiver_role' => 'provider',
+            'title' => 'Nueva solicitud',
+            'message' => 'Tienes una nueva solicitud pendiente',
+            'data_json' => json_encode([
+                'url' => '/dashboard/provider',
+                'action' => 'view_request',
+                'notification_type' => 'new_request'
+            ])
+        ]);
+    } catch (Exception $e) {
+        error_log("⚠️ No se pudo guardar notificación: " . $e->getMessage());
+    }
+
+    // ✅ RESPUESTA EXITOSA (lo más importante)
+    echo json_encode([
+        "success" => true, 
+        "requestId" => (int)$newId, 
+        "status" => "pending",
+        "message" => "Solicitud creada correctamente"
+    ]);
+}
+
+
 
     private function mine($auth)
     {

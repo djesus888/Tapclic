@@ -17,6 +17,7 @@
           <p class="text-xl font-mono">
             {{ formatTime(countdown) }}
           </p>
+          <p class="text-xs text-gray-500">Socket: {{ socketConnected ? '✅' : '⚠️' }}</p>
         </div>
       </template>
 
@@ -106,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount, onUnmounted, onMounted } from 'vue';
+import { ref, watch, onBeforeUnmount, computed } from 'vue';
 import { useSocketStore } from '@/stores/socketStore';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/axios';
@@ -126,10 +127,12 @@ const emit = defineEmits(['cancel', 'openPayment', 'retry-request']);
 
 const status = ref('pending');
 const countdown = ref(90);
+const socketConnected = computed(() => socketStore.isConnected);
 
 let timerInterval = null;
 let pollingInterval = null;
 let socketHandler = null;
+let reconnectionWatcher = null;
 
 /* ----------------------------------------------------------
   UTILIDADES
@@ -143,127 +146,164 @@ const formatTime = (seconds) => {
 const stopTimers = () => {
   if (timerInterval) clearInterval(timerInterval);
   if (pollingInterval) clearInterval(pollingInterval);
+  timerInterval = null;
+  pollingInterval = null;
 };
 
 const cleanup = () => {
   console.log('🧹 Limpiando ProviderContactModal...');
   stopTimers();
-  
+
   if (socketHandler) {
     socketStore.off('request_updated', socketHandler);
-    socketStore.off('status_updated', socketHandler);
-    socketStore.off('request_update', socketHandler);
     socketHandler = null;
+  }
+
+  if (reconnectionWatcher) {
+    reconnectionWatcher();
+    reconnectionWatcher = null;
   }
 };
 
 /* ----------------------------------------------------------
-  SOCKET HANDLER
+  SOCKET HANDLER (SOCKET-FIRST)
 ---------------------------------------------------------- */
 const createSocketHandler = () => {
   return (payload) => {
-    console.log('🔔 ProviderContactModal recibió evento:', payload);
-    
+    console.log('🔔 [SOCKET] ProviderContactModal recibió:', payload);
+
     if (!payload || typeof payload !== 'object') return;
-    
+
     const incomingId = String(payload.request_id || payload.id || '');
     const currentId = String(props.requestId || '');
-    
+
     if (incomingId !== currentId) {
-      console.log(`⏩ Ignorando evento para request ${incomingId} (modal está en ${currentId})`);
+      console.log(`⏩ Ignorando evento para ${incomingId} (modal: ${currentId})`);
       return;
     }
 
     const newStatus = payload.status;
     if (['accepted', 'rejected', 'busy'].includes(newStatus)) {
-      console.log(`✅ Status actualizado: ${status.value} → ${newStatus}`);
+      console.log(`✅ [SOCKET] Status actualizado: ${status.value} → ${newStatus}`);
       status.value = newStatus;
-      stopTimers();
+      stopTimers(); // Detener polling si socket funciona
     }
   };
 };
 
 /* ----------------------------------------------------------
-  PROCESO
+  POLLING FALLBACK
+---------------------------------------------------------- */
+const startPolling = () => {
+  if (pollingInterval) return; // Evitar duplicados
+  
+  console.log('🔄 [POLLING] Iniciando fallback polling...');
+  
+  pollingInterval = setInterval(async () => {
+    if (!props.requestId || status.value !== 'pending' || socketConnected.value) {
+      return; // No hacer polling si socket está conectado
+    }
+
+    try {
+      console.log('📡 [POLLING] Intentando fetch...');
+      const res = await api.get(`/requests/status/${props.requestId}`, {
+        headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+      });
+
+      const newStatus = res.data?.status;
+      if (newStatus && newStatus !== 'pending') {
+        console.log(`✅ [POLLING] Status cambiado: ${newStatus}`);
+        const handler = createSocketHandler();
+        handler({ request_id: props.requestId, status: newStatus });
+        stopPolling(); // Detener polling una vez que funciona
+      }
+    } catch (err) {
+      console.error('❌ [POLLING] Error:', err.message);
+    }
+  }, 4000); // Cada 4s (menos agresivo)
+};
+
+const stopPolling = () => {
+  if (pollingInterval) {
+    console.log('🛑 [POLLING] Deteniendo polling');
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+};
+
+/* ----------------------------------------------------------
+  PROCESO PRINCIPAL (SOCKET-FIRST)
 ---------------------------------------------------------- */
 const reset = () => {
   status.value = 'pending';
   countdown.value = 90;
 };
 
-const startPolling = () => {
-  if (pollingInterval) clearInterval(pollingInterval);
-  
-  pollingInterval = setInterval(async () => {
-    if (props.requestId && status.value === 'pending') {
-      try {
-        const res = await api.get(`/requests/${props.requestId}`, {
-          headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
-        });
-        
-        const data = res.data?.data;
-        if (data?.status && data.status !== 'pending') {
-          const handler = createSocketHandler();
-          handler({ request_id: props.requestId, status: data.status });
-          stopPolling();
-        }
-      } catch (err) {
-        console.error('❌ Polling error:', err.message);
-      }
-    }
-  }, 3000);
-};
-
-const stopPolling = () => {
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-    pollingInterval = null;
-  }
-};
-
 const startProcess = async () => {
   if (!props.requestId) return;
-  
-  console.log('🚀 Iniciando ProviderContactModal para request:', props.requestId);
-  
+
+  console.log('🚀 [START] Iniciando ProviderContactModal para request:', props.requestId);
+
   cleanup();
   reset();
-  
-  // Asegurar conexión socket
-//  if (!socketStore.isConnected && authStore.token) {
-  //  try {
-    //  await socketStore.connect(authStore.token, authStore.user);
-   // } catch {
-     // console.warn('⚠️ Socket no conectado, usando polling fallback');
-   // }
- // }
-  
-  // Configurar listener socket
+
+  // 1. ESPERAR CONEXIÓN SOCKET (máx 5s)
+  if (!socketConnected.value) {
+    console.log('⏳ Esperando conexión socket...');
+    const maxWait = 5000;
+    const startTime = Date.now();
+    
+    await new Promise(resolve => {
+      const checkInterval = setInterval(() => {
+        if (socketConnected.value || Date.now() - startTime > maxWait) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+
+  // 2. CONFIGURAR SOCKET HANDLER
   socketHandler = createSocketHandler();
-  
-  // Intentar múltiples nombres de evento por compatibilidad
-  socketStore.off('request_updated', socketHandler);
-  socketStore.off('status_updated', socketHandler);
-  socketStore.off('request_update', socketHandler);
-  
+  socketStore.off('request_updated', socketHandler); // Limpieza previa
   socketStore.on('request_updated', socketHandler);
-  socketStore.on('status_updated', socketHandler);
-  
-  console.log('📡 Socket listeners registrados para request_updated y status_updated');
-  
-  startPolling();
-  
-  // Timer de cuenta regresiva
+  console.log('📡 [SOCKET] Listener registrado. Conectado:', socketConnected.value);
+
+  // 3. INICIAR POLLING COMO FALLBACK (solo si socket no conectado)
+  if (!socketConnected.value) {
+    console.warn('⚠️ Socket no conectado, usando polling fallback');
+    startPolling();
+  } else {
+    console.log('✅ Socket conectado, polling desactivado');
+  }
+
+  // 4. INICIAR CUENTA REGRESIVA
   timerInterval = setInterval(() => {
     countdown.value--;
     if (countdown.value <= 0 && status.value === 'pending') {
+      console.log('⏰ Tiempo agotado, no-response');
       status.value = 'no-response';
       stopPolling();
     }
   }, 1000);
+
+  // 5. WATCHER PARA RECONEXIÓN
+  reconnectionWatcher = watch(socketConnected, (connected) => {
+    if (connected && status.value === 'pending' && !pollingInterval) {
+      console.log('🔄 [RECONNECT] Socket reconectado, desactivando polling');
+      stopPolling();
+      // Re-registrar listener por si acaso
+      socketStore.off('request_updated', socketHandler);
+      socketStore.on('request_updated', socketHandler);
+    } else if (!connected && status.value === 'pending') {
+      console.warn('⚠️ [DISCONNECT] Socket desconectado, activando polling');
+      startPolling();
+    }
+  });
 };
 
 const stopProcess = () => {
+  console.log('🛑 [STOP] Deteniendo proceso');
   cleanup();
 };
 
@@ -300,27 +340,28 @@ watch(
     if (open && props.requestId) {
       startProcess();
     } else {
-      cleanup();
+      stopProcess();
     }
   },
   { immediate: true }
 );
 
+watch(
+  () => props.requestId,
+  (newId, oldId) => {
+    if (newId !== oldId && props.isOpen) {
+      console.log('🔄 Request ID cambió:', oldId, '→', newId);
+      stopProcess();
+      startProcess();
+    }
+  }
+);
+
 onBeforeUnmount(() => {
+  console.log('🧹 onBeforeUnmount');
   cleanup();
 });
 
-onUnmounted(() => {
-  cleanup();
-});
-
-onMounted(() => {
-  window.addEventListener('beforeunload', cleanup);
-});
-
-/* ----------------------------------------------------------
-  EXPONER MÉTODOS AL COMPONENTE PADRE
----------------------------------------------------------- */
 defineExpose({
   startProcess,
   stopProcess,

@@ -406,5 +406,20 @@ class ServiceRequest
             throw $e;
         }
     }
+
+/**
+ * Obtiene los datos básicos de un servicio para WebSocket
+ */
+public function getServiceDetailsForRequest($serviceId)
+{
+    $sql = "SELECT id, title, description, price, image_url, location, provider_id 
+            FROM services 
+            WHERE id = :id 
+            LIMIT 1";
+    
+    $stmt = $this->conn->prepare($sql);
+    $stmt->execute([':id' => $serviceId]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+   }
 }
 ?>

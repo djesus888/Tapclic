@@ -177,23 +177,33 @@ app.post('/emit', (req, res) => {
 });
 
 app.post('/emit-event', (req, res) => {
-  const { receiver_id, receiver_role, event, payload } = req.body;
+  const { receiver_id, receiver_role, event } = req.body;
 
-  if (!event) return res.status(400).json({ error: 'Falta event' });
+  if (!event) {
+    console.error('❌ /emit-event: Falta event');
+    return res.status(400).json({ error: 'Falta event' });
+  }
 
   const room = `${receiver_role}_${receiver_id}`;
   const socketsInRoom = io.sockets.adapter.rooms.get(room);
-  const finalPayload = payload || req.body || {};
+
+  // ✅ CORREGIDO: Accede al payload correctamente del body
+  const finalPayload = req.body.payload || req.body || {};
 
   if (socketsInRoom && socketsInRoom.size > 0) {
     io.to(room).emit(event, finalPayload);
-    console.log('📡 POST /emit-event entregado en vivo →', room, event, finalPayload);
+    console.log('📡 POST /emit-event entregado en vivo →', {
+      room,
+      event,
+      payload: finalPayload,
+      clients: socketsInRoom.size
+    });
   } else {
     addPendingEvent(room, event, finalPayload);
-    console.log('🕒 POST /emit-event guardado (offline) →', room, event, finalPayload);
+    console.log('🕒 POST /emit-event guardado (offline) →', { room, event });
   }
 
-  res.json({ status: 'enviado', room, timestamp: new Date().toISOString() });
+  res.json({ status: 'enviado', room, event, timestamp: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 3001;
