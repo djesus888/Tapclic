@@ -180,7 +180,7 @@ export const useAuthStore = defineStore('auth', {
           error.response?.data?.message || error.message || $t('invalid_credentials'), 
           'error'
         )
-        throw error
+        return false
       } finally {
         this.loading = false
       }

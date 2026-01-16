@@ -29,16 +29,22 @@ api.interceptors.request.use(
 // ✅ Interceptor para 401
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      console.warn('⚠️ Token inválido')
+  (error) => {
+    console.log('🚨 INTERCEPTOR DEBUG:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      data: error.response?.data,
+    })
+    
+    if (error.response?.status === 401 && !error.config?.url?.includes('/login')) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('role')
       window.location.href = '/login'
+      return new Promise(() => {})
     }
+    
     return Promise.reject(error)
   }
 )
-
 export default api

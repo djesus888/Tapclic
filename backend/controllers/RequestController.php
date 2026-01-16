@@ -293,54 +293,80 @@ class RequestController
         echo json_encode(["success" => $updated]);
     }
 
-    private function accept($auth)
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $requestId = $data['id'] ?? null;
+private function accept($auth)
+{
+    $data = json_decode(file_get_contents("php://input"), true);
+    $requestId = $data['id'] ?? null;
 
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
-
-        $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
-
-        if ($ok) {
-            $request = $this->model->getById($requestId);
-            if ($request) {
-                $this->model->saveNotification([
-                    'sender_id' => $auth->id,
-                    'receiver_id' => $request['user_id'],
-                    'receiver_role' => 'user',
-                    'title' => 'Solicitud aceptada',
-                    'message' => 'Tu solicitud fue aceptada por el proveedor',
-                    'data_json' => json_encode([
-                        'url' => '/service/' . $request['service_id'],
-                        'action' => 'view_service',
-                        'notification_type' => 'service_update',
-                        'service_id' => $request['service_id']
-                    ])
-                ]);
-
-                // ✅ EVENTO CORRECTO para el frontend
-                WebSocketService::emitEvent(
-                    'user',
-                    $request['user_id'],
-                    'request_updated',
-                    [
-                        'request_id' => (int)$requestId,
-                        'status' => 'accepted',
-                        'updated_at' => date('Y-m-d H:i:s'),
-                        'service_id' => $request['service_id'],
-                        'service_title' => $request['service_title'] ?? null,
-                        'service_price' => $request['service_price'] ?? null
-                    ]
-                );
-            }
-        }
-
-        echo json_encode(["success" => $ok]);
+    if (!$requestId) {
+        echo json_encode(["success" => false, "message" => "Falta el ID"]);
+        return;
     }
+
+    $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
+
+    if ($ok) {
+        $request = $this->model->getById($requestId);
+        if ($request) {
+            // Notificación al usuario
+            $this->model->saveNotification([
+                'sender_id' => $auth->id,
+                'receiver_id' => $request['user_id'],
+                'receiver_role' => 'user',
+                'title' => 'Solicitud aceptada',
+                'message' => 'Tu solicitud fue aceptada por el proveedor',
+                'data_json' => json_encode([
+                    'url' => '/service/' . $request['service_id'],
+                    'action' => 'view_service',
+                    'notification_type' => 'service_update',
+                    'service_id' => $request['service_id']
+                ])
+            ]);
+
+            // ✅ EVENTO AL USUARIO (datos básicos)
+            WebSocketService::emitEvent(
+                'user',
+                $request['user_id'],
+                'request_updated',
+                [
+                    'request_id' => (int)$requestId,
+                    'status' => 'accepted',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                    'service_id' => $request['service_id']
+                ]
+            );
+
+            // ✅ FIX: EVENTO AL PROVEEDOR con TODOS los datos necesarios
+            WebSocketService::emitEvent(
+                'provider',
+                $auth->id,
+                'request_updated',
+                [
+                    'request_id' => (int)$requestId,
+                    'status' => 'accepted',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                    // ✅ Datos completos para la tarjeta
+                    'id' => (int)$requestId,
+                    'service_id' => $request['service_id'],
+                    'service_title' => $request['service_title'] ?? 'Servicio',
+                    'service_description' => $request['service_description'] ?? '',
+                    'service_price' => $request['service_price'] ?? 0,
+                    'service_image_url' => $request['service_image_url'] ?? null,
+                    'service_location' => $request['service_location'] ?? 'Ubicación no especificada',
+                    'user_id' => $request['user_id'],
+                    'user_name' => $request['user_name'] ?? 'Usuario',
+                    'user_phone' => $request['user_phone'] ?? null,
+                    'payment_status' => $request['payment_status'] ?? 'pending',
+                    'additional_details' => $request['additional_details'] ?? '',
+                    'created_at' => $request['created_at'] ?? date('Y-m-d H:i:s')
+                ]
+            );
+        }
+    }
+
+    echo json_encode(["success" => $ok]);
+}
+
 
     private function finalized($auth)
     {

@@ -15,32 +15,35 @@ class AuthController
     /* ---------- LOGIN ---------- */
     public function login(): void
     {
-        $data = json_decode(file_get_contents("php://input"), true);
+
+header('Content-Type: application/json'); 
+
+       $data = json_decode(file_get_contents("php://input"), true);
         $identifier = trim($data['identifier'] ?? '');
         $password = $data['password'] ?? '';
 
         if (empty($identifier) || empty($password)) {
             http_response_code(400);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Faltan el identificador o la contraseña."]);
             return;
         }
 
         $user = $this->userModel->findByEmailOrPhone($identifier);
 
+if (!$user || !isset($user['password'])) {
+    http_response_code(401);
+    header('Content-Type: application/json');
+    echo json_encode(["message" => "Credenciales incorrectas"]);
+    return;
+}
 
-
-error_log("PASSWORD INGRESADA: " . $password);
-error_log("HASH BD: " . $user['password']);
-error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : 'FAIL'));
-
-
-
-
-        if (!$user || !password_verify($password, $user['password'])) {
-            http_response_code(401);
-            echo json_encode(["message" => "Credenciales incorrectas"]);
-            return;
-        }
+if (!password_verify($password, $user['password'])) {
+    http_response_code(401);
+    header('Content-Type: application/json');
+    echo json_encode(["message" => "Credenciales incorrectas"]);
+    return;
+}        
 
         // Actualizar última actividad
         $this->userModel->updateLastSeen($user['id']);
@@ -54,6 +57,7 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
         $token = JwtHandler::encode($payload);
         unset($user['password']);
 
+        header('Content-Type: application/json');
         echo json_encode([
             "success" => true,
             "token"   => $token,
@@ -70,6 +74,7 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 http_response_code(400);
+                header('Content-Type: application/json');
                 echo json_encode(["message" => "Falta el campo: $field"]);
                 return;
             }
@@ -77,36 +82,42 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
 
         if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Email no válido"]);
             return;
         }
 
         if (!preg_match('/^[0-9]{8,15}$/', $data['phone'])) {
             http_response_code(400);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Teléfono inválido"]);
             return;
         }
 
         if (strlen($data['password']) < 6) {
             http_response_code(400);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "La contraseña debe tener al menos 6 caracteres"]);
             return;
         }
 
         if (!in_array($data['role'], ['admin', 'user', 'provider'], true)) {
             http_response_code(400);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Rol no permitido"]);
             return;
         }
 
         if ($this->userModel->findByEmail($data['email'])) {
             http_response_code(409);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "El correo electrónico ya está registrado."]);
             return;
         }
 
         if ($this->userModel->findByPhone($data['phone'])) {
             http_response_code(409);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "El número de teléfono ya está registrado."]);
             return;
         }
@@ -126,6 +137,7 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
         $token = JwtHandler::encode($payload);
         unset($user['password']);
 
+        header('Content-Type: application/json');
         echo json_encode([
             "success" => true,
             "token"   => $token,
@@ -141,6 +153,7 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
 
         if (!str_starts_with($auth, "Bearer ")) {
             http_response_code(401);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Token no proporcionado"]);
             return;
         }
@@ -150,6 +163,7 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
 
         if (!$decoded || !isset($decoded->id)) {
             http_response_code(401);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Token inválido o expirado"]);
             return;
         }
@@ -162,11 +176,13 @@ error_log("VERIFY: " . (password_verify($password, $user['password']) ? 'OK' : '
         $user = $this->userModel->findById($userId);
         if (!$user) {
             http_response_code(404);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Usuario no encontrado"]);
             return;
         }
 
         unset($user['password']);
+        header('Content-Type: application/json');
         echo json_encode([
             "success" => true,
             "user"    => $user
@@ -185,6 +201,7 @@ public function forgotPassword(): void
 
     if (!in_array($method, ['email', 'phone'], true) || empty($value)) {
         http_response_code(400);
+        header('Content-Type: application/json');
         echo json_encode(["message" => "Método o valor inválido"]);
         return;
     }
@@ -195,6 +212,7 @@ public function forgotPassword(): void
 
     // No revelar si el usuario existe o no
     if (!$user) {
+        header('Content-Type: application/json');
         echo json_encode([
             "success" => true,
             "message" => "Si existe el usuario, se ha enviado un código"
@@ -216,7 +234,7 @@ public function forgotPassword(): void
         $headers = "From: no-reply@tusitio.com\r\n";
         mail($user['email'], $subject, $message, $headers);
     } else {
-       
+
 require_once __DIR__ . '/../utils/SMS.php';
 
 if ($method === 'phone') {
@@ -224,6 +242,7 @@ if ($method === 'phone') {
     $sent = SMS::send($user['phone'], $smsMessage);
     if (!$sent) {
         http_response_code(500);
+        header('Content-Type: application/json');
         echo json_encode(["message" => "No se pudo enviar el SMS"]);
         return;
     }
@@ -232,6 +251,7 @@ if ($method === 'phone') {
 
     }
 
+    header('Content-Type: application/json');
     echo json_encode([
         "success" => true,
         "message" => "Si existe el usuario, se ha enviado un código"
@@ -247,12 +267,14 @@ public function resetPassword(): void
 
     if (empty($token) || empty($newPassword)) {
         http_response_code(400);
+        header('Content-Type: application/json');
         echo json_encode(["message" => "Token o contraseña no enviados"]);
         return;
     }
 
     if (strlen($newPassword) < 6) {
         http_response_code(400);
+        header('Content-Type: application/json');
         echo json_encode(["message" => "La contraseña debe tener al menos 6 caracteres"]);
         return;
     }
@@ -261,6 +283,7 @@ public function resetPassword(): void
 
     if (!$user || strtotime($user['reset_password_expires_at']) < time()) {
         http_response_code(400);
+        header('Content-Type: application/json');
         echo json_encode(["message" => "Token inválido o expirado"]);
         return;
     }
@@ -270,6 +293,7 @@ public function resetPassword(): void
     // Limpiar token
     $this->userModel->setResetToken($user['id'], null, null);
 
+    header('Content-Type: application/json');
     echo json_encode([
         "success" => true,
         "message" => "Contraseña actualizada correctamente"
@@ -287,6 +311,7 @@ public function resetPassword(): void
 
         if (!str_starts_with($auth, "Bearer ")) {
             http_response_code(401);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Token no proporcionado"]);
             return;
         }
@@ -296,6 +321,7 @@ public function resetPassword(): void
 
         if (!$decoded || !isset($decoded->id)) {
             http_response_code(401);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Token inválido o expirado"]);
             return;
         }
@@ -305,6 +331,7 @@ public function resetPassword(): void
 
         if (!$user) {
             http_response_code(404);
+            header('Content-Type: application/json');
             echo json_encode(["message" => "Usuario no encontrado"]);
             return;
         }
@@ -322,6 +349,7 @@ public function resetPassword(): void
         $newToken = JwtHandler::encode($payload);
         unset($user['password']);
 
+        header('Content-Type: application/json');
         echo json_encode([
             "success" => true,
             "token"   => $newToken,

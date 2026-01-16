@@ -325,7 +325,7 @@
         />
       </div>
     </div>
-
+    
     <!-- HISTORY (LISTA) -->
     <div
       v-if="activeTab === 'history'"
@@ -371,7 +371,7 @@
         </div>
       </div>
     </div>
-
+    
     <!-- MODALES -->
     <ProofModal
       v-if="showProofModal"
@@ -492,7 +492,6 @@ export default {
       await this.initializeTabs();
       await this.$nextTick();
 
-      // ✅ VERIFICACIÓN DE CONEXIÓN
       console.log('🔍 Provider ID:', this.providerId);
       console.log('🔍 Socket conectado?', socketStore.isConnected);
       console.log('🔍 Socket ID:', socketStore.socket?.id);
@@ -507,8 +506,9 @@ export default {
           }, 100);
         });
       }
-      console.log('🔍 Room que debería unirse:', `provider_${this.providerId}`);
 
+      console.log('🔍 Room que debería unirse:', `provider_${this.providerId}`);
+      
       await Promise.allSettled([
         this.fetchAvailableRequests(),
         this.fetchActiveRequests(),
@@ -522,7 +522,7 @@ export default {
       console.error('❌ Error inicializando DashboardProvider:', error);
       this.$swal?.fire({ icon: 'error', title: 'Error', text: error.message });
     }
-
+    
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   },
@@ -570,46 +570,46 @@ export default {
             break;
         }
       }, 1000);
-
-      // ✅ HANDLER CORREGIDO PARA NUEVAS SOLICITUDES
+      
+      // ✅ HANDLER CORREGIDO CON NORMALIZACIÓN
       const onNewRequest = this.throttle((payload) => {
         console.log('🔔 Provider: Evento new_request_created recibido:', JSON.stringify(payload, null, 2));
 
         try {
-          const normalizedRequest = {
+          // ✅ NORMALIZAR el payload al formato esperado
+          const normalizedRequest = this.normalizeRequest({
             id: payload.request_id,
             service_id: payload.service_id,
-            service_title: payload.service_title || 'Servicio',
-            service_description: payload.service_description || '',
-            service_price: payload.service_price || 0,
-            service_image_url: payload.service_image_url || null,
-            service_provider_name: payload.user_name || 'Usuario',
-            service_location: payload.service_location || 'Ubicación no especificada',
+            service_title: payload.service_title,
+            service_description: payload.service_description,
+            service_price: payload.service_price,
+            service_image_url: payload.service_image_url,
+            service_location: payload.service_location,
             user_id: payload.user_id,
-            user_name: payload.user_name || 'Usuario',
-            user_phone: payload.user_phone || null,
+            user_name: payload.user_name,
+            user_phone: payload.user_phone,
             status: payload.status || 'pending',
             payment_status: payload.payment_status || 'pending',
-            additional_details: payload.additional_details || '',
+            additional_details: payload.additional_details,
             created_at: payload.created_at,
-            payment_methods: []
-          };
+            ...payload // Asegura que cualquier otra propiedad se pase también
+          });
 
           // ✅ Forzar reactividad con spread operator
           this.availableRequests = [normalizedRequest, ...this.availableRequests];
-
+          
           socketStore.playNotificationSound();
           this.$swal?.fire({
             icon: 'info',
             title: 'Nueva Solicitud',
-            text: `${payload.service_title} - $${payload.service_price}`,
+            text: `${normalizedRequest.service_title} - $${normalizedRequest.service_price}`,
             timer: 4000,
             showConfirmButton: false,
             position: 'top-end',
             toast: true
           });
-
-          console.log('✅ Solicitud añadida a availableRequests. Total:', this.availableRequests.length);
+          
+          console.log('✅ Solicitud normalizada y añadida. Total:', this.availableRequests.length);
         } catch (error) {
           console.error('❌ Error en onNewRequest:', error);
         }
@@ -619,7 +619,7 @@ export default {
       socketStore.on('payment_updated', onPaymentUpdated);
       socketStore.on('new-notification', onNewNotification);
       socketStore.on('new_request_created', onNewRequest);
-
+      
       this.socketHandlers = [
         { event: 'request_updated', handler: onRequestUpdated },
         { event: 'payment_updated', handler: onPaymentUpdated },
@@ -700,18 +700,29 @@ export default {
       this.inProgressRequests = updated;
     },
 
+    // ✅ MÉTODO MODIFICADO CON NORMALIZACIÓN
     handleRequestUpdate(request) {
-      if (['accepted', 'rejected', 'busy'].includes(request.status)) {
-        this.availableRequests = this.availableRequests.filter(r => r.id !== request.id);
+      // ✅ Normalizar la solicitud recibida
+      const normalizedRequest = this.normalizeRequest(request);
+      
+      // Filtrar de available si corresponde
+      if (['accepted', 'rejected', 'busy'].includes(normalizedRequest.status)) {
+        this.availableRequests = this.availableRequests.filter(r => r.id !== normalizedRequest.id);
       }
-      const idx = this.inProgressRequests.findIndex(r => r.id === request.id);
+
+      // Actualizar en inProgress
+      const idx = this.inProgressRequests.findIndex(r => r.id === normalizedRequest.id);
       if (idx >= 0) {
-        this.inProgressRequests[idx] = request;
+        // ✅ ACTUALIZACIÓN REACTIVA con splice
+        this.inProgressRequests.splice(idx, 1, normalizedRequest);
       } else {
-        this.inProgressRequests.unshift(request);
+        // ✅ Añadir nueva solicitud normalizada
+        this.inProgressRequests.unshift(normalizedRequest);
       }
-      if (['completed', 'cancelled', 'rejected', 'finalized'].includes(request.status)) {
-        this.updateHistory(request);
+
+      // Actualizar historial si corresponde
+      if (['completed', 'cancelled', 'rejected', 'finalized'].includes(normalizedRequest.status)) {
+        this.updateHistory(normalizedRequest);
       }
     },
 
@@ -763,6 +774,58 @@ export default {
 
     normalizeHistory(h) {
       return { ...h, payment_methods: this.parsePaymentMethods(h.payment_methods) };
+    },
+
+    // ✅ MÉTODO NUEVO DE NORMALIZACIÓN
+    normalizeRequest(r) {
+      // Parsear payment_methods si viene como string
+      let paymentMethods = [];
+      try {
+        paymentMethods = typeof r.payment_methods === 'string' 
+          ? JSON.parse(r.payment_methods) 
+          : (r.payment_methods || []);
+      } catch (e) {
+        paymentMethods = [];
+      }
+
+      // Normalizar proveedor (si existe)
+      const provider = r.provider || {};
+      
+      return {
+        ...r,
+        // Propiedades del servicio
+        service_title: r.service_title || r.title || 'Servicio',
+        service_description: r.service_description || r.description || '',
+        service_price: Number(r.service_price || r.price || 0),
+        service_location: r.service_location || r.location || 'Ubicación no especificada',
+        service_image_url: r.service_image_url || r.image_url || null,
+        
+        // Propiedades del proveedor
+        service_provider_name: r.service_provider_name || provider.name || r.provider_name || 'Proveedor',
+        provider_id: r.provider_id || provider.id || null,
+        provider_phone: r.provider_phone || provider.phone || null,
+        provider_address: r.provider_address || provider.address || 'No especificada',
+        provider_avatar_url: r.provider_avatar_url || provider.avatar_url || null,
+        provider_rating: r.provider_rating || provider.rating || null,
+        
+        // Propiedades del usuario (para in-progress)
+        user_id: r.user_id || null,
+        user_name: r.user_name || r.user?.name || 'Usuario',
+        user_phone: r.user_phone || r.user?.phone || null,
+        
+        // Estado y pagos
+        status: r.status || 'pending',
+        payment_status: r.payment_status || 'pending',
+        payment_methods: paymentMethods,
+        
+        // Detalles adicionales
+        additional_details: r.additional_details || '',
+        created_at: r.created_at || new Date().toISOString(),
+        updated_at: r.updated_at || r.created_at || new Date().toISOString(),
+        
+        // URLs de imagen
+        image_url: r.image_url ? `http://localhost:8000${r.image_url}` : null
+      };
     },
 
     formatDate(d, onlyTime = false) {
@@ -960,7 +1023,7 @@ export default {
       if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) {
         return;
       }
-
+      
       const auth = useAuthStore();
       if (!auth.token) {
         this.loading.support = false;
@@ -989,7 +1052,7 @@ export default {
       if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) {
         return;
       }
-
+      
       this.loading.faq = true;
       try {
         const res = await api.get('/support/faq');

@@ -139,17 +139,10 @@ export default {
     const showPassword = ref(false)
 
     /* ✅ NUEVO: manejamos el error real del backend sin tocar tu lógica */
-    const handleLogin = async () => {
-      try {
-        await auth.login(form.value) // ← tu función original
-      } catch (err) {
-        // ❗️Aquí leemos el mensaje que manda el backend
-        const msg = err.response?.data?.message || err.response?.data?.error || 'Error inesperado'
-        Swal.fire('Error', msg, 'error') // mostramos bonito
-        // (opcional) puedes hacer console.error(msg) si no quieres Swal
-      }
-    }
-
+    // ✅ CORRECTO - El store ya maneja el error
+  const handleLogin = () => {
+  auth.login(form.value) // No necesitas try/catch ni Swal aquí
+   }
     const goToForgotPassword = () => {
       router.push('/forgot-password')
     }
