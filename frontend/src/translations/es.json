@@ -33,7 +33,7 @@
   "changeAvatar": "Cambiar avatar",
 
   "chat": "Chat",
-  "chats": "Chats",
+  "chats": "Conversaciones",
 
   "checkDetailsBeforeSending": "Revisa los detalles antes de enviar",
   "close": "Cerrar",
@@ -358,6 +358,13 @@
       "minLength": "La contraseña debe tener al menos 6 caracteres",
       "notMatch": "Las contraseñas no coinciden",
       "invalidToken": "Token inválido o expirado"
+    }
+  },
+
+  "error": {
+    "conflict": {
+      "title": "Solicitud duplicada",
+      "active_request": "Ya tienes una solicitud activa con este proveedor"
     }
   }
 }

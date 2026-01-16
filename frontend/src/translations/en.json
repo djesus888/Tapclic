@@ -295,5 +295,11 @@
        "notMatch": "Passwords do not match",
        "invalidToken": "Invalid or expired token"
      }
-   }
+   },
+"error": {
+  "conflict": {
+    "title": "Duplicate Request",
+    "active_request": "You already have an active request with this provider"
+  }
+ }
 }

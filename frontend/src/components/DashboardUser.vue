@@ -848,10 +848,20 @@ export default {
             providerModal.startProcess()
           }
         })
-      } catch (err) {
-        console.error(err)
-        this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message })
-      }
+     } catch (err) {
+  console.error(err)
+  const status = err.response?.status
+  let title = this.$t('error.default') || 'Error'
+  let text = err.message
+
+  if (status === 409) {
+    title = this.$t('error.conflict.title') || 'Solicitud duplicada'
+    text = this.$t('error.conflict.active_request') || 'Ya tienes una solicitud activa con este proveedor'
+  }
+
+  this.$swal?.fire({ icon: 'error', title, text })
+}
+
     },
 
     async onProviderResponse(status) {
@@ -1013,49 +1023,57 @@ export default {
       fetchMap[this.selectedTab]?.();
     },
 
-    setupSocketHandlers() {
-      const socketStore = useSocketStore();
-      
-      const requestUpdatedHandler = (data) => {
-        console.log('🔔 Evento request_updated recibido:', data);
-        if (data.request_id && data.status) {
-          this.handleRealTimeRequestUpdate(data.request_id, data.status);
-        }
-      };
+setupSocketHandlers() {
+  const socketStore = useSocketStore();
 
-      const paymentUpdatedHandler = (data) => {
-        console.log('🔔 Evento payment_updated recibido:', data);
-        if (data.request_id && data.payment_status) {
-          this.handleRealTimePaymentUpdate(data.request_id, data.payment_status);
-        }
-      };
+  const requestUpdatedHandler = (data) => {
+    console.log('🔔 Evento request_updated recibido:', data);
+    
+    // ✅ NORMALIZAR: aceptar tanto data.request como data directo
+    const requestData = data.request || data;
+    const requestId = requestData.id || requestData.request_id;
+    const status = requestData.status;
+    
+    if (requestId && status) {
+      this.handleRealTimeRequestUpdate(requestId, status);
+    } else {
+      console.warn('⚠️ request_updated: No se encontró ID o status en el payload', data);
+    }
+  };
 
-      const newNotificationHandler = (notification) => {
-        console.log('🔔 Notificación recibida:', notification.event);
-        switch(notification.event) {
-          case 'status_changed':
-          case 'request_updated':
-            this.lastFetch.activeRequests = 0;
-            this.lastFetch.history = 0;
-            this.fetchActiveRequests();
-            break;
-          case 'payment_updated':
-            this.lastFetch.activeRequests = 0;
-            this.fetchActiveRequests();
-            break;
-        }
-      };
+  const paymentUpdatedHandler = (data) => {
+    console.log('🔔 Evento payment_updated recibido:', data);
+    if (data.request_id && data.payment_status) {
+      this.handleRealTimePaymentUpdate(data.request_id, data.payment_status);
+    }
+  };
 
-      socketStore.on('request_updated', requestUpdatedHandler);
-      socketStore.on('payment_updated', paymentUpdatedHandler);
-      socketStore.on('new-notification', newNotificationHandler);
+  const newNotificationHandler = (notification) => {
+    console.log('🔔 Notificación recibida:', notification.event);
+    switch(notification.event) {
+      case 'status_changed':
+      case 'request_updated':
+        this.lastFetch.activeRequests = 0;
+        this.lastFetch.history = 0;
+        this.fetchActiveRequests();
+        break;
+      case 'payment_updated':
+        this.lastFetch.activeRequests = 0;
+        this.fetchActiveRequests();
+        break;
+    }
+  };
 
-      this.socketHandlers = [
-        { event: 'request_updated', handler: requestUpdatedHandler },
-        { event: 'payment_updated', handler: paymentUpdatedHandler },
-        { event: 'new-notification', handler: newNotificationHandler }
-      ];
-    },
+  socketStore.on('request_updated', requestUpdatedHandler);
+  socketStore.on('payment_updated', paymentUpdatedHandler);
+  socketStore.on('new-notification', newNotificationHandler);
+
+  this.socketHandlers = [
+    { event: 'request_updated', handler: requestUpdatedHandler },
+    { event: 'payment_updated', handler: paymentUpdatedHandler },
+    { event: 'new-notification', handler: newNotificationHandler }
+  ];
+},
 
     cleanupSocketHandlers() {
       const socketStore = useSocketStore();

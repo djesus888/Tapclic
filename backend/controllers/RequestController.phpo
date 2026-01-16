@@ -27,14 +27,14 @@ class RequestController
     {
         $auth = $this->auth();
         if (!$auth) return $this->unauthorized();
-
+        
         $path = $_SERVER['REQUEST_URI'];
-
+        
         if (preg_match('/\/api\/requests\/confirm-payment/', $path) && $method === 'POST') {
             (new PaymentController())->handle('confirm-payment');
             return;
         }
-
+        
         if (preg_match('/\/api\/requests\/create/', $path) && $method === 'POST') {
             $this->create($auth);
         } elseif (preg_match('/\/api\/requests\/mine/', $path) && $method === 'GET') {
@@ -83,15 +83,15 @@ class RequestController
     {
         $data = json_decode(file_get_contents("php://input"), true);
         $requestId = $data['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta ID"]);
             return;
         }
-
+        
         $updated = $this->model->updateStatus($requestId, $auth->id, $newStatus);
         $request = $this->model->getById($requestId);
-
+        
         if ($updated && $request) {
             // Notificación al usuario
             WebSocketService::notify(
@@ -101,7 +101,7 @@ class RequestController
                 "Tu solicitud cambió a: $newStatus",
                 ['request_id' => (int)$requestId, 'status' => $newStatus]
             );
-
+            
             echo json_encode(["success" => true]);
         } else {
             echo json_encode(["success" => false, "message" => "No autorizado"]);
@@ -113,44 +113,45 @@ class RequestController
         $this->model->close($requestId, $finalStatus);
     }
 
-    private function create($auth)
-    {
-        // Lee los datos de la solicitud
-        $data = json_decode(file_get_contents("php://input"), true);
-        $data['user_id'] = $auth->id;
-        $userId = $auth->id;
-        $serviceId = $data['service_id'] ?? null;
-        $providerId = $data['provider_id'] ?? null;
 
-        // Validación básica
-        if (!$serviceId || !$providerId) {
-            http_response_code(400);
-            echo json_encode(["success" => false, "error" => "Faltan datos obligatorios"]);
-            return;
-        }
+private function create($auth)
+{
+    // Lee los datos de la solicitud
+    $data = json_decode(file_get_contents("php://input"), true);
+    $data['user_id'] = $auth->id;
+    $userId = $auth->id;
+    $serviceId = $data['service_id'] ?? null;
+    $providerId = $data['provider_id'] ?? null;
 
-        // Verifica si ya existe una solicitud activa
-        $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
-        if ($exists) {
-            http_response_code(409);
-            echo json_encode([
-                "success" => false,
-                "error" => "Ya tienes una solicitud activa para este servicio con este proveedor."
-            ]);
-            return;
-        }
+    // Validación básica
+    if (!$serviceId || !$providerId) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "error" => "Faltan datos obligatorios"]);
+        return;
+    }
 
-        // ✅ CREA LA SOLICITUD PRIMERO (esto es lo más importante)
-        try {
-            $newId = $this->model->create($data);
-            if (!$newId) {
-                throw new Exception("El método create() no devolvió un ID válido");
-            }
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(["success" => false, "error" => "Error en la base de datos: " . $e->getMessage()]);
-            return;
+    // Verifica si ya existe una solicitud activa
+    $exists = $this->model->existsOpenRequest($userId, $serviceId, $providerId);
+    if ($exists) {
+        http_response_code(409);
+        echo json_encode([
+            "success" => false,
+            "error" => "Ya tienes una solicitud activa para este servicio con este proveedor."
+        ]);
+        return;
+    }
+
+    // ✅ CREA LA SOLICITUD PRIMERO (esto es lo más importante)
+    try {
+        $newId = $this->model->create($data);
+        if (!$newId) {
+            throw new Exception("El método create() no devolvió un ID válido");
         }
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "error" => "Error en la base de datos: " . $e->getMessage()]);
+        return;
+    }
 
         // ✅ OBTENER DATOS DEL SERVICIO (opcional, con logging)
         $serviceData = null;
@@ -188,32 +189,34 @@ class RequestController
             error_log("⚠️ Excepción en emitEvent: " . $e->getMessage());
         }
 
-        // ✅ GUARDAR NOTIFICACIÓN EN BD (esto también es importante)
-        try {
-            $this->model->saveNotification([
-                'sender_id' => $auth->id,
-                'receiver_id' => $providerId,
-                'receiver_role' => 'provider',
-                'title' => 'Nueva solicitud',
-                'message' => 'Tienes una nueva solicitud pendiente',
-                'data_json' => json_encode([
-                    'url' => '/dashboard/provider',
-                    'action' => 'view_request',
-                    'notification_type' => 'new_request'
-                ])
-            ]);
-        } catch (Exception $e) {
-            error_log("⚠️ No se pudo guardar notificación: " . $e->getMessage());
-        }
-
-        // ✅ RESPUESTA EXITOSA (lo más importante)
-        echo json_encode([
-            "success" => true,
-            "requestId" => (int)$newId,
-            "status" => "pending",
-            "message" => "Solicitud creada correctamente"
+    // ✅ GUARDAR NOTIFICACIÓN EN BD (esto también es importante)
+    try {
+        $this->model->saveNotification([
+            'sender_id' => $auth->id,
+            'receiver_id' => $providerId,
+            'receiver_role' => 'provider',
+            'title' => 'Nueva solicitud',
+            'message' => 'Tienes una nueva solicitud pendiente',
+            'data_json' => json_encode([
+                'url' => '/dashboard/provider',
+                'action' => 'view_request',
+                'notification_type' => 'new_request'
+            ])
         ]);
+    } catch (Exception $e) {
+        error_log("⚠️ No se pudo guardar notificación: " . $e->getMessage());
     }
+
+    // ✅ RESPUESTA EXITOSA (lo más importante)
+    echo json_encode([
+        "success" => true, 
+        "requestId" => (int)$newId, 
+        "status" => "pending",
+        "message" => "Solicitud creada correctamente"
+    ]);
+}
+
+
 
     private function mine($auth)
     {
@@ -247,15 +250,15 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID"]);
             return;
         }
-
+        
         $updated = $this->model->updateStatus($requestId, $auth->id, 'busy');
         $request = $this->model->getById($requestId);
-
+        
         if ($updated && $request) {
             $this->model->saveNotification([
                 'sender_id' => $auth->id,
@@ -269,27 +272,15 @@ class RequestController
                     'notification_type' => 'general'
                 ])
             ]);
-
+            
             WebSocketService::notify(
                 $request['user_id'],
                 'user',
                 'Proveedor ocupado',
                 'El proveedor está ocupado temporalmente'
             );
-
-            // ✅ FIX: Emitir evento request_updated para cerrar el modal del cliente
-            WebSocketService::emitEvent(
-                'user',
-                $request['user_id'],
-                'request_updated',
-                [
-                    'request_id' => (int)$requestId,
-                    'status' => 'busy',
-                    'updated_at' => date('Y-m-d H:i:s')
-                ]
-            );
         }
-
+        
         echo json_encode(["success" => $updated]);
     }
 
@@ -297,14 +288,14 @@ class RequestController
     {
         $data = json_decode(file_get_contents("php://input"), true);
         $requestId = $data['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID"]);
             return;
         }
-
+        
         $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
-
+        
         if ($ok) {
             $request = $this->model->getById($requestId);
             if ($request) {
@@ -321,7 +312,7 @@ class RequestController
                         'service_id' => $request['service_id']
                     ])
                 ]);
-
+                
                 // ✅ EVENTO CORRECTO para el frontend
                 WebSocketService::emitEvent(
                     'user',
@@ -338,7 +329,7 @@ class RequestController
                 );
             }
         }
-
+        
         echo json_encode(["success" => $ok]);
     }
 
@@ -347,7 +338,7 @@ class RequestController
         try {
             $input = json_decode(file_get_contents("php://input"), true);
             $requestId = $input['id'] ?? null;
-
+            
             if (!$requestId) {
                 echo json_encode(["success" => false, "message" => "Falta el ID"]);
                 return;
@@ -411,15 +402,15 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
             return;
         }
-
+        
         $updated = $this->model->updateStatus($requestId, $auth->id, 'in_progress');
         $request = $this->model->getById($requestId);
-
+        
         if ($updated && $request) {
             // Notificación al usuario
             WebSocketService::notify(
@@ -428,7 +419,7 @@ class RequestController
                 'Servicio en progreso',
                 'El proveedor ha comenzado el servicio'
             );
-
+            
             // Evento al usuario
             WebSocketService::emitEvent(
                 'user',
@@ -440,7 +431,7 @@ class RequestController
                     'updated_at' => date('Y-m-d H:i:s')
                 ]
             );
-
+            
             // Evento al provider (para sincronizar su dashboard)
             WebSocketService::emitEvent(
                 'provider',
@@ -453,7 +444,7 @@ class RequestController
                 ]
             );
         }
-
+        
         echo json_encode(["success" => $updated]);
     }
 
@@ -461,15 +452,15 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
             return;
         }
-
+        
         $updated = $this->model->updateStatus($requestId, $auth->id, 'on_the_way');
         $request = $this->model->getById($requestId);
-
+        
         if ($updated && $request) {
             // Notificación al usuario
             WebSocketService::notify(
@@ -478,7 +469,7 @@ class RequestController
                 'Proveedor en camino',
                 'El proveedor está en camino a tu ubicación'
             );
-
+            
             // Evento al usuario
             WebSocketService::emitEvent(
                 'user',
@@ -490,7 +481,7 @@ class RequestController
                     'updated_at' => date('Y-m-d H:i:s')
                 ]
             );
-
+            
             // Evento al provider
             WebSocketService::emitEvent(
                 'provider',
@@ -503,7 +494,7 @@ class RequestController
                 ]
             );
         }
-
+        
         echo json_encode(["success" => $updated]);
     }
 
@@ -511,15 +502,15 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
             return;
         }
-
+        
         $updated = $this->model->updateStatus($requestId, $auth->id, 'arrived');
         $request = $this->model->getById($requestId);
-
+        
         if ($updated && $request) {
             // Notificación al usuario
             WebSocketService::notify(
@@ -528,7 +519,7 @@ class RequestController
                 'Proveedor llegó',
                 'El proveedor ha llegado a tu ubicación'
             );
-
+            
             // Evento al usuario
             WebSocketService::emitEvent(
                 'user',
@@ -540,7 +531,7 @@ class RequestController
                     'updated_at' => date('Y-m-d H:i:s')
                 ]
             );
-
+            
             // Evento al provider
             WebSocketService::emitEvent(
                 'provider',
@@ -553,11 +544,12 @@ class RequestController
                 ]
             );
         }
-
+        
         echo json_encode(["success" => $updated]);
     }
 
-    private function reject($auth)
+
+private function reject($auth)
     {
         $data = json_decode(file_get_contents("php://input"), true);
         $requestId = $data['id'] ?? null;
@@ -585,39 +577,39 @@ class RequestController
                     'Tu solicitud fue rechazada por el proveedor'
                 );
 
-                // ✅ FIX: Estructura corregida para coincidir con 'accept'
+                // ✅ Evento al USUARIO con estructura correcta
                 WebSocketService::emitEvent(
                     'user',
                     $request['user_id'],
                     'request_updated',
                     [
-                        'request_id' => (int)$requestId,
-                        'status' => 'rejected',
-                        'updated_at' => date('Y-m-d H:i:s')
+                        'request' => [
+                            'id' => (int)$requestId,
+                            'service_id' => $request['service_id'],
+                            'status' => 'rejected',
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]
                     ]
                 );
 
-                // ✅ Evento al PROVEEDOR
+                // ✅ Evento al PROVEEDOR con estructura correcta
                 WebSocketService::emitEvent(
                     'provider',
                     $auth->id,
                     'request_updated',
                     [
-                        'request_id' => (int)$requestId,
-                        'status' => 'rejected',
-                        'updated_at' => date('Y-m-d H:i:s')
+                        'request' => [
+                            'id' => (int)$requestId,
+                            'service_id' => $request['service_id'],
+                            'status' => 'rejected',
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]
                     ]
                 );
             }
 
-            // ✅ Ejecutar limpieza en segundo plano sin interrumpir la respuesta
-            try {
-                $this->archiveAndClean((int)$requestId, 'rejected');
-            } catch (Exception $e) {
-                error_log("⚠️ archiveAndClean falló en reject (no crítico): " . $e->getMessage());
-            }
-
-            echo json_encode(["success" => true, "message" => "Solicitud rechazada"]);
+            $this->archiveAndClean((int)$requestId, 'rejected');
+            echo json_encode(["success" => true]);
         } catch (Exception $e) {
             echo json_encode(["success" => false, "message" => $e->getMessage()]);
         }
@@ -627,27 +619,27 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
+        
         if (!$requestId) {
             echo json_encode(["success" => false, "message" => "Falta el ID"]);
             return;
         }
-
+        
         $actorRole = ($auth->role === 'provider') ? 'provider' : 'user';
-
+        
         try {
             $cancelled = $this->model->cancel((int)$requestId, $auth->id, $actorRole);
-
+            
             if (!$cancelled) {
                 echo json_encode(["success" => false, "message" => "No se pudo cancelar"]);
                 return;
             }
-
+            
             $request = $this->model->getById($requestId);
             if ($request) {
                 $otherRole = ($actorRole === 'provider') ? 'user' : 'provider';
                 $otherId = ($actorRole === 'provider') ? $request['user_id'] : $request['provider_id'];
-
+                
                 // Notificación al otro actor
                 WebSocketService::notify(
                     $otherId,
@@ -655,7 +647,7 @@ class RequestController
                     'Solicitud cancelada',
                     "La solicitud fue cancelada por el {$actorRole}"
                 );
-
+                
                 // Evento al otro actor
                 WebSocketService::emitEvent(
                     $otherRole,
@@ -669,7 +661,7 @@ class RequestController
                     ]
                 );
             }
-
+            
             $this->archiveAndClean((int)$requestId, 'cancelled');
             echo json_encode(["success" => true]);
         } catch (Exception $e) {
@@ -684,22 +676,22 @@ class RequestController
             echo json_encode(['error' => 'ID de solicitud inválido']);
             return;
         }
-
+        
         $requestId = $matches[1];
         $request = $this->model->getById($requestId);
-
+        
         if (!$request) {
             http_response_code(404);
             echo json_encode(['error' => 'Solicitud no encontrada']);
             return;
         }
-
+        
         if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id) {
             http_response_code(403);
             echo json_encode(['error' => 'No autorizado']);
             return;
         }
-
+        
         echo json_encode(['status' => $request['status']]);
     }
 
