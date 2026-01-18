@@ -306,7 +306,19 @@ private function accept($auth)
     $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
 
     if ($ok) {
-        $request = $this->model->getById($requestId);
+        
+// Obtener datos completos como los usa /requests/active
+$activeRequests = $this->model->getActiveByProvider($auth->id);
+
+$request = null;
+foreach ($activeRequests as $r) {
+    if ((int)$r['id'] === (int)$requestId) {
+        $request = $r;
+        break;
+    }
+}
+
+
         if ($request) {
             // Notificación al usuario
             $this->model->saveNotification([

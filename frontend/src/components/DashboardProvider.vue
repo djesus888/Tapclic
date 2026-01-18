@@ -29,29 +29,16 @@
     </div>
 
     <!-- PULL-TO-REFRESH INDICATOR -->
-    <div
-      v-if="pulling"
-      class="text-center text-sm text-gray-500 mb-2"
-    >
+    <div v-if="pulling" class="text-center text-sm text-gray-500 mb-2">
       {{ $t('release_to_refresh') }}
     </div>
 
     <!-- AVAILABLE -->
-    <div
-      v-if="activeTab === 'available'"
-      :key="'available-'+$i18n.locale"
-      class="grid gap-4 md:grid-cols-2"
-    >
-      <div
-        v-if="loading.available"
-        class="text-center py-10"
-      >
+    <div v-if="activeTab === 'available'" :key="'available-'+$i18n.locale" class="grid gap-4 md:grid-cols-2">
+      <div v-if="loading.available" class="text-center py-10">
         {{ $t('loading') }}…
       </div>
-      <div
-        v-else-if="!availableRequests.length"
-        class="text-center py-10 text-gray-500"
-      >
+      <div v-else-if="!availableRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_available_requests') }}
       </div>
       <div
@@ -108,23 +95,17 @@
         </div>
       </div>
     </div>
-
+      
     <!-- IN-PROGRESS -->
     <div
       v-if="activeTab === 'in-progress'"
       :key="'in-progress-'+$i18n.locale"
       class="grid gap-4 md:grid-cols-2"
     >
-      <div
-        v-if="loading.inProgress"
-        class="text-center py-10"
-      >
+      <div v-if="loading.inProgress" class="text-center py-10">
         {{ $t('loading') }}…
       </div>
-      <div
-        v-else-if="!inProgressRequests.length"
-        class="text-center py-10 text-gray-500"
-      >
+      <div v-else-if="!inProgressRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_active_requests') }}
       </div>
       <div
@@ -151,12 +132,8 @@
         >
           {{ $t('cancelled_by') }}: {{ req.cancelled_by }}
         </p>
-
         <!-- BOTÓN CONFIRMAR PAGO (solo si está en verificación) -->
-        <div
-          v-if="req.payment_status === 'verifying'"
-          class="mt-3"
-        >
+        <div v-if="req.payment_status === 'verifying'" class="mt-3">
           <button
             class="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600"
             @click="openProofModal(req.id)"
@@ -227,23 +204,17 @@
         </div>
       </div>
     </div>
-
+      
     <!-- SUPPORT -->
     <div
       v-if="activeTab === 'support'"
       :key="'support-'+$i18n.locale"
       class="p-4"
     >
-      <div
-        v-if="loading.faq"
-        class="text-center py-10"
-      >
+      <div v-if="loading.faq" class="text-center py-10">
         {{ $t('loading') }}…
       </div>
-      <div
-        v-else
-        class="mb-8"
-      >
+      <div v-else class="mb-8">
         <h2 class="text-xl font-semibold mb-4">
           {{ $t('faq') }}
         </h2>
@@ -270,23 +241,14 @@
           💬 {{ $t('contact_support') }}
         </button>
       </div>
-      <div
-        v-if="loading.support"
-        class="text-center py-10 mt-8"
-      >
+      <div v-if="loading.support" class="text-center py-10 mt-8">
         {{ $t('loading') }}…
       </div>
-      <div
-        v-else
-        class="mt-8"
-      >
+      <div v-else class="mt-8">
         <h2 class="text-xl font-semibold mb-4">
           {{ $t('my_tickets') }}
         </h2>
-        <div
-          v-if="tickets.length === 0"
-          class="text-center text-gray-500 py-10"
-        >
+        <div v-if="tickets.length === 0" class="text-center text-gray-500 py-10">
           {{ $t('no_support_tickets') }}
         </div>
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -325,23 +287,17 @@
         />
       </div>
     </div>
-    
+
     <!-- HISTORY (LISTA) -->
     <div
       v-if="activeTab === 'history'"
       :key="'history-'+$i18n.locale"
       class="space-y-2"
     >
-      <div
-        v-if="loading.history"
-        class="text-center py-10"
-      >
+      <div v-if="loading.history" class="text-center py-10">
         {{ $t('loading') }}…
       </div>
-      <div
-        v-else-if="!historyRequests.length"
-        class="text-center py-10 text-gray-500"
-      >
+      <div v-else-if="!historyRequests.length" class="text-center py-10 text-gray-500">
         {{ $t('no_history_requests') }}
       </div>
       <div
@@ -371,7 +327,7 @@
         </div>
       </div>
     </div>
-    
+      
     <!-- MODALES -->
     <ProofModal
       v-if="showProofModal"
@@ -401,6 +357,14 @@ import ChatRoomModal from '@/components/ChatRoomModal.vue'
 import NewTicketModal from '@/components/NewTicketModal.vue'
 import PaymentPill from '@/components/PaymentPill.vue'
 import ProofModal from '@/components/ProofModal.vue'
+
+const ACTIVE_STATUSES = [
+  'accepted',
+  'in_progress',
+  'on_the_way',
+  'arrived',
+  'finalized'
+]
 
 const STATUS_FLOW = {
   pending: ['accepted', 'rejected'],
@@ -436,7 +400,7 @@ const STATUS_COLORS = {
 export default {
   name: 'DashboardProvider',
   components: { ChatRoomModal, NewTicketModal, PaymentPill, ProofModal },
-
+  
   data() {
     return {
       tabs: [],
@@ -465,10 +429,9 @@ export default {
       historyModal: false,
       _lastPullRefresh: 0,
       _pullRefreshCooldown: 5000,
-      _socketHandlers: {},
+      socketHandlers: [],
       _unsubscribeFns: [],
       _initialized: false,
-      socketHandlers: [],
       _lastFetch: {
         support: 0,
         history: 0,
@@ -482,7 +445,7 @@ export default {
     const auth = useAuthStore();
     const socketStore = useSocketStore();
     const notificationStore = useNotificationStore();
-
+    
     try {
       socketStore.init();
       await notificationStore.initialize();
@@ -491,11 +454,11 @@ export default {
       await auth.loadLocale();
       await this.initializeTabs();
       await this.$nextTick();
-
+      
       console.log('🔍 Provider ID:', this.providerId);
       console.log('🔍 Socket conectado?', socketStore.isConnected);
       console.log('🔍 Socket ID:', socketStore.socket?.id);
-
+      
       if (!socketStore.isConnected) {
         await new Promise(resolve => {
           const checkInterval = setInterval(() => {
@@ -516,13 +479,13 @@ export default {
         this.fetchFaq(),
         this.fetchHistoryRequests()
       ]);
-
+      
       this._initialized = true;
     } catch (error) {
       console.error('❌ Error inicializando DashboardProvider:', error);
       this.$swal?.fire({ icon: 'error', title: 'Error', text: error.message });
     }
-    
+
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   },
@@ -542,10 +505,10 @@ export default {
         await this.syncRequests();
       }
     },
-
+    
     setupSocketHandlers(socketStore) {
       this.cleanupSocketHandlers();
-
+      
       const onRequestUpdated = this.throttle((payload) => {
         console.log('🔔 Provider: Evento request_updated recibido:', payload);
         if (payload.request) {
@@ -553,14 +516,14 @@ export default {
           socketStore.playNotificationSound();
         }
       }, 1000);
-
+      
       const onPaymentUpdated = this.throttle((payload) => {
         console.log('🔔 Provider: Evento payment_updated recibido:', payload);
         if (payload.request_id && payload.payment_status) {
           this.handlePaymentUpdate(payload.request_id, payload.payment_status);
         }
       }, 1000);
-
+      
       const onNewNotification = this.throttle((notification) => {
         console.log('🔔 Provider: Notificación recibida:', notification.event);
         switch(notification.event) {
@@ -574,7 +537,7 @@ export default {
       // ✅ HANDLER CORREGIDO CON NORMALIZACIÓN
       const onNewRequest = this.throttle((payload) => {
         console.log('🔔 Provider: Evento new_request_created recibido:', JSON.stringify(payload, null, 2));
-
+        
         try {
           // ✅ NORMALIZAR el payload al formato esperado
           const normalizedRequest = this.normalizeRequest({
@@ -594,7 +557,7 @@ export default {
             created_at: payload.created_at,
             ...payload // Asegura que cualquier otra propiedad se pase también
           });
-
+          
           // ✅ Forzar reactividad con spread operator
           this.availableRequests = [normalizedRequest, ...this.availableRequests];
           
@@ -614,7 +577,7 @@ export default {
           console.error('❌ Error en onNewRequest:', error);
         }
       }, 1000);
-
+      
       socketStore.on('request_updated', onRequestUpdated);
       socketStore.on('payment_updated', onPaymentUpdated);
       socketStore.on('new-notification', onNewNotification);
@@ -627,7 +590,7 @@ export default {
         { event: 'new_request_created', handler: onNewRequest }
       ];
     },
-
+    
     cleanupSocketHandlers() {
       const socketStore = useSocketStore();
       this.socketHandlers.forEach(({ event, handler }) => {
@@ -648,7 +611,7 @@ export default {
         }
       }
     },
-
+    
     async initializeTabs() {
       this.tabs = [
         { value: 'available', label: this.$t('requests') },
@@ -657,12 +620,12 @@ export default {
         { value: 'history', label: this.$t('history') }
       ];
     },
-
+    
     handleProviderRefresh() {
       console.log('🔄 Provider dashboard refresh solicitado');
       this.syncRequests();
     },
-
+    
     pullStart(e) {
       this.pulling = true;
       this.pullStartY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -683,7 +646,7 @@ export default {
         }
       }
     },
-
+    
     pullEnd() {
       this.pulling = false;
     },
@@ -702,27 +665,30 @@ export default {
 
     // ✅ MÉTODO MODIFICADO CON NORMALIZACIÓN
     handleRequestUpdate(request) {
-      // ✅ Normalizar la solicitud recibida
-      const normalizedRequest = this.normalizeRequest(request);
-      
-      // Filtrar de available si corresponde
-      if (['accepted', 'rejected', 'busy'].includes(normalizedRequest.status)) {
-        this.availableRequests = this.availableRequests.filter(r => r.id !== normalizedRequest.id);
+      // 1. Eliminar de disponibles si ya no es pending
+      if (request.status !== 'pending') {
+        this.availableRequests = this.availableRequests.filter(r => r.id !== request.id);
       }
 
-      // Actualizar en inProgress
-      const idx = this.inProgressRequests.findIndex(r => r.id === normalizedRequest.id);
-      if (idx >= 0) {
-        // ✅ ACTUALIZACIÓN REACTIVA con splice
-        this.inProgressRequests.splice(idx, 1, normalizedRequest);
+      const activeIndex = this.inProgressRequests.findIndex(r => r.id === request.id);
+
+      // 2. Si el estado es ACTIVO → va en actives
+      if (ACTIVE_STATUSES.includes(request.status)) {
+        if (activeIndex >= 0) {
+          this.inProgressRequests.splice(activeIndex, 1, { ...request });
+        } else {
+          this.inProgressRequests.unshift({ ...request });
+        }
       } else {
-        // ✅ Añadir nueva solicitud normalizada
-        this.inProgressRequests.unshift(normalizedRequest);
+        // 3. Si ya no es activo → eliminarlo de actives
+        if (activeIndex >= 0) {
+          this.inProgressRequests.splice(activeIndex, 1);
+        }
       }
 
-      // Actualizar historial si corresponde
-      if (['completed', 'cancelled', 'rejected', 'finalized'].includes(normalizedRequest.status)) {
-        this.updateHistory(normalizedRequest);
+      // 4. Historial
+      if (['completed', 'cancelled', 'rejected', 'busy'].includes(request.status)) {
+        this.updateHistory(request);
       }
     },
 
@@ -781,8 +747,8 @@ export default {
       // Parsear payment_methods si viene como string
       let paymentMethods = [];
       try {
-        paymentMethods = typeof r.payment_methods === 'string' 
-          ? JSON.parse(r.payment_methods) 
+        paymentMethods = typeof r.payment_methods === 'string'
+          ? JSON.parse(r.payment_methods)
           : (r.payment_methods || []);
       } catch (e) {
         paymentMethods = [];
@@ -790,7 +756,7 @@ export default {
 
       // Normalizar proveedor (si existe)
       const provider = r.provider || {};
-      
+
       return {
         ...r,
         // Propiedades del servicio
@@ -799,7 +765,7 @@ export default {
         service_price: Number(r.service_price || r.price || 0),
         service_location: r.service_location || r.location || 'Ubicación no especificada',
         service_image_url: r.service_image_url || r.image_url || null,
-        
+
         // Propiedades del proveedor
         service_provider_name: r.service_provider_name || provider.name || r.provider_name || 'Proveedor',
         provider_id: r.provider_id || provider.id || null,
@@ -817,7 +783,7 @@ export default {
         status: r.status || 'pending',
         payment_status: r.payment_status || 'pending',
         payment_methods: paymentMethods,
-        
+
         // Detalles adicionales
         additional_details: r.additional_details || '',
         created_at: r.created_at || new Date().toISOString(),
@@ -950,6 +916,7 @@ export default {
         this.loading.available = false;
         return;
       }
+      
       this.loading.available = true;
       try {
         const res = await api.get('/requests/pending', {
@@ -972,6 +939,7 @@ export default {
         this.loading.inProgress = false;
         return;
       }
+      
       this.loading.inProgress = true;
       try {
         const res = await api.get('/requests/active', {
@@ -993,7 +961,7 @@ export default {
       if (now - this._lastFetch.history < this._CACHE_TTL && this.historyRequests.length > 0) {
         return;
       }
-
+      
       const auth = useAuthStore();
       if (!auth.token) {
         this.loading.history = false;
@@ -1023,7 +991,7 @@ export default {
       if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) {
         return;
       }
-      
+
       const auth = useAuthStore();
       if (!auth.token) {
         this.loading.support = false;
@@ -1052,7 +1020,7 @@ export default {
       if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) {
         return;
       }
-      
+
       this.loading.faq = true;
       try {
         const res = await api.get('/support/faq');
@@ -1083,9 +1051,17 @@ export default {
       }
     },
 
-    async acceptRequest(id) { await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada'); },
-    async rejectRequest(id) { await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada'); },
-    async busyRequest(id) { await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido'); },
+    async acceptRequest(id) { 
+      await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada'); 
+    },
+
+    async rejectRequest(id) { 
+      await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada'); 
+    },
+
+    async busyRequest(id) { 
+      await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido'); 
+    },
 
     async setStatus(requestId, newStatus) {
       try {

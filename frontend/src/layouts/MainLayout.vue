@@ -483,7 +483,7 @@ const avatarUrl = (src) => {
 
 const logout = async () => {
   try {
-    await api.post('/auth/logout', {}, {
+    await api.post('/logout', {}, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     }).catch(() => {})
   } finally {
