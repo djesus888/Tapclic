@@ -338,7 +338,13 @@ private function saveUploadedImages(int $historyId): array
         $dest  = $uploadDir . '/' . $name;
 
         if (move_uploaded_file($tmp, $dest)) {
-            $url = "http://localhost:8000/uploads/reviews/{$historyId}/{$name}";
+            $baseUrl = getenv('API_BASE_URL');
+if (!$baseUrl) {
+    throw new Exception("API_BASE_URL environment variable is not set");
+}
+     
+$url = rtrim($baseUrl, '/') . "/uploads/reviews/{$historyId}/{$name}";
+            
             $saved[] = $url;
         }
     }
@@ -649,10 +655,14 @@ private function saveUploadedImagesUser(int $historyId): array
         $name  = bin2hex(random_bytes(8)) . '.' . $ext;
         $dest  = $uploadDir . '/' . $name;
 
-        if (move_uploaded_file($tmp, $dest)) {
-            $url = "http://localhost:8000/uploads/user-reviews/{$historyId}/{$name}";
-            $saved[] = $url;
-        }
+if (move_uploaded_file($tmp, $dest)) {
+    $baseUrl = getenv('API_BASE_URL');
+    if (!$baseUrl) {
+        throw new Exception("API_BASE_URL environment variable is not set");
+    }
+    $url = rtrim($baseUrl, '/') . "/uploads/user-reviews/{$historyId}/{$name}";
+    $saved[] = $url;
+      }
     }
     return $saved;
 }

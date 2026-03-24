@@ -54,3 +54,4 @@ ios/Flutter/Flutter.podspec
 *.zip
 *.apk
 *.aab
+backend/vendor/

@@ -1,139 +1,160 @@
-// src/main.js - VERSIÓN CORREGIDA
-import { createApp, watch } from 'vue';
-import App from './App.vue';
-import './assets/style.css';
-import router from './router';
-import { createPinia } from 'pinia';
-import { i18n } from './i18n';
-import api from '@/axios';
+import { createApp, watch } from 'vue'
+import App from './App.vue'
+import './assets/style.css'
+import router from './router'
+import { createPinia } from 'pinia'
+import { i18n } from './i18n'
+import api from '@/axios'
 
 // 🔔 Notificaciones
-import Toast from 'vue-toastification';
-import 'vue-toastification/dist/index.css';
+import Toast from 'vue-toastification'
+import 'vue-toastification/dist/index.css'
 
 // 💬 SweetAlert2
-import VueSweetalert2 from 'vue-sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
-import Swal from 'sweetalert2';
+import VueSweetalert2 from 'vue-sweetalert2'
+import 'sweetalert2/dist/sweetalert2.min.css'
+import Swal from 'sweetalert2'
 
 // Stores
-import { useSocketStore } from '@/stores/socketStore.js';
-import { useSystemStore } from '@/stores/systemStore.js';
-import { useNotificationStore } from '@/stores/notificationStore.js';
-import { initializeAuthStore } from '@/stores/authStore.js';
+import { useSocketStore } from '@/stores/socketStore.js'
+import { useSystemStore } from '@/stores/systemStore.js'
+import { useNotificationStore } from '@/stores/notificationStore.js'
+import { initializeAuthStore } from '@/stores/authStore.js'
 
 // Crear instancia de Vue
-const app = createApp(App);
+const app = createApp(App)
 
 // Manejo global de errores
 app.config.errorHandler = (err, instance, info) => {
-  console.error('>>> ERROR DE VUE:', err.message, '\n', err.stack, '\nInfo:', info);
+  console.error('>>> ERROR DE VUE:', err.message, '\n', err.stack, '\nInfo:', info)
   app.config.globalProperties.$swal?.fire({
     icon: 'error',
     title: 'Error en la aplicación',
     html: `<pre style="text-align:left">${err.message}\n${err.stack || ''}</pre>`,
     width: 600,
-  });
-};
+  })
+}
 
 window.addEventListener('error', (e) => {
-  console.error('>>> ERROR CAPTURADO:', e.message, '\n', e.error?.stack || e.stack);
+  console.error('>>> ERROR CAPTURADO:', e.message, '\n', e.error?.stack || e.stack)
   app.config.globalProperties.$swal?.fire({
     icon: 'error',
     title: 'Error de JavaScript',
     html: `<pre style="text-align:left">${e.message}\n${e.error?.stack || e.stack}</pre>`,
     width: 600,
-  });
-});
+  })
+})
 
 window.addEventListener('unhandledrejection', (e) => {
-  console.error('>>> PROMESA RECHAZADA:', e.reason);
+  console.error('>>> PROMESA RECHAZADA:', e.reason)
+  
+  // ✅ Mostrar mensaje según idioma para errores de red
+  if (e.reason?.isNetworkError) {
+    // Obtener título según idioma
+    let title = 'Problema de conexión'
+    try {
+      const savedLocale = localStorage.getItem('userLocale') || 'es'
+      if (savedLocale === 'en') {
+        title = 'Connection problem'
+      }
+    } catch {}
+    
+    app.config.globalProperties.$swal?.fire({
+      icon: 'warning',
+      title: title,
+      text: e.reason.message,
+      confirmButtonText: 'OK',
+      width: 400,
+    })
+    return
+  }
+  
   app.config.globalProperties.$swal?.fire({
     icon: 'error',
     title: 'Error en Promesa',
     html: `<pre style="text-align:left">${e.reason}</pre>`,
     width: 600,
-  });
-});
+  })
+})
 
 // Crear Pinia y usar plugins
-const pinia = createPinia();
-app.use(pinia);
-app.use(router);
-app.use(i18n);
-app.use(Toast);
-app.use(VueSweetalert2);
+const pinia = createPinia()
+app.use(pinia)
+app.use(router)
+app.use(i18n)
+app.use(Toast)
+app.use(VueSweetalert2)
 
 // Eruda (solo desarrollo)
 if (import.meta.env.MODE === 'development') {
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+  const script = document.createElement('script')
+  script.src = 'https://cdn.jsdelivr.net/npm/eruda'
   script.onload = () => {
-    window.eruda.init();
-    console.log('%c🛠️ Eruda cargado y activo', 'color: green; font-weight: bold;');
-  };
-  document.body.appendChild(script);
+    window.eruda.init()
+    console.log('%c🛠️ Eruda cargado y activo', 'color: green; font-weight: bold;')
+  }
+  document.body.appendChild(script)
 }
 
 // ============================================================
 // ✅ LÓGICA CENTRALIZADA: Inicialización de stores y socket
 // ============================================================
-const authStore = initializeAuthStore();
-const socketStore = useSocketStore();
-const systemStore = useSystemStore();
-const notificationStore = useNotificationStore();
+const authStore = initializeAuthStore()
+const socketStore = useSocketStore()
+const systemStore = useSystemStore()
+const notificationStore = useNotificationStore()
 
 // ✅ INICIALIZACIÓN PRINCIPAL (solo con token válido)
 async function initializeApp() {
   // Esperar a que el auth se cargue del localStorage
-  await authStore.loadFromStorage();
-  
+  await authStore.loadFromStorage()
+
   if (!authStore.token || !authStore.user) {
-    console.log('⏸️ No hay sesión activa, saltando inicialización');
-    return false;
+    console.log('⏸️ No hay sesión activa, saltando inicialización')
+    return false
   }
 
   try {
     // Inicializar notificaciones
     if (!notificationStore._initialized) {
-      await notificationStore.initialize();
-      console.log('📬 Notificaciones inicializadas');
+      await notificationStore.initialize()
+      console.log('📬 Notificaciones inicializadas')
     }
 
     // ✅ Conectar socket UNA SOLA VEZ
     if (!socketStore.isConnected && !socketStore._creating) {
-      await socketStore.connect(authStore.token, authStore.user);
-      console.log('🔌 Socket conectado en main.js');
+      await socketStore.connect(authStore.token, authStore.user)
+      console.log('🔌 Socket conectado en main.js')
     }
 
     // Inicializar config del sistema
-    await systemStore.fetchConfig();
+    await systemStore.fetchConfig()
 
-    return true;
+    return true
   } catch (err) {
-    console.warn('⚠️ Error en inicialización:', err.message);
-    return false;
+    console.warn('⚠️ Error en inicialización:', err.message)
+    return false
   }
 }
 
 // 🔥 INICIALIZAR AL CARGAR LA APP
-initializeApp();
+initializeApp()
 
 // Escuchar cambios de token (login/logout)
 watch(
   () => authStore.token,
   async (newToken) => {
     if (newToken) {
-      await initializeApp();
+      await initializeApp()
     } else {
       // Desconectar al cerrar sesión
-      socketStore.disconnect?.();
-      notificationStore._initialized = false;
-      notificationStore.notifications = [];
-      console.log('🔌 Sesión cerrada, socket desconectado');
+      socketStore.disconnect?.()
+      notificationStore._initialized = false
+      notificationStore.notifications = []
+      console.log('🔌 Sesión cerrada, socket desconectado')
     }
   }
-);
+)
 
 // ============================================================
 // ✅ LISTENERS GLOBALES DE EVENTOS
@@ -141,7 +162,7 @@ watch(
 
 // Toast de notificaciones
 window.addEventListener('show-notification-toast', (e) => {
-  const { title, message } = e.detail;
+  const { title, message } = e.detail
   app.config.globalProperties.$swal?.fire({
     icon: 'info',
     title,
@@ -150,23 +171,23 @@ window.addEventListener('show-notification-toast', (e) => {
     position: 'top-end',
     showConfirmButton: false,
     timer: 4000,
-  });
-});
+  })
+})
 
 // Modal de rating
 window.addEventListener('open-rating-modal', async (e) => {
   try {
-    const { request_id } = e.detail;
-    if (!authStore.token) return;
+    const { request_id } = e.detail
+    if (!authStore.token) return
 
     const { data } = await api.get(`/history/by-request/${request_id}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
-    }).catch(() => ({ data: null }));
+    }).catch(() => ({ data: null }))
 
-    const historyId = data?.history_id;
+    const historyId = data?.history_id
     if (!historyId) {
-      Swal.fire('Aún no disponible', 'El servicio no está listo para reseñas.', 'info');
-      return;
+      Swal.fire('Aún no disponible', 'El servicio no está listo para reseñas.', 'info')
+      return
     }
 
     const { value: confirmed } = await Swal.fire({
@@ -176,41 +197,41 @@ window.addEventListener('open-rating-modal', async (e) => {
       showCancelButton: true,
       confirmButtonText: 'Abrir calificación',
       cancelButtonText: 'Ahora no',
-    });
-    if (!confirmed) return;
+    })
+    if (!confirmed) return
 
-    const div = document.createElement('div');
-    div.id = `modal-${Date.now()}`;
-    document.body.appendChild(div);
+    const div = document.createElement('div')
+    div.id = `modal-${Date.now()}`
+    document.body.appendChild(div)
 
-    const { default: ReviewComp } = await import('@/components/ReviewModal.vue');
-    const { createApp } = await import('vue');
+    const { default: ReviewComp } = await import('@/components/ReviewModal.vue')
+    const { createApp } = await import('vue')
 
     const appModal = createApp(ReviewComp, {
       serviceHistoryId: historyId,
       onClose: () => {
-        appModal.unmount();
-        const el = document.getElementById(div.id);
-        if (el) el.remove();
+        appModal.unmount()
+        const el = document.getElementById(div.id)
+        if (el) el.remove()
       },
       onSave: (payload) => {
-        console.log('Reseña guardada:', payload);
-        appModal.unmount();
-        const el = document.getElementById(div.id);
-        if (el) el.remove();
-        Swal.fire('¡Gracias!', 'Tu reseña ha sido guardada.', 'success');
+        console.log('Reseña guardada:', payload)
+        appModal.unmount()
+        const el = document.getElementById(div.id)
+        if (el) el.remove()
+        Swal.fire('¡Gracias!', 'Tu reseña ha sido guardada.', 'success')
       },
-    });
-    appModal.mount(div);
+    })
+    appModal.mount(div)
   } catch (err) {
-    console.error('Error en modal de rating:', err);
-    Swal.fire('Error', 'No se pudo abrir el modal de calificación.', 'error');
+    console.error('Error en modal de rating:', err)
+    Swal.fire('Error', 'No se pudo abrir el modal de calificación.', 'error')
   }
-});
+})
 
 // Pago actualizado
 window.addEventListener('payment-updated', (e) => {
-  const { amount, status, request_id } = e.detail;
+  const { amount, status, request_id } = e.detail
   app.config.globalProperties.$swal?.fire({
     icon: 'success',
     title: 'Pago actualizado',
@@ -219,31 +240,31 @@ window.addEventListener('payment-updated', (e) => {
     position: 'top-end',
     showConfirmButton: false,
     timer: 4000,
-  });
-});
+  })
+})
 
 // ============================================================
 // ✅ GUARD DE RUTAS
 // ============================================================
 router.beforeEach((to, from, next) => {
-  const publicRoutes = ['/login', '/register', '/', '/forgot-password'];
-  const isPublic = publicRoutes.includes(to.path) || to.path.startsWith('/reset-password');
+  const publicRoutes = ['/login', '/register', '/', '/forgot-password']
+  const isPublic = publicRoutes.includes(to.path) || to.path.startsWith('/reset-password')
 
   if (!isPublic && !authStore.token) {
-    next('/login');
+    next('/login')
   } else if (isPublic && authStore.token) {
-    next(authStore.user?.role === 'provider' ? '/dashboard/provider' : '/dashboard/user');
+    next(authStore.user?.role === 'provider' ? '/dashboard/provider' : '/dashboard/user')
   } else {
-    next();
+    next()
   }
-});
+})
 
 // ============================================================
 // ✅ MONTAR APP
 // ============================================================
-app.mount('#app');
+app.mount('#app')
 
 // Configuración inicial
 systemStore.fetchConfig().catch((err) => {
-  console.warn('Error fetching config:', err);
-});
+  console.warn('Error fetching config:', err)
+})

@@ -19,26 +19,21 @@ namespace Twilio\Rest\Messaging\V1;
 
 use Twilio\Exceptions\TwilioException;
 use Twilio\ListResource;
-use Twilio\Values;
 use Twilio\Version;
 use Twilio\InstanceContext;
 use Twilio\Rest\Messaging\V1\BrandRegistration\BrandRegistrationOtpList;
 use Twilio\Rest\Messaging\V1\BrandRegistration\BrandVettingList;
-use Twilio\Rest\Messaging\V1\BrandRegistration\BrandRegistration2FaList;
 
 
 /**
  * @property BrandRegistrationOtpList $brandRegistrationOtps
  * @property BrandVettingList $brandVettings
- * @property BrandRegistration2FaList $brandRegistration2Fa
  * @method \Twilio\Rest\Messaging\V1\BrandRegistration\BrandVettingContext brandVettings(string $brandVettingSid)
- * @method \Twilio\Rest\Messaging\V1\BrandRegistration\BrandRegistration2FaContext brandRegistration2Fa()
  */
 class BrandRegistrationContext extends InstanceContext
     {
     protected $_brandRegistrationOtps;
     protected $_brandVettings;
-    protected $_brandRegistration2Fa;
 
     /**
      * Initialize the BrandRegistrationContext
@@ -71,8 +66,7 @@ class BrandRegistrationContext extends InstanceContext
     public function fetch(): BrandRegistrationInstance
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded', 'Accept' => 'application/json' ]);
-        $payload = $this->version->fetch('GET', $this->uri, [], [], $headers);
+        $payload = $this->version->fetch('GET', $this->uri, [], []);
 
         return new BrandRegistrationInstance(
             $this->version,
@@ -91,8 +85,7 @@ class BrandRegistrationContext extends InstanceContext
     public function update(): BrandRegistrationInstance
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded', 'Accept' => 'application/json' ]);
-        $payload = $this->version->update('POST', $this->uri, [], [], $headers);
+        $payload = $this->version->update('POST', $this->uri, [], []);
 
         return new BrandRegistrationInstance(
             $this->version,
@@ -130,21 +123,6 @@ class BrandRegistrationContext extends InstanceContext
         }
 
         return $this->_brandVettings;
-    }
-
-    /**
-     * Access the brandRegistration2Fa
-     */
-    protected function getBrandRegistration2Fa(): BrandRegistration2FaList
-    {
-        if (!$this->_brandRegistration2Fa) {
-            $this->_brandRegistration2Fa = new BrandRegistration2FaList(
-                $this->version,
-                $this->solution['sid']
-            );
-        }
-
-        return $this->_brandRegistration2Fa;
     }
 
     /**

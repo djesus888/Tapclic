@@ -1,0 +1,1435 @@
+<template>
+  <div class="profile-container">
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="header-content">
+        <h1><span class="icon">👤</span> {{ $t('profile.title') }}</h1>
+        <p>Gestiona tu información personal y preferencias</p>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="profile-content">
+      <!-- Left Column: Avatar & Info -->
+      <div class="profile-left">
+        <!-- Avatar Card -->
+        <div class="avatar-card">
+          <div class="avatar-section">
+            <div class="avatar-wrapper">
+              <img
+                :src="previewAvatar || user?.avatar_url || defaultAvatar"
+                alt="Avatar"
+                class="avatar-image"
+                @error="handleAvatarError"
+              />
+              <div class="avatar-overlay">
+                <label for="avatar-upload" class="avatar-upload-label">
+                  <span class="upload-icon">📷</span>
+                  <span class="upload-text">{{ $t('changeAvatar') }}</span>
+                </label>
+              </div>
+            </div>
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="onAvatarChange"
+            />
+            
+            <div class="avatar-info">
+              <h3 class="avatar-name">{{ form.name || $t('noName') }}</h3>
+              <p class="avatar-email">{{ form.email || $t('noEmail') }}</p>
+              <div class="avatar-role">
+                <span class="role-badge" :class="getRoleClass(user?.role)">
+                  {{ getUserRoleLabel(user?.role) }}
+                </span>
+              </div>
+              
+              <div class="avatar-file-info" v-if="avatarFile">
+                <div class="file-item">
+                  <span class="file-icon">📄</span>
+                  <span class="file-name">{{ avatarFile.name }}</span>
+                </div>
+                <div class="file-size">
+                  {{ formatFileSize(avatarFile.size) }}
+                </div>
+              </div>
+              <div class="avatar-file-info" v-else>
+                <div class="file-item">
+                  <span class="file-icon">ℹ️</span>
+                  <span class="file-text">{{ $t('noFileSelected') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Profile Stats -->
+          <div class="profile-stats">
+            <div class="stat-item">
+              <div class="stat-icon">📅</div>
+              <div class="stat-content">
+                <h3>{{ getMemberSince() }}</h3>
+                <p>Miembro desde</p>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">✅</div>
+              <div class="stat-content">
+                <h3>{{ user?.verified ? 'Verificado' : 'Pendiente' }}</h3>
+                <p>Estado</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preferences Card -->
+        <div class="preferences-card">
+          <div class="card-header">
+            <h3><span class="header-icon">⚙️</span> {{ $t('preferencesSection') }}</h3>
+          </div>
+          
+          <div class="preferences-content">
+            <!-- Language -->
+            <div class="preference-item">
+              <label class="preference-label">
+                <span class="label-icon">🌐</span>
+                {{ $t('language') }}
+              </label>
+              <div class="preference-control">
+                <select 
+                  v-model="pref.language"
+                  class="preference-select"
+                >
+                  <option value="es">
+                    <span class="flag-icon">🇪🇸</span> Español
+                  </option>
+                  <option value="en">
+                    <span class="flag-icon">🇺🇸</span> English
+                  </option>
+                  <option value="pt">
+                    <span class="flag-icon">🇵🇹</span> Português
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Theme -->
+            <div class="preference-item">
+              <label class="preference-label">
+                <span class="label-icon">🎨</span>
+                {{ $t('theme') }}
+              </label>
+              <div class="preference-control">
+                <div class="theme-toggle">
+                  <button
+                    type="button"
+                    class="theme-btn light"
+                    :class="{ active: !pref.dark }"
+                    @click="pref.dark = false"
+                  >
+                    <span class="theme-icon">☀️</span>
+                    <span class="theme-text">Claro</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="theme-btn dark"
+                    :class="{ active: pref.dark }"
+                    @click="pref.dark = true"
+                  >
+                    <span class="theme-icon">🌙</span>
+                    <span class="theme-text">Oscuro</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="preference-item notifications-item">
+              <label class="preference-label">
+                <span class="label-icon">🔔</span>
+                {{ $t('notifications') }}
+              </label>
+              <div class="preference-control notifications-control">
+                <div class="notification-option">
+                  <label class="checkbox-label">
+                    <input
+                      v-model="pref.notifications.email"
+                      type="checkbox"
+                      class="checkbox-input"
+                    />
+                    <span class="checkbox-custom"></span>
+                    <span class="checkbox-text">
+                      <span class="checkbox-icon">📧</span>
+                      {{ $t('notifyEmail') }}
+                    </span>
+                  </label>
+                </div>
+                <div class="notification-option">
+                  <label class="checkbox-label">
+                    <input
+                      v-model="pref.notifications.sms"
+                      type="checkbox"
+                      class="checkbox-input"
+                    />
+                    <span class="checkbox-custom"></span>
+                    <span class="checkbox-text">
+                      <span class="checkbox-icon">📱</span>
+                      {{ $t('notifySMS') }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Form -->
+      <div class="profile-right">
+        <!-- Personal Info Card -->
+        <div class="form-card">
+          <div class="card-header">
+            <h3><span class="header-icon">📝</span> Información Personal</h3>
+            <p class="card-subtitle">Actualiza tus datos básicos</p>
+          </div>
+          
+          <form @submit.prevent="updateProfile" class="form-content">
+            <!-- Name -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">👤</span>
+                {{ $t('name') }}
+                <span class="required">*</span>
+              </label>
+              <input
+                v-model="form.name"
+                type="text"
+                :placeholder="$t('name')"
+                required
+                class="form-input"
+              />
+              <div class="form-hint">Tu nombre completo</div>
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📧</span>
+                {{ $t('email') }}
+                <span class="required">*</span>
+              </label>
+              <input
+                v-model="form.email"
+                type="email"
+                :placeholder="$t('email')"
+                required
+                class="form-input"
+              />
+              <div class="form-hint">Usaremos este email para contactarte</div>
+            </div>
+
+            <!-- Phone -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📱</span>
+                {{ $t('phone') }}
+                <span class="required">*</span>
+              </label>
+              <input
+                v-model="form.phone"
+                type="tel"
+                :placeholder="$t('phone')"
+                pattern="^[+]?[\d\s\-]{7,15}$"
+                title="Introduce un teléfono válido"
+                required
+                class="form-input"
+              />
+              <div class="form-hint">Ejemplo: +34 123 456 789</div>
+            </div>
+
+            <!-- Address -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">🏠</span>
+                {{ $t('address') }}
+              </label>
+              <input
+                v-model="form.address"
+                type="text"
+                :placeholder="$t('address')"
+                class="form-input"
+              />
+              <div class="form-hint">Tu dirección personal</div>
+            </div>
+
+            <!-- Business Info (only for admin/provider) -->
+            <template v-if="user?.role === 'admin' || user?.role === 'provider'">
+              <div class="section-divider">
+                <span class="divider-text">Información Profesional</span>
+              </div>
+
+              <!-- Business Address -->
+              <div class="form-group">
+                <label class="form-label">
+                  <span class="label-icon">🏢</span>
+                  {{ $t('businessAddress') }}
+                </label>
+                <input
+                  v-model="form.business_address"
+                  type="text"
+                  :placeholder="$t('businessAddress')"
+                  class="form-input"
+                />
+                <div class="form-hint">Dirección de tu negocio o servicio</div>
+              </div>
+
+              <!-- Service Categories -->
+              <div class="form-group">
+                <label class="form-label">
+                  <span class="label-icon">🏷️</span>
+                  {{ $t('serviceCategories') }}
+                </label>
+                <textarea
+                  v-model="form.service_categories"
+                  :placeholder="$t('serviceCategoriesPlaceholder')"
+                  class="form-textarea"
+                  rows="3"
+                />
+                <div class="form-hint">Separa las categorías con comas</div>
+              </div>
+
+              <!-- Coverage Area -->
+              <div class="form-group">
+                <label class="form-label">
+                  <span class="label-icon">🗺️</span>
+                  {{ $t('coverageArea') }}
+                </label>
+                <textarea
+                  v-model="form.coverage_area"
+                  :placeholder="$t('coverageAreaPlaceholder')"
+                  class="form-textarea"
+                  rows="3"
+                />
+                <div class="form-hint">Zonas donde prestas servicio</div>
+              </div>
+            </template>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+              <button
+                type="button"
+                class="btn-secondary"
+                @click="resetForm"
+                :disabled="loading"
+              >
+                <span class="btn-icon">↺</span>
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                :disabled="loading"
+                class="btn-primary"
+                :class="{ 'btn-loading': loading }"
+              >
+                <span v-if="loading" class="loading-spinner"></span>
+                <span v-else class="btn-icon">💾</span>
+                <span>{{ loading ? $t('profile.saving') : $t('saveChanges') }}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Security & Privacy Card (Optional) -->
+        <div class="security-card">
+          <div class="card-header">
+            <h3><span class="header-icon">🔒</span> Seguridad</h3>
+          </div>
+          <div class="security-content">
+            <div class="security-item">
+              <div class="security-info">
+                <span class="security-icon">🔑</span>
+                <div class="security-text">
+                  <h4>Contraseña</h4>
+                  <p>Última actualización: {{ getLastPasswordUpdate() }}</p>
+                </div>
+              </div>
+              <button class="btn-change-password">
+                <span class="btn-icon">✏️</span>
+                Cambiar
+              </button>
+            </div>
+            <div class="security-item">
+              <div class="security-info">
+                <span class="security-icon">📱</span>
+                <div class="security-text">
+                  <h4>Dispositivos conectados</h4>
+                  <p>{{ getActiveDevices() }} dispositivo(s) activo(s)</p>
+                </div>
+              </div>
+              <button class="btn-manage-devices">
+                <span class="btn-icon">⚙️</span>
+                Gestionar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, onMounted, reactive, watch } from 'vue'
+import api from '@/axios'
+import Swal from 'sweetalert2'
+import { useAuthStore } from '@/stores/authStore'
+import { useI18n } from 'vue-i18n'
+
+export default {
+  name: 'Profile',
+  setup() {
+    const authStore = useAuthStore()
+    const { t, locale } = useI18n()
+    const BASE_URL = 'http://localhost:8000'
+
+    const user = ref(null)
+    const form = ref({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      business_address: '',
+      service_categories: '',
+      coverage_area: '',
+      preferences: ''
+    })
+    const avatarFile = ref(null)
+    const previewAvatar = ref(null)
+    const defaultAvatar = '/img/default-avatar.png'
+    const loading = ref(false)
+
+    const pref = reactive({
+      language: 'es',
+      dark: false,
+      notifications: { email: true, sms: false }
+    })
+
+    const fetchProfile = async () => {
+      try {
+        const { data } = await api.get('/profile', {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        user.value = data.user || {}
+        if (user.value.avatar_url && !user.value.avatar_url.startsWith('http')) {
+          user.value.avatar_url = BASE_URL + '/uploads/avatars/' + user.value.avatar_url
+        }
+
+        form.value = {
+          name: user.value.name || '',
+          email: user.value.email || '',
+          phone: user.value.phone || '',
+          address: user.value.address || '',
+          business_address: user.value.business_address || '',
+          service_categories: user.value.service_categories || '',
+          coverage_area: user.value.coverage_area || '',
+          preferences: user.value.preferences || ''
+        }
+
+        if (user.value.preferences) {
+          try {
+            const p = JSON.parse(user.value.preferences)
+            pref.language = p.language || 'es'
+            pref.dark = p.dark || false
+            pref.notifications.email = p.notifications?.email ?? true
+            pref.notifications.sms = p.notifications?.sms ?? false
+          } catch (e) {
+            console.warn('Preferencias corruptas, se usan valores por defecto')
+          }
+        }
+
+        // idioma desde localStorage (sobre-escribe el de BD si existe)
+        const savedLang = localStorage.getItem('userLanguage')
+        if (savedLang) {
+          pref.language = savedLang
+        }
+      } catch (err) {
+        console.error('Error al obtener perfil:', err)
+        Swal.fire(t('profile.error'), t('profile.loadFailed'), 'error')
+      }
+    }
+
+    const onAvatarChange = (e) => {
+      const file = e.target.files[0]
+      if (file) {
+        // Validar tipo de archivo
+        if (!file.type.startsWith('image/')) {
+          Swal.fire('Error', 'Por favor, selecciona una imagen válida', 'error')
+          return
+        }
+        
+        // Validar tamaño (máximo 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          Swal.fire('Error', 'La imagen no debe superar los 5MB', 'error')
+          return
+        }
+        
+        avatarFile.value = file
+        previewAvatar.value = URL.createObjectURL(file)
+      } else {
+        avatarFile.value = null
+        previewAvatar.value = null
+      }
+    }
+
+    // cambio instantáneo de idioma + localStorage
+    watch(
+      () => pref.language,
+      newLang => {
+        localStorage.setItem('userLanguage', newLang)
+        locale.value = newLang
+      },
+      { immediate: true }
+    )
+
+    const updateProfile = async () => {
+      loading.value = true
+      form.value.preferences = JSON.stringify(pref)
+
+      try {
+        const payload = new FormData()
+        payload.append('name', form.value.name)
+        payload.append('email', form.value.email)
+        payload.append('phone', form.value.phone)
+        payload.append('address', form.value.address)
+        payload.append('business_address', form.value.business_address)
+        payload.append('service_categories', form.value.service_categories)
+        payload.append('coverage_area', form.value.coverage_area)
+        payload.append('preferences', form.value.preferences)
+
+        if (avatarFile.value) {
+          payload.append('avatar', avatarFile.value)
+        }
+
+        await api.post('/profile/update', payload, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+
+        Swal.fire({
+          icon: 'success',
+          title: t('profile.successTitle'),
+          text: t('profile.successMessage'),
+          timer: 2000,
+          showConfirmButton: false,
+          background: '#f8f9fa',
+          position: 'top-end',
+          toast: true
+        })
+        
+        await fetchProfile()
+        avatarFile.value = null
+        previewAvatar.value = null
+      } catch (err) {
+        console.error('Error al actualizar perfil:', err)
+        const status = err.response?.status
+        const message = err.response?.data?.error || t('profile.updateFailed')
+
+        if (status === 400 || status === 409) {
+          Swal.fire({
+            icon: 'warning',
+            title: t('profile.error'),
+            text: message,
+            confirmButtonText: 'Entendido'
+          })
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: t('profile.error'),
+            text: t('profile.updateFailed'),
+            confirmButtonText: 'Reintentar'
+          })
+        }
+      } finally {
+        loading.value = false
+      }
+    }
+
+    // Helper methods
+    const getRoleClass = (role) => {
+      const classes = {
+        admin: 'role-admin',
+        provider: 'role-provider',
+        user: 'role-user'
+      }
+      return classes[role] || 'role-default'
+    }
+
+    const getUserRoleLabel = (role) => {
+      const labels = {
+        admin: 'Administrador',
+        provider: 'Proveedor',
+        user: 'Usuario'
+      }
+      return labels[role] || 'Usuario'
+    }
+
+    const formatFileSize = (bytes) => {
+      if (bytes === 0) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    }
+
+    const getMemberSince = () => {
+      if (!user.value?.created_at) return 'N/A'
+      const date = new Date(user.value.created_at)
+      return date.toLocaleDateString('es-ES', { year: 'numeric', month: 'short' })
+    }
+
+    const getLastPasswordUpdate = () => {
+      // Simulación - deberías tener este dato en tu API
+      return 'Hace 30 días'
+    }
+
+    const getActiveDevices = () => {
+      // Simulación
+      return 2
+    }
+
+    const resetForm = () => {
+      if (user.value) {
+        form.value = {
+          name: user.value.name || '',
+          email: user.value.email || '',
+          phone: user.value.phone || '',
+          address: user.value.address || '',
+          business_address: user.value.business_address || '',
+          service_categories: user.value.service_categories || '',
+          coverage_area: user.value.coverage_area || '',
+          preferences: user.value.preferences || ''
+        }
+      }
+      avatarFile.value = null
+      previewAvatar.value = null
+    }
+
+    const handleAvatarError = (event) => {
+      event.target.src = defaultAvatar
+    }
+
+    onMounted(fetchProfile)
+
+    return {
+      user,
+      form,
+      avatarFile,
+      previewAvatar,
+      defaultAvatar,
+      loading,
+      onAvatarChange,
+      updateProfile,
+      t,
+      pref,
+      getRoleClass,
+      getUserRoleLabel,
+      formatFileSize,
+      getMemberSince,
+      getLastPasswordUpdate,
+      getActiveDevices,
+      resetForm,
+      handleAvatarError
+    }
+  }
+}
+</script>
+
+<style scoped>
+.profile-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px;
+  min-height: 100vh;
+}
+
+/* Header Section */
+.header-section {
+  margin-bottom: 40px;
+}
+
+.header-content {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.header-content h1 {
+  font-size: 2.5rem;
+  color: #2d3436;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.header-content .icon {
+  font-size: 2.2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.header-content p {
+  color: #636e72;
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Profile Content Layout */
+.profile-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 32px;
+  margin-bottom: 40px;
+}
+
+/* Left Column */
+.profile-left {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Cards Common Styles */
+.avatar-card,
+.preferences-card,
+.form-card,
+.security-card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f1f2f6;
+}
+
+/* Avatar Card */
+.avatar-card {
+  padding: 24px;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 5px solid white;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.avatar-wrapper:hover .avatar-image {
+  transform: scale(1.05);
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.avatar-wrapper:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-upload-label {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px 24px;
+  border-radius: 25px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #2d3436;
+  transition: transform 0.3s;
+}
+
+.avatar-upload-label:hover {
+  transform: translateY(-2px);
+  background: white;
+}
+
+.upload-icon {
+  font-size: 1.2rem;
+}
+
+.avatar-info {
+  text-align: center;
+  width: 100%;
+}
+
+.avatar-name {
+  font-size: 1.8rem;
+  color: #2d3436;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.avatar-email {
+  color: #636e72;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.avatar-role {
+  margin-bottom: 16px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: white;
+}
+
+.role-admin {
+  background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+}
+
+.role-provider {
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+}
+
+.role-user {
+  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+}
+
+.role-default {
+  background: linear-gradient(135deg, #b2bec3 0%, #636e72 100%);
+}
+
+.avatar-file-info {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.file-icon {
+  font-size: 1rem;
+}
+
+.file-name {
+  font-weight: 600;
+  color: #2d3436;
+  font-size: 0.9rem;
+}
+
+.file-size {
+  color: #636e72;
+  font-size: 0.85rem;
+}
+
+.file-text {
+  color: #b2bec3;
+  font-style: italic;
+}
+
+/* Profile Stats */
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f2f6;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  color: white;
+}
+
+.stat-content h3 {
+  font-size: 1rem;
+  color: #2d3436;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
+.stat-content p {
+  color: #636e72;
+  font-size: 0.8rem;
+}
+
+/* Preferences Card */
+.preferences-card {
+  padding: 24px;
+}
+
+.card-header {
+  margin-bottom: 24px;
+}
+
+.card-header h3 {
+  font-size: 1.5rem;
+  color: #2d3436;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-icon {
+  font-size: 1.3rem;
+}
+
+.preferences-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.preference-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preference-label {
+  font-weight: 600;
+  color: #2d3436;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label-icon {
+  font-size: 1.1rem;
+}
+
+.preference-control {
+  flex: 1;
+}
+
+.preference-select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #dfe6e9;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.preference-select:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.flag-icon {
+  margin-right: 8px;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+  display: flex;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.theme-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+  background: transparent;
+  color: #636e72;
+}
+
+.theme-btn.active {
+  background: white;
+  color: #2d3436;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.theme-btn.light.active {
+  color: #f39c12;
+}
+
+.theme-btn.dark.active {
+  color: #2c3e50;
+}
+
+.theme-icon {
+  font-size: 1.1rem;
+}
+
+/* Notifications */
+.notifications-item {
+  gap: 12px;
+}
+
+.notifications-control {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-option {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.checkbox-input {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #b2bec3;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.checkbox-input:checked + .checkbox-custom {
+  background: #3498db;
+  border-color: #3498db;
+}
+
+.checkbox-input:checked + .checkbox-custom::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.checkbox-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2d3436;
+  font-weight: 600;
+}
+
+.checkbox-icon {
+  font-size: 1.1rem;
+}
+
+/* Right Column */
+.profile-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Form Card */
+.form-card {
+  padding: 32px;
+}
+
+.card-subtitle {
+  color: #636e72;
+  font-size: 0.95rem;
+  margin-top: 4px;
+}
+
+.form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-weight: 600;
+  color: #2d3436;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.required {
+  color: #e74c3c;
+}
+
+.form-input,
+.form-textarea {
+  padding: 14px;
+  border: 2px solid #dfe6e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s;
+  background: white;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.form-hint {
+  color: #636e72;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Section Divider */
+.section-divider {
+  position: relative;
+  text-align: center;
+  margin: 24px 0;
+}
+
+.section-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #dfe6e9;
+}
+
+.divider-text {
+  position: relative;
+  background: white;
+  padding: 0 20px;
+  color: #636e72;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #f1f2f6;
+}
+
+.btn-primary,
+.btn-secondary {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #dfe6e9;
+  color: #2d3436;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #b2bec3;
+  transform: translateY(-2px);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  font-size: 1.1rem;
+}
+
+.btn-loading {
+  position: relative;
+  color: transparent;
+}
+
+.loading-spinner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Security Card */
+.security-card {
+  padding: 24px;
+}
+
+.security-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.security-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.security-item:hover {
+  background: #e9ecef;
+}
+
+.security-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.security-icon {
+  font-size: 1.5rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.security-text h4 {
+  font-size: 1rem;
+  color: #2d3436;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.security-text p {
+  color: #636e72;
+  font-size: 0.85rem;
+}
+
+.btn-change-password,
+.btn-manage-devices {
+  padding: 10px 20px;
+  border: 2px solid #3498db;
+  background: white;
+  color: #3498db;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-change-password:hover,
+.btn-manage-devices:hover {
+  background: #3498db;
+  color: white;
+  transform: translateY(-2px);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .profile-content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .profile-left {
+    grid-template-columns: repeat(2, 1fr);
+    display: grid;
+  }
+}
+
+@media (max-width: 992px) {
+  .profile-left {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 0 12px;
+  }
+  
+  .header-content h1 {
+    font-size: 2rem;
+  }
+  
+  .profile-content {
+    gap: 20px;
+  }
+  
+  .avatar-card,
+  .preferences-card,
+  .form-card,
+  .security-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+  
+  .avatar-wrapper {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .security-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  
+  .btn-change-password,
+  .btn-manage-devices {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content h1 {
+    font-size: 1.8rem;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .avatar-name {
+    font-size: 1.5rem;
+  }
+  
+  .profile-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .theme-toggle {
+    flex-direction: column;
+  }
+  
+  .checkbox-label {
+    font-size: 0.9rem;
+  }
+}
+</style>

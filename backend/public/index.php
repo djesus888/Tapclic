@@ -12,21 +12,25 @@ $allowed_origins = [
 $local_origin_pattern = '/^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+)(:\d+)?$/';
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
-if ($origin && (in_array($origin, $allowed_origins) || preg_match($local_origin_pattern, $origin))) {
+// Agregamos origen para WebSocket si es necesario
+$ws_origin = $_SERVER['HTTP_X_WEBSOCKET_ORIGIN'] ?? '';
+if ($ws_origin && (in_array($ws_origin, $allowed_origins) || preg_match($local_origin_pattern, $ws_origin))) {
+    header("Access-Control-Allow-Origin: $ws_origin");
+} elseif ($origin && (in_array($origin, $allowed_origins) || preg_match($local_origin_pattern, $origin))) {
     header("Access-Control-Allow-Origin: $origin");
 } else {
-    // fallback seguro
     header("Access-Control-Allow-Origin: " . $allowed_origins[0]);
 }
 
+// Headers específicos para WebSocket
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Language");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Language, X-WebSocket-Origin, X-WebSocket-Version, Upgrade, Connection");
 header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Expose-Headers: *"); // Para WebSocket
 
-// Manejar preflight OPTIONS sin romper flujo
+// Manejar preflight OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
-    // No hacer exit() para que siga cargando el backend si es necesario
     echo json_encode(['status' => 'ok']);
     return;
 }
@@ -38,6 +42,14 @@ require_once __DIR__ . '/../utils/SystemConfig.php';
 if (\SystemConfig::get('maintenance_mode', false)) {
     http_response_code(503);
     echo json_encode(['error' => 'Sistema en mantenimiento']);
+    return;
+}
+
+// ---------- Endpoint para heartbeat de usuarios online ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/api/user/heartbeat') {
+    require_once __DIR__ . '/../controllers/UserPresenceController.php';
+    $controller = new UserPresenceController();
+    $controller->heartbeat();
     return;
 }
 
@@ -53,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $_SERVER['REQUEST_URI'] === '/api/sy
 if (str_starts_with($_SERVER['REQUEST_URI'], '/uploads')) {
     return false;
 }
+
+// ---------- Inicializar sesión para WebSocket ----------
+session_start();
 
 // ---------- Resto de la aplicación ----------
 require_once __DIR__ . '/../routes/api.php';

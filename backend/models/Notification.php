@@ -54,6 +54,17 @@ class Notification {
         return $notifications;
     }
 
+
+public function markAllAsRead($userId) {
+    $query = "UPDATE {$this->table}
+              SET is_read = 1
+              WHERE receiver_id = :uid AND is_read = 0";
+    
+    $stmt = $this->conn->prepare($query);
+    return $stmt->execute([':uid' => $userId]);
+}
+
+
     public function markAsRead($id, $userId) {
         $query = "UPDATE {$this->table}
                   SET is_read = 1

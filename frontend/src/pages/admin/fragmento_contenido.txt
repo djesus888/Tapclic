@@ -1,0 +1,677 @@
+<script setup>
+import { ref, onMounted, computed, watch } from 'vue'
+import { useAuthStore } from '@/stores/authStore'
+import { VueDraggableNext as draggable } from 'vue-draggable-next'
+import api from '@/axios'
+
+// Importar modales (debes crearlos después)
+import CategoryModal from '@/pages/admin/modals/CategoryModal.vue'
+import PageModal from '@/pages/admin/modals/PageModal.vue'
+import FaqModal from '@/pages/admin/modals/FaqModal.vue'
+import BlockModal from '@/pages/admin/modals/BlockModal.vue'
+
+const authStore = useAuthStore()
+
+// Estados
+const loading = ref(true)
+const activeTab = ref('categories')
+const showCreateModal = ref(false)
+const editingItem = ref(null)
+
+// Datos
+const categories = ref([])
+const pages = ref([])
+const faqs = ref([])
+const blocks = ref([])
+
+// Ordenamiento
+const categoriesSortBy = ref('sort_order')
+const faqsSortBy = ref('sort_order')
+const orderChanged = ref(false)
+const faqsOrderChanged = ref(false)
+
+// Tabs
+const tabs = ref([
+  { id: 'categories', name: 'Categorías', icon: '🏷️', count: 0 },
+  { id: 'pages', name: 'Páginas', icon: '📄', count: 0 },
+  { id: 'faqs', name: 'FAQs', icon: '❓', count: 0 },
+  { id: 'blocks', name: 'Bloques', icon: '🧱', count: 0 }
+])
+
+// Mensajes
+const successMessage = ref('')
+const errorMessage = ref('')
+
+// Computed
+const showCreateButton = computed(() => {
+  return ['categories', 'pages', 'faqs', 'blocks'].includes(activeTab?.value)
+})
+
+const getCreateButtonText = computed(() => {
+  const texts = {
+    'categories': 'Categoría',
+    'pages': 'Página',
+    'faqs': 'FAQ',
+    'blocks': 'Bloque'
+  }
+  return texts[activeTab?.value] || 'Nuevo'
+})
+
+// Estadísticas
+const activeCategoriesCount = computed(() => {
+  return categories.value.filter(c => c?.is_active).length
+})
+
+const totalServicesCount = computed(() => {
+  return categories.value.reduce((sum, cat) => sum + (cat?.service_count || 0), 0)
+})
+
+const pagesInMenuCount = computed(() => {
+  return pages.value.filter(p => p?.is_in_menu).length
+})
+
+const activePagesCount = computed(() => {
+  return pages.value.filter(p => p?.is_active).length
+})
+
+const activeFaqsCount = computed(() => {
+  return faqs.value.filter(f => f?.is_active).length
+})
+
+const sortedFaqsCount = computed(() => {
+  return faqs.value.filter(f => f?.sort_order > 0).length
+})
+
+const activeBlocksCount = computed(() => {
+  return blocks.value.filter(b => b?.is_active).length
+})
+
+const blockTypesCount = computed(() => {
+  const types = new Set(blocks.value.map(b => b.type))
+  return types.size
+})
+
+// Lifecycle
+onMounted(async () => {
+  await loadAllContent()
+})
+
+// Watch para ordenamiento
+watch(categoriesSortBy, (newSort) => {
+  sortCategories(newSort)
+})
+
+watch(faqsSortBy, (newSort) => {
+  sortFaqs(newSort)
+})
+
+// Métodos principales
+async function loadAllContent() {
+  try {
+    loading.value = true
+    await Promise.all([
+      loadCategories(),
+      loadPages(),
+      loadFaqs(),
+      loadBlocks()
+    ])
+    
+    // Actualizar contadores de tabs
+    tabs.value[0].count = categories?.value?.length
+    tabs.value[1].count = pages?.value?.length
+    tabs.value[2].count = faqs?.value?.length
+    tabs.value[3].count = blocks?.value?.length
+    
+    // Ordenar inicialmente
+    sortCategories(categoriesSortBy?.value)
+    sortFaqs(faqsSortBy?.value)
+    
+  } catch (error) {
+    console.error('Error cargando contenido:', error)
+    showError('Error al cargar el contenido')
+  } finally {
+    loading.value = false
+  }
+}
+
+// Carga de datos
+async function loadCategories() {
+  try {
+    const response = await api.get('/admin/content/categories', {
+      headers: getHeaders()
+    })
+    categories.value = response.data.categories || []
+  } catch (error) {
+    console.error('Error cargando categorías:', error)
+    categories.value = []
+  }
+}
+
+async function loadPages() {
+  try {
+    const response = await api.get('/admin/content/pages', {
+      headers: getHeaders()
+    })
+    pages.value = response.data.pages || []
+  } catch (error) {
+    console.error('Error cargando páginas:', error)
+    pages.value = []
+  }
+}
+
+async function loadFaqs() {
+  try {
+    const response = await api.get('/admin/content/faqs', {
+      headers: getHeaders()
+    })
+    faqs.value = response.data.faqs || []
+  } catch (error) {
+    console.error('Error cargando FAQs:', error)
+    faqs.value = []
+  }
+}
+
+async function loadBlocks() {
+  try {
+    const response = await api.get('/admin/content/blocks', {
+      headers: getHeaders()
+    })
+    blocks.value = response.data.blocks || []
+  } catch (error) {
+    console.error('Error cargando bloques:', error)
+    blocks.value = []
+  }
+}
+
+// Métodos para categorías
+function editCategory(category) {
+  editingItem.value = { ...category }
+  showCreateModal.value = true
+}
+
+async function toggleCategoryStatus(category) {
+  try {
+    const newStatus = !category?.is_active
+    await api.put(`/admin/content/categories/${category.id}/status`, {
+      is_active: newStatus
+    }, {
+      headers: getHeaders()
+    })
+    
+    // Actualizar estado local
+    const index = categories.value.findIndex(c => c.id === category.id)
+    if (categories && categories.value[index]) {
+    categories.value[index].is_active = newStatus;
+}
+    
+    showSuccess(`Categoría ${newStatus ? 'activada' : 'desactivada'} correctamente`)
+  } catch (error) {
+    console.error('Error cambiando estado:', error)
+    showError('Error al cambiar el estado')
+  }
+}
+
+async function deleteCategory(categoryId) {
+  if (!confirm('¿Estás seguro de eliminar esta categoría?')) return
+  
+  try {
+    await api.delete(`/admin/content/categories/${categoryId}`, {
+      headers: getHeaders()
+    })
+    
+    categories.value = categories.value.filter(c => c.id !== categoryId)
+    showSuccess('Categoría eliminada correctamente')
+  } catch (error) {
+    console.error('Error eliminando categoría:', error)
+    showError('Error al eliminar la categoría')
+  }
+}
+
+function handleSaveCategory(categoryData) {
+  if (categoryData.id) {
+    updateCategory(categoryData)
+  } else {
+    createCategory(categoryData)
+  }
+}
+
+async function createCategory(categoryData) {
+  try {
+    const response = await api.post('/admin/content/categories', categoryData, {
+      headers: getHeaders()
+    })
+    
+    categories?.value.unshift(response.data.category)
+    closeModal()
+    showSuccess('Categoría creada correctamente')
+  } catch (error) {
+    console.error('Error creando categoría:', error)
+    showError('Error al crear la categoría')
+  }
+}
+
+async function updateCategory(categoryData) {
+  try {
+    const response = await api.put(`/admin/content/categories/${categoryData.id}`, categoryData, {
+      headers: getHeaders()
+    })
+    
+    const index = categories.value.findIndex(c => c.id === categoryData.id)
+    if (index !== -1) {
+      categories.value[index] = response.data.category
+    }
+    
+    closeModal()
+    showSuccess('Categoría actualizada correctamente')
+  } catch (error) {
+    console.error('Error actualizando categoría:', error)
+    showError('Error al actualizar la categoría')
+  }
+}
+
+// Métodos para páginas (similar a categorías)
+function editPage(page) {
+  editingItem.value = { ...page }
+  showCreateModal.value = true
+}
+
+async function togglePageStatus(page) {
+  try {
+    const newStatus = !page?.is_active
+    await api.put(`/admin/content/pages/${page.id}/status`, {
+      is_active: newStatus
+    }, {
+      headers: getHeaders()
+    })
+    
+    const index = pages.value.findIndex(p => p.id === page.id)
+    if (index !== -1) {
+      pages.value[index].is_active = newStatus
+    }
+    
+    showSuccess(`Página ${newStatus ? 'activada' : 'desactivada'} correctamente`)
+  } catch (error) {
+    console.error('Error cambiando estado:', error)
+    showError('Error al cambiar el estado')
+  }
+}
+
+async function togglePageMenu(page) {
+  try {
+    const newMenuStatus = !page.is_in_menu
+    await api.put(`/admin/content/pages/${page.id}/menu`, {
+      is_in_menu: newMenuStatus
+    }, {
+      headers: getHeaders()
+    })
+    
+    const index = pages.value.findIndex(p => p.id === page.id)
+    if (index !== -1) {
+      pages.value[index].is_in_menu = newMenuStatus
+    }
+    
+    showSuccess(`Página ${newMenuStatus ? 'agregada al' : 'quitada del'} menú`)
+  } catch (error) {
+    console.error('Error cambiando menú:', error)
+    showError('Error al cambiar el menú')
+  }
+}
+
+async function deletePage(pageId) {
+  if (!confirm('¿Estás seguro de eliminar esta página?')) return
+  
+  try {
+    await api.delete(`/admin/content/pages/${pageId}`, {
+      headers: getHeaders()
+    })
+    
+    pages.value = pages.value.filter(p => p.id !== pageId)
+    showSuccess('Página eliminada correctamente')
+  } catch (error) {
+    console.error('Error eliminando página:', error)
+    showError('Error al eliminar la página')
+  }
+}
+
+function handleSavePage(pageData) {
+  if (pageData.id) {
+    updatePage(pageData)
+  } else {
+    createPage(pageData)
+  }
+}
+
+async function createPage(pageData) {
+  try {
+    const response = await api.post('/admin/content/pages', pageData, {
+      headers: getHeaders()
+    })
+    
+    pages?.value.unshift(response.data.page)
+    closeModal()
+    showSuccess('Página creada correctamente')
+  } catch (error) {
+    console.error('Error creando página:', error)
+    showError('Error al crear la página')
+  }
+}
+
+async function updatePage(pageData) {
+  try {
+    const response = await api.put(`/admin/content/pages/${pageData.id}`, pageData, {
+      headers: getHeaders()
+    })
+    
+    const index = pages.value.findIndex(p => p.id === pageData.id)
+    if (index !== -1) {
+      pages.value[index] = response.data.page
+    }
+    
+    closeModal()
+    showSuccess('Página actualizada correctamente')
+  } catch (error) {
+    console.error('Error actualizando página:', error)
+    showError('Error al actualizar la página')
+  }
+}
+
+// Métodos para FAQs
+function editFaq(faq) {
+  editingItem.value = { ...faq }
+  showCreateModal.value = true
+}
+
+async function toggleFaqStatus(faq) {
+  try {
+    const newStatus = !faq?.is_active
+    await api.put(`/admin/content/faqs/${faq.id}/status`, {
+      is_active: newStatus
+    }, {
+      headers: getHeaders()
+    })
+    
+    const index = faqs.value.findIndex(f => f.id === faq.id)
+    if (index !== -1) {
+      faqs.value[index].is_active = newStatus
+    }
+    
+    showSuccess(`FAQ ${newStatus ? 'activada' : 'desactivada'} correctamente`)
+  } catch (error) {
+    console.error('Error cambiando estado FAQ:', error)
+    showError('Error al cambiar el estado')
+  }
+}
+
+async function deleteFaq(faqId) {
+  if (!confirm('¿Estás seguro de eliminar esta FAQ?')) return
+  
+  try {
+    await api.delete(`/admin/content/faqs/${faqId}`, {
+      headers: getHeaders()
+    })
+    
+    faqs.value = faqs.value.filter(f => f.id !== faqId)
+    showSuccess('FAQ eliminada correctamente')
+  } catch (error) {
+    console.error('Error eliminando FAQ:', error)
+    showError('Error al eliminar la FAQ')
+  }
+}
+
+function handleSaveFaq(faqData) {
+  if (faqData.id) {
+    updateFaq(faqData)
+  } else {
+    createFaq(faqData)
+  }
+}
+
+async function createFaq(faqData) {
+  try {
+    const response = await api.post('/admin/content/faqs', faqData, {
+      headers: getHeaders()
+    })
+    
+    faqs?.value.unshift(response.data.faq)
+    closeModal()
+    showSuccess('FAQ creada correctamente')
+  } catch (error) {
+    console.error('Error creando FAQ:', error)
+    showError('Error al crear la FAQ')
+  }
+}
+
+async function updateFaq(faqData) {
+  try {
+    const response = await api.put(`/admin/content/faqs/${faqData.id}`, faqData, {
+      headers: getHeaders()
+    })
+    
+    const index = faqs.value.findIndex(f => f.id === faqData.id)
+    if (index !== -1) {
+      faqs.value[index] = response.data.faq
+    }
+    
+    closeModal()
+    showSuccess('FAQ actualizada correctamente')
+  } catch (error) {
+    console.error('Error actualizando FAQ:', error)
+    showError('Error al actualizar la FAQ')
+  }
+}
+
+// Métodos para bloques
+function editBlock(block) {
+  editingItem.value = { ...block }
+  showCreateModal.value = true
+}
+
+async function toggleBlockStatus(block) {
+  try {
+    const newStatus = !block?.is_active
+    await api.put(`/admin/content/blocks/${block.id}/status`, {
+      is_active: newStatus
+    }, {
+      headers: getHeaders()
+    })
+    
+    const index = blocks.value.findIndex(b => b.id === block.id)
+    if (index !== -1) {
+      blocks.value[index].is_active = newStatus
+    }
+    
+    showSuccess(`Bloque ${newStatus ? 'activado' : 'desactivado'} correctamente`)
+  } catch (error) {
+    console.error('Error cambiando estado bloque:', error)
+    showError('Error al cambiar el estado')
+  }
+}
+
+async function deleteBlock(blockId) {
+  if (!confirm('¿Estás seguro de eliminar este bloque?')) return
+  
+  try {
+    await api.delete(`/admin/content/blocks/${blockId}`, {
+      headers: getHeaders()
+    })
+    
+    blocks.value = blocks.value.filter(b => b.id !== blockId)
+    showSuccess('Bloque eliminado correctamente')
+  } catch (error) {
+    console.error('Error eliminando bloque:', error)
+    showError('Error al eliminar el bloque')
+  }
+}
+
+function handleSaveBlock(blockData) {
+  if (blockData.id) {
+    updateBlock(blockData)
+  } else {
+    createBlock(blockData)
+  }
+}
+
+async function createBlock(blockData) {
+  try {
+    const response = await api.post('/admin/content/blocks', blockData, {
+      headers: getHeaders()
+    })
+    
+    blocks?.value.unshift(response.data.block)
+    closeModal()
+    showSuccess('Bloque creado correctamente')
+  } catch (error) {
+    console.error('Error creando bloque:', error)
+    showError('Error al crear el bloque')
+  }
+}
+
+async function updateBlock(blockData) {
+  try {
+    const response = await api.put(`/admin/content/blocks/${blockData.id}`, blockData, {
+      headers: getHeaders()
+    })
+    
+    const index = blocks.value.findIndex(b => b.id === blockData.id)
+    if (index !== -1) {
+      blocks.value[index] = response.data.block
+    }
+    
+    closeModal()
+    showSuccess('Bloque actualizado correctamente')
+  } catch (error) {
+    console.error('Error actualizando bloque:', error)
+    showError('Error al actualizar el bloque')
+  }
+}
+
+// Métodos de utilidad
+function getHeaders() {
+  return {
+    Authorization: `Bearer ${authStore.token}`,
+    'Content-Type': 'application/json'
+  }
+}
+
+function switchTab(tabId) {
+  activeTab.value = tabId
+  showCreateModal.value = false
+  editingItem.value = null
+}
+
+function closeModal() {
+  showCreateModal.value = false
+  editingItem.value = null
+}
+
+function sortCategories(sortBy) {
+  if (sortBy === 'sort_order') {
+    categories.value.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  } else if (sortBy === 'name') {
+    categories.value.sort((a, b) => a.name.localeCompare(b.name))
+  } else if (sortBy === 'service_count') {
+    categories.value.sort((a, b) => (b?.service_count || 0) - (a?.service_count || 0))
+  } else if (sortBy === 'created_at') {
+    categories.value.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }
+}
+
+function sortFaqs(sortBy) {
+  if (sortBy === 'sort_order') {
+    faqs.value.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  } else if (sortBy === 'question') {
+    faqs.value.sort((a, b) => a.question.localeCompare(b.question))
+  } else if (sortBy === 'created_at') {
+    faqs.value.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }
+}
+
+function onDragEnd() {
+  orderChanged.value = true
+}
+
+function onFaqsDragEnd() {
+  faqsOrderChanged.value = true
+}
+
+async function saveCategoriesOrder() {
+  try {
+    const orderData = categories.value.map((cat, index) => ({
+      id: cat.id,
+      sort_order: index + 1
+    }))
+    
+    await api.put('/admin/content/categories/order', { order: orderData }, {
+      headers: getHeaders()
+    })
+    
+  orderChanged.value = false
+    showSuccess('Orden de categorías guardado correctamente')
+  } catch (error) {
+    console.error('Error guardando orden:', error)
+    showError('Error al guardar el orden')
+  }
+}
+
+async function saveFaqsOrder() {
+  try {
+    const orderData = faqs.value.map((faq, index) => ({
+      id: faq.id,
+      sort_order: index + 1
+    }))
+    
+    await api.put('/admin/content/faqs/order', { order: orderData }, {
+      headers: getHeaders()
+    })
+    
+  faqsOrderChanged.value = false
+    showSuccess('Orden de FAQs guardado correctamente')
+  } catch (error) {
+    console.error('Error guardando orden FAQs:', error)
+    showError('Error al guardar el orden')
+  }
+}
+
+function truncateText(text, maxLength) {
+  if (!text) return ''
+  if (text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
+}
+
+function formatDate(dateString) {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  })
+}
+
+function getBlockTypeIcon(type) {
+  const icons = {
+    'text': '📝',
+    'html': '📄',
+    'image': '🖼️',
+    'banner': '🎪',
+    'carousel': '🔄',
+    'default': '🧱'
+  }
+  return icons[type] || icons.default
+}
+
+function isDefaultPage(slug) {
+  const defaultPages = ['terms', 'privacy', 'about', 'help', 'contact']
+  return defaultPages.includes(slug)
+}
+
+function showSuccess(message) {
+  successMessage.value = message
+  setTimeout(() => successMessage.value = '', 5000)
+}
+
+function showError(message) {
+  errorMessage.value = message
+  setTimeout(() => errorMessage.value = '', 8000)
+}
+</script>

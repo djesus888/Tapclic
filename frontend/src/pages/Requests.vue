@@ -230,6 +230,7 @@ const tabs = computed(() => [
   { key: 'in_progress',label: t('in_progress') },
   { key: 'completed',  label: t('completed') },
   { key: 'cancelled',  label: t('cancelled') },
+  { key: 'busy',       label: t('busy') },
   { key: 'rejected',   label: t('rejected') }
 ])
 
@@ -344,7 +345,7 @@ function openReview(r) {
 async function cancel(r) {
   if (!confirm(t('confirm_cancel'))) return
   try {
-    await api.put('/requests/cancel', { request_id: r.id }, {
+    await api.post('/requests/cancel', { id: r.id }, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
     await fetchRequests()
@@ -359,7 +360,7 @@ function rehire(r) {
 
 /* Helpers visuales */
 function avatar(url) {
-  return url ? `http://localhost:8000${url}` : '/img/default-provider.png'
+  return url ? getImageUrl(url) : '/img/default-provider.png'
 }
 function statusLabel(s) {
   const map = {
@@ -368,8 +369,9 @@ function statusLabel(s) {
     in_progress: t('in_progress'),
     completed: t('completed'),
     cancelled: t('cancelled'),
-    rejected: t('rejected')
-  }
+    rejected: t('rejected'),
+    busy: t('busy')
+}
   return map[s] || s
 }
 function statusBadge(s) {
@@ -379,15 +381,16 @@ function statusBadge(s) {
     in_progress:'bg-purple-100 text-purple-800',
     completed:  'bg-green-100 text-green-800',
     cancelled:  'bg-red-100 text-red-800',
-    rejected:   'bg-gray-100 text-gray-800'
-  }
+    rejected:   'bg-gray-100 text-gray-800',
+    busy:       'bg-gray-100 text-gray-800'  
+}
   return `px-2 py-1 rounded-full text-xs font-medium ${colors[s] || 'bg-gray-100 text-gray-800'}`
 }
 function canCancel(s) {
   return ['pending', 'accepted'].includes(s)
 }
 function canTrack(s) {
-  return ['accepted', 'in_progress', 'arrived', 'on_the_way'].includes(s)
+  return ['accepted', 'in_progress', 'arrived', 'on_the_way', 'completed'].includes(s)
 }
 function tabClass(k) {
   return filterStatus.value === k

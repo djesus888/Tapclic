@@ -3,8 +3,8 @@ namespace Utils;
 
 class Uploader
 {
-    private string $basePath;   // /data/data/…/backend/uploads
-    private string $baseUrl;    // http://localhost:8000/uploads
+    private string $basePath; 
+    private string $baseUrl;   
 
     public function __construct(string $basePath, string $baseUrl)
     {

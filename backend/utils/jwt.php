@@ -6,7 +6,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 class JwtHandler {
-    private static $secret_key = "clave_secreta_tapclic";
+    private static $secret_key = "clave_secreta_tapclic_2025_segura_32char!";
 
     public static function encode($payload) {
         return JWT::encode($payload, self::$secret_key, 'HS256');

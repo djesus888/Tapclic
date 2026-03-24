@@ -19,34 +19,25 @@ namespace Twilio\Rest\Intelligence\V2;
 
 use Twilio\Exceptions\TwilioException;
 use Twilio\ListResource;
-use Twilio\Values;
 use Twilio\Version;
 use Twilio\InstanceContext;
-use Twilio\Rest\Intelligence\V2\Transcript\SentenceList;
 use Twilio\Rest\Intelligence\V2\Transcript\OperatorResultList;
-use Twilio\Rest\Intelligence\V2\Transcript\EncryptedSentencesList;
+use Twilio\Rest\Intelligence\V2\Transcript\SentenceList;
 use Twilio\Rest\Intelligence\V2\Transcript\MediaList;
-use Twilio\Rest\Intelligence\V2\Transcript\EncryptedOperatorResultsList;
 
 
 /**
- * @property SentenceList $sentences
  * @property OperatorResultList $operatorResults
- * @property EncryptedSentencesList $encryptedSentences
+ * @property SentenceList $sentences
  * @property MediaList $media
- * @property EncryptedOperatorResultsList $encryptedOperatorResults
- * @method \Twilio\Rest\Intelligence\V2\Transcript\EncryptedSentencesContext encryptedSentences()
- * @method \Twilio\Rest\Intelligence\V2\Transcript\MediaContext media()
- * @method \Twilio\Rest\Intelligence\V2\Transcript\EncryptedOperatorResultsContext encryptedOperatorResults()
  * @method \Twilio\Rest\Intelligence\V2\Transcript\OperatorResultContext operatorResults(string $operatorSid)
+ * @method \Twilio\Rest\Intelligence\V2\Transcript\MediaContext media()
  */
 class TranscriptContext extends InstanceContext
     {
-    protected $_sentences;
     protected $_operatorResults;
-    protected $_encryptedSentences;
+    protected $_sentences;
     protected $_media;
-    protected $_encryptedOperatorResults;
 
     /**
      * Initialize the TranscriptContext
@@ -79,8 +70,7 @@ class TranscriptContext extends InstanceContext
     public function delete(): bool
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded' ]);
-        return $this->version->delete('DELETE', $this->uri, [], [], $headers);
+        return $this->version->delete('DELETE', $this->uri);
     }
 
 
@@ -93,8 +83,7 @@ class TranscriptContext extends InstanceContext
     public function fetch(): TranscriptInstance
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded', 'Accept' => 'application/json' ]);
-        $payload = $this->version->fetch('GET', $this->uri, [], [], $headers);
+        $payload = $this->version->fetch('GET', $this->uri, [], []);
 
         return new TranscriptInstance(
             $this->version,
@@ -103,21 +92,6 @@ class TranscriptContext extends InstanceContext
         );
     }
 
-
-    /**
-     * Access the sentences
-     */
-    protected function getSentences(): SentenceList
-    {
-        if (!$this->_sentences) {
-            $this->_sentences = new SentenceList(
-                $this->version,
-                $this->solution['sid']
-            );
-        }
-
-        return $this->_sentences;
-    }
 
     /**
      * Access the operatorResults
@@ -135,18 +109,18 @@ class TranscriptContext extends InstanceContext
     }
 
     /**
-     * Access the encryptedSentences
+     * Access the sentences
      */
-    protected function getEncryptedSentences(): EncryptedSentencesList
+    protected function getSentences(): SentenceList
     {
-        if (!$this->_encryptedSentences) {
-            $this->_encryptedSentences = new EncryptedSentencesList(
+        if (!$this->_sentences) {
+            $this->_sentences = new SentenceList(
                 $this->version,
                 $this->solution['sid']
             );
         }
 
-        return $this->_encryptedSentences;
+        return $this->_sentences;
     }
 
     /**
@@ -162,21 +136,6 @@ class TranscriptContext extends InstanceContext
         }
 
         return $this->_media;
-    }
-
-    /**
-     * Access the encryptedOperatorResults
-     */
-    protected function getEncryptedOperatorResults(): EncryptedOperatorResultsList
-    {
-        if (!$this->_encryptedOperatorResults) {
-            $this->_encryptedOperatorResults = new EncryptedOperatorResultsList(
-                $this->version,
-                $this->solution['sid']
-            );
-        }
-
-        return $this->_encryptedOperatorResults;
     }
 
     /**

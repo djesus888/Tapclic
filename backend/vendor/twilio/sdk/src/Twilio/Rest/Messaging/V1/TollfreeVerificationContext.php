@@ -58,8 +58,7 @@ class TollfreeVerificationContext extends InstanceContext
     public function delete(): bool
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded' ]);
-        return $this->version->delete('DELETE', $this->uri, [], [], $headers);
+        return $this->version->delete('DELETE', $this->uri);
     }
 
 
@@ -72,8 +71,7 @@ class TollfreeVerificationContext extends InstanceContext
     public function fetch(): TollfreeVerificationInstance
     {
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded', 'Accept' => 'application/json' ]);
-        $payload = $this->version->fetch('GET', $this->uri, [], [], $headers);
+        $payload = $this->version->fetch('GET', $this->uri, [], []);
 
         return new TollfreeVerificationInstance(
             $this->version,
@@ -138,38 +136,9 @@ class TollfreeVerificationContext extends InstanceContext
                 $options['businessContactPhone'],
             'EditReason' =>
                 $options['editReason'],
-            'BusinessRegistrationNumber' =>
-                $options['businessRegistrationNumber'],
-            'BusinessRegistrationAuthority' =>
-                $options['businessRegistrationAuthority'],
-            'BusinessRegistrationCountry' =>
-                $options['businessRegistrationCountry'],
-            'BusinessType' =>
-                $options['businessType'],
-            'BusinessRegistrationPhoneNumber' =>
-                $options['businessRegistrationPhoneNumber'],
-            'DoingBusinessAs' =>
-                $options['doingBusinessAs'],
-            'OptInConfirmationMessage' =>
-                $options['optInConfirmationMessage'],
-            'HelpMessageSample' =>
-                $options['helpMessageSample'],
-            'PrivacyPolicyUrl' =>
-                $options['privacyPolicyUrl'],
-            'TermsAndConditionsUrl' =>
-                $options['termsAndConditionsUrl'],
-            'AgeGatedContent' =>
-                Serialize::booleanToString($options['ageGatedContent']),
-            'OptInKeywords' =>
-                Serialize::map($options['optInKeywords'], function ($e) { return $e; }),
-            'VettingProvider' =>
-                $options['vettingProvider'],
-            'VettingId' =>
-                $options['vettingId'],
         ]);
 
-        $headers = Values::of(['Content-Type' => 'application/x-www-form-urlencoded', 'Accept' => 'application/json' ]);
-        $payload = $this->version->update('POST', $this->uri, [], $data, $headers);
+        $payload = $this->version->update('POST', $this->uri, [], $data);
 
         return new TollfreeVerificationInstance(
             $this->version,

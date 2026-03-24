@@ -12,9 +12,6 @@ class Conversation
         $this->db = (new Database())->getConnection();
     }
 
-    /**
-     * Obtener todas las conversaciones de un participante
-     */
     public function getByParticipant(int $userId, string $role): array
     {
         $stmt = $this->db->prepare("
@@ -58,32 +55,44 @@ class Conversation
                     ELSE
                         c.participant1_type
                 END AS participant_type,
-                COALESCE(lm.created_at, c.updated_at) AS last_message_at,
-                (SELECT COUNT(*) 
-                 FROM messages m2 
-                 WHERE m2.conversation_id = c.id 
-                   AND m2.receiver_id = :uid 
-                   AND m2.read_at IS NULL) as unread_count
+                COALESCE(lm.last_message_time, c.updated_at) AS last_message_at,
+                (
+                    SELECT COUNT(*)
+                    FROM messages m2
+                    INNER JOIN message_status ms ON m2.id = ms.message_id
+                    WHERE m2.conversation_id = c.id
+                      AND ms.user_id = :uid
+                      AND ms.user_type = :role
+                      AND ms.is_read = FALSE
+                      AND ms.is_deleted = FALSE
+                ) as unread_count,
+                (
+                    SELECT COUNT(*)
+                    FROM messages m3
+                    INNER JOIN message_status ms3 ON m3.id = ms3.message_id
+                    WHERE m3.conversation_id = c.id
+                      AND ms3.user_id = :uid
+                      AND ms3.user_type = :role
+                      AND ms3.is_deleted = FALSE
+                ) as visible_messages_count
             FROM conversations c
             LEFT JOIN (
-                SELECT conversation_id, MAX(created_at) AS created_at
+                SELECT conversation_id, MAX(created_at) AS last_message_time
                 FROM messages
                 GROUP BY conversation_id
             ) lm ON lm.conversation_id = c.id
             WHERE (c.participant1_id = :uid AND c.participant1_type = :role)
                OR (c.participant2_id = :uid AND c.participant2_type = :role)
+            HAVING visible_messages_count > 0
             ORDER BY last_message_at DESC
         ");
+
         $stmt->execute(['uid' => $userId, 'role' => $role]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Buscar o crear conversación entre dos participantes
-     */
     public function findOrCreate(int $userId1, string $type1, int $userId2, string $type2): int
     {
-        // Buscar conversación existente
         $stmt = $this->db->prepare("
             SELECT id FROM conversations
             WHERE (
@@ -99,15 +108,14 @@ class Conversation
             'u2' => $userId2,
             't2' => $type2
         ]);
-        
+
         $id = $stmt->fetchColumn();
         if ($id) {
             return (int)$id;
         }
 
-        // Crear nueva conversación
         $stmt = $this->db->prepare("
-            INSERT INTO conversations 
+            INSERT INTO conversations
             (participant1_id, participant1_type, participant2_id, participant2_type, created_at, updated_at)
             VALUES (:u1, :t1, :u2, :t2, NOW(), NOW())
         ");
@@ -117,17 +125,14 @@ class Conversation
             'u2' => $userId2,
             't2' => $type2
         ]);
-        
+
         return (int)$this->db->lastInsertId();
     }
 
-    /**
-     * Obtener participantes de una conversación
-     */
     public function getParticipants(int $conversationId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT 
+            SELECT
                 participant1_id,
                 participant1_type,
                 participant2_id,
@@ -138,13 +143,10 @@ class Conversation
         ");
         $stmt->execute(['id' => $conversationId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         return $row ?: null;
     }
 
-    /**
-     * Verificar si un usuario es participante de una conversación
-     */
     public function isParticipant(int $conversationId, int $userId, string $role): bool
     {
         $stmt = $this->db->prepare("
@@ -162,26 +164,90 @@ class Conversation
             'uid' => $userId,
             'role' => $role
         ]);
-        
+
         return (bool)$stmt->fetchColumn();
     }
 
-    /**
-     * Actualizar timestamp de conversación
-     */
     public function touch(int $conversationId): void
     {
         $stmt = $this->db->prepare("
-            UPDATE conversations 
-            SET updated_at = NOW() 
+            UPDATE conversations
+            SET updated_at = NOW()
             WHERE id = :id
         ");
         $stmt->execute(['id' => $conversationId]);
     }
 
-    /**
-     * Obtener ID de conversación entre dos usuarios
-     */
+    public function getById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM conversations WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function deleteConversation(int $id): bool
+    {
+        try {
+            $stmt = $this->db->prepare("DELETE FROM conversations WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("Error al eliminar conversación $id: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findByParticipants($user1Id, $user1Role, $user2Id, $user2Role)
+    {
+        $query = "SELECT * FROM conversations
+                  WHERE (participant1_id = :u1id AND participant1_type = :u1role
+                        AND participant2_id = :u2id AND participant2_type = :u2role)
+                  OR (participant1_id = :u2id AND participant1_type = :u2role
+                      AND participant2_id = :u1id AND participant2_type = :u1role)
+                  LIMIT 1";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            ':u1id' => $user1Id,
+            ':u1role' => $user1Role,
+            ':u2id' => $user2Id,
+            ':u2role' => $user2Role
+        ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function create($user1Id, $user1Role, $user2Id, $user2Role)
+    {
+        $query = "INSERT INTO conversations
+                  (participant1_id, participant1_type, participant2_id, participant2_type, created_at)
+                  VALUES (:u1id, :u1role, :u2id, :u2role, NOW())";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            ':u1id' => $user1Id,
+            ':u1role' => $user1Role,
+            ':u2id' => $user2Id,
+            ':u2role' => $user2Role
+        ]);
+
+        return $this->db->lastInsertId();
+    }
+
+    public function userIsParticipant($conversationId, $userId)
+    {
+        $query = "SELECT * FROM conversations
+                  WHERE id = :id
+                  AND (participant1_id = :uid OR participant2_id = :uid)
+                  LIMIT 1";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':id' => $conversationId, ':uid' => $userId]);
+
+        return $stmt->fetch() ? true : false;
+    }
+
     public function getConversationId(int $userId1, string $type1, int $userId2, string $type2): ?int
     {
         $stmt = $this->db->prepare("
@@ -199,8 +265,50 @@ class Conversation
             'u2' => $userId2,
             't2' => $type2
         ]);
-        
+
         $result = $stmt->fetchColumn();
         return $result ? (int)$result : null;
+    }
+
+    public function getOtherParticipant(int $conversationId, int $userId): ?array
+    {
+        $conv = $this->getById($conversationId);
+        if (!$conv) return null;
+
+        if ($conv['participant1_id'] == $userId) {
+            return [
+                'id' => $conv['participant2_id'],
+                'type' => $conv['participant2_type']
+            ];
+        } elseif ($conv['participant2_id'] == $userId) {
+            return [
+                'id' => $conv['participant1_id'],
+                'type' => $conv['participant1_type']
+            ];
+        }
+
+        return null;
+    }
+
+    public function hasVisibleMessages(int $conversationId, int $userId, string $userRole): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM messages m
+            INNER JOIN message_status ms ON m.id = ms.message_id
+            WHERE m.conversation_id = :conv_id
+              AND ms.user_id = :user_id
+              AND ms.user_type = :user_role
+              AND ms.is_deleted = FALSE
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            'conv_id' => $conversationId,
+            'user_id' => $userId,
+            'user_role' => $userRole
+        ]);
+
+        return $stmt->fetchColumn() > 0;
     }
 }

@@ -1,20 +1,21 @@
-// src/stores/authStore.js - VERSIÓN REFACTORIZADA
+// src/stores/authStore.js 
 import { defineStore } from 'pinia'
-import api from '@/axios' // Instancia por defecto
+import api from '@/axios' 
 import Swal from 'sweetalert2'
-import router from '@/router' // Router por defecto
-import { i18n } from '@/i18n' // i18n por defecto
+import router from '@/router' 
+import { i18n } from '@/i18n'
+import { useSocketStore } from './socketStore' 
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || null,
     user: (() => {
       const stored = localStorage.getItem('user')
-      try { 
-        return stored ? JSON.parse(stored) : null 
-      } catch { 
-        localStorage.removeItem('user') // Limpieza automática
-        return null 
+      try {
+        return stored ? JSON.parse(stored) : null
+      } catch {
+        localStorage.removeItem('user') 
+        return null
       }
     })(),
     role: localStorage.getItem('role') || null,
@@ -89,11 +90,9 @@ export const useAuthStore = defineStore('auth', {
       return this.locale
     },
 
-    // NUEVA ACTION SOLICITADA
     async loadFromStorage() {
       const token = localStorage.getItem('token')
       const user = localStorage.getItem('user')
-      
       if (token && user) {
         try {
           this.token = token
@@ -101,6 +100,12 @@ export const useAuthStore = defineStore('auth', {
           this.role = localStorage.getItem('role')
           this.setAxiosToken(token)
           await this.loadLocale()
+
+          // CORREGIDO: Usar socketStore en lugar de websocket
+          const socketStore = useSocketStore()
+          await socketStore.init() // Asegurar inicialización
+          socketStore.connect(token) // Conectar con token
+
         } catch (error) {
           console.warn('⚠️ Datos corruptos en localStorage, limpiando...')
           this._clearAuthData()
@@ -128,8 +133,8 @@ export const useAuthStore = defineStore('auth', {
         const { i18nInstance } = this._getDependencies()
         const $t = i18nInstance.global.t
         Swal.fire(
-          $t('error'), 
-          error.response?.data?.message || error.message || $t('registration_failed'), 
+          $t('error'),
+          error.response?.data?.message || error.message || $t('registration_failed'),
           'error'
         )
         throw error
@@ -149,7 +154,12 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this._saveAuthData({ token, user, role: user.role })
-        
+
+        // CORREGIDO: Usar socketStore en lugar de websocket
+        const socketStore = useSocketStore()
+        await socketStore.init() // Asegurar inicialización
+        socketStore.connect(token) // Conectar después del login
+
         // Carga de locale con await para consistencia
         if (user.locale) {
           this.setLocale(user.locale)
@@ -176,8 +186,8 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         const $t = i18nInstance.global.t
         Swal.fire(
-          $t('error'), 
-          error.response?.data?.message || error.message || $t('invalid_credentials'), 
+          $t('error'),
+          error.response?.data?.message || error.message || $t('invalid_credentials'),
           'error'
         )
         return false
@@ -193,22 +203,27 @@ export const useAuthStore = defineStore('auth', {
           headers: { Authorization: `Bearer ${this.token}` },
         })
         const { token, user } = res.data
-        
+
         // Solo actualizar si hay cambio
         if (token && token !== this.token) {
           this._saveAuthData({ token, user, role: user?.role || this.role })
+
+          // CORREGIDO: Reconectar socketStore con nuevo token
+          const socketStore = useSocketStore()
+          socketStore.disconnect()
+          socketStore.connect(token)
         }
-        
+
         return token || this.token
       } catch (err) {
         console.error('❌ No se pudo refrescar el token:', err)
-        
+
         // Lógica de reintento para errores de red
         if (retries > 0 && (!err.response || err.code === 'ERR_NETWORK')) {
           await new Promise(r => setTimeout(r, 500)) // Espera 500ms
           return this.refreshToken(retries - 1)
         }
-        
+
         this.logout()
         throw err
       }
@@ -216,13 +231,12 @@ export const useAuthStore = defineStore('auth', {
 
     async updateUserLocale(locale) {
       if (!this.token || !this.user) return
-      
       const { apiInstance } = this._getDependencies()
       try {
         const res = await apiInstance.post('/user/locale', { locale }, {
           headers: { Authorization: `Bearer ${this.token}` }
         })
-        
+
         if (res.data.success) {
           this.setLocale(locale)
           this.user.locale = locale
@@ -235,12 +249,15 @@ export const useAuthStore = defineStore('auth', {
 
     logout() {
       const { routerInstance, i18nInstance } = this._getDependencies()
-      
+
+      // CORREGIDO: Desconectar socketStore en lugar de websocket
+      const socketStore = useSocketStore()
+      socketStore.disconnect()
+
       this._clearAuthData()
-      
+
       if (i18nInstance?.global) i18nInstance.global.locale.value = 'es'
       document.documentElement.lang = 'es'
-
       if (routerInstance.currentRoute.value.path !== '/login') {
         routerInstance.replace('/login').catch(() => {})
       }
@@ -251,7 +268,7 @@ export const useAuthStore = defineStore('auth', {
 // INICIALIZACIÓN MEJORADA (MANTIENE MISMA FIRMA PÚBLICA)
 export function initializeAuthStore(dependencies = {}) {
   const auth = useAuthStore()
-  
+
   // Permitir inyección de dependencias para tests
   if (Object.keys(dependencies).length > 0) {
     auth._getDependencies = () => ({
@@ -266,7 +283,13 @@ export function initializeAuthStore(dependencies = {}) {
     auth.setAxiosToken(auth.token)
     // Carga asíncrona sin bloquear
     auth.loadLocale().catch(console.warn)
+
+    // CORREGIDO: Conectar socketStore al inicializar si hay token
+    const socketStore = useSocketStore()
+    socketStore.init().then(() => {
+      socketStore.connect(auth.token)
+    })
   }
-  
+
   return auth
 }

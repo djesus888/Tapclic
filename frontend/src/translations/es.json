@@ -1,13 +1,8 @@
 {
-  "waiting_provider_response": "Esperando respuesta del proveedor",
-  "contacting_provider": "Contactando proveedor",
-
+  "accept": "Aceptar",
   "accepted": "Aceptada",
+  "account_issues": "Problemas de cuenta",
   "active": "Activos",
-  "Available": "Disponible",
-  "available": "Disponible",
-  "busy": "Ocupado",
-
   "activity": {
     "profile_updated": "{user} actualizó su perfil",
     "service_accepted": "Servicio '{service}' fue aceptado",
@@ -16,140 +11,307 @@
     "status": "Estado",
     "support_ticket_opened": "Nuevo ticket de soporte abierto"
   },
-
   "addComments": "Agregar comentarios",
   "addService": "Agregar servicio",
-
   "adminDashboard": "Panel de Admin",
   "admin_panel": "Panel Admin",
   "admin_tools": "Panel Herramientas",
-
   "already_have_account": "¿Ya tienes cuenta?",
-  "account_issues": "Problemas de cuenta",
-
+  "Available": "Disponible",
+  "available": "Disponible",
+  "busy": "Ocupado",
   "call": "Llamar",
   "cancelled": "Cancelado",
+  "cancelled_by_provider": "Cancelado por el proveedor",
+  "cancelled_by_user": "Cancelado por el usuario",
   "category": "Categoría",
   "changeAvatar": "Cambiar avatar",
-
   "chat": "Chat",
   "chats": "Conversaciones",
-
   "checkDetailsBeforeSending": "Revisa los detalles antes de enviar",
   "close": "Cerrar",
+  "common": {
+    "activate": "Activar",
+    "active": "Activo",
+    "back": "Volver",
+    "cancel": "Cancelar",
+    "configure": "Configurar",
+    "deactivate": "Desactivar",
+    "deactivated": "desactivada",
+    "error": "Error",
+    "errorLoading": "Error al cargar los datos",
+    "inactive": "Inactivo",
+    "manual": "Manual",
+    "mobile": "Móvil",
+    "noInstructions": "Sin instrucciones específicas",
+    "notConfigured": "No configurada",
+    "notSpecified": "No especificado",
+    "other": "Otros",
+    "productionMode": "Modo Producción",
+    "refresh": "Actualizar",
+    "save": "Guardar cambios",
+    "select": "Seleccionar",
+    "success": "Éxito",
+    "testConnection": "Probar Conexión",
+    "testMode": "Modo Pruebas",
+    "unknownError": "Error desconocido",
+    "update": "Actualizar",
+    "yes": "Sí"
+  },
   "completed": "Completado",
   "completion_error": "Error al completar la solicitud.",
-
-  "common": {
-    "cancel": "Cancelar",
-    "save": "Guardar cambios",
-    "yes": "Sí",
-    "success": "Éxito",
-    "error": "Error"
-  },
-
-  "conversations": "Conversaciones",
-
   "confirm": {
     "delete": "¿Eliminar este método?"
   },
-
   "confirmServiceRequest": "Confirmar solicitud de servicio",
   "confirm_password": "Confirmar contraseña",
-
+  "confirmed": "Confirmado",
   "contact_support": "Contactar soporte",
+  "contacting_provider": "Contactando proveedor",
+  "conversations": "Conversaciones",
   "dashboard": "Panel",
-
   "date": "Fecha",
   "description": "Descripción",
-
+  "disputed": "Disputado",
+  "elapsed": "Tiempo transcurrido",
   "email": "Correo electrónico",
   "emailPlaceholder": "ejemplo@correo.com",
   "email_or_phone": "Correo electrónico o teléfono",
-
   "enter_email_or_phone": "Introduce tu correo o teléfono",
   "enter_password": "Introduce tu contraseña",
-
+  "error": {
+    "conflict": {
+      "active_request": "Ya tienes una solicitud activa con este proveedor",
+      "title": "Solicitud duplicada"
+    }
+  },
   "error_fetching_pending": "Error al obtener solicitudes pendientes.",
-
+  "errors": {
+    "delete": "Error al eliminar",
+    "load": "Error al cargar",
+    "save": "Error al guardar",
+    "toggle": "Error al cambiar estado"
+  },
+  "expired": "Expirado",
+  "failed": "Fallido",
   "faq": "Preguntas frecuentes",
-
+  "forgot": {
+    "email": "Correo electrónico",
+    "emailPlaceholder": "Ingresa tu correo electronico",
+    "error": "Ocurrió un error. Intenta nuevamente.",
+    "method": "Método",
+    "phone": "SMS (teléfono)",
+    "phonePlaceholder": "04141234567",
+    "required": "Debes ingresar un valor",
+    "sendCode": "Enviar código",
+    "sending": "Enviando...",
+    "success": "Si existe el usuario, se ha enviado un código",
+    "title": "Recuperar contraseña"
+  },
   "forgot_password": "¿Olvidaste tu contraseña?",
-
   "history": "Historia",
   "history-placeholder": "Aquí se mostrará tu historial",
-
   "home": "Inicio",
   "in_progress": "En progreso",
-
   "latestActivities": "Últimas actividades",
   "live_tracking": "Seguimiento en vivo",
-
   "loading": "Cargando...",
   "location": "Ubicación",
-
   "login": "Iniciar sesión",
   "login_prompt": "Tu marketplace de servicios de confianza",
+  "login_success": "Inicio de sesión exitoso",
   "logging_in": "Ingresando...",
-
   "logout": "Cerrar sesión",
-
   "manageProviders": "Admin de proveedores",
   "manageServices": "Admin de Servicios",
   "manageUsers": "Admin de Usuarios",
-
   "menu": "Menú",
   "messages": "Mensajes",
-
+  "methods": {
+    "binance": "Binance",
+    "pagoMovil": "Pago Móvil",
+    "paypal": "PayPal",
+    "transferencia": "Transferencia",
+    "zelle": "Zelle"
+  },
   "myEarnings": "Mis ganancias",
   "myOrders": "Mis pedidos",
-  "myServices": "Mis servicios",
   "myRequests": "Mis solicitudes",
-
+  "myServices": "Mis servicios",
   "my_requests": "Solicitudes",
   "my_tickets": "Mis tickets",
-
   "name": "Nombre",
   "namePlaceholder": "Tu nombre completo",
-
   "new_support_ticket": "Nuevo ticket de soporte",
   "new_ticket": "Nuevo ticket",
-
-  "noConversations": "No hay conversaciones",
-  "noFileSelected": "No se ha seleccionado ningún archivo",
-
   "no_account": "¿No tienes una cuenta?",
   "no_active_requests": "No tiene solicitudes en progreso.",
   "no_available_requests": "Aún no hay solicitudes de servicio.",
   "no_completed_requests": "Aún no hay solicitudes completadas.",
+  "noConversations": "No hay conversaciones",
+  "noFileSelected": "No se ha seleccionado ningún archivo",
   "no_history_requests": "Aún no hay historial de solicitudes.",
-
   "no_notifications": "No tienes notificaciones",
   "no_support_tickets": "Sin tickets de soporte.",
-
   "not_available": "No disponible",
-
   "notifications": "Notificaciones",
   "on_the_way": "En camino",
-
   "order_number": "Número de orden",
-
   "other": "Otros",
-
+  "paid": "Pagado",
+  "partially_refunded": "Parcialmente reembolsado",
   "password": "Contraseña",
-
   "pay": "Pagar",
+  "payment": {
+    "on_hold": "Pago en espera"
+  },
   "payment_completed": "Pago completado",
   "payment_method": "Método de pago",
   "payment_issues": "Problemas de pago",
-
+  "paymentGateways": {
+    "addGateway": "Agregar Pasarela",
+    "commission": "Comisión",
+    "commissionConfig": {
+      "fixed": "Comisión Fija ($)",
+      "percentage": "Comisión (%)",
+      "percentageHelp": "Porcentaje específico para esta pasarela (sobrescribe la global)",
+      "title": "Comisión para esta pasarela",
+      "useGlobal": "Dejar en 0 para usar comisión global"
+    },
+    "configuredGateways": "Pasarelas Configuradas",
+    "defaultInstructions": {
+      "bankTransfer": "Realice la transferencia y envíe el comprobante",
+      "mobilePayment": "Realice el pago móvil y envíe el comprobante",
+      "zelle": "Realice la transferencia vía Zelle y envíe el comprobante"
+    },
+    "errors": {
+      "loadGateways": "Error al cargar pasarelas de pago",
+      "saveCommissions": "Error al guardar comisiones",
+      "statusChange": "Error al cambiar estado de la pasarela",
+      "testFailed": "❌ Error al verificar la pasarela"
+    },
+    "fields": {
+      "accessToken": "Access Token",
+      "accountHolder": "Titular de la Cuenta",
+      "accountNumber": "Número de Cuenta",
+      "bankName": "Nombre del Banco",
+      "clientId": "Client ID",
+      "clientSecret": "Client Secret",
+      "description": "Descripción",
+      "displayName": "Nombre para Mostrar",
+      "holderId": "Número de Identificación del Titular",
+      "idNumber": "Número de Identificación",
+      "idType": "Tipo de Identificación",
+      "instructions": "Instrucciones para el Usuario",
+      "operator": "Operadora",
+      "paypalEmail": "Email de PayPal",
+      "phoneNumber": "Número de Teléfono",
+      "sortOrder": "Orden de Visualización",
+      "zelleEmail": "Email de Zelle"
+    },
+    "globalCommissions": {
+      "description": "Configura las comisiones aplicadas a todas las pasarelas",
+      "fixedHelp": "Comisión mínima a cobrar por transacción (se aplica el mayor entre % y fijo)",
+      "fixedRate": "Comisión Fija Mínima ($)",
+      "percentageHelp": "Porcentaje que se retiene por cada transacción exitosa",
+      "percentageRate": "Comisión por Transacción (%)",
+      "title": "Comisiones Globales"
+    },
+    "help": {
+      "accessToken": "Obtén tu Access Token desde el panel de MercadoPago",
+      "instructions": "Instrucciones que verá el usuario al seleccionar este método",
+      "sortOrder": "Número menor = aparece primero"
+    },
+    "idTypes": {
+      "E": "Extranjero (E)",
+      "G": "Gubernamental (G)",
+      "J": "Jurídico (J)",
+      "P": "Pasaporte",
+      "V": "Venezolano (V)"
+    },
+    "loading": "Cargando configuración de pagos...",
+    "messages": {
+      "commissionsSaved": "Comisiones guardadas correctamente",
+      "created": "Pasarela creada correctamente",
+      "statusChanged": "Pasarela {status} correctamente",
+      "testSuccess": "✅ La pasarela está configurada correctamente",
+      "updated": "Pasarela actualizada correctamente"
+    },
+    "modal": {
+      "addTitle": "Agregar Nueva Pasarela",
+      "configure": "Configuración de {name}",
+      "editTitle": "Editar Pasarela",
+      "selectType": "Selecciona un tipo de pasarela"
+    },
+    "noGateways": {
+      "addFirst": "Agregar Primera Pasarela",
+      "description": "Configura una pasarela de pago para comenzar a aceptar pagos",
+      "title": "No hay pasarelas configuradas"
+    },
+    "placeholders": {
+      "accessToken": "Access Token de MercadoPago",
+      "accountHolder": "Nombre completo del titular",
+      "accountNumber": "Ej: 0102-1234-5678-9012",
+      "bankName": "Ej: Banco de Venezuela, Banesco, Mercantil",
+      "clientId": "Client ID de PayPal",
+      "clientSecret": "Client Secret de PayPal",
+      "description": "Descripción de la pasarela...",
+      "holderId": "Ej: V-12345678",
+      "idNumber": "Ej: V-12345678",
+      "paypalEmail": "ejemplo@paypal.com",
+      "phoneNumber": "Ej: 0412-1234567",
+      "zelleEmail": "ejemplo@gmail.com"
+    },
+    "stats": {
+      "activeGateways": "Pasarelas Activas",
+      "successRate": "Tasa de Éxito",
+      "totalCollected": "Total Recaudado",
+      "transactions": "Transacciones"
+    },
+    "subtitle": "Configura y gestiona los métodos de pago de la plataforma",
+    "title": "Pasarelas de Pago",
+    "transactions": "Transacciones",
+    "types": {
+      "bank_transfer": {
+        "description": "Transferencias directas a cuenta bancaria",
+        "name": "Transferencia Bancaria"
+      },
+      "mercadopago": {
+        "description": "Pagos en Latinoamérica",
+        "name": "MercadoPago"
+      },
+      "mobile_payment": {
+        "description": "Pagos desde móvil",
+        "name": "Pago Móvil"
+      },
+      "paypal": {
+        "description": "Pagos internacionales con PayPal",
+        "name": "PayPal"
+      },
+      "zelle": {
+        "description": "Transferencias en USA",
+        "name": "Zelle"
+      }
+    }
+  },
+  "paymentMethods": {
+    "account": "Cuenta",
+    "active": "Activo",
+    "bank": "Banco",
+    "empty": "No hay métodos registrados",
+    "holder": "Titular",
+    "id": "CI",
+    "idNumber": "CI/RIF",
+    "phone": "Teléfono",
+    "title": "Mis métodos de pago",
+    "type": "Tipo"
+  },
+  "pending": "Pendiente",
   "phone": "Teléfono",
   "phonePlaceholder": "Ej: +52 555 123 4567",
-
   "price": "Precio",
-
+  "processing": "Procesando",
   "profile": "Perfil",
-
   "profile_details": {
     "changeAvatar": "Cambiar avatar",
     "email": "Correo electrónico",
@@ -169,36 +331,45 @@
     "title": "Perfil",
     "updateFailed": "No se pudo actualizar el perfil."
   },
-
   "provider": "Proveedor",
   "provider_info": "Información del proveedor",
   "provider_panel": "Panel Proveedor",
   "providerPanel": "Panel de proveedor",
-
+  "refunded": "Reembolsado",
   "register": "Registrarse",
   "register_here": "Regístrate aquí",
   "registering": "Registrando...",
-
   "reject": "Rechazar",
+  "rejected": "Rechazado",
+  "release_to_refresh": "Suelta para actualizar",
   "reports": "Reportes",
-
   "requested_by": "Solicitado por",
   "requests": "Solicitudes",
-
+  "resetPassword": {
+    "confirmPasswordLabel": "Confirmar contraseña",
+    "errors": {
+      "invalidToken": "Token inválido o expirado",
+      "minLength": "La contraseña debe tener al menos 6 caracteres",
+      "notMatch": "Las contraseñas no coinciden",
+      "required": "Todos los campos son obligatorios"
+    },
+    "loading": "Guardando...",
+    "passwordLabel": "Nueva contraseña",
+    "passwordPlaceholder": "Mínimo 6 caracteres",
+    "submit": "Cambiar contraseña",
+    "success": "Contraseña actualizada correctamente",
+    "title": "Nueva contraseña",
+    "tokenLabel": "Código / Token",
+    "tokenPlaceholder": "Pega el código o token recibido"
+  },
   "role": "Rol",
-
   "saving": "Guardando...",
-
   "select_category": "Selecciona una categoría",
   "select_role": "Selecciona un rol",
-
   "send": "Enviar",
-
   "service": "Servicio",
-  "servicePrice": "Precio del servicio",
-
   "service_issues": "Problemas con el servicio",
-
+  "servicePrice": "Precio del servicio",
   "services": {
     "category": "Categoría",
     "categoryPlaceholder": "Ej: Tecnología",
@@ -227,144 +398,38 @@
     "successTitle": "¡Servicio creado!",
     "title": "Título",
     "titlePlaceholder": "Ej: Reparación de computadoras",
-    "updated": "Servicio actualizado correctamente.",
-    "updateError": "No se pudo actualizar el servicio."
+    "updateError": "No se pudo actualizar el servicio.",
+    "updated": "Servicio actualizado correctamente."
   },
-
   "settings": "Configuración",
   "show_password": "Mostrar contraseña",
-
   "support": "Soporte",
-
   "technical_issues": "Problemas técnicos",
-
   "ticket_subject": "Asunto del ticket",
-
+  "timeline": "Línea de tiempo",
   "user": "Usuario",
-
-  "wallet": {
-    "title": "Mi billetera",
-    "currentBalance": "Saldo actual",
-    "recharge": "Recargar",
-    "withdraw": "Retirar",
-    "rechargeTitle": "Recargar billetera",
-    "withdrawTitle": "Retirar fondos",
-    "noDescription": "Sin descripción",
-    "enterAmount": "Introduce el monto",
-    "operationSuccess": "Operación completada",
-    "loadFailed": "No se pudo cargar la billetera",
-    "invalidAmount": "Introduce un monto válido"
-  },
-
-  "welcome": "Bienvenido a TapClic",
-  "your_services": "Tus servicios",
-
-  "actions": {
-    "add": "Agregar",
-    "update": "Actualizar",
-    "edit": "Editar",
-    "delete": "Eliminar",
-    "cancel": "Cancelar"
-  },
-
-  "errors": {
-    "load": "Error al cargar",
-    "save": "Error al guardar",
-    "delete": "Error al eliminar",
-    "toggle": "Error al cambiar estado"
-  },
-
   "validations": {
     "holderRequired": "Titular obligatorio",
     "idRequired": "CI/RIF obligatorio",
+    "invalidEmail": "Email inválido",
     "max20": "Máx 20 caracteres",
-    "max50": "Máx 50 caracteres",
-    "invalidEmail": "Email inválido"
+    "max50": "Máx 50 caracteres"
   },
-
-  "methods": {
-    "pagoMovil": "Pago Móvil",
-    "transferencia": "Transferencia",
-    "zelle": "Zelle",
-    "paypal": "PayPal",
-    "binance": "Binance"
-  },
-
-  "paymentMethods": {
-    "title": "Mis métodos de pago",
-    "type": "Tipo",
-    "holder": "Titular",
-    "idNumber": "CI/RIF",
-    "phone": "Teléfono",
-    "bank": "Banco",
-    "account": "Cuenta",
-    "active": "Activo",
-    "id": "CI",
-    "empty": "No hay métodos registrados"
-  },
-
-  "login_success": "Inicio de sesión exitoso",
-
-  "accept": "Aceptar",
-  "pending": "Pendiente",
-  "paid": "Pagado",
-  "rejected": "Rechazado",
   "verifying": "Verificando",
-  "refunded": "Reembolsado",
-  "partially_refunded": "Parcialmente reembolsado",
-  "disputed": "Disputado",
-  "expired": "Expirado",
-  "confirmed": "Confirmado",
-  "failed": "Fallido",
-  "processing": "Procesando",
-
-  "cancelled_by_user": "Cancelado por el usuario",
-  "cancelled_by_provider": "Cancelado por el proveedor",
-
-  "payment": {
-    "on_hold": "Pago en espera"
+  "waiting_provider_response": "Esperando respuesta del proveedor",
+  "wallet": {
+    "currentBalance": "Saldo actual",
+    "enterAmount": "Introduce el monto",
+    "invalidAmount": "Introduce un monto válido",
+    "loadFailed": "No se pudo cargar la billetera",
+    "noDescription": "Sin descripción",
+    "operationSuccess": "Operación completada",
+    "recharge": "Recargar",
+    "rechargeTitle": "Recargar billetera",
+    "title": "Mi billetera",
+    "withdraw": "Retirar",
+    "withdrawTitle": "Retirar fondos"
   },
-
-  "release_to_refresh": "Suelta para actualizar",
-  "timeline": "Línea de tiempo",
-  "elapsed": "Tiempo transcurrido",
-
-  "forgot": {
-    "title": "Recuperar contraseña",
-    "method": "Método",
-    "email": "Correo electrónico",
-    "phone": "SMS (teléfono)",
-    "emailPlaceholder": "Ingresa tu correo electronico",
-    "phonePlaceholder": "04141234567",
-    "sendCode": "Enviar código",
-    "sending": "Enviando...",
-    "required": "Debes ingresar un valor",
-    "success": "Si existe el usuario, se ha enviado un código",
-    "error": "Ocurrió un error. Intenta nuevamente."
-  },
-
-  "resetPassword": {
-    "title": "Nueva contraseña",
-    "tokenLabel": "Código / Token",
-    "tokenPlaceholder": "Pega el código o token recibido",
-    "passwordLabel": "Nueva contraseña",
-    "passwordPlaceholder": "Mínimo 6 caracteres",
-    "confirmPasswordLabel": "Confirmar contraseña",
-    "submit": "Cambiar contraseña",
-    "loading": "Guardando...",
-    "success": "Contraseña actualizada correctamente",
-    "errors": {
-      "required": "Todos los campos son obligatorios",
-      "minLength": "La contraseña debe tener al menos 6 caracteres",
-      "notMatch": "Las contraseñas no coinciden",
-      "invalidToken": "Token inválido o expirado"
-    }
-  },
-
-  "error": {
-    "conflict": {
-      "title": "Solicitud duplicada",
-      "active_request": "Ya tienes una solicitud activa con este proveedor"
-    }
-  }
+  "welcome": "Bienvenido a TapClic",
+  "your_services": "Tus servicios"
 }

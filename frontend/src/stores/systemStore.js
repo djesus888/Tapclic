@@ -12,11 +12,14 @@ export const useSystemStore = defineStore('system', {
     async fetchConfig() {
       this.loading = true
       this.error = null
+
       try {
         console.log('🔥 fetchConfig: iniciando llamada al backend')
+        
         // timeout opcional de 5 segundos para no quedar colgado
-        const res = await api.get('/system', { timeout: 5000 })
-        this.config = res.data
+        const res = await api.get('/system/config', { timeout: 5000 })
+        
+        this.config = res.data.config
         console.log('✅ fetchConfig: datos cargados', this.config)
         return res.data
       } catch (err) {

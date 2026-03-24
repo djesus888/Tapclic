@@ -53,4 +53,47 @@ class SupportModel {
         $stmt = $this->conn->prepare($query);
         return $stmt->execute([':status' => $status, ':id' => $id]);
     }
+
+// En SupportModel.php necesitas agregar:
+
+public function getTicketById(int $id): ?array {
+    $query = "SELECT * FROM {$this->table} WHERE id = :id";
+    $stmt = $this->conn->prepare($query);
+    $stmt->execute([':id' => $id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result ? $result : null;
+}
+
+public function updateTicket(int $id, array $data): bool {
+    $fields = [];
+    foreach ($data as $key => $value) {
+        $fields[] = "$key = :$key";
+    }
+    $fields = implode(', ', $fields);
+    
+    $query = "UPDATE {$this->table} SET $fields, updated_at = NOW() WHERE id = :id";
+    $stmt = $this->conn->prepare($query);
+    $data['id'] = $id;
+    return $stmt->execute($data);
+}
+
+public function addReply(int $ticketId, int $userId, string $message): int {
+    $query = "INSERT INTO ticket_replies (ticket_id, user_id, message, created_at) 
+              VALUES (:ticket_id, :user_id, :message, NOW())";
+    $stmt = $this->conn->prepare($query);
+    $stmt->execute([
+        ':ticket_id' => $ticketId,
+        ':user_id' => $userId,
+        ':message' => $message
+    ]);
+    return $this->conn->lastInsertId();
+}
+
+public function updateTimestamp(int $id): bool {
+    $query = "UPDATE {$this->table} SET updated_at = NOW() WHERE id = :id";
+    $stmt = $this->conn->prepare($query);
+    return $stmt->execute([':id' => $id]);
+}
+
+
 }

@@ -46,10 +46,10 @@
           class="mt-4"
         >
           <img
-            :src="`http://localhost:8000${proof.proof_url}`"
-            alt="Comprobante"
-            class="rounded-lg border max-h-80 mx-auto object-contain"
-          >
+  :src="getImageUrl(proof.proof_url)"
+  alt="Comprobante"
+  class="rounded-lg border max-h-80 mx-auto object-contain"
+>
         </div>
 
         <!-- ACCIONES -->

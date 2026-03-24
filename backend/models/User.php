@@ -156,6 +156,8 @@ public function findByResetToken(string $token): ?array
 
     return $user ?: null;
 }
-
+public function getDb() {
+    return $this->conn; 
+}
 
 }

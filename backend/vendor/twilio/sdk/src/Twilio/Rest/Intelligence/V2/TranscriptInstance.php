@@ -22,11 +22,9 @@ use Twilio\InstanceResource;
 use Twilio\Values;
 use Twilio\Version;
 use Twilio\Deserialize;
-use Twilio\Rest\Intelligence\V2\Transcript\SentenceList;
 use Twilio\Rest\Intelligence\V2\Transcript\OperatorResultList;
-use Twilio\Rest\Intelligence\V2\Transcript\EncryptedSentencesList;
+use Twilio\Rest\Intelligence\V2\Transcript\SentenceList;
 use Twilio\Rest\Intelligence\V2\Transcript\MediaList;
-use Twilio\Rest\Intelligence\V2\Transcript\EncryptedOperatorResultsList;
 
 
 /**
@@ -41,19 +39,16 @@ use Twilio\Rest\Intelligence\V2\Transcript\EncryptedOperatorResultsList;
  * @property string|null $languageCode
  * @property string|null $customerKey
  * @property \DateTime|null $mediaStartTime
- * @property int $duration
+ * @property int|null $duration
  * @property string|null $url
  * @property bool|null $redaction
- * @property string|null $encryptionCredentialSid
  * @property array|null $links
  */
 class TranscriptInstance extends InstanceResource
 {
-    protected $_sentences;
     protected $_operatorResults;
-    protected $_encryptedSentences;
+    protected $_sentences;
     protected $_media;
-    protected $_encryptedOperatorResults;
 
     /**
      * Initialize the TranscriptInstance
@@ -62,7 +57,7 @@ class TranscriptInstance extends InstanceResource
      * @param mixed[] $payload The response payload
      * @param string $sid A 34 character string that uniquely identifies this Transcript.
      */
-    public function __construct(Version $version, array $payload, ?string $sid = null)
+    public function __construct(Version $version, array $payload, string $sid = null)
     {
         parent::__construct($version);
 
@@ -82,7 +77,6 @@ class TranscriptInstance extends InstanceResource
             'duration' => Values::array_get($payload, 'duration'),
             'url' => Values::array_get($payload, 'url'),
             'redaction' => Values::array_get($payload, 'redaction'),
-            'encryptionCredentialSid' => Values::array_get($payload, 'encryption_credential_sid'),
             'links' => Values::array_get($payload, 'links'),
         ];
 
@@ -132,14 +126,6 @@ class TranscriptInstance extends InstanceResource
     }
 
     /**
-     * Access the sentences
-     */
-    protected function getSentences(): SentenceList
-    {
-        return $this->proxy()->sentences;
-    }
-
-    /**
      * Access the operatorResults
      */
     protected function getOperatorResults(): OperatorResultList
@@ -148,11 +134,11 @@ class TranscriptInstance extends InstanceResource
     }
 
     /**
-     * Access the encryptedSentences
+     * Access the sentences
      */
-    protected function getEncryptedSentences(): EncryptedSentencesList
+    protected function getSentences(): SentenceList
     {
-        return $this->proxy()->encryptedSentences;
+        return $this->proxy()->sentences;
     }
 
     /**
@@ -161,14 +147,6 @@ class TranscriptInstance extends InstanceResource
     protected function getMedia(): MediaList
     {
         return $this->proxy()->media;
-    }
-
-    /**
-     * Access the encryptedOperatorResults
-     */
-    protected function getEncryptedOperatorResults(): EncryptedOperatorResultsList
-    {
-        return $this->proxy()->encryptedOperatorResults;
     }
 
     /**

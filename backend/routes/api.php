@@ -13,6 +13,10 @@ require_once __DIR__ . '/../controllers/HistoryController.php';
 require_once __DIR__ . '/../controllers/SystemController.php';
 require_once __DIR__ . '/../controllers/ConversationController.php';
 require_once __DIR__ . '/../controllers/ProviderPaymentController.php';
+require_once __DIR__ . '/../controllers/ContentController.php';
+require_once __DIR__ . '/../controllers/WalletController.php';
+require_once __DIR__ . '/../controllers/PaymentMethodController.php';
+require_once __DIR__ . '/../controllers/UserPresenceController.php';
 
 $request = $_SERVER['REQUEST_URI'];
 $method  = $_SERVER['REQUEST_METHOD'];
@@ -26,13 +30,18 @@ if (preg_match('~/api/login~', $request)) {
     (new AuthController())->me();
 } elseif ($request === '/api/refresh-token' && $method === 'POST') {
     (new AuthController())->refreshToken();
-
 } elseif ($request === '/api/forgot-password' && $method === 'POST') {
     (new AuthController())->forgotPassword();
-
 } elseif ($request === '/api/reset-password' && $method === 'POST') {
     (new AuthController())->resetPassword();
+} elseif ($request === '/api/logout' && $method === 'POST') {
+    (new AuthController())->logout();
 
+// --- RUTAS DE PRESENCIA ONLINE ---
+} elseif ($request === '/api/user/heartbeat' && $method === 'POST') {
+    (new UserPresenceController())->heartbeat();
+} elseif (preg_match('~/api/user/(\d+)/online$~', $request, $m) && $method === 'GET') {
+    (new UserPresenceController())->checkUserOnline((int)$m[1]);
 
 // --- RUTA INDIVIDUAL POR ID ---
 } elseif (preg_match('~/api/services/(\d+)$~', $request, $m) && $method === 'GET') {
@@ -72,7 +81,7 @@ if (preg_match('~/api/login~', $request)) {
 ) {
     (new RequestController())->handle($method);
 
-// --- RUTAS HISTORIAL (NUEVAS) ---
+// --- RUTAS HISTORIAL ---
 } elseif (
     preg_match('~/api/history/?$~', $request) ||
     preg_match('~/api/history/rate/?$~', $request) ||
@@ -82,17 +91,20 @@ if (preg_match('~/api/login~', $request)) {
 ) {
     (new HistoryController())->handle($method);
 
-
 // --- RUTAS NOTIFICACIONES ---
 } elseif (
     preg_match('~/api/notifications/send~', $request) ||
     preg_match('~/api/notifications/mine~', $request) ||
     preg_match('~/api/notifications/read~', $request) ||
+    preg_match('~/api/notifications/read-all~', $request) ||
+    preg_match('~/api/notifications/email~', $request) ||
+    preg_match('~/api/notifications/sms~', $request) ||
+    preg_match('~/api/notifications/preferences~', $request) ||
     preg_match('~/api/notifications/?$~', $request)
 ) {
     (new NotificationController())->handle($method);
 
-/* --- RUTAS ÚTILES / REPORTES / RESPUESTA --- */
+// --- RUTAS ÚTILES / REPORTES / RESPUESTA ---
 } elseif ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $request)) {
     (new HistoryController())->markHelpful();
 } elseif ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $request)) {
@@ -116,27 +128,47 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/profile$~', $request)) {
     (new UserController())->getProfile();
 
+// --- RUTAS PARA DISPOSITIVOS ---
+} elseif (preg_match('~/api/profile/devices~', $request) && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    (new UserController())->getDevices();
+} elseif (preg_match('~/api/profile/revoke-device~', $request) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    (new UserController())->revokeDevice();
+} elseif (preg_match('~/api/profile/revoke-all-devices~', $request) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    (new UserController())->revokeAllDevices();
+
 // --- RUTAS PROVEEDOR ---
 } elseif (preg_match('~/api/provider/update~', $request)) {
     (new UserController())->updateProviderData();
-} elseif (preg_match('~/api/provider/\d+~', $request)) {
-    $parts = explode('/', trim($request, '/'));
-    $id = $parts[2] ?? null;
-    if ($id) {
-        (new UserController())->getProvider($id);
-    } else {
-        http_response_code(400);
-        echo json_encode(["error" => "ID de proveedor no proporcionado"]);
-    }
+} elseif (preg_match('~/api/provider/(\d+)$~', $request, $m) && $method === 'GET') {
+    (new UserController())->getProvider((int)$m[1]);
 
-// --- RUTAS ADMIN ---
+// --- RUTAS MÉTODOS DE PAGO ---
+} elseif ($request === '/api/payment-methods' && $method === 'GET') {
+    (new PaymentMethodController())->index();
+} elseif (preg_match('~/api/payment-methods/([a-zA-Z_]+)$~', $request, $m) && $method === 'GET') {
+    (new PaymentMethodController())->show($m[1]);
+
+// --- RUTAS ADMIN (GESTIÓN DE LA PLATAFORMA) ---
+} elseif ($request === '/api/admin/payment-methods' && $method === 'GET') {
+    (new PaymentMethodController())->adminIndex();
+} elseif ($request === '/api/admin/payment-methods' && $method === 'POST') {
+    (new PaymentMethodController())->store();
+} elseif (preg_match('~/api/admin/payment-methods/(\d+)$~', $request, $m) && $method === 'PUT') {
+    (new PaymentMethodController())->update((int)$m[1]);
+} elseif (preg_match('~/api/admin/payment-methods/(\d+)$~', $request, $m) && $method === 'DELETE') {
+    (new PaymentMethodController())->destroy((int)$m[1]);
+
+// --- RUTAS ADMIN (REPORTES Y ESTADÍSTICAS) ---
 } elseif (preg_match('~/api/admin/reports~', $request) && $method === 'GET') {
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
     (new AdminController())->stats();
-} elseif (preg_match('~/api/admin/users~', $request)) {
+} elseif (preg_match('~/api/admin/users$~', $request)) {
     (new AdminController())->users();
-/* --- RUTAS ADMIN (servicios) --- */
+} elseif (preg_match('~/api/admin/users/admins~', $request) && $method === 'GET') {
+    (new AdminController())->getAdmins();
+
+// --- RUTAS ADMIN (SERVICIOS) ---
 } elseif (preg_match('~/api/admin/services~', $request) && $method === 'GET') {
     (new AdminController())->listServices();
 } elseif (preg_match('~/api/admin/services/update~', $request) && $method === 'PUT') {
@@ -144,42 +176,118 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/admin/services/delete~', $request) && $method === 'DELETE') {
     (new AdminController())->deleteService();
 
-// --- RUTAS PAGO (usuario paga) y MÉTODOS DE PAGO (proveedor) ---
-} elseif (preg_match('~/api/payments~', $request)) {
-    (new PaymentController())->handle($method);
-} elseif (preg_match('#^/api/provider/(\d+)/payment-methods$#', $request, $m)) {
-    $providerId = (int)$m[1];
-    (new ProviderPaymentController())->getPublicMethods($providerId);
-} elseif (preg_match('#^/api/provider/payment-methods(/(\d+))?$#', $request, $m)) {
-    $id = isset($m[2]) ? (int)$m[2] : null;
-    switch ($method) {
-        case 'GET':
-            (new ProviderPaymentController())->getMyMethods();
-            break;
-        case 'POST':
-            (new ProviderPaymentController())->createMethod();
-            break;
-        case 'PUT':
-            if (!$id) { http_response_code(400); exit; }
-            (new ProviderPaymentController())->updateMethod($id);
-            break;
-        case 'DELETE':
-            if (!$id) { http_response_code(400); exit; }
-            (new ProviderPaymentController())->deleteMethod($id);
-            break;
-        default:
-            http_response_code(405);
-            echo json_encode(['error' => 'Método no permitido']);
+// --- RUTAS ADMIN (ANALYTICS) ---
+} elseif (preg_match('~/api/admin/analytics/overview~', $request) && $method === 'GET') {
+    (new AdminController())->getAnalyticsOverview();
+} elseif (preg_match('~/api/admin/analytics/charts~', $request) && $method === 'GET') {
+    (new AdminController())->getAnalyticsCharts();
+} elseif (preg_match('~/api/admin/analytics/realtime~', $request) && $method === 'GET') {
+    (new AdminController())->getAnalyticsRealTime();
+} elseif (preg_match('~/api/admin/analytics/export~', $request) && $method === 'GET') {
+    (new AdminController())->exportAnalytics();
+
+// --- RUTAS ADMIN (CONTENIDO) ---
+} elseif (preg_match('~/api/admin/content~', $request)) {
+    (new ContentController())->handle($method);
+
+// --- RUTAS ADMIN (PAGOS) ---
+} elseif (preg_match('~/api/admin/payment-gateways/(\d+)$~', $request, $m)) {
+    $id = (int)$m[1];
+    if ($method === 'GET') {
+        (new AdminController())->getPaymentGateway($id);
+    } elseif ($method === 'PUT') {
+        (new AdminController())->updatePaymentGateway($id);
+    }
+} elseif (preg_match('~/api/admin/payment-gateways$~', $request) && $method === 'GET') {
+    (new AdminController())->getPaymentGateways();
+} elseif (preg_match('~/api/admin/payment-stats$~', $request) && $method === 'GET') {
+    (new AdminController())->getPaymentStats();
+} elseif (preg_match('~/api/admin/payment-settings$~', $request) && $method === 'PUT') {
+    (new AdminController())->updatePaymentSettings();
+
+// --- RUTAS ADMIN (SEGURIDAD) ---
+} elseif (preg_match('~/api/admin/security/sessions~', $request) && $method === 'GET') {
+    (new AdminController())->getActiveSessions();
+} elseif (preg_match('~/api/admin/security/sessions/terminate~', $request) && $method === 'POST') {
+    (new AdminController())->terminateSession();
+} elseif (preg_match('~/api/admin/security/audit-logs~', $request) && $method === 'GET') {
+    (new AdminController())->getAuditLogs();
+} elseif (preg_match('~/api/admin/security/blocked-ips~', $request)) {
+    if ($method === 'GET') {
+        (new AdminController())->getBlockedIPs();
+    } elseif ($method === 'POST') {
+        (new AdminController())->blockIP();
+    }
+} elseif (preg_match('~/api/admin/security/blocked-ips/unblock~', $request) && $method === 'POST') {
+    (new AdminController())->unblockIP();
+} elseif (preg_match('~/api/admin/security/config~', $request)) {
+    if ($method === 'GET') {
+        (new AdminController())->getSecurityConfig();
+    } elseif ($method === 'PUT') {
+        (new AdminController())->updateSecurityConfig();
     }
 
-// --- RUTAS CONVERSACIONES ---
-} elseif (preg_match('~/api/conversations~', $request)) {
-    (new ConversationController())->handle($method);
+// --- RUTAS DEL SISTEMA ---
+} elseif (preg_match('~/api/system$~', $request)) {
+    (new SystemController())->handle($method);
+} elseif (preg_match('~/api/system/config~', $request) && $method === 'GET') {
+    (new SystemController())->handle($method);
+} elseif (preg_match('~/api/system/config~', $request) && $method === 'POST') {
+    (new SystemController())->handle($method);
+} elseif (preg_match('~/api/system/test-email~', $request) && $method === 'POST') {
+    (new SystemController())->handle($method);
+} elseif (preg_match('~/api/system/test-sms~', $request) && $method === 'POST') {
+    (new SystemController())->handle($method);
+} elseif (preg_match('~/api/system/status~', $request) && $method === 'GET') {
+    (new SystemController())->getStatus();
 
+// --- RUTAS WALLET PRODUCCIÓN ---
+} elseif ($request === '/api/wallet' && $method === 'GET') {
+    (new WalletController())->getWallet();
+} elseif ($request === '/api/wallet' && $method === 'POST') {
+    (new WalletController())->create();
+} elseif ($request === '/api/wallet/balance' && $method === 'GET') {
+    (new WalletController())->getBalance();
+} elseif ($request === '/api/wallet/stats' && $method === 'GET') {
+    (new WalletController())->getStats();
+} elseif ($request === '/api/wallet/transactions' && $method === 'GET') {
+    (new WalletController())->getTransactions();
+} elseif ($request === '/api/wallet/recharge' && $method === 'POST') {
+    (new WalletController())->recharge();
+} elseif ($request === '/api/wallet/withdraw' && $method === 'POST') {
+    (new WalletController())->withdraw();
+} elseif ($request === '/api/wallet/transfer' && $method === 'POST') {
+    (new WalletController())->transfer();
+
+// --- RUTAS WALLET SOLICITUDES ---
+} elseif ($request === '/api/wallet/recharge-request' && $method === 'POST') {
+    (new WalletController())->rechargeRequest();
+} elseif ($request === '/api/wallet/my-requests' && $method === 'GET') {
+    (new WalletController())->getMyRequests();
+} elseif (preg_match('~/api/wallet/requests/(\d+)/proof$~', $request, $m) && $method === 'PUT') {
+    (new WalletController())->updateProof((int)$m[1]);
+} elseif (preg_match('~/api/wallet/requests/(\d+)/cancel$~', $request, $m) && $method === 'PUT') {
+    (new WalletController())->cancelRequest((int)$m[1]);
+
+// --- RUTAS ADMIN WALLET ---
+} elseif (preg_match('~/api/admin/wallet/requests~', $request) && $method === 'GET') {
+    (new WalletController())->adminGetRequests();
+} elseif (preg_match('~/api/admin/wallet/approve/(\d+)$~', $request, $m) && $method === 'PUT') {
+    (new WalletController())->adminApproveRequest((int)$m[1]);
+} elseif (preg_match('~/api/admin/wallet/reject/(\d+)$~', $request, $m) && $method === 'PUT') {
+    (new WalletController())->adminRejectRequest((int)$m[1]);
+} elseif ($request === '/api/admin/wallet/stats' && $method === 'GET') {
+    (new WalletController())->adminGetStats();
+
+// ========== RUTAS DE MENSAJERÍA Y CONVERSACIONES ==========
 // --- RUTAS MENSAJES / CHAT ---
 } elseif (preg_match('~/api/upload/image~', $request)) {
     (new MessageController())->uploadMessageImage();
-} elseif (preg_match('#/api/messages/(\d+)/([a-z]+)$#', $request, $m)) {
+} elseif (preg_match('~/api/messages/(\d+)/for-me$~', $request, $m) && $method === 'DELETE') {
+    (new MessageController())->deleteMessageForUser((int)$m[1]);
+} elseif (preg_match('~/api/messages/(\d+)$~', $request, $m) && $method === 'GET') {
+    (new MessageController())->getMessagesByConversation((int)$m[1]);
+} elseif (preg_match('#/api/messages/(\d+)/([a-z]+)$#', $request, $m) && $method === 'GET') {
     $data = ['target_id' => (int)$m[1], 'target_role' => $m[2]];
     (new MessageController())->getMessages($data);
 } elseif (preg_match('~/api/messages/conversation~', $request)) {
@@ -191,31 +299,73 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/messages/read~', $request)) {
     $data = json_decode(file_get_contents("php://input"), true) ?? $_POST;
     (new MessageController())->markAsRead($data);
+} elseif (preg_match('~/api/messages/(\d+)$~', $request, $m) && $method === 'DELETE') {
+    (new MessageController())->deleteMessage((int)$m[1]);
+
+// =====================================================
+// ✅ NUEVA RUTA: Marcar conversación como entregada
+// =====================================================
+} elseif (preg_match('~/api/messages/conversation/(\d+)/delivered$~', $request, $m) && $method === 'POST') {
+    (new MessageController())->markConversationAsDelivered((int)$m[1]);
+
+// --- RUTAS CONVERSACIONES ---
+} elseif (preg_match('~/api/conversations/(\d+)/for-me$~', $request, $m) && $method === 'DELETE') {
+    (new MessageController())->deleteConversationForUser((int)$m[1]);
+} elseif (preg_match('~/api/conversations/find/(\d+)/([a-z]+)$~', $request, $m) && $method === 'GET') {
+    (new ConversationController())->findByParticipants((int)$m[1], $m[2]);
+} elseif (preg_match('~/api/conversations/create$~', $request) && $method === 'POST') {
+    (new ConversationController())->create();
+} elseif (preg_match('~/api/conversations/(\d+)$~', $request, $m) && $method === 'GET') {
+    (new ConversationController())->getById((int)$m[1]);
+} elseif (preg_match('~/api/conversations/(\d+)$~', $request, $m) && $method === 'DELETE') {
+    (new MessageController())->deleteConversation((int)$m[1]);
+} elseif (preg_match('~/api/conversations/(\d+)/messages$~', $request, $m) && $method === 'DELETE') {
+    (new MessageController())->deleteConversationMessages((int)$m[1]);
+} elseif (preg_match('~/api/conversations$~', $request)) {
+    (new ConversationController())->handle($method);
 
 // --- RUTAS SOPORTE ---
 } elseif (
     preg_match('~/api/support/faq~', $request) ||
     preg_match('~/api/support/tickets~', $request) ||
-    preg_match('~/api/support/tickets/create~', $request)
+    preg_match('~/api/support/tickets/create~', $request) ||
+    preg_match('~/api/support/tickets/close~', $request) ||
+    preg_match('~/api/support/tickets/update~', $request) ||
+    preg_match('~/api/support/tickets/reply~', $request)
 ) {
     (new SupportController())->handle($method);
 
-// --- RUTAS CONFIGURACIÓN DEL SISTEMA (NUEVAS) ---
-} elseif (preg_match('~/api/admin/system-config$~', $request) && $method === 'GET') {
-    (new AdminController())->getSystemConfig();
-} elseif (preg_match('~/api/admin/system-config$~', $request) && $method === 'PUT') {
-    (new AdminController())->updateSystemConfig();
-} elseif (preg_match('~/api/admin/upload-logo$~', $request) && $method === 'POST') {
-    (new AdminController())->uploadLogo();
-} elseif (preg_match('~/api/admin/upload-favicon$~', $request) && $method === 'POST') {
-    (new AdminController())->uploadFavicon();
+// --- RUTAS ADMIN TICKETS ---
+} elseif (preg_match('~/api/admin/tickets$~', $request) && $method === 'GET') {
+    (new AdminController())->getAllTickets();
+} elseif (preg_match('~/api/admin/tickets/(\d+)$~', $request, $m) && $method === 'GET') {
+    (new AdminController())->getTicket((int)$m[1]);
+} elseif (preg_match('~/api/admin/tickets/(\d+)/respond$~', $request, $m) && $method === 'POST') {
+    (new AdminController())->respondToTicket((int)$m[1]);
+} elseif (preg_match('~/api/admin/tickets/(\d+)/status$~', $request, $m) && $method === 'PUT') {
+    (new AdminController())->updateTicketStatus((int)$m[1]);
+} elseif (preg_match('~/api/admin/tickets/stats$~', $request) && $method === 'GET') {
+    (new AdminController())->getTicketStats();
 
-// --- RUTA GET DEL SISTEMA ---
-} elseif (preg_match('~/api/system~', $request)) {
-    (new SystemController())->handle($method);
+// --- RUTAS ADMIN TICKETS (ACCIONES MASIVAS) ---
+} elseif (preg_match('~/api/admin/tickets/bulk/assign~', $request) && $method === 'POST') {
+    (new AdminController())->bulkAssign();
+} elseif (preg_match('~/api/admin/tickets/bulk/status~', $request) && $method === 'POST') {
+    (new AdminController())->bulkStatus();
+} elseif (preg_match('~/api/admin/tickets/bulk/priority~', $request) && $method === 'POST') {
+    (new AdminController())->bulkPriority();
+} elseif (preg_match('~/api/admin/tickets/bulk/delete~', $request) && $method === 'POST') {
+    (new AdminController())->bulkDelete();
+} elseif (preg_match('~/api/admin/tickets/bulk/tag~', $request) && $method === 'POST') {
+    (new AdminController())->bulkTag();
+} elseif (preg_match('~/api/admin/tickets/(\d+)/replies~', $request, $m) && $method === 'GET') {
+    (new AdminController())->getTicketReplies((int)$m[1]);
+} elseif (preg_match('~/api/admin/tickets/(\d+)/reopen~', $request, $m) && $method === 'POST') {
+    (new AdminController())->reopenTicket((int)$m[1]);
 
 // --- RUTA POR DEFECTO ---
 } else {
     http_response_code(404);
     echo json_encode(["error" => "Ruta no encontrada"]);
 }
+?>

@@ -1,201 +1,275 @@
 <template>
-  <div class="max-w-6xl mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-6">
-      {{ $t('services.myServices') }}
-    </h1>
+  <div class="my-services-page">
+    <!-- Header -->
+    <div class="header">
+      <div class="title-section">
+        <h1><span class="services-icon">📋</span> {{ $t('services.myServices') }}</h1>
+        <p>{{ $t('services.manageYourServices') }}</p>
+      </div>
+      
+      <router-link
+        to="/services/new"
+        class="btn-create"
+      >
+        ➕ {{ $t('services.createNew') }}
+      </router-link>
+    </div>
 
-    <router-link
-      to="/services/new"
-      class="mb-6 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-    >
-      {{ $t('services.createNew') }}
-    </router-link>
-
-    <div
-      v-if="services.length"
-      class="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-    >
+    <!-- Services Grid -->
+    <div v-if="services.length" class="services-grid">
       <div
         v-for="s in services"
         :key="s.id"
-        class="relative border rounded-lg p-4 hover:shadow-lg cursor-pointer"
+        class="service-card"
         @click="openEditModal(s)"
       >
-        <!-- Badge estado -->
-        <span
-          class="absolute top-2 right-2 text-xs px-2 py-1 rounded-full font-semibold"
-          :class="statusColor(s.status)"
-        >
+        <!-- Badge Estado -->
+        <div class="card-badge" :class="statusBadgeClass(s.status)">
           {{ $t(s.status) }}
-        </span>
+        </div>
 
-        <img
-          v-if="s.image_url"
-          :src="getImageUrl(s.image_url)"
-          :alt="$t('services.image')"
-          class="w-full h-40 object-cover rounded mb-2"
-        >
-        <h2 class="text-xl font-semibold">
-          {{ s.title }}
-        </h2>
-        <p class="text-gray-600">
-          {{ s.description.slice(0, 60) }}...
-        </p>
-        <p class="text-green-600 font-bold mt-1">
-          ${{ s.price }}
-        </p>
-        <p class="text-sm text-gray-500">
-          {{ s.category }} · {{ s.location }}
-        </p>
-        <button
-          class="mt-3 text-sm text-red-600 hover:underline"
-          @click.stop="deleteService(s.id)"
-        >
-          {{ $t('services.delete') }}
-        </button>
+        <!-- Imagen -->
+        <div class="card-image" v-if="s.image_url">
+          <img
+            :src="getImageUrl(s.image_url)"
+            :alt="$t('services.image')"
+            @error="handleImageError"
+          >
+        </div>
+        <div class="card-image placeholder" v-else>
+          <span class="placeholder-icon">📷</span>
+          <p>{{ $t('services.noImage') }}</p>
+        </div>
+
+        <!-- Contenido -->
+        <div class="card-content">
+          <div class="card-header">
+            <span class="service-category">{{ s.category }}</span>
+            <span class="service-location">📍 {{ s.location }}</span>
+          </div>
+
+          <h3 class="service-title">{{ s.title }}</h3>
+          <p class="service-description">{{ s.description.slice(0, 80) }}...</p>
+          
+          <div class="service-details-preview" v-if="s.service_details">
+            <span class="details-icon">📝</span>
+            <span>{{ s.service_details.slice(0, 40) }}...</span>
+          </div>
+
+          <div class="card-footer">
+            <div class="price-section">
+              <span class="price">${{ s.price }}</span>
+              <span class="price-label">{{ $t('services.price') }}</span>
+            </div>
+            
+            <button
+              class="btn-delete"
+              @click.stop="deleteService(s.id)"
+              :title="$t('services.delete')"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div
-      v-else
-      class="text-center text-gray-500"
-    >
-      {{ $t('services.noServices') }}
+    <!-- Empty State -->
+    <div v-else class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h2>{{ $t('services.noServices') }}</h2>
+      <p>{{ $t('services.createFirstService') }}</p>
+      <router-link to="/services/new" class="btn-primary">
+        {{ $t('services.createFirst') }}
+      </router-link>
     </div>
 
-    <!-- Modal -->
+    <!-- Edit Modal -->
     <div
       v-if="showModal"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      class="modal-overlay"
       @click.self="closeEditModal"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-          {{ $t('services.editService') }}
-        </h2>
+      <div class="modal">
+        <div class="modal-header">
+          <h2><span class="edit-icon">✏️</span> {{ $t('services.editService') }}</h2>
+          <button class="btn-close" @click="closeEditModal">×</button>
+        </div>
 
-        <form
-          class="space-y-4"
-          @submit.prevent="updateService"
-        >
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.title') }}</span>
-            <input
-              v-model="form.title"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            >
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.description') }}</span>
-            <textarea
-              v-model="form.description"
-              rows="3"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.serviceDetails') }}</span>
-            <textarea
-              v-model="form.service_details"
-              rows="4"
-              maxlength="1000"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <p class="text-right text-xs text-gray-500">{{ (form.service_details || '').length }}/1000</p>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.price') }}</span>
-            <input
-              v-model.number="form.price"
-              type="number"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            >
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.category') }}</span>
-            <input
-              v-model="form.category"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            >
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('services.location') }}</span>
-            <input
-              v-model="form.location"
-              class="w-full border rounded p-2 dark:bg-gray-700 dark:border-gray-600"
-            >
-          </label>
-
-          <!-- imagen -->
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{{ $t('services.imageOptional') }}</span>
-            <div
-              v-if="previewImage"
-              class="flex items-end gap-4 mb-3"
-            >
-              <img
-                :src="previewImage"
-                alt="Preview"
-                class="w-24 h-24 rounded-xl object-cover shadow"
+        <form class="modal-form" @submit.prevent="updateService">
+          <div class="form-grid">
+            <!-- Título -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📌</span>
+                {{ $t('services.title') }}
+              </label>
+              <input
+                v-model="form.title"
+                type="text"
+                class="form-input"
+                :placeholder="$t('services.titlePlaceholder')"
+                required
               >
-              <button
-                type="button"
-                class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
-                @click="triggerFilePicker"
-              >Cambiar</button>
             </div>
-            <div
-              v-else
-              class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition"
-              @drop.prevent="handleDrop"
-              @dragover.prevent
-              @click="triggerFilePicker"
-            >
-              <svg
-                class="mx-auto h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              /></svg>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Arrastra una imagen o <span class="text-blue-600 dark:text-blue-400 font-medium">haz clic aquí</span></p>
-              <p class="text-xs text-gray-400">PNG, JPG hasta 2 MB</p>
-            </div>
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="onImageChange"
-            >
-          </label>
 
-          <div class="flex justify-end space-x-3">
+            <!-- Descripción -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📋</span>
+                {{ $t('services.description') }}
+              </label>
+              <textarea
+                v-model="form.description"
+                rows="3"
+                class="form-textarea"
+                :placeholder="$t('services.descriptionPlaceholder')"
+                required
+              ></textarea>
+            </div>
+
+            <!-- Detalles del Servicio -->
+            <div class="form-group full-width">
+              <label class="form-label">
+                <span class="label-icon">📝</span>
+                {{ $t('services.serviceDetails') }}
+                <span class="char-count">
+                  {{ (form.service_details || '').length }}/1000
+                </span>
+              </label>
+              <textarea
+                v-model="form.service_details"
+                rows="4"
+                maxlength="1000"
+                class="form-textarea details-textarea"
+                :placeholder="$t('services.detailsPlaceholder')"
+              ></textarea>
+            </div>
+
+            <!-- Precio -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">💰</span>
+                {{ $t('services.price') }}
+              </label>
+              <div class="price-input-group">
+                <span class="currency">$</span>
+                <input
+                  v-model.number="form.price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="form-input price-input"
+                  :placeholder="$t('services.pricePlaceholder')"
+                  required
+                >
+              </div>
+            </div>
+
+            <!-- Categoría -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">🏷️</span>
+                {{ $t('services.category') }}
+              </label>
+              <input
+                v-model="form.category"
+                type="text"
+                class="form-input"
+                :placeholder="$t('services.categoryPlaceholder')"
+                required
+              >
+            </div>
+
+            <!-- Ubicación -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📍</span>
+                {{ $t('services.location') }}
+              </label>
+              <input
+                v-model="form.location"
+                type="text"
+                class="form-input"
+                :placeholder="$t('services.locationPlaceholder')"
+                required
+              >
+            </div>
+
+            <!-- Imagen -->
+            <div class="form-group full-width">
+              <label class="form-label">
+                <span class="label-icon">🖼️</span>
+                {{ $t('services.imageOptional') }}
+              </label>
+              
+              <div v-if="previewImage" class="image-preview-container">
+                <div class="image-preview">
+                  <img :src="previewImage" alt="Preview" class="preview-image">
+                  <button
+                    type="button"
+                    class="btn-change-image"
+                    @click="triggerFilePicker"
+                  >
+                    🔄 {{ $t('services.changeImage') }}
+                  </button>
+                </div>
+              </div>
+
+              <div
+                v-else
+                class="image-upload-area"
+                @drop.prevent="handleDrop"
+                @dragover.prevent
+                @click="triggerFilePicker"
+              >
+                <div class="upload-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <p class="upload-text">
+                  {{ $t('services.dragDropImage') }}
+                  <span class="upload-click">{{ $t('services.clickToUpload') }}</span>
+                </p>
+                <p class="upload-hint">{{ $t('services.imageHint') }}</p>
+              </div>
+
+              <input
+                ref="fileInput"
+                type="file"
+                accept="image/*"
+                class="hidden-input"
+                @change="onImageChange"
+              >
+            </div>
+          </div>
+
+          <!-- Modal Actions -->
+          <div class="modal-actions">
             <button
               type="button"
-              class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              class="btn-cancel"
               @click="closeEditModal"
             >
               {{ $t('common.cancel') }}
             </button>
             <button
               type="submit"
-              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              class="btn-save"
             >
-              {{ $t('common.save') }}
+              💾 {{ $t('common.save') }}
             </button>
           </div>
         </form>
       </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div v-if="toast.show" class="toast" :class="toast.type">
+      {{ toast.message }}
     </div>
   </div>
 </template>
@@ -226,21 +300,40 @@ const form = ref({
 const previewImage = ref('')
 const fileInput = ref(null)
 
-/* ----------  utils  ---------- */
+// Toast notifications
+const toast = ref({
+  show: false,
+  message: '',
+  type: 'success'
+})
+
+
+/* ----------  Utils  ---------- */
 const getImageUrl = (path) => {
   if (!path) return ''
-  return path.startsWith('http') ? path : `http://localhost:8000${path}`
+  return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`
 }
 
-const statusColor = (status) => {
+
+const statusBadgeClass = (status) => {
   switch (status) {
-    case 'pending':  return 'bg-yellow-100 text-yellow-800'
-    case 'approved': return 'bg-green-100 text-green-800'
-    case 'rejected': return 'bg-red-100 text-red-800'
-    default:         return 'bg-gray-100 text-gray-800'
+    case 'pending':  return 'status-pending'
+    case 'approved': return 'status-approved'
+    case 'rejected': return 'status-rejected'
+    default:         return 'status-default'
   }
 }
 
+const handleImageError = (event) => {
+  event.target.src = 'https://via.placeholder.com/400x250?text=Imagen+No+Disponible'
+}
+
+const showToast = (message, type = 'info') => {
+  toast.value = { show: true, message, type }
+  setTimeout(() => {
+    toast.value.show = false
+  }, 3000)
+}
 
 /* ----------  Cargar servicios  ---------- */
 const loadServices = async () => {
@@ -267,12 +360,13 @@ const deleteService = async (id) => {
     cancelButtonText: t('common.cancel'),
     buttonsStyling: false,
     customClass: {
-      confirmButton: 'px-4 py-2 rounded text-white bg-red-600 mr-2',
-      cancelButton: 'px-4 py-2 rounded text-white bg-green-600'
+      confirmButton: 'swal-confirm-btn',
+      cancelButton: 'swal-cancel-btn'
     }
   })
+  
   if (!confirm.isConfirmed) return
-
+  
   try {
     await api.post('/services/delete', { id }, {
       headers: { Authorization: `Bearer ${authStore.token}` }
@@ -314,17 +408,16 @@ const onImageChange = (e) => {
 
 const updateService = async () => {
   const formData = new FormData()
-  // 1. ID primero y obligatorio
   formData.append('id', String(form.value.id))
-  // 2. resto
   formData.append('title', form.value.title)
   formData.append('description', form.value.description)
   formData.append('service_details', form.value.service_details ?? '')
   formData.append('price', String(form.value.price))
   formData.append('category', form.value.category)
   formData.append('location', form.value.location)
+  
   if (form.value.image) formData.append('image', form.value.image)
-
+  
   try {
     await api.post('/services/update', formData, {
       headers: { Authorization: `Bearer ${authStore.token}` }
@@ -339,3 +432,683 @@ const updateService = async () => {
 
 onMounted(loadServices)
 </script>
+
+<style scoped>
+.my-services-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.title-section h1 {
+  font-size: 2.5rem;
+  color: #2d3436;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.services-icon {
+  font-size: 2.2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.title-section p {
+  color: #636e72;
+  font-size: 1.1rem;
+}
+
+.btn-create {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.3s, box-shadow 0.3s;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.btn-create:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Services Grid */
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 32px;
+  margin-bottom: 40px;
+}
+
+.service-card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  transition: all 0.4s;
+  cursor: pointer;
+  border: 1px solid #f1f2f6;
+  position: relative;
+}
+
+.service-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Badge */
+.card-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 2;
+}
+
+.status-pending {
+  background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+  color: white;
+}
+
+.status-approved {
+  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+  color: white;
+}
+
+.status-rejected {
+  background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+  color: white;
+}
+
+.status-default {
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+  color: white;
+}
+
+/* Image */
+.card-image {
+  height: 200px;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s;
+}
+
+.service-card:hover .card-image img {
+  transform: scale(1.05);
+}
+
+.card-image.placeholder {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #636e72;
+}
+
+.placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+/* Content */
+.card-content {
+  padding: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.service-category {
+  background: #dfe6e9;
+  color: #2d3436;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.service-location {
+  color: #636e72;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.service-title {
+  font-size: 1.4rem;
+  color: #2d3436;
+  margin-bottom: 12px;
+  line-height: 1.3;
+}
+
+.service-description {
+  color: #636e72;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.service-details-preview {
+  background: #f8f9fa;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #636e72;
+  font-size: 0.9rem;
+}
+
+.details-icon {
+  font-size: 1rem;
+}
+
+/* Footer */
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.price-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.price {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #00b894;
+}
+
+.price-label {
+  color: #636e72;
+  font-size: 0.8rem;
+}
+
+.btn-delete {
+  background: #ff7675;
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete:hover {
+  background: #d63031;
+  transform: rotate(15deg);
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin: 40px 0;
+}
+
+.empty-icon {
+  font-size: 80px;
+  margin-bottom: 24px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+.empty-state h2 {
+  color: #2d3436;
+  margin-bottom: 12px;
+  font-size: 2rem;
+}
+
+.empty-state p {
+  color: #636e72;
+  font-size: 1.2rem;
+  margin-bottom: 32px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 14px 32px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-block;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  padding: 20px;
+}
+
+.modal {
+  background: white;
+  border-radius: 24px;
+  overflow: hidden;
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-close {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s;
+}
+
+.btn-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Form */
+.modal-form {
+  padding: 32px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-weight: 600;
+  color: #2d3436;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label-icon {
+  font-size: 1.1rem;
+}
+
+.char-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #636e72;
+  font-weight: normal;
+}
+
+.form-input, .form-textarea {
+  padding: 14px;
+  border: 2px solid #dfe6e9;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+  background: #f8f9fa;
+}
+
+.form-input:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.details-textarea {
+  min-height: 120px;
+}
+
+/* Price Input */
+.price-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency {
+  position: absolute;
+  left: 14px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #00b894;
+}
+
+.price-input {
+  padding-left: 36px;
+}
+
+/* Image Upload */
+.image-upload-area {
+  border: 2px dashed #b2bec3;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #f8f9fa;
+}
+
+.image-upload-area:hover {
+  border-color: #667eea;
+  background: #edf2f7;
+}
+
+.upload-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  color: #b2bec3;
+}
+
+.upload-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.upload-text {
+  color: #636e72;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.upload-click {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.upload-hint {
+  color: #b2bec3;
+  font-size: 0.9rem;
+}
+
+.image-preview-container {
+  display: flex;
+  justify-content: center;
+}
+
+.image-preview {
+  text-align: center;
+}
+
+.preview-image {
+  width: 200px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.btn-change-image {
+  background: #74b9ff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+  transition: background 0.3s;
+}
+
+.btn-change-image:hover {
+  background: #0984e3;
+}
+
+.hidden-input {
+  display: none;
+}
+
+/* Modal Actions */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid #dfe6e9;
+}
+
+.btn-cancel {
+  background: #dfe6e9;
+  color: #2d3436;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-cancel:hover {
+  background: #b2bec3;
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+  color: white;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.btn-save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 184, 148, 0.3);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 16px 24px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 600;
+  z-index: 1001;
+  animation: slideIn 0.3s ease-out;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.toast.success {
+  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+}
+
+.toast.error {
+  background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+}
+
+.toast.info {
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .services-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .my-services-page {
+    padding: 16px;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .title-section h1 {
+    font-size: 2rem;
+  }
+  
+  .services-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal {
+    margin: 10px;
+  }
+  
+  .modal-header, .modal-form {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .title-section h1 {
+    font-size: 1.8rem;
+  }
+  
+  .btn-create, .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .btn-cancel, .btn-save {
+    width: 100%;
+    justify-content: center;
+  }
+}
+</style>

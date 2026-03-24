@@ -1,0 +1,167 @@
+// src/services/websocket.js
+import { io } from 'socket.io-client'
+import { useAuthStore } from '@/stores/authStore'
+import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
+
+class WebSocketService {
+  constructor() {
+    this.socket = null
+    this.heartbeatInterval = null
+    this.reconnectAttempts = 0
+    this.maxReconnectAttempts = 5
+  }
+
+  connect() {
+    const authStore = useAuthStore()
+    
+    if (!authStore.token) {
+      console.warn('⚠️ No hay token para conectar WebSocket')
+      return
+    }
+
+    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:3001'
+    
+    this.socket = io(wsUrl, {
+      auth: { token: authStore.token },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000
+    })
+
+    this.setupListeners()
+    this.startHeartbeat()
+  }
+
+  setupListeners() {
+    const onlineUsersStore = useOnlineUsersStore()
+
+    this.socket.on('connect', () => {
+      console.log('✅ WebSocket conectado')
+      this.reconnectAttempts = 0
+    })
+
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ WebSocket desconectado:', reason)
+      if (reason === 'io server disconnect') {
+        // El servidor cerró la conexión, intentar reconectar
+        setTimeout(() => this.connect(), 1000)
+      }
+    })
+
+    this.socket.on('connect_error', (error) => {
+      console.error('🔴 Error de conexión WebSocket:', error.message)
+      this.reconnectAttempts++
+      
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error('🔴 Máximos intentos de reconexión alcanzados')
+        this.socket?.disconnect()
+      }
+    })
+
+    this.socket.on('users_online', (users) => {
+      console.log('👥 Usuarios online actualizados:', users.length)
+      onlineUsersStore.setOnlineUsers(users)
+    })
+
+    this.socket.on('user_online', (user) => {
+      console.log('🟢 Usuario conectado:', user.userId)
+      onlineUsersStore.addOnlineUser(user)
+    })
+
+    this.socket.on('user_offline', (userId) => {
+      console.log('🔴 Usuario desconectado:', userId)
+      onlineUsersStore.removeOnlineUser(userId)
+    })
+
+    this.socket.on('new_message', (message) => {
+      console.log('💬 Nuevo mensaje:', message)
+      // Emitir evento para que los componentes lo escuchen
+      window.dispatchEvent(new CustomEvent('new_message', { detail: message }))
+    })
+
+    this.socket.on('message_sent', (message) => {
+      console.log('✅ Mensaje enviado confirmado:', message)
+    })
+
+    this.socket.on('user_typing', (data) => {
+      window.dispatchEvent(new CustomEvent('user_typing', { detail: data }))
+    })
+
+    this.socket.on('messages_read_confirmation', (data) => {
+      window.dispatchEvent(new CustomEvent('messages_read', { detail: data }))
+    })
+
+    this.socket.on('heartbeat_ack', (data) => {
+      // console.log('💓 Heartbeat ACK:', data.timestamp)
+    })
+
+    this.socket.on('error', (error) => {
+      console.error('🔴 Error WebSocket:', error)
+    })
+  }
+
+  startHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket?.connected) {
+        this.socket.emit('heartbeat')
+      }
+    }, 30000) // Cada 30 segundos
+  }
+
+  // Métodos para enviar eventos
+  sendMessage(to, message, type = 'text') {
+    if (!this.socket?.connected) {
+      console.error('🔴 WebSocket no conectado')
+      return false
+    }
+
+    this.socket.emit('private_message', { to, message, type })
+    return true
+  }
+
+  sendTyping(to, isTyping) {
+    if (!this.socket?.connected) return
+    this.socket.emit('typing', { to, isTyping })
+  }
+
+  markMessagesRead(messages, conversationWith) {
+    if (!this.socket?.connected) return
+    this.socket.emit('messages_read', { messages, conversationWith })
+  }
+
+  // Unirse a una sala específica (conversación)
+  joinConversation(conversationId) {
+    if (!this.socket?.connected) return
+    this.socket.emit('join_conversation', conversationId)
+  }
+
+  // Salir de una sala
+  leaveConversation(conversationId) {
+    if (!this.socket?.connected) return
+    this.socket.emit('leave_conversation', conversationId)
+  }
+
+  // Desconectar
+  disconnect() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+    
+    if (this.socket) {
+      this.socket.disconnect()
+      this.socket = null
+    }
+  }
+}
+
+// Exportar instancia única (singleton)
+export default new WebSocketService()
+

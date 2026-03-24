@@ -1,0 +1,726 @@
+<!-- src/components/admin/modals/FaqModal.vue -->
+<template>
+  <div class="modal-overlay" @click.self="closeModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <span class="modal-icon">❓</span>
+          {{ faq.id ? 'Editar FAQ' : 'Crear Nueva FAQ' }}
+        </h2>
+        <button class="modal-close" @click="closeModal">×</button>
+      </div>
+
+      <form @submit.prevent="handleSubmit" class="modal-form">
+        <!-- Pregunta -->
+        <div class="form-group">
+          <label class="form-label required">
+            <span class="label-icon">❓</span>
+            Pregunta
+          </label>
+          <textarea
+            v-model="formData.question"
+            @input="validateField('question')"
+            placeholder="Ej: ¿Cómo puedo pagar por un servicio?"
+            rows="3"
+            class="form-textarea"
+            :class="{ error: errors.question }"
+            required
+          ></textarea>
+          <div v-if="errors.question" class="error-message">
+            {{ errors.question }}
+          </div>
+          <div class="char-counter">
+            {{ formData.question?.length || 0 }}/255 caracteres
+          </div>
+        </div>
+
+        <!-- Respuesta -->
+        <div class="form-group">
+          <label class="form-label required">
+            <span class="label-icon">📝</span>
+            Respuesta
+          </label>
+          <div class="editor-toolbar">
+            <button type="button" class="editor-btn" @click="insertText('**texto**', 'bold')" title="Negrita">
+              <strong>B</strong>
+            </button>
+            <button type="button" class="editor-btn" @click="insertText('*texto*', 'italic')" title="Itálica">
+              <em>I</em>
+            </button>
+            <button type="button" class="editor-btn" @click="insertText('[enlace](url)', 'link')" title="Enlace">
+              🔗
+            </button>
+            <button type="button" class="editor-btn" @click="insertText('- item', 'list')" title="Lista">
+              📋
+            </button>
+          </div>
+          <textarea
+            v-model="formData.answer"
+            @input="validateField('answer')"
+            placeholder="Proporciona una respuesta clara y útil..."
+            rows="6"
+            class="form-textarea editor-textarea"
+            :class="{ error: errors.answer }"
+            required
+          ></textarea>
+          <div v-if="errors.answer" class="error-message">
+            {{ errors.answer }}
+          </div>
+          <div class="char-counter">
+            {{ formData.answer?.length || 0 }} caracteres
+          </div>
+          
+          <!-- Vista previa -->
+          <div class="preview-section" v-if="formData.answer">
+            <h4>📱 Vista Previa:</h4>
+            <div class="preview-content" v-html="renderPreview(formData.answer)"></div>
+          </div>
+        </div>
+
+        <!-- Orden -->
+        <div class="form-group">
+          <label class="form-label">
+            <span class="label-icon">🔢</span>
+            Orden de Visualización
+          </label>
+          <input
+            type="number"
+            v-model.number="formData.sort_order"
+            min="0"
+            max="999"
+            class="form-input"
+            placeholder="0 (aparecerá primero)"
+          />
+          <p class="form-help">
+            Número menor = aparece más arriba en la lista. 0 para orden automático.
+          </p>
+        </div>
+
+        <!-- Estado -->
+        <div class="form-group">
+          <label class="form-label">
+            <span class="label-icon">📊</span>
+            Estado
+          </label>
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input
+                type="checkbox"
+                v-model="formData.is_active"
+                true-value="1"
+                false-value="0"
+                class="toggle-checkbox"
+              />
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">
+                {{ formData.is_active == 1 ? 'FAQ Activa' : 'FAQ Inactiva' }}
+              </span>
+            </label>
+            <p class="form-help">
+              Las FAQs inactivas no se mostrarán a los usuarios
+            </p>
+          </div>
+        </div>
+
+        <!-- Acciones del modal -->
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" @click="closeModal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-submit" :disabled="loading || !isValid">
+            <span v-if="loading" class="button-loading"></span>
+            <span v-else>{{ faq.id ? '💾 Actualizar FAQ' : '➕ Crear FAQ' }}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+
+const props = defineProps({
+  faq: {
+    type: Object,
+    default: () => ({})
+  }
+})
+
+const emit = defineEmits(['save', 'close'])
+
+// Estados
+const loading = ref(false)
+const formData = reactive({
+  question: '',
+  answer: '',
+  sort_order: 0,
+  is_active: 1
+})
+
+const errors = reactive({
+  question: '',
+  answer: ''
+})
+
+// Computed
+const isValid = computed(() => {
+  return formData.question.trim().length > 0 && 
+         formData.answer.trim().length > 0 &&
+         !errors.question && 
+         !errors.answer
+})
+
+// Lifecycle
+onMounted(() => {
+  if (props.faq.id) {
+    Object.assign(formData, {
+      question: props.faq.question || '',
+      answer: props.faq.answer || '',
+      sort_order: props.faq.sort_order || 0,
+      is_active: props.faq.is_active !== undefined ? props.faq.is_active : 1
+    })
+  }
+})
+
+// Watch para validación
+watch(() => formData.question, (newVal) => {
+  if (newVal.length > 255) {
+    errors.question = 'La pregunta no puede exceder 255 caracteres'
+  } else {
+    errors.question = ''
+  }
+})
+
+watch(() => formData.answer, (newVal) => {
+  if (newVal.length > 5000) {
+    errors.answer = 'La respuesta no puede exceder 5000 caracteres'
+  } else {
+    errors.answer = ''
+  }
+})
+
+// Métodos
+function validateField(field) {
+  if (field === 'question') {
+    if (!formData.question.trim()) {
+      errors.question = 'La pregunta es requerida'
+    } else if (formData.question.length > 255) {
+      errors.question = 'Máximo 255 caracteres'
+    } else {
+      errors.question = ''
+    }
+  }
+  
+  if (field === 'answer') {
+    if (!formData.answer.trim()) {
+      errors.answer = 'La respuesta es requerida'
+    } else if (formData.answer.length > 5000) {
+      errors.answer = 'Máximo 5000 caracteres'
+    } else {
+      errors.answer = ''
+    }
+  }
+}
+
+function insertText(text, type) {
+  const textarea = document.querySelector('.editor-textarea')
+  if (!textarea) return
+  
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const selectedText = formData.answer.substring(start, end)
+  
+  let insertText = ''
+  
+  switch (type) {
+    case 'bold':
+      insertText = selectedText ? `**${selectedText}**` : '**texto en negrita**'
+      break
+    case 'italic':
+      insertText = selectedText ? `*${selectedText}*` : '*texto en itálica*'
+      break
+    case 'link':
+      insertText = selectedText ? `[${selectedText}](url)` : '[texto del enlace](https://ejemplo.com)'
+      break
+    case 'list':
+      insertText = selectedText ? `- ${selectedText}` : '- elemento de lista'
+      break
+    default:
+      insertText = text
+  }
+  
+  // Insertar texto en la posición del cursor
+  const newText = formData.answer.substring(0, start) + 
+                 insertText + 
+                 formData.answer.substring(end)
+  
+  formData.answer = newText
+  
+  // Posicionar cursor después del texto insertado
+  setTimeout(() => {
+    textarea.focus()
+    const newPosition = start + insertText.length
+    textarea.setSelectionRange(newPosition, newPosition)
+  }, 0)
+}
+
+function renderPreview(text) {
+  // Convertir markdown básico a HTML
+  let html = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Negrita
+    .replace(/\*(.*?)\*/g, '<em>$1</em>') // Itálica
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>') // Enlaces
+    .replace(/^- (.*?)(?=\n|$)/gm, '<li>$1</li>') // Listas
+    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>') // Wrap listas
+    .replace(/\n/g, '<br>') // Saltos de línea
+  
+  return html
+}
+
+function handleSubmit() {
+  // Validar todos los campos
+  validateField('question')
+  validateField('answer')
+  
+  if (!isValid.value) {
+    return
+  }
+  
+  // Preparar datos para enviar
+  const faqData = {
+    ...formData,
+    question: formData.question.trim(),
+    answer: formData.answer.trim(),
+    sort_order: parseInt(formData.sort_order) || 0,
+    is_active: formData.is_active ? 1 : 0
+  }
+  
+  if (props.faq.id) {
+    faqData.id = props.faq.id
+  }
+  
+  emit('save', faqData)
+}
+
+function closeModal() {
+  emit('close')
+}
+</script>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-container {
+  background: white;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 32px;
+  border-bottom: 2px solid #e2e8f0;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  color: #2d3436;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-icon {
+  font-size: 1.8rem;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 10px;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  background: #e2e8f0;
+  color: #334155;
+  transform: rotate(90deg);
+}
+
+.modal-form {
+  padding: 32px;
+}
+
+.form-group {
+  margin-bottom: 28px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: #2d3436;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-label.required::after {
+  content: '*';
+  color: #ff6b6b;
+  margin-left: 4px;
+}
+
+.label-icon {
+  font-size: 1.2rem;
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: white;
+  transition: all 0.3s;
+  resize: vertical;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-textarea.error {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.form-textarea.error:focus {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+}
+
+.editor-textarea {
+  min-height: 150px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  line-height: 1.5;
+}
+
+.error-message {
+  color: #ff6b6b;
+  font-size: 0.9rem;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.char-counter {
+  text-align: right;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+/* Editor Toolbar */
+.editor-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.editor-btn {
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+}
+
+.editor-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.editor-btn:active {
+  transform: translateY(1px);
+}
+
+/* Preview Section */
+.preview-section {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 2px solid #e2e8f0;
+}
+
+.preview-section h4 {
+  color: #2d3436;
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+.preview-content {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  line-height: 1.6;
+}
+
+.preview-content :deep(strong) {
+  font-weight: 700;
+  color: #2d3436;
+}
+
+.preview-content :deep(em) {
+  font-style: italic;
+  color: #4a5568;
+}
+
+.preview-content :deep(a) {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.preview-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.preview-content :deep(ul) {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.preview-content :deep(li) {
+  margin-bottom: 4px;
+}
+
+/* Form Inputs */
+.form-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: white;
+  transition: all 0.3s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-help {
+  color: #636e72;
+  font-size: 0.9rem;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+/* Toggle Group */
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-checkbox {
+  display: none;
+}
+
+.toggle-switch {
+  width: 50px;
+  height: 26px;
+  background: #cbd5e1;
+  border-radius: 13px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.toggle-switch::before {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-checkbox:checked + .toggle-switch {
+  background: #667eea;
+}
+
+.toggle-checkbox:checked + .toggle-switch::before {
+  transform: translateX(24px);
+}
+
+.toggle-text {
+  font-weight: 500;
+  color: #2d3436;
+}
+
+/* Modal Actions */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 2px solid #e2e8f0;
+}
+
+.btn-cancel, .btn-submit {
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: none;
+  min-width: 140px;
+}
+
+.btn-cancel {
+  background: #f1f5f9;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+}
+
+.btn-cancel:hover {
+  background: #e2e8f0;
+  color: #2d3436;
+}
+
+.btn-submit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  position: relative;
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.button-loading {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-container {
+    width: 95%;
+    padding: 0;
+  }
+  
+  .modal-header,
+  .modal-form {
+    padding: 20px;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .btn-cancel, .btn-submit {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .editor-toolbar {
+    flex-wrap: wrap;
+  }
+  
+  .modal-title {
+    font-size: 1.3rem;
+  }
+}
+</style>
