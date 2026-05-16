@@ -209,6 +209,7 @@ window.addEventListener('open-rating-modal', async (e) => {
 
     const appModal = createApp(ReviewComp, {
       serviceHistoryId: historyId,
+      authToken: authStore.token,
       onClose: () => {
         appModal.unmount()
         const el = document.getElementById(div.id)

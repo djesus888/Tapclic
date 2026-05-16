@@ -715,9 +715,14 @@ export default {
     },
 
     handleRetry() {
-      this.resetFlow();
-      this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails); });
-    },
+  this.resetFlow();
+  this.$nextTick(() => {
+    this.onConfirmRequest({
+      details: this.lastSpecDetails || '',
+      contractAccepted: true
+    });
+  });
+},
 
     statusLabel(status) {
       const map = { completado: this.$t('status_completed') || 'Completado', fallido: this.$t('status_failed') || 'Fallido', inconcluso: this.$t('status_incomplete') || 'Inconcluso', cancelado: this.$t('status_cancelled') || 'Cancelado' };

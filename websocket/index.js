@@ -73,7 +73,6 @@ function addPendingEvent(room, event, payload, reqBody = {}) {
 
   filtered.push({
     event,
-    // ✅ CORREGIDO: Usar reqBody en lugar de req.body
     payload: payload || reqBody || {},
     timestamp: now
   });
@@ -144,9 +143,12 @@ io.on('connection', (socket) => {
   }
 
   // ✅ NUEVO: Evento para enviar mensajes
+  // ✅ CORREGIDO: Evento send_message con soporte UTF-8 completo
   socket.on('send_message', (data) => {
     try {
-      if (!data || !data.conversation_id || !data.message) {
+      console.log('📨 [NODE] send_message recibido:', JSON.stringify(data, null, 2));
+
+      if (!data || !data.conversation_id) {
         console.error('❌ Datos de mensaje incompletos:', data);
         socket.emit('error', {
           message: 'Datos de mensaje incompletos',
@@ -155,50 +157,56 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Extraer texto del mensaje de forma segura
+      // ✅ EXTRAER TEXTO DE FORMA SEGURA - PRESERVANDO UTF-8
       let messageText = '';
-      let messageForLog = '';
 
-      if (typeof data.message === 'string') {
-        // ✅ CORREGIDO: Preservar UTF-8 sin modificar
+      if (typeof data.text === 'string') {
+        // Texto directo - preservar tal cual
+        messageText = data.text;
+      } else if (data.message && typeof data.message === 'string') {
         messageText = data.message;
-        // Solo para log, tomar los primeros caracteres de forma segura
-        messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
       } else if (data.message && typeof data.message === 'object') {
-        // Si es objeto, buscar propiedades comunes
-        messageText = data.message.text || data.message.content || JSON.stringify(data.message);
-        messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
+        // Si es objeto, buscar la propiedad text
+        messageText = data.message.text || data.message.content || '';
       } else {
-        messageText = String(data.message || '');
-        messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
+        messageText = data.text || data.message || '';
       }
 
-      // ✅ CORREGIDO: Asegurar conversation_id
+      // ✅ Convertir a string y asegurar UTF-8 (no modificar caracteres)
+      messageText = String(messageText);
+
+      // Para log, solo primeros 30 caracteres
+      const messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
+      console.log(`📨 Mensaje recibido: ${id} → conv_${data.conversation_id}: ${messageForLog}`);
+
+      // ✅ CONSTRUIR DATOS DEL MENSAJE - PRESERVANDO TODOS LOS CAMPOS
       const messageData = {
-        ...data,
-        conversation_id: data.conversation_id,
         id: data.id || Date.now(),
+        temp_id: data.temp_id || null,
+        conversation_id: data.conversation_id,
+        text: messageText,
         sender_id: id,
-        sender_role: role,
-        timestamp: data.timestamp || Date.now(),
-        status: 'sent',
-        // Asegurar que message sea string para el resto del sistema
-        message: messageText,
-//      text: messageText // Para compatibilidad
+        sender: role,
+        receiver_id: data.recipient_id,
+        receiver_role: data.recipient_role,
+        type: data.type || (data.attachment_url ? 'image' : 'text'),
+        attachment_url: data.attachment_url || null,
+        created_at: new Date().toISOString(),
+        is_delivered: false,
+        is_read: false,
+        ...data
       };
 
       // Enviar a la sala de conversación
       const conversationRoom = `conversation_${data.conversation_id}`;
       io.to(conversationRoom).emit('new_message', messageData);
-      console.log(`📨 Mensaje enviado: ${id} → conv_${data.conversation_id}: ${messageForLog}`);
+      console.log(`📨 Mensaje emitido a sala: ${conversationRoom}`);
 
       // Confirmar al remitente
       socket.emit('message_sent_confirmation', {
         ...messageData,
-        sender_id: id,
-        sender_role: role,
         status: 'delivered_to_server',
-        temp_id: data.temp_id
+        confirmed_at: new Date().toISOString()
       });
 
     } catch (error) {
@@ -264,7 +272,7 @@ io.on('connection', (socket) => {
         userRole: role,
         conversationId: conversation_id,
         timestamp: Date.now(),
-        timeout // Guardamos el timeout para poder cancelarlo después
+        timeout 
       });
     } else {
       typingUsers.delete(typingKey);
@@ -568,7 +576,7 @@ app.get('/status', (req, res) => {
   res.json({
     status: 'online',
     timestamp: Date.now(),
-    connections: userSockets.size, // ✅ Cambiado de connectedUsers a userSockets
+    connections: userSockets.size,
     users_online: usersOnline,
     typing_users: typingUsers.size,
     pending_events: pendingEvents.size,

@@ -30,7 +30,7 @@
             <span class="price-amount">{{ formattedPrice }}</span>
           </div>
         </div>
-        
+
         <div class="service-preview-provider" v-if="providerName || providerAvatar">
           <img
             v-if="providerAvatar"
@@ -54,7 +54,7 @@
 
       <!-- Expandable Details -->
       <div class="expandable-details-section">
-        <div 
+        <div
           class="expandable-header"
           :class="{ 'expanded': showDetails }"
           @click="showDetails = !showDetails"
@@ -65,7 +65,7 @@
           </div>
           <span class="expandable-arrow">{{ showDetails ? '▼' : '▶' }}</span>
         </div>
-        
+
         <div v-if="showDetails" class="expandable-content">
           <div class="service-details-content">
             <template v-if="hasServiceDetails">
@@ -96,7 +96,7 @@
             <span>{{ $t('add condition in service request.') }}</span>
           </label>
         </div>
-        
+
         <div v-if="addSpec" class="conditions-input-section">
           <div class="input-header">
             <span class="input-label">Condiciones adicionales</span>
@@ -184,6 +184,7 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { getImageUrl } from '@/utils/imageHelper'
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },
@@ -206,15 +207,15 @@ const formattedPrice = computed(() => {
   if (price === null || price === undefined || price === '') {
     return '0.00'
   }
-  
+
   // Convertir a número si es string
   const numPrice = typeof price === 'string' ? parseFloat(price) : Number(price)
   return isNaN(numPrice) ? '0.00' : numPrice.toFixed(2)
 })
 
 const providerName = computed(() => {
-  return props.serviceDetails?.provider?.name || 
-         props.serviceDetails?.provider_name || 
+  return props.serviceDetails?.provider?.name ||
+         props.serviceDetails?.provider_name ||
          props.serviceDetails?.user?.name ||
          'Proveedor'
 })
@@ -224,16 +225,16 @@ const providerAvatar = computed(() => {
   const user = props.serviceDetails?.user
 
   if (provider?.avatar_url) {
-    return getImageUrl(`/uploads/avatars/${provider.avatar_url}`)
+    return getImageUrl(provider.avatar_url, 'avatar')
   }
   if (provider?.avatar) {
-    return getImageUrl(`/uploads/avatars/${provider.avatar}`)
+    return getImageUrl(provider.avatar, 'avatar')
   }
   if (user?.avatar_url) {
-    return getImageUrl(`/uploads/avatars/${user.avatar_url}`)
+    return getImageUrl(user.avatar_url, 'avatar')
   }
   if (user?.avatar) {
-    return getImageUrl(`/uploads/avatars/${user.avatar}`)
+    return getImageUrl(user.avatar, 'avatar')
   }
   return null // No mostrar avatar si no existe
 })
@@ -242,22 +243,22 @@ const providerRating = computed(() => {
   const rating = props.serviceDetails?.provider?.rating ||
                 props.serviceDetails?.user?.rating ||
                 props.serviceDetails?.rating
-  
+
   if (rating === null || rating === undefined || rating === '') {
     return null
   }
-  
+
   // Si es string, convertir a número
   if (typeof rating === 'string') {
     const num = parseFloat(rating)
     return isNaN(num) ? null : num
   }
-  
+
   // Si es número, asegurar que esté entre 0-5
   if (typeof rating === 'number') {
     return Math.min(Math.max(rating, 0), 5)
   }
-  
+
   return null
 })
 
@@ -284,12 +285,12 @@ const submitRequest = () => {
     alert('Debes aceptar las condiciones del contrato.')
     return
   }
-  
+
   if (addSpec.value && specDetails.value.length > 200) {
     alert('Las condiciones adicionales no pueden exceder 200 caracteres.')
     return
   }
-  
+
   emit('confirm', {
     details: specDetails.value,
     contractAccepted: acceptedContract.value
@@ -303,8 +304,8 @@ const resetState = () => {
   showDetails.value = false
 }
 
-watch(() => props.isOpen, val => { 
-  if (!val) resetState() 
+watch(() => props.isOpen, val => {
+  if (!val) resetState()
 })
 </script>
 

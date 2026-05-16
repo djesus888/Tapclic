@@ -152,7 +152,7 @@ const props = defineProps<{
   targetRole?: 'user' | 'provider';
   authToken?: string;
   serviceHistoryId?: number | string;
-  divId?: string; // ✅ NUEVO: ID para limpieza automática del DOM
+  divId?: string;
 }>()
 
 const emit = defineEmits(['close', 'save'])
@@ -205,12 +205,12 @@ function resolveSrc(img: Photo) {
   return url
 }
 
-// ✅ LIMPIEZA 1: Revocar URLs de blobs (cuando se cierra normalmente)
+// Limpiar URLs de blobs al desmontar
 onBeforeUnmount(() => {
   blobUrls.forEach(URL.revokeObjectURL)
 })
 
-// ✅ LIMPIEZA 2: Remover elemento DOM si quedó colgado (fallback seguro)
+// Limpiar elemento DOM si quedó colgado
 onUnmounted(() => {
   if (props.divId) {
     const el = document.getElementById(props.divId)
@@ -293,15 +293,18 @@ async function submit() {
     })
 
     const endpoint = props.targetRole === 'provider'
-      ? '/api/history/rate-user'
-      : '/api/history/rate'
+      ? '/history/rate-user'
+      : '/history/rate'
+
+    // Obtener el token del localStorage si no viene como prop
+    const token = props.authToken || localStorage.getItem('token')
 
     await axios.post(
-      `${import.meta.env.VITE_API_URL}${endpoint}`,
+      endpoint,
       form,
       {
         headers: {
-          Authorization: `Bearer ${props.authToken}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
         }
       }

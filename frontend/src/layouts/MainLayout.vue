@@ -21,7 +21,7 @@
           >
             <span class="menu-icon" aria-hidden="true">☰</span>
           </button>
-          
+
           <div class="logo-container">
             <div class="logo-icon">✨</div>
             <h1 class="logo-text">TapClic</h1>
@@ -49,7 +49,7 @@
               </span>
               <span class="dropdown-arrow">▼</span>
             </button>
-            
+
             <transition name="dropdown">
               <div
                 v-if="langDropdownOpen"
@@ -84,10 +84,10 @@
             >
               <span class="action-icon">🔔</span>
               <span
-                v-if="socketStore.unreadCount"
+                v-if="notificationStore.unreadCount"
                 class="badge notification-badge"
               >
-                {{ socketStore.unreadCount > 99 ? '99+' : socketStore.unreadCount }}
+                {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
               </span>
             </button>
           </div>
@@ -149,8 +149,8 @@
             <div class="panel-title">
               <span class="panel-icon">🔔</span>
               <h2>{{ $t('notifications') }}</h2>
-              <span v-if="socketStore.unreadCount" class="panel-count">
-                {{ socketStore.unreadCount }}
+              <span v-if="notificationStore.unreadCount" class="panel-count">
+                {{ notificationStore.unreadCount }}
               </span>
             </div>
             <button
@@ -161,18 +161,18 @@
               ✕
             </button>
           </div>
-          
+
           <div class="panel-actions">
             <button
-  v-if="notificationStore.notifications.length > 0"
-  class="panel-action-btn"
-  @click="markAllAsRead"
-  :disabled="markingAllAsRead"
->
-  <span v-if="markingAllAsRead">⏳</span>
-  <span v-else>📭</span>
-  {{ markingAllAsRead ? 'Marcando...' : 'Marcar todas como leídas' }}
-</button>
+              v-if="notificationStore.notifications.length > 0"
+              class="panel-action-btn"
+              @click="markAllAsRead"
+              :disabled="markingAllAsRead"
+            >
+              <span v-if="markingAllAsRead">⏳</span>
+              <span v-else>📭</span>
+              {{ markingAllAsRead ? 'Marcando...' : 'Marcar todas como leídas' }}
+            </button>
           </div>
         </div>
 
@@ -197,7 +197,7 @@
 
           <!-- Empty State -->
           <div
-            v-else-if="socketStore.notifications.length === 0"
+            v-else-if="notificationStore.notifications.length === 0"
             class="empty-state"
           >
             <div class="empty-icon">🔔</div>
@@ -211,7 +211,7 @@
             class="notifications-list"
           >
             <div
-              v-for="notification in socketStore.notifications"
+              v-for="notification in notificationStore.notifications"
               :key="notification.id"
               :class="['notification-item', { unread: !notification.is_read }]"
               @click="handleNotificationClick(notification)"
@@ -227,7 +227,7 @@
                   }}
                 </span>
               </div>
-              
+
               <div class="notification-content">
                 <div class="notification-header">
                   <h4 class="notification-title">{{ notification.title }}</h4>
@@ -235,12 +235,12 @@
                     {{ formatDate(notification.created_at) }}
                   </span>
                 </div>
-                
+
                 <div
                   class="notification-message"
                   v-html="sanitizeMessage(notification.message)"
                 />
-                
+
                 <div v-if="notification.data_json" class="notification-metadata">
                   <span class="metadata-tag">
                     {{ JSON.parse(notification.data_json).type || 'General' }}
@@ -335,7 +335,7 @@
                   {{ conv.unreadCount > 9 ? '9+' : conv.unreadCount }}
                 </span>
               </div>
-              
+
               <div class="conversation-content">
                 <div class="conversation-header">
                   <h4 class="conversation-name">{{ conv.otherName }}</h4>
@@ -343,7 +343,7 @@
                     {{ formatDate(conv.updated_at || conv.created_at) }}
                   </span>
                 </div>
-                
+
                 <div class="conversation-preview">
                   <p class="conversation-last-message">
                     {{ conv.lastMessage?.text || $t('noMessages') }}
@@ -376,7 +376,7 @@
             <div class="user-details">
               <h3 class="user-name">{{ authStore.user?.name || 'Usuario' }}</h3>
               <p class="user-role">
-                {{ 
+                {{
                   authStore.user?.role === 'admin' ? 'Administrador' :
                   authStore.user?.role === 'provider' ? 'Proveedor' :
                   'Cliente'
@@ -441,7 +441,7 @@
 
           <div class="menu-divider"></div>
 
-          <!--  otros link y Cerrar Sesión -->         
+          <!-- otros link y Cerrar Sesión -->
           <button
             class="menu-item logout-item"
             @click="logout"
@@ -531,7 +531,8 @@ const userMenuItems = [
 const providerMenuItems = [
   { to: '/', label: 'dashboard', icon: '📊' },
   { to: '/routes', label: 'myRoutes', icon: '🛣️' },
-  { to: '/services', label: 'myServices', icon: '📦' },
+  { to: '/services', label: 'Services', icon: '📦' },
+  { to: '/myservices', label: 'myServices', icon: '📦' },
   { to: '/services/new', label: 'addService', icon: '➕' },
   { to: '/payment', label: 'payment_method', icon: '💳' },
   { to: '/earnings', label: 'myEarnings', icon: '📈' },
@@ -548,8 +549,6 @@ const adminMenuItems = [
   { to: '/provider', label: 'manageProviders', icon: '🛡️' },
   { to: '/admin/services', label: 'manageServices', icon: '📦' },
   { to: '/admin/reports', label: 'reports', icon: '📊' },
-  
-  // NUEVAS OPCIONES QUE VOY A AGREGAR:
   { to: '/admin/system', label: 'systemSettings', icon: '⚙️' },
   { to: '/admin/content', label: 'contentManager', icon: '📝' },
   { to: '/admin/payments', label: 'paymentGateways', icon: '💳' },
@@ -558,8 +557,7 @@ const adminMenuItems = [
   { to: '/admin/logs', label: 'systemLogs', icon: '📋' },
   { to: '/admin/analytics', label: 'analytics', icon: '📈' },
   { to: '/admin/adminwallet', label: 'Admin Wallet', icon: '💰' },
-  { to: '/admin/system-config', label: 'serverConfig', icon: '🌐' },  
-
+  { to: '/admin/system-config', label: 'serverConfig', icon: '🌐' },
   { to: '/chats', label: 'chats', icon: '💬' },
   { to: '/profile', label: 'profile', icon: '👤' },
   { to: '/wallet', label: 'wallet', icon: '💰' },
@@ -576,6 +574,19 @@ const toggleUserPanel = () => {
 const togglePanel = (panel) => {
   activePanel.value = activePanel.value === panel ? null : panel
   showUserPanel.value = false
+
+  if (panel === 'notifications') {
+    notificationStore.markAllAsRead()
+  }
+
+  if (panel === 'conversations') {
+    // Marcar todas las conversaciones como leídas al abrir el panel
+    conversationStore.conversations.forEach(conv => {
+      if (conv.unreadCount > 0) {
+        conversationStore.markConversationAsRead(conv.id)
+      }
+    })
+  }
 }
 
 const markingAllAsRead = ref(false)
@@ -601,35 +612,29 @@ const sanitizeMessage = (message) => {
   return DOMPurify.sanitize(message, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'span'] })
 }
 
-// Método para marcar todas como leídas (AHORA USA EL NUEVO ENDPOINT)
 const markAllAsRead = async () => {
-  if (markingAllAsRead.value) return // Evitar múltiples clics mientras carga
-  
+  if (markingAllAsRead.value) return
+
   try {
     markingAllAsRead.value = true
-    
     const token = authStore.token
     if (!token || authStore.isTokenExpired?.()) {
       await authStore.refreshToken?.()
       return router.push('/login')
     }
-    
-    // Verificar si hay notificaciones no leídas
+
     const unreadCount = notificationStore.unreadCount
     if (unreadCount === 0) {
       markingAllAsRead.value = false
       return
     }
-    
-    // Llamar al nuevo endpoint
+
     await api.post('/notifications/read-all', {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    
-    // Actualizar el store local (marcar todas como leídas)
+
     notificationStore.markAllAsRead()
-    
-    // Opcional: Notificar al socket
+
     try {
       if (socketStore.markAllAsRead) {
         socketStore.markAllAsRead()
@@ -637,9 +642,9 @@ const markAllAsRead = async () => {
     } catch (e) {
       // Ignorar
     }
-    
+
     console.log('✅ Todas las notificaciones marcadas como leídas')
-    
+
   } catch (error) {
     console.error('❌ Error al marcar todas como leídas:', error)
   } finally {
@@ -649,32 +654,16 @@ const markAllAsRead = async () => {
 
 const handleNotificationClick = async (notification) => {
   try {
-    const token = authStore.token
-    if (!token || authStore.isTokenExpired?.()) {
-      await authStore.refreshToken?.()
-      return router.push('/login')
-    }
-    
-    // 1. LLAMADA A LA API (esto ya lo tienes bien)
-    await api.post('/notifications/read', { id: notification.id }, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    
-    // 2. ACTUALIZAR EL NOTIFICATIONSTORE LOCALMENTE
-    // Usar el método markAsRead que YA EXISTE en notificationStore
     notificationStore.markAsRead(notification.id)
-    
-    // 3. OPCIONAL: Notificar al socket si es necesario
+
     try {
       socketStore.markAsRead(notification.id)
     } catch (e) {
-      // Ignorar errores del socket, no es crítico
+      // Ignorar
     }
-    
-    // 4. CERRAR PANEL
+
     activePanel.value = null
 
-    // 5. NAVEGACIÓN (igual que antes)
     let targetPath = null
     if (notification.data_json) {
       try {
@@ -691,7 +680,7 @@ const handleNotificationClick = async (notification) => {
 
     if (targetPath) router.push(targetPath)
     else selectedNotification.value = notification
-    
+
   } catch (error) {
     console.error('❌ Error en handleNotificationClick:', error)
   }
@@ -740,7 +729,6 @@ let visibilityChangeListener = null
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
 
-  // Cerrar dropdown de idioma al hacer clic fuera
   clickOutsideListener = (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {
       langDropdownOpen.value = false
@@ -748,7 +736,6 @@ onMounted(async () => {
   }
   document.addEventListener('click', clickOutsideListener)
 
-  // Desbloquear audio de notificación en dispositivos móviles
   unlockAudio = () => {
     if (socketStore.notificationSound) {
       socketStore.notificationSound.volume = 0
@@ -767,9 +754,9 @@ onMounted(async () => {
   document.addEventListener('click', unlockAudio)
   document.addEventListener('touchstart', unlockAudio)
 
-  // Inicializar datos
   if (authStore.user) {
     try {
+      notificationStore.reset?.()
       await Promise.all([
         notificationStore.loadNotificationsFromAPI(),
         conversationStore.fetchConversations()
@@ -805,6 +792,7 @@ onBeforeUnmount(() => {
   socketStore.disconnect()
 })
 </script>
+
 
 <style scoped>
 /* ========== ESTILOS GLOBALES ========== */

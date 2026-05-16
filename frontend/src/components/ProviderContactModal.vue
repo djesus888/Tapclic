@@ -376,25 +376,42 @@ const stopProcess = () => {
 };
 
 /* ----------------------------------------------------------
-  ACCIONES
+  ACCIONES CANCELAR
 ---------------------------------------------------------- */
-const deleteRequest = async () => {
+const cancelRequest = async () => {
+  if (!props.requestId || !authStore.token) return false;
+  
   try {
-    await api.delete(`/requests/${props.requestId}`);
-    console.log('🗑️ Solicitud eliminada:', props.requestId);
+    const res = await api.post(
+      '/requests/cancel',
+      { id: props.requestId },
+      {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      }
+    );
+    
+    if (res.data?.success) {
+      console.log('✅ Solicitud cancelada vía API:', props.requestId);
+      return true;
+    } else {
+      console.warn('⚠️ API no pudo cancelar:', res.data?.message);
+      return false;
+    }
   } catch (err) {
-    console.error('❌ Error al eliminar:', err);
+    console.error('❌ Error al cancelar solicitud:', err);
+    // Incluso si falla, intentamos continuar para no bloquear al usuario
+    return false;
   }
 };
 
 const handleCancel = async () => {
-  await deleteRequest();
+  await cancelRequest();
   cleanup();
   emit('cancel');
 };
 
 const handleRetry = async () => {
-  await deleteRequest();
+  await cancelRequest();
   cleanup();
   emit('retry-request');
 };

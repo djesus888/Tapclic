@@ -27,7 +27,7 @@ export const useNotificationStore = defineStore('notification', {
       // Escuchar notificaciones del sistema
       socketStore.on('new-notification', (notification) => {
         console.log('📬 Notificación recibida:', notification);
-        
+
         // Verificar si es una notificación de mensaje
         if (notification.data_json) {
           try {
@@ -41,7 +41,7 @@ export const useNotificationStore = defineStore('notification', {
             // No es JSON, continuar normal
           }
         }
-        
+
         // Notificación normal del sistema
         this.addNotification(notification);
       });
@@ -66,10 +66,6 @@ export const useNotificationStore = defineStore('notification', {
           this.addNotification(messageNotification, false); // false = no reproducir sonido
         }
       });
-
-      window.addEventListener('request-updated', () => this._invalidateCache());
-      window.addEventListener('payment-updated', () => this._invalidateCache());
-      window.addEventListener('message-received', () => this._invalidateCache());
     },
 
     async loadNotificationsFromAPI() {
@@ -86,12 +82,12 @@ export const useNotificationStore = defineStore('notification', {
           : response.data?.notifications || [];
 
         this.notifications = list;
-        
+
         // Actualizar cache de leídas
         list.forEach(n => {
           if (n.is_read) this._readCache.add(n.id);
         });
-        
+
       } catch (err) {
         console.error('Error loading notifications:', err);
       }
@@ -102,12 +98,12 @@ export const useNotificationStore = defineStore('notification', {
       const exists = this.notifications.find((n) => n.id === notification.id);
       if (!exists) {
         this.notifications.unshift(notification);
-        
+
         // Limitar número de notificaciones en memoria
         if (this.notifications.length > 100) {
           this.notifications = this.notifications.slice(0, 100);
         }
-        
+
         // Reproducir sonido si está permitido
         if (playSound && this._shouldPlaySound(notification)) {
           this.playSound();
@@ -124,9 +120,6 @@ export const useNotificationStore = defineStore('notification', {
       if (idx !== -1) {
         this.notifications[idx].is_read = true;
         this._readCache.add(id);
-        
-        // Notificar al servidor
-        this._notifyServerRead(id);
       }
     },
 
@@ -138,27 +131,9 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    async _notifyServerRead(id) {
-      try {
-        const authStore = useAuthStore();
-        await api.post('/notifications/read', { notification_id: id }, {
-          headers: { Authorization: `Bearer ${authStore.token}` }
-        });
-      } catch (err) {
-        console.error('Error marking notification as read on server:', err);
-      }
-    },
-
     markAllAsRead() {
-      const unreadIds = this.notifications
-        .filter(n => !n.is_read)
-        .map(n => n.id);
-        
       this.notifications = this.notifications.map((n) => ({ ...n, is_read: true }));
-      unreadIds.forEach(id => this._readCache.add(id));
-      
-      // Notificar al servidor
-      unreadIds.forEach(id => this._notifyServerRead(id));
+      this.notifications.forEach(n => this._readCache.add(n.id));
     },
 
     removeNotification(id) {
@@ -177,16 +152,10 @@ export const useNotificationStore = defineStore('notification', {
     clearOldNotifications(days = 7) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      
-      this.notifications = this.notifications.filter(n => 
+
+      this.notifications = this.notifications.filter(n =>
         new Date(n.created_at) > cutoff || !n.is_read
       );
-    },
-
-    _invalidateCache() {
-      this._initialized = false;
-      console.log('🔄 Cache de notificaciones invalidado');
-      this.initialize(); // refresca inmediatamente
     },
 
     async playSound() {
@@ -212,15 +181,15 @@ export const useNotificationStore = defineStore('notification', {
 
   getters: {
     unreadCount: (state) => state.notifications.filter((n) => !n.is_read).length,
-    
+
     unreadMessagesCount: (state) => state.notifications
       .filter(n => n.type === 'new_message' && !n.is_read).length,
-      
-    recentNotifications: (state) => (limit = 10) => 
+
+    recentNotifications: (state) => (limit = 10) =>
       [...state.notifications]
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, limit),
-        
+
     notificationsByDate: (state) => {
       const grouped = {};
       state.notifications.forEach(n => {
@@ -230,8 +199,8 @@ export const useNotificationStore = defineStore('notification', {
       });
       return grouped;
     },
-    
-    hasUnreadByType: (state) => (type) => 
+
+    hasUnreadByType: (state) => (type) =>
       state.notifications.some(n => n.type === type && !n.is_read),
   },
 });

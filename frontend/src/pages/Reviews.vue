@@ -43,7 +43,7 @@
 
         <div class="flex items-start gap-3">
           <img
-            :src="r.user_avatar || r.provider_avatar || '/default-avatar.png'"
+            :src="getImageUrl(r.user_avatar || r.provider_avatar, 'avatar') || '/default-avatar.png'"
             alt="avatar"
             class="w-10 h-10 rounded-full object-cover"
             loading="lazy"
@@ -58,7 +58,7 @@
               <img
                 v-for="(src, idx) in safePhotos(r)"
                 :key="idx"
-                :src="src"
+                :src="getImageUrl(src, 'uploads')"
                 class="w-16 h-16 rounded object-cover border"
                 loading="lazy"
               />
@@ -150,6 +150,7 @@ import ReviewFilters from '@/components/ReviewFilters.vue'
 import ReviewFormModal from '@/components/ReviewFormModal.vue'
 import { useReviews } from '@/utils/useReviews.ts'
 import type { Review } from '@/utils/useReviews.ts'
+import { getImageUrl } from '@/utils/imageHelper.js'
 
 dayjs.extend(relativeTime)
 dayjs.locale('es')
@@ -161,7 +162,7 @@ const average = ref(0)
 const total = ref(0)
 const loading = ref(true)
 const menuOpen = ref<number | null>(null)
-const modalMode = ref<'new' | 'reply' | 'edit'>('reply') // ✅ Ahora incluye 'new'
+const modalMode = ref<'new' | 'reply' | 'edit'>('reply')
 const targetRole = ref<'provider' | 'user'>('provider')
 const showForm = ref(false)
 const currentEdit = ref<Review | null>(null)
@@ -174,7 +175,7 @@ const isProvider = computed(() => authStore.user?.role === 'provider')
 const isOwner = (r: Review): boolean => {
   if (!authStore.user?.id) return false
   const userId = Number(authStore.user.id)
-  
+
   if (r.type === 'service_review') return Number(r.user_id) === userId
   if (r.type === 'user_review') return Number(r.provider_id) === userId
   return false
@@ -183,7 +184,7 @@ const isOwner = (r: Review): boolean => {
 /* ----------  REPLY LOGIC: Quién puede responder  ---------- */
 const canReply = (r: Review): boolean => {
   if (!authStore.user?.role) return false
-  
+
   if (r.type === 'service_review') return isProvider.value
   if (r.type === 'user_review') return !isProvider.value
   return false
@@ -198,9 +199,7 @@ async function loadReviews() {
 
     reviews.value = data.reviews.map((r: any) => ({
       ...r,
-      // ✅ Determinar tipo correctamente por la tabla de origen
       type: r.provider_reply !== undefined ? 'service_review' : 'user_review',
-      // ✅ Asegurar IDs numéricos para comparaciones
       id: Number(r.id),
       user_id: r.user_id ? Number(r.user_id) : undefined,
       provider_id: r.provider_id ? Number(r.provider_id) : undefined
@@ -223,14 +222,13 @@ const { filters, filtered } = useReviews(reviews)
 /* ----------  MODAL  ---------- */
 
 function openReply(r: Review) {
-  // ✅ NO sobrescribir los datos originales
   currentEdit.value = {
     id: r.id,
     rating: r.rating,
-    comment: '', // Respuesta nueva empieza vacía
+    comment: '',
     type: r.type
   } as Review
-  
+
   modalMode.value = 'reply'
   targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
   currentServiceHistoryId.value = r.service_history_id
@@ -239,15 +237,14 @@ function openReply(r: Review) {
 
 function openUpdate(r: Review) {
   const reply = r.type === 'service_review' ? r.provider_reply : r.user_reply
-  
-  // ✅ Cargar solo el mensaje de respuesta, no sobrescribir el comentario original
+
   currentEdit.value = {
     id: r.id,
     rating: r.rating,
     comment: reply?.message || '',
     type: r.type
   } as Review
-  
+
   modalMode.value = 'edit'
   targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
   currentServiceHistoryId.value = r.service_history_id
@@ -315,7 +312,7 @@ async function handleSave(payload: any) {
   try {
     if (modalMode.value === 'reply') {
       await api.post(
-        `/api/reviews/${reviewId}/reply`,
+        `/reviews/${reviewId}/reply`,
         {
           message: payload.comment,
           targetRole: targetRole.value
@@ -326,7 +323,7 @@ async function handleSave(payload: any) {
 
     if (modalMode.value === 'edit') {
       await api.put(
-        `/api/reviews/${reviewId}/reply`,
+        `/reviews/${reviewId}/reply`,
         { message: payload.comment },
         { headers: { Authorization: `Bearer ${authStore.token}` } }
       )

@@ -21,28 +21,19 @@ export const useSocketStore = defineStore('socket', {
     _isDisconnecting: false,
     heartbeatInterval: null,
     httpHeartbeatInterval: null,
-    // Tracking de salas unidas
     _joinedRooms: new Set(),
-    // Salas pendientes para unirse después de reconectar
     _pendingRooms: null,
-    // Cola de mensajes por confirmar
     _pendingConfirmations: new Map(),
-    // Control de reconexión para evitar bucles
     _shouldReconnect: true,
     _reconnectTimer: null,
-    // Flag para identificar si la desconexión fue por servidor
     _disconnectedByServer: false,
-    // Flag para evitar múltiples inicializaciones
     _initialized: false,
-    // CORRECCIÓN: Eliminado state.connected (usar solo getter)
-    // CORRECCIÓN 1: Variables para control de reconexión con backoff
     _reconnectBaseDelay: 1000,
     _reconnectMaxDelay: 30000,
     _isReconnecting: false,
   }),
 
   actions: {
-    // ✅ NUEVO: Método simplificado para conectar (compatible con websocket.js)
     connect(token) {
       const authStore = useAuthStore();
       const tokenToUse = token || authStore.token;
@@ -50,37 +41,33 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ No hay token para conectar socket');
         return null;
       }
-      // Si ya hay socket conectado, retornarlo
       if (this.socket?.connected) {
         console.log('🔌 Socket ya conectado');
         return this.socket;
       }
-      // Usar el método connectWithToken existente
       return this.connectWithToken(tokenToUse, authStore.user);
     },
 
-    // Renombramos el connect original para mantener compatibilidad interna
     async connectWithToken(token, user) {
       if (!token || typeof token !== 'string') {
         console.warn('⚠️ Token inválido para conectar socket');
         return null;
       }
 
-      // CORRECCIÓN 3: No destruir socket si ya está conectado
       if (this.socket?.connected) {
         console.log('🔌 Socket ya conectado, reutilizando');
         return this.socket;
       }
-      // Verificar si fue desconectado por servidor
       if (!this._shouldReconnect || this._disconnectedByServer) {
         console.log('⏸️ Reconexión deshabilitada por desconexión del servidor');
         return null;
       }
-      // CORRECCIÓN 10: Esperar promesa existente correctamente
+
       if (this._creating) {
         console.log('⏳ Conexión ya en progreso, esperando...');
         return await this._creating;
       }
+
       if (this._isDisconnecting) {
         console.log('⏳ Esperando desconexión actual...');
         const maxWait = 5000;
@@ -99,16 +86,14 @@ export const useSocketStore = defineStore('socket', {
         this.initNotificationSound();
       }
 
-      // CORRECCIÓN 3: Limpiar socket anterior SOLO si no está conectado
       if (this.socket) {
         console.log('🧹 Limpiando socket anterior no conectado');
         this.socket.removeAllListeners();
         this.socket.disconnect();
         this.socket = null;
       }
-      // Usar la URL correcta desde la variable de entorno
+
       let wsUrl = import.meta.env.VITE_WS_URL;
-      // CORRECCIÓN 1: Corregir conversión de URL http a ws/wss
       if (wsUrl && wsUrl.startsWith('https://')) {
         wsUrl = wsUrl.replace('https://', 'wss://');
       } else if (wsUrl && wsUrl.startsWith('http://')) {
@@ -117,15 +102,14 @@ export const useSocketStore = defineStore('socket', {
       console.log('🔌 Conectando a WebSocket:', wsUrl);
 
       const socket = io(wsUrl, {
-        transports: ['websocket', 'polling'], // CORRECCIÓN 2: Añadir polling como fallback
-        reconnection: false, // Desactivamos reconexión automática, manejaremos manualmente con backoff
+        transports: ['websocket', 'polling'],
+        reconnection: false,
         reconnectionAttempts: 0,
         timeout: 20000,
         auth: { token },
       });
 
       this._creating = new Promise((resolve, reject) => {
-        // Timeout de conexión
         const connectionTimeout = setTimeout(() => {
           if (!socket.connected) {
             console.error('❌ Timeout de conexión WebSocket');
@@ -136,7 +120,6 @@ export const useSocketStore = defineStore('socket', {
 
         const connectHandler = () => {
           clearTimeout(connectionTimeout);
-          // CORRECCIÓN 1: Resetear contador de reconexión al conectar exitosamente
           this._reconnectAttempts = 0;
           this._isReconnecting = false;
           if (this._reconnectTimer) {
@@ -145,24 +128,10 @@ export const useSocketStore = defineStore('socket', {
           }
           this._isDisconnecting = false;
           this._shouldReconnect = true;
-          this._disconnectedByServer = false; // Resetear flag
+          this._disconnectedByServer = false;
 
           console.log('✅ Socket conectado, ID:', socket.id);
 
-          // Unirse a salas del usuario - COMENTADO
-          // if (user && user.role && user.id) {
-          //   const room = `${user.role}_${user.id}`;
-          //   socket.emit('join-room', room, (response) => {
-          //     if (response?.success) {
-          //       this._joinedRooms.add(room);
-          //       console.log(`✅ Unido a la sala: ${room}`);
-          //     } else {
-          //       console.error(`❌ Error al unirse a la sala ${room}:`, response?.error);
-          //     }
-          //   });
-          // }
-
-          // Unirse a conversaciones activas basadas en URL
           const currentPath = window.location.pathname;
           const chatMatch = currentPath.match(/\/chat\/(\d+)/);
           if (chatMatch) {
@@ -170,7 +139,6 @@ export const useSocketStore = defineStore('socket', {
             this.joinConversationRoom(conversationId);
           }
 
-          // Re-unirse a salas guardadas
           this._joinedRooms.forEach(room => {
             socket.emit('join-room', room, (response) => {
               if (response?.success) {
@@ -179,7 +147,6 @@ export const useSocketStore = defineStore('socket', {
             });
           });
 
-          // ✅ NUEVO: Unirse a salas pendientes después de reconectar
           if (this._pendingRooms && this._pendingRooms.size > 0) {
             console.log(`🔄 Uniéndose a ${this._pendingRooms.size} salas pendientes...`);
             this._pendingRooms.forEach(room => {
@@ -193,12 +160,10 @@ export const useSocketStore = defineStore('socket', {
             this._pendingRooms.clear();
           }
 
-          // CORRECCIÓN 9: Re-registrar handlers de componentes sin duplicar
+          // ✅ CORRECCIÓN: Restaurar handlers de componentes correctamente
           for (const [event, handlersSet] of this._componentHandlers) {
             for (const handler of handlersSet) {
-              // Asegurarse de no duplicar handlers
               socket.off(event, handler);
-              // Verificar que no esté ya registrado antes de añadirlo
               if (!socket.listeners(event).includes(handler)) {
                 socket.on(event, handler);
               }
@@ -209,23 +174,19 @@ export const useSocketStore = defineStore('socket', {
           this._flushPendingEvents();
           this.startHeartbeat();
           this.startHttpHeartbeat();
-
           resolve(socket);
         };
 
         const connectErrorHandler = (err) => {
           clearTimeout(connectionTimeout);
           console.error(`❌ connect_error:`, err.message);
-
-          // Si el error es por conexión duplicada, detener reconexión
           if (err.message && err.message.includes('duplicate')) {
             console.log('⛔ Conexión duplicada detectada, deteniendo reconexión');
             this._shouldReconnect = false;
-            this._disconnectedByServer = true; // Marcar como desconectado por servidor
+            this._disconnectedByServer = true;
             socket.disconnect();
             reject(new Error('Conexión duplicada'));
           } else {
-            // CORRECCIÓN 1: Iniciar reconexión con backoff
             this._scheduleReconnect();
             reject(err);
           }
@@ -233,33 +194,27 @@ export const useSocketStore = defineStore('socket', {
 
         const disconnectHandler = (reason) => {
           console.warn(`⚠️ Socket desconectado: ${reason}`);
-          // CORRECCIÓN 4: Solo considerar desconexión por servidor cuando es explícita
           if (reason === 'io server disconnect') {
             console.log('⏸️ Desconexión por servidor (namespace), deteniendo reconexión');
             this._shouldReconnect = false;
             this._disconnectedByServer = true;
-            // Limpiar cualquier timer de reconexión
             if (this._reconnectTimer) {
               clearTimeout(this._reconnectTimer);
               this._reconnectTimer = null;
             }
           } else if (reason === 'transport close' || reason === 'transport error') {
-            // CORRECCIÓN 1: Reconectar en caso de error de transporte
             if (this._shouldReconnect && !this._disconnectedByServer) {
               this._scheduleReconnect();
             }
           }
-          // ELIMINADO: transport close NO es necesariamente del servidor
         };
 
         const authErrorHandler = (data) => {
           clearTimeout(connectionTimeout);
           console.error('❌ Auth error:', data?.message || 'Unknown auth error');
           this._shouldReconnect = false;
-          this._disconnectedByServer = true; // Marcar como desconectado por servidor
-          // Desconectar socket primero
+          this._disconnectedByServer = true;
           socket.disconnect();
-          // Luego hacer logout
           useAuthStore().logout().finally(() => {
             reject(new Error('Auth error'));
           });
@@ -269,7 +224,6 @@ export const useSocketStore = defineStore('socket', {
           console.error('❌ Socket error:', err);
         };
 
-        // ✅ NUEVO: Setup de listeners para otros stores
         this._setupStoreListeners(socket);
 
         socket
@@ -286,7 +240,6 @@ export const useSocketStore = defineStore('socket', {
       return this._creating;
     },
 
-    // CORRECCIÓN 1: Método para programar reconexión con backoff exponencial
     _scheduleReconnect() {
       if (!this._shouldReconnect || this._disconnectedByServer || this._isReconnecting) {
         console.log('⏸️ Reconexión no permitida');
@@ -297,29 +250,23 @@ export const useSocketStore = defineStore('socket', {
         clearTimeout(this._reconnectTimer);
         this._reconnectTimer = null;
       }
-
-      // Cálculo de delay con backoff exponencial (máximo 30 segundos)
       const delay = Math.min(
         this._reconnectBaseDelay * Math.pow(2, this._reconnectAttempts),
         this._reconnectMaxDelay
       );
 
       console.log(`🔄 Programando reconexión en ${delay}ms (intento ${this._reconnectAttempts + 1})`);
-
       this._reconnectTimer = setTimeout(() => {
         this._attemptReconnect();
       }, delay);
     },
 
-    // CORRECCIÓN 1: Método para intentar reconexión
     async _attemptReconnect() {
       if (this._isReconnecting) return;
 
       this._isReconnecting = true;
       this._reconnectAttempts++;
-
       const authStore = useAuthStore();
-
       if (!authStore.token) {
         console.log('⏸️ No hay token, deteniendo reconexión');
         this._isReconnecting = false;
@@ -345,7 +292,6 @@ export const useSocketStore = defineStore('socket', {
         this._reconnectAttempts = 0;
       } catch (err) {
         console.error(`❌ Error en reconexión ${this._reconnectAttempts}:`, err.message);
-        // Si aún debemos reconectar, programar otro intento
         if (this._shouldReconnect && !this._disconnectedByServer && this._reconnectAttempts < 10) {
           this._scheduleReconnect();
         } else {
@@ -357,20 +303,24 @@ export const useSocketStore = defineStore('socket', {
       }
     },
 
-    // ✅ NUEVO: Método para configurar listeners de otros stores
     _setupStoreListeners(socket) {
       const onlineUsersStore = useOnlineUsersStore();
       const notificationStore = useNotificationStore();
       const conversationStore = useConversationStore();
 
-      // Notificaciones - DELEGAR AL NOTIFICATION STORE
+      // =====================================================
+      // ✅ CORRECCIÓN: Listener ÚNICO para new-notification
+      // (antes estaba duplicado, causando comportamientos impredecibles)
+      // =====================================================
       socket.on('new-notification', (notification) => {
-        console.log('📢 Notificación recibida:', notification);
+        console.log('📢 [SOCKET] Notificación recibida:', notification);
         notificationStore.addNotification(notification);
+        // Reproducir sonido
         this.playNotificationSound();
+        // Emitir a los handlers de componentes para que DashboardUser reaccione
+        this._emitToHandlers('new-notification', notification);
       });
 
-      // Usuarios online - DELEGAR AL ONLINE USERS STORE
       socket.on('users_online', (users) => {
         console.log('👥 Usuarios online actualizados:', users.length);
         onlineUsersStore.setOnlineUsers(users);
@@ -386,28 +336,115 @@ export const useSocketStore = defineStore('socket', {
         onlineUsersStore.removeOnlineUser(userId);
       });
 
-      // Mensajes - DELEGAR AL CONVERSATION STORE
+      // =====================================================
+      // ✅ CORRECCIÓN: Listeners para eventos de solicitudes
+      // Ahora emiten a los handlers de componentes
+      // =====================================================
+      socket.on('new_request_created', (data) => {
+        console.log('🆕 [SOCKET] Nueva solicitud recibida:', data);
+        // Reproducir sonido
+        this.playNotificationSound();
+        // Emitir a los handlers de componentes
+        this._emitToHandlers('new_request_created', data);
+      });
+
+      socket.on('request_updated', (data) => {
+        console.log('🔄 [SOCKET] Solicitud actualizada:', JSON.stringify(data));
+        // Reproducir sonido para cambios importantes
+        const status = data.request?.status || data.status;
+        if (status === 'accepted' || status === 'rejected' || status === 'cancelled' || status === 'completed') {
+          this.playNotificationSound();
+        }
+        // ✅ EMITIR a los handlers de componentes (esto es lo que faltaba para el tiempo real)
+        this._emitToHandlers('request_updated', data);
+      });
+
+      socket.on('payment_updated', (data) => {
+        console.log('💳 [SOCKET] Pago actualizado:', JSON.stringify(data));
+        this.playNotificationSound();
+        // ✅ EMITIR a los handlers de componentes para actualizar UI en tiempo real
+        this._emitToHandlers('payment_updated', data);
+      });
+
+      socket.on('open_rating_modal', (data) => {
+        console.log('⭐ [SOCKET] Abrir modal de calificación:', data);
+        this._emitToHandlers('open_rating_modal', data);
+      });
+
+      // =====================================================
+      // new_message - VERSIÓN CORREGIDA
+      // =====================================================
       socket.on('new_message', (data) => {
-        console.log('📨 Nuevo mensaje:', data);
-        const normalizedData = this._normalizeEventData(data);
+        console.log('📨 [SOCKET] new_message recibido:', JSON.stringify(data, null, 2));
 
-        // CORRECCIÓN 3: Unirse a la sala de la conversación si no está ya unido
-        const room = `conversation_${normalizedData.conversation_id}`;
+        let messageData = {};
+
+        if (data.message && typeof data.message === 'object') {
+          messageData = {
+            ...data,
+            ...data.message,
+            conversation_id: data.conversation_id || data.message.conversation_id
+          };
+        } else {
+          messageData = { ...data };
+        }
+
+        if (data.payload) {
+          messageData = {
+            ...messageData,
+            ...data.payload
+          };
+        }
+
+        const conversationId = messageData.conversation_id;
+        if (!conversationId) {
+          console.error('❌ [SOCKET] No se pudo obtener conversation_id');
+          return;
+        }
+
+        const room = `conversation_${conversationId}`;
         if (!this._joinedRooms.has(room) && this.socket?.connected) {
-          this.joinConversationRoom(normalizedData.conversation_id);
+          this.joinConversationRoom(conversationId);
         }
 
-        // Notificar a conversationStore
-        if (conversationStore) {
-          conversationStore.addMessage(normalizedData);
-        }
-        // También emitir a handlers de componentes (por compatibilidad)
-        this._emitToHandlers('new_message', normalizedData);
-
-        // Reproducir sonido si es necesario
         const authStore = useAuthStore();
-        const message = normalizedData.message || normalizedData;
-        if (message && message.sender !== authStore.user?.role) {
+        const existingMessages = conversationStore?.messages?.[conversationId] || [];
+        const messageExists = existingMessages.some(m =>
+          m.id === messageData.id ||
+          (messageData.temp_id && m.temp_id === messageData.temp_id)
+        );
+
+        if (messageExists) {
+          console.log('📨 [SOCKET] Mensaje ya existe, omitiendo duplicado:', messageData.id);
+          return;
+        }
+
+        if (conversationStore) {
+          conversationStore.addMessage(conversationId, messageData);
+        }
+
+        const isOwnMessage = String(messageData.sender_id) === String(authStore.user?.id);
+        const hasRealId = messageData.id && !String(messageData.id).startsWith('temp_');
+
+        if (!isOwnMessage && hasRealId) {
+          console.log(`📬 [SOCKET] Emitiendo message_delivered para mensaje ${messageData.id}`);
+          socket.emit('message_delivered', {
+            conversation_id: conversationId,
+            message_ids: [messageData.id]
+          });
+
+          if (Number(conversationId) === Number(conversationStore.activeConversationId)) {
+            console.log(`✅ [SOCKET] Emitiendo message_read para mensaje ${messageData.id} (conversación activa)`);
+            socket.emit('message_read', {
+              conversation_id: conversationId,
+              message_ids: [messageData.id]
+            });
+          }
+        } else if (!isOwnMessage && !hasRealId) {
+          console.warn(`⚠️ [SOCKET] Mensaje sin ID real, no se emite delivered/read:`, messageData);
+        }
+
+        if (!isOwnMessage) {
           this.playNotificationSound();
         }
       });
@@ -416,7 +453,6 @@ export const useSocketStore = defineStore('socket', {
         console.log('🗑️ Mensaje eliminado:', data);
         const normalizedData = this._normalizeEventData(data);
         if (conversationStore) {
-          // 🔥 CORREGIR: Extraer conversation_id y message_id correctamente
           const conversationId = normalizedData.conversation_id || data.conversation_id;
           const messageId = normalizedData.message_id || data.message_id ||
             (normalizedData.message_ids && normalizedData.message_ids[0]) ||
@@ -431,11 +467,15 @@ export const useSocketStore = defineStore('socket', {
       });
 
       socket.on('message_read', (data) => {
-        console.log('✅ Mensajes leídos:', data);
+        console.log('✅ [SOCKET] Mensajes leídos:', data);
         const normalizedData = this._normalizeEventData(data);
-
         if (conversationStore) {
-          conversationStore.markMessagesAsRead(normalizedData);
+          const conversationId = normalizedData.conversation_id || data.conversation_id;
+          const messageIds = normalizedData.message_ids || data.message_ids || [];
+
+          if (conversationId && messageIds.length > 0) {
+            conversationStore.markMessagesAsReadLocally(conversationId, messageIds);
+          }
         }
 
         this._emitToHandlers('message_read', normalizedData);
@@ -463,7 +503,6 @@ export const useSocketStore = defineStore('socket', {
         this._emitToHandlers('typing_indicator', normalizedData);
       });
 
-      // Confirmaciones de mensajes
       socket.on('message_sent_confirmation', (data) => {
         console.log('✅ Confirmación de mensaje:', data);
         this._pendingConfirmations.delete(data.temp_id);
@@ -473,7 +512,6 @@ export const useSocketStore = defineStore('socket', {
         this._emitToHandlers('message_sent_confirmation', data);
       });
 
-      // Conexión duplicada
       socket.on('duplicate_connection', (data) => {
         console.warn('⚠️ Conexión duplicada:', data);
         this._shouldReconnect = false;
@@ -482,8 +520,6 @@ export const useSocketStore = defineStore('socket', {
       });
     },
 
-    // ✅ NUEVO: Mantener compatibilidad con websocket.js
-    // CORRECCIÓN 10: Actualizar sendMessage para usar evento correcto
     sendMessage(conversation_id, message, temp_id = Date.now()) {
       return this.emit('send_message', {
         conversation_id,
@@ -492,7 +528,6 @@ export const useSocketStore = defineStore('socket', {
       });
     },
 
-    // ✅ NUEVO: Mantener compatibilidad con websocket.js
     sendTyping(conversation_id, receiver_id, receiver_role, is_typing) {
       return this.emit('typing', {
         conversation_id,
@@ -502,13 +537,11 @@ export const useSocketStore = defineStore('socket', {
       });
     },
 
-    // ✅ NUEVO: Mantener compatibilidad con websocket.js
     markMessagesRead(messages, conversationWith) {
       return this.emit('message_read', { messages, conversationWith });
     },
 
     async init() {
-      // Prevenir múltiples inicializaciones
       if (this._initialized) {
         console.log('⚠️ SocketStore ya inicializado, omitiendo...');
         return;
@@ -525,27 +558,22 @@ export const useSocketStore = defineStore('socket', {
         }
       }
 
-      // CORRECCIÓN 1: Mejorar watch del token para evitar reconexiones innecesarias
       if (!this._stopAuthWatch) {
         this._stopAuthWatch = watch(
           () => authStore.token,
           async (newToken, oldToken) => {
-            // Si no hay token, desconectar
             if (!newToken) {
               this.disconnect();
               return;
             }
 
-            // Si el token no ha cambiado realmente, no hacer nada
             if (newToken === oldToken) return;
 
-            // Si el socket no existe o no está conectado, conectar
             if (!this.socket || !this.socket.connected) {
               await this.connectWithToken(newToken, authStore.user);
               return;
             }
 
-            // Si ya está conectado, solo actualizar el token
             this.socket.auth.token = newToken;
             this.socket.emit('refresh-token', newToken);
           },
@@ -555,7 +583,6 @@ export const useSocketStore = defineStore('socket', {
 
       if (!this._visibilityListenerAdded) {
         const visibilityHandler = async () => {
-          // No reconectar si fue desconectado por servidor
           if (!document.hidden && authStore.token && !this.socket?.connected && !this._isDisconnecting && this._shouldReconnect && !this._disconnectedByServer) {
             await this.connectWithToken(authStore.token, authStore.user);
           }
@@ -610,11 +637,9 @@ export const useSocketStore = defineStore('socket', {
       }
     },
 
-    // Normalizar datos de eventos - CORRECCIÓN: Simplificado
     _normalizeEventData(data) {
       if (!data) return data;
 
-      // CORRECCIÓN: Asegurar que new_message tenga estructura consistente
       if (data.event === 'new_message' || data.message || data.payload?.message) {
         const message = data.message || data.payload?.message || data;
         return {
@@ -664,7 +689,6 @@ export const useSocketStore = defineStore('socket', {
       }, 60000);
     },
 
-    // CORRECCIÓN 2: Mejorar gestión de handlers para evitar duplicados y limpieza
     on(event, handler) {
       if (!event || typeof event !== 'string' || !handler || typeof handler !== 'function') {
         console.warn('⚠️ Parámetros inválidos para socket.on()');
@@ -678,7 +702,6 @@ export const useSocketStore = defineStore('socket', {
       const handlers = this._componentHandlers.get(event);
       if (!handlers.has(handler)) {
         handlers.add(handler);
-        // Si el socket ya está conectado, registrar el handler directamente
         if (this.socket?.connected) {
           this.socket.on(event, handler);
         }
@@ -697,28 +720,24 @@ export const useSocketStore = defineStore('socket', {
       const handlers = this._componentHandlers.get(event);
       if (handler) {
         handlers.delete(handler);
-        // Remover del socket si está conectado
         if (this.socket?.connected) {
           this.socket.off(event, handler);
         }
       } else {
         handlers.clear();
-        // Remover todos los handlers del socket
         if (this.socket?.connected) {
           this.socket.off(event);
         }
       }
+
       if (handlers.size === 0) this._componentHandlers.delete(event);
     },
 
-    // CORRECCIÓN 2: Método para limpiar handlers obsoletos
     cleanupHandlers(event, componentId) {
       if (!event) return;
 
       if (componentId && this._componentHandlers.has(event)) {
         const handlers = this._componentHandlers.get(event);
-        // Filtrar handlers que pertenecen al componente específico
-        // Nota: Esto requiere que los handlers tengan una propiedad `__componentId`
         for (const handler of handlers) {
           if (handler.__componentId === componentId) {
             handlers.delete(handler);
@@ -733,7 +752,6 @@ export const useSocketStore = defineStore('socket', {
       }
     },
 
-    // CORRECCIÓN 2: Limpiar todos los handlers de un componente
     cleanupComponentHandlers(componentId) {
       if (!componentId) return;
 
@@ -752,21 +770,18 @@ export const useSocketStore = defineStore('socket', {
       }
     },
 
-    // CORRECCIÓN 8: Proteger emit() si el socket no existe
     emit(event, payload) {
       if (!event || typeof event !== 'string') {
         console.warn('⚠️ Evento inválido para socket.emit()');
         return;
       }
 
-      // CORRECCIÓN 8: Verificar que el socket existe
       if (!this.socket) {
         console.log(`📤 Socket no disponible, encolando evento: ${event}`);
         this._queueEvent(event, payload);
         return;
       }
 
-      // Hacer una copia profunda del payload
       let safePayload = {};
       try {
         safePayload = payload ? JSON.parse(JSON.stringify(payload)) : {};
@@ -782,9 +797,7 @@ export const useSocketStore = defineStore('socket', {
       }
 
       try {
-        // Usar callback para confirmación si es necesario
         if (event === 'send_message') {
-          // Guardar para confirmación
           const tempId = safePayload.temp_id || Date.now();
           this._pendingConfirmations.set(tempId, {
             event,
@@ -792,7 +805,6 @@ export const useSocketStore = defineStore('socket', {
             timestamp: Date.now()
           });
 
-          // Esperar confirmación por 5 segundos
           setTimeout(() => {
             if (this._pendingConfirmations.has(tempId)) {
               console.warn(`⚠️ No se recibió confirmación para mensaje ${tempId}`);
@@ -800,7 +812,6 @@ export const useSocketStore = defineStore('socket', {
             }
           }, 5000);
         }
-        // CORRECCIÓN 5: Añadir callback vacío para forzar confirmación
         this.socket.emit(event, safePayload, () => {});
         console.log(`📤 Evento enviado: ${event}`, safePayload);
       } catch (err) {
@@ -809,7 +820,6 @@ export const useSocketStore = defineStore('socket', {
       }
     },
 
-    // Método auxiliar para encolar eventos
     _queueEvent(event, payload) {
       this._pendingEvents.push({
         event,
@@ -817,7 +827,6 @@ export const useSocketStore = defineStore('socket', {
         timestamp: Date.now(),
         retryCount: 0
       });
-      // CORRECCIÓN 6: Reducir límite de cola a 50
       if (this._pendingEvents.length > 50) {
         const dropped = this._pendingEvents.shift();
         console.warn(`🗑️ Evento descartado por cola llena: ${dropped.event}`);
@@ -825,7 +834,6 @@ export const useSocketStore = defineStore('socket', {
     },
 
     _flushPendingEvents() {
-      // CORRECCIÓN 6: Verificar conexión activa correctamente
       if (!this.socket || !this.socket.connected) {
         console.warn('⚠️ No se pueden flushar eventos: socket no conectado');
         return;
@@ -862,7 +870,6 @@ export const useSocketStore = defineStore('socket', {
         console.log('🔇 Sonido deshabilitado');
         return;
       }
-
       if (!this.notificationSound) {
         console.warn('⚠️ Sonido no inicializado, intentando inicializar...');
         this.initNotificationSound();
@@ -901,13 +908,11 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Desconexión ya en progreso');
         return;
       }
-
       this._isDisconnecting = true;
       this._pendingEvents = [];
       this._joinedRooms.clear();
       this._pendingConfirmations.clear();
 
-      // CORRECCIÓN 1: Limpiar timer de reconexión
       if (this._reconnectTimer) {
         clearTimeout(this._reconnectTimer);
         this._reconnectTimer = null;
@@ -923,56 +928,41 @@ export const useSocketStore = defineStore('socket', {
         clearInterval(this.httpHeartbeatInterval);
         this.httpHeartbeatInterval = null;
       }
-
-      if (this._reconnectTimer) {
-        clearTimeout(this._reconnectTimer);
-        this._reconnectTimer = null;
-      }
-
       if (this.socket) {
         this.socket.removeAllListeners();
         this.socket.disconnect();
       }
-
       this.socket = null;
-      // CORRECCIÓN 7: No borrar handlers para mantenerlos en reconexión
-      // this._componentHandlers.clear(); // Mantener handlers para reconexión
       this._reconnectAttempts = 0;
       this._shouldReconnect = true;
-      this._disconnectedByServer = false; // Resetear flag
+      this._disconnectedByServer = false;
 
       if (this._stopAuthWatch) {
         this._stopAuthWatch();
         this._stopAuthWatch = null;
       }
-
-      // Resetear flag de inicialización para permitir reinicialización limpia
       this._initialized = false;
 
       console.log('🔌 SocketStore desconectado completamente');
       this._isDisconnecting = false;
     },
 
-    // CORRECCIÓN 7: Mejorar reconexión manual
     reconnect() {
       if (this.socket?.connected) {
         console.log('🔌 Socket ya conectado');
         return;
       }
 
-      // Si fue desconectado por servidor, permitir reintentar manualmente
       if (this._disconnectedByServer) {
         console.log('🔄 Intentando reconexión manual después de desconexión por servidor');
         this._disconnectedByServer = false;
         this._shouldReconnect = true;
       }
 
-      // Limpiar timer existente
       if (this._reconnectTimer) {
         clearTimeout(this._reconnectTimer);
         this._reconnectTimer = null;
       }
-
       const authStore = useAuthStore();
       if (authStore.token) {
         this.connectWithToken(authStore.token, authStore.user);
@@ -984,7 +974,6 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ ID de notificación inválido');
         return;
       }
-
       const notificationStore = useNotificationStore();
       notificationStore.markAsRead(notificationId);
       if (this.socket?.connected) {
@@ -997,8 +986,6 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Parámetros inválidos para markMessagesAsRead');
         return;
       }
-
-      // ✅ CORREGIDO: Usar 'message_read' en lugar de 'messages_read'
       this.emit('message_read', {
         conversation_id: conversationId,
         message_ids: messageIds,
@@ -1008,24 +995,23 @@ export const useSocketStore = defineStore('socket', {
 
     markMessagesAsDelivered(conversationId, messageIds) {
       if (!conversationId || !messageIds?.length) return;
-
-      // ✅ CORREGIDO: Usar 'message_delivered' en lugar de 'messages_delivered'
       this.emit('message_delivered', {
         conversation_id: conversationId,
         message_ids: messageIds
       });
     },
 
-    // joinConversationRoom mejorado
-    joinConversationRoom(conversationId) {
+    async joinConversationRoom(conversationId) {
       if (!conversationId) {
         console.warn('⚠️ No se puede unir a sala: conversationId inválido');
         return false;
       }
-
       const room = `conversation_${conversationId}`;
+      if (this._joinedRooms.has(room)) {
+        console.log(`✅ Ya está en sala: ${room}`);
+        return true;
+      }
 
-      // Si el socket no está conectado, guardar para unirse cuando se conecte
       if (!this.socket || !this.socket.connected) {
         console.log(`⏳ Socket no conectado, guardando sala para unirse después: ${room}`);
         this._pendingRooms = this._pendingRooms || new Set();
@@ -1034,6 +1020,7 @@ export const useSocketStore = defineStore('socket', {
       }
 
       return new Promise((resolve) => {
+        console.log(`🔗 Uniéndose a sala: ${room}`);
         this.socket.emit('join-room', room, (response) => {
           if (response?.success) {
             this._joinedRooms.add(room);
@@ -1055,7 +1042,6 @@ export const useSocketStore = defineStore('socket', {
       console.log(`👋 Salido de sala: ${room}`);
     },
 
-    // Verificar si está en una sala
     isInRoom(room) {
       return this._joinedRooms.has(room);
     },
@@ -1073,29 +1059,21 @@ export const useSocketStore = defineStore('socket', {
       this._pendingEvents = [];
     },
 
-    // Reenviar mensajes pendientes
     resendPendingMessages() {
       this._flushPendingEvents();
     },
   },
 
   getters: {
-    notifications: () => useNotificationStore().notifications,
-    unreadCount: () => useNotificationStore().unreadCount,
-    // CORRECCIÓN: Eliminado state.connected, usando solo getter
     isConnected: (state) => state.socket?.connected ?? false,
     pendingEvents: (state) => state._pendingEvents,
     reconnectAttempts: (state) => state._reconnectAttempts,
     soundEnabled: (state) => state._soundEnabled,
-    // Getter para salas unidas
     joinedRooms: (state) => Array.from(state._joinedRooms),
-    // Verificar si está en conversación específica
     isInConversation: (state) => (conversationId) => {
       return state._joinedRooms.has(`conversation_${conversationId}`);
     },
-    // Saber si se debe reconectar
     shouldReconnect: (state) => state._shouldReconnect,
-    // Saber si fue desconectado por servidor
     disconnectedByServer: (state) => state._disconnectedByServer,
   },
 });

@@ -281,6 +281,8 @@ if (preg_match('~/api/login~', $request)) {
 
 // ========== RUTAS DE MENSAJERÍA Y CONVERSACIONES ==========
 // --- RUTAS MENSAJES / CHAT ---
+} elseif (preg_match('~/api/messages/(\d+)/status$~', $request, $m) && $method === 'GET') {
+    (new MessageController())->getMessageStatuses((int)$m[1]);
 } elseif (preg_match('~/api/upload/image~', $request)) {
     (new MessageController())->uploadMessageImage();
 } elseif (preg_match('~/api/messages/(\d+)/for-me$~', $request, $m) && $method === 'DELETE') {

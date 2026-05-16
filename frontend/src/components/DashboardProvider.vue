@@ -284,6 +284,18 @@ export default {
     };
   },
 
+  // ✅ AGREGADO: Watcher para activeTab que refresca datos automáticamente
+  watch: {
+    activeTab(newTab, oldTab) {
+      if (newTab !== oldTab) {
+        console.log(`🔄 Tab cambiada a: ${newTab}, refrescando datos...`);
+        this.$nextTick(() => {
+          this.syncRequests();
+        });
+      }
+    }
+  },
+
   methods: {
     getTabIcon(tab) {
       const icons = {
@@ -329,10 +341,48 @@ export default {
 
       const onRequestUpdated = throttle((payload) => {
         console.log('🔔 Provider: Evento request_updated recibido:', payload);
-        if (payload.request) {
-          this.handleRequestUpdate(payload.request);
-          socketStore.playNotificationSound();
+        
+        // ✅ CORREGIDO: Extraer datos tanto de payload directo como de payload.request
+        const requestData = payload.request || payload;
+        
+        if (requestData && requestData.request_id) {
+          // Si el estado ya no es pending, quitar de disponibles
+          if (requestData.status !== 'pending') {
+            this.availableRequests = this.availableRequests.filter(r => r.id !== requestData.request_id);
+          }
+          
+          // Actualizar en activos si corresponde
+          if (ACTIVE_STATUSES.includes(requestData.status)) {
+            const activeIndex = this.inProgressRequests.findIndex(r => r.id === requestData.request_id);
+            const normalizedRequest = this.normalizeRequest({
+              id: requestData.request_id,
+              status: requestData.status,
+              updated_at: requestData.updated_at || new Date().toISOString(),
+              ...requestData
+            });
+            
+            if (activeIndex >= 0) {
+              this.inProgressRequests.splice(activeIndex, 1, normalizedRequest);
+            } else {
+              this.inProgressRequests.unshift(normalizedRequest);
+            }
+          }
+          
+          // Si está completado/cancelado/rechazado, mover a historial
+          if (['completed', 'cancelled', 'rejected'].includes(requestData.status)) {
+            this.inProgressRequests = this.inProgressRequests.filter(r => r.id !== requestData.request_id);
+            this.updateHistory({
+              id: requestData.request_id,
+              status: requestData.status,
+              ...requestData
+            });
+          }
+        } else {
+          // Fallback: refrescar todo
+          this.syncRequests();
         }
+        
+        socketStore.playNotificationSound();
       }, 1000);
 
       const onPaymentUpdated = throttle((payload) => {
@@ -343,8 +393,11 @@ export default {
       }, 1000);
 
       const onNewNotification = throttle((notification) => {
-        console.log('🔔 Provider: Notificación recibida:', notification.event);
-        if (notification.event === 'status_changed' || notification.event === 'request_updated') {
+        console.log('🔔 Provider: Notificación recibida:', notification);
+        // ✅ CORREGIDO: Verificar si la notificación es de tipo request y refrescar
+        if (notification.notification_type === 'new_request' || 
+            notification.action === 'view_request' ||
+            notification.event === 'status_changed') {
           this.syncRequests();
         }
       }, 1000);
@@ -352,25 +405,35 @@ export default {
       const onNewRequest = throttle((payload) => {
         console.log('🔔 Provider: Evento new_request_created recibido:', JSON.stringify(payload, null, 2));
         try {
+          // ✅ CORREGIDO: Evitar duplicados verificando si ya existe
+          const existingIndex = this.availableRequests.findIndex(r => r.id === payload.request_id);
+          if (existingIndex >= 0) {
+            console.log('⚠️ Solicitud ya existe en la lista, omitiendo duplicado');
+            return;
+          }
+          
           const normalizedRequest = this.normalizeRequest({
             id: payload.request_id,
             service_id: payload.service_id,
-            service_title: payload.service_title,
-            service_description: payload.service_description,
-            service_price: payload.service_price,
-            service_image_url: payload.service_image_url,
-            service_location: payload.service_location,
+            service_title: payload.service_title || payload.title || 'Servicio',
+            service_description: payload.service_description || payload.description || '',
+            service_price: payload.service_price || payload.price || 0,
+            service_image_url: payload.service_image_url || payload.image_url || null,
+            service_location: payload.service_location || payload.location || 'Ubicación no especificada',
             user_id: payload.user_id,
-            user_name: payload.user_name,
-            user_phone: payload.user_phone,
+            user_name: payload.user_name || 'Usuario',
+            user_phone: payload.user_phone || null,
             status: payload.status || 'pending',
             payment_status: payload.payment_status || 'pending',
-            additional_details: payload.additional_details,
-            created_at: payload.created_at,
+            additional_details: payload.additional_details || '',
+            created_at: payload.created_at || new Date().toISOString(),
             ...payload
           });
+          
           this.availableRequests = [normalizedRequest, ...this.availableRequests];
           socketStore.playNotificationSound();
+          
+          // ✅ Toast informativo
           this.$swal?.fire({
             icon: 'info',
             title: 'Nueva Solicitud',
@@ -380,7 +443,8 @@ export default {
             position: 'top-end',
             toast: true
           });
-          console.log('✅ Solicitud normalizada y añadida. Total:', this.availableRequests.length);
+          
+          console.log('✅ Solicitud normalizada y añadida. Total disponibles:', this.availableRequests.length);
         } catch (error) {
           console.error('❌ Error en onNewRequest:', error);
         }
@@ -622,7 +686,6 @@ export default {
       };
     },
 
-    // NUEVOS MÉTODOS PARA SOPORTE
     handleReplyTicket(ticket) {
       console.log('Respondiendo al ticket:', ticket.id);
       this.chatTarget = {
@@ -799,39 +862,40 @@ export default {
         this.loading.history = false;
       }
     },
-async fetchTickets() {
-  const now = Date.now();
-  if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) return;
-  const auth = useAuthStore();
-  if (!auth.token) {
-    this.loading.support = false;
-    return;
-  }
-  this.loading.support = true;
-  try {
-    const res = await api.get('/support/tickets', {
-      headers: { Authorization: `Bearer ${auth.token}` }
-    });
-    
-    // NORMALIZAR: Convertir description a last_message para que todo el sistema funcione
-    this.tickets = (Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || []).map(ticket => ({
-      ...ticket,
-      last_message: ticket.description || ticket.message || 'Sin mensaje', // ← NUEVO
-      description: ticket.description // ← Mantener el original por si acaso
-    }));
-    
-    this._lastFetch.support = now;
-  } catch (e) {
-    console.error(e);
-    this.$swal?.fire({
-      icon: 'error',
-      title: 'Error',
-      text: e.message
-    });
-  } finally {
-    this.loading.support = false;
-  }
-},
+
+    async fetchTickets() {
+      const now = Date.now();
+      if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) return;
+      const auth = useAuthStore();
+      if (!auth.token) {
+        this.loading.support = false;
+        return;
+      }
+      this.loading.support = true;
+      try {
+        const res = await api.get('/support/tickets', {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
+
+        this.tickets = (Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || []).map(ticket => ({
+          ...ticket,
+          last_message: ticket.description || ticket.message || 'Sin mensaje',
+          description: ticket.description
+        }));
+
+        this._lastFetch.support = now;
+      } catch (e) {
+        console.error(e);
+        this.$swal?.fire({
+          icon: 'error',
+          title: 'Error',
+          text: e.message
+        });
+      } finally {
+        this.loading.support = false;
+      }
+    },
+
     async fetchFaq() {
       const now = Date.now();
       if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) return;

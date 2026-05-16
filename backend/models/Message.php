@@ -20,56 +20,135 @@ class Message
         return $this->getMessagesByConversationForUser($conversationId, $senderId, $senderType);
     }
 
-    public function getMessagesByConversationForUser(int $conversationId, int $userId, string $userRole): array
-    {
-        // ✅ NUEVO: Marcar como entregados cuando el usuario SOLICITA los mensajes
-        $this->markConversationMessagesAsDelivered($conversationId, $userId, $userRole);
-        
-        $stmt = $this->db->prepare("
-            SELECT
-                m.id,
-                m.sender_id,
-                m.receiver_id,
-                m.text,
-                m.type,
-                m.status,
-                m.created_at,
-                m.updated_at,
-                m.attachment_url,
-                m.metadata,
-                m.read_at,
-                m.sender_type,
-                u.avatar_url,
-                u.name,
-                ms.is_read,
-                ms.read_at as user_read_at,
-                ms.is_deleted,
-                ms.is_delivered,
-                ms.delivered_at
-            FROM messages m
-            INNER JOIN message_status ms ON m.id = ms.message_id
-            LEFT JOIN users u ON u.id = m.sender_id
-            WHERE m.conversation_id = :convId
-              AND ms.user_id = :userId
-              AND ms.user_type = :userRole
-              AND ms.is_deleted = FALSE
-            ORDER BY m.created_at ASC
-        ");
+public function getMessagesByConversationForUser(int $conversationId, int $userId, string $userRole): array
+{
+    // Marcar como entregados cuando el usuario SOLICITA los mensajes
+    $this->markConversationMessagesAsDelivered($conversationId, $userId, $userRole);
 
-        $stmt->execute([
-            'convId' => $conversationId,
-            'userId' => $userId,
-            'userRole' => $userRole
-        ]);
+    // Primero obtener la conversación para saber quién es el otro participante
+    $convStmt = $this->db->prepare("
+        SELECT participant1_id, participant1_type, participant2_id, participant2_type
+        FROM conversations
+        WHERE id = :convId
+    ");
+    $convStmt->execute(['convId' => $conversationId]);
+    $conversation = $convStmt->fetch(PDO::FETCH_ASSOC);
 
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return array_map(function($r) use ($userId) {
-            $msg = $this->mapMessageWithStatus($r);
-            $msg['is_mine'] = ($r['sender_id'] == $userId);
-            return $msg;
-        }, $rows ?: []);
+    if (!$conversation) {
+        return [];
     }
+
+    // Determinar el otro participante
+    $otherUserId = null;
+    $otherUserType = null;
+    
+    if ($conversation['participant1_id'] == $userId && $conversation['participant1_type'] == $userRole) {
+        $otherUserId = $conversation['participant2_id'];
+        $otherUserType = $conversation['participant2_type'];
+    } else {
+        $otherUserId = $conversation['participant1_id'];
+        $otherUserType = $conversation['participant1_type'];
+    }
+
+    // Consulta principal: obtener todos los mensajes con sus estados
+    $stmt = $this->db->prepare("
+        SELECT
+            m.id,
+            m.sender_id,
+            m.receiver_id,
+            m.text,
+            m.type,
+            m.status,
+            m.created_at,
+            m.updated_at,
+            m.attachment_url,
+            m.metadata,
+            m.read_at,
+            m.sender_type,
+            u.avatar_url,
+            u.name,
+            -- Estado para el usuario actual (para mensajes recibidos)
+            ms_current.is_read as current_user_is_read,
+            ms_current.read_at as current_user_read_at,
+            ms_current.is_delivered as current_user_is_delivered,
+            ms_current.delivered_at as current_user_delivered_at,
+            -- Estado para el otro usuario (para mensajes enviados)
+            ms_other.is_read as other_user_is_read,
+            ms_other.read_at as other_user_read_at,
+            ms_other.is_delivered as other_user_is_delivered,
+            ms_other.delivered_at as other_user_delivered_at,
+            ms_current.is_deleted
+        FROM messages m
+        LEFT JOIN users u ON u.id = m.sender_id
+        -- Estado del usuario actual
+        LEFT JOIN message_status ms_current 
+            ON m.id = ms_current.message_id 
+            AND ms_current.user_id = :userId 
+            AND ms_current.user_type = :userRole
+        -- Estado del otro usuario (receptor de mensajes enviados por el usuario actual)
+        LEFT JOIN message_status ms_other 
+            ON m.id = ms_other.message_id 
+            AND ms_other.user_id = :otherUserId 
+            AND ms_other.user_type = :otherUserType
+        WHERE m.conversation_id = :convId
+          AND (ms_current.is_deleted = FALSE OR ms_current.is_deleted IS NULL)
+        ORDER BY m.created_at ASC
+    ");
+
+    $stmt->execute([
+        'convId' => $conversationId,
+        'userId' => $userId,
+        'userRole' => $userRole,
+        'otherUserId' => $otherUserId,
+        'otherUserType' => $otherUserType
+    ]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    return array_map(function($r) use ($userId, $conversationId) {
+        $isMine = ($r['sender_id'] == $userId);
+        
+        // 🔥 CORRECCIÓN CRÍTICA:
+        // Si el mensaje es del usuario actual (is_mine = true), usar el estado del OTRO usuario
+        // Si el mensaje es del otro usuario (is_mine = false), usar el estado del usuario actual
+        if ($isMine) {
+            $isRead = (bool)($r['other_user_is_read'] ?? false);
+            $readAt = $r['other_user_read_at'] ?? null;
+            $isDelivered = (bool)($r['other_user_is_delivered'] ?? false);
+            $deliveredAt = $r['other_user_delivered_at'] ?? null;
+        } else {
+            $isRead = (bool)($r['current_user_is_read'] ?? false);
+            $readAt = $r['current_user_read_at'] ?? null;
+            $isDelivered = (bool)($r['current_user_is_delivered'] ?? false);
+            $deliveredAt = $r['current_user_delivered_at'] ?? null;
+        }
+        
+        $msg = [
+            'id' => (int)$r['id'],
+            'conversation_id' => $conversationId,
+            'sender_id' => (int)$r['sender_id'],
+            'text' => $r['text'] ?? '',
+            'sender' => $r['sender_type'] ?? 'user',
+            'type' => $r['type'],
+            'status' => $r['status'],
+            'created_at' => $r['created_at'],
+            'updated_at' => $r['updated_at'],
+            'avatar_url' => $r['avatar_url'] ?? null,
+            'attachment_url' => $r['attachment_url'] ?? null,
+            'read_at' => $readAt,
+            'parent_id' => null,
+            'metadata' => null,
+            'is_read' => $isRead,
+            'user_read_at' => $readAt,
+            'is_deleted' => (bool)($r['is_deleted'] ?? false),
+            'is_delivered' => $isDelivered,
+            'delivered_at' => $deliveredAt,
+            'is_mine' => $isMine
+        ];
+        
+        return $msg;
+    }, $rows ?: []);
+}
 
     public function getMessagesByConversation(int $conversationId): array
     {
@@ -133,6 +212,7 @@ class Message
               AND ms.user_type = :userRole
               AND ms.is_read = FALSE
               AND ms.is_deleted = FALSE
+              AND m.sender_id != :userId
         ");
 
         $stmt->execute([
@@ -148,64 +228,56 @@ class Message
 public function markConversationMessagesAsDeliveredAndNotify(int $conversationId, int $userId, string $userRole): int
 {
     try {
-        // Primero obtener los mensajes que se marcarán como entregados
-        $sql = "SELECT m.id, m.sender_id, m.sender_type
-                FROM messages m
-                INNER JOIN message_status ms ON m.id = ms.message_id
-                WHERE m.conversation_id = :conversation_id
-                  AND ms.user_id = :user_id
-                  AND ms.user_type = :user_type
-                  AND ms.is_delivered = FALSE";
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            'conversation_id' => $conversationId,
-            'user_id' => $userId,
-            'user_type' => $userRole
-        ]);
-        $affectedMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        if (empty($affectedMessages)) {
-            return 0;
-        }
-        
         // Marcar como entregados
         $updateSql = "UPDATE message_status ms
+                      INNER JOIN messages m ON ms.message_id = m.id
                       SET ms.is_delivered = TRUE, ms.delivered_at = NOW()
-                      WHERE ms.message_id IN (
-                          SELECT m.id FROM messages m
-                          WHERE m.conversation_id = :conversation_id
-                      )
-                      AND ms.user_id = :user_id
-                      AND ms.user_type = :user_type
-                      AND ms.is_delivered = FALSE";
-        
+                      WHERE m.conversation_id = :conversation_id
+                        AND ms.user_id = :user_id
+                        AND ms.user_type = :user_type
+                        AND ms.is_delivered = FALSE";
+
         $updateStmt = $this->db->prepare($updateSql);
         $updateStmt->execute([
             'conversation_id' => $conversationId,
             'user_id' => $userId,
             'user_type' => $userRole
         ]);
-        
+
         $count = $updateStmt->rowCount();
-        
+
         if ($count > 0) {
-            $messageIds = array_column($affectedMessages, 'id');
-            // Devolver los IDs y los senders para notificar
-            return [
-                'count' => $count,
-                'message_ids' => $messageIds,
-                'senders' => $affectedMessages
-            ];
+            // Obtener los mensajes marcados para notificar
+            $sql = "SELECT m.id, m.sender_id, m.sender_type
+                    FROM messages m
+                    INNER JOIN message_status ms ON m.id = ms.message_id
+                    WHERE m.conversation_id = :conversation_id
+                      AND ms.user_id = :user_id
+                      AND ms.user_type = :user_type
+                      AND ms.delivered_at IS NOT NULL
+                      AND ms.is_delivered = TRUE";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'conversation_id' => $conversationId,
+                'user_id' => $userId,
+                'user_type' => $userRole
+            ]);
+            $affectedMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!empty($affectedMessages)) {
+                // Notificar a los remitentes (esto se maneja en el controlador)
+                // Devolvemos los datos para que el controlador los use
+                return $count;
+            }
         }
-        
-        return 0;
+
+        return $count;
     } catch (PDOException $e) {
         error_log("Error marcando mensajes como entregados: " . $e->getMessage());
         return 0;
     }
 }
-
 
 
     public function countUnread(int $conversationId, int $userId): int
@@ -246,14 +318,18 @@ public function insertMessageWithStatus(
     try {
         $this->db->beginTransaction();
 
+        // ✅ CORREGIDO: Añadir receiver_type a la consulta INSERT
         $stmt = $this->db->prepare("
             INSERT INTO messages
             (conversation_id, sender_id, receiver_id, text, type,
-             attachment_url, status, sender_type, created_at, updated_at)
+             attachment_url, status, sender_type, receiver_type, created_at, updated_at)
             VALUES
             (:conv, :s, :r, :t, :ty,
-             :att, 'sent', :st, NOW(), NOW())
+             :att, 'sent', :st, :rt, NOW(), NOW())
         ");
+        
+        error_log("📝 Insertando mensaje: conv={$conversationId}, sender={$senderId}, receiver={$receiverId}, senderType={$senderType}, receiverType={$receiverType}, text=" . substr($text, 0, 30));
+        
         $stmt->execute([
             'conv' => $conversationId,
             's'    => $senderId,
@@ -262,35 +338,41 @@ public function insertMessageWithStatus(
             'ty'   => $type,
             'att'  => $attachment_url,
             'st'   => $senderType,
+            'rt'   => $receiverType,  // ✅ NUEVO: Añadir receiver_type
         ]);
 
         $messageId = (int)$this->db->lastInsertId();
+        
+        error_log("✅ Mensaje insertado con ID: {$messageId}");
 
-        $this->createMessageStatus($messageId, $senderId, $senderType, false, true);
+        // Crear status para el remitente y receptor
+        $this->createMessageStatus($messageId, $senderId, $senderType, false, false);
         $this->createMessageStatus($messageId, $receiverId, $receiverType, false, false);
 
         $this->db->commit();
 
-        // ✅ CORREGIDO: Obtener el mensaje COMPLETO con todos los campos incluyendo sender_id
+        // Obtener el mensaje completo
         $message = $this->getMessageByIdForUser($messageId, $senderId, $senderType);
-        
+
         // Asegurar que is_mine está correcto
         $message['is_mine'] = true;
-        
-        // ✅ Asegurar que sender_id está presente
+
+        // Asegurar que sender_id está presente
         if (!isset($message['sender_id'])) {
             $message['sender_id'] = $senderId;
         }
+
+        error_log("✅ Mensaje devuelto: " . json_encode($message, JSON_UNESCAPED_UNICODE));
 
         return $message;
 
     } catch (Throwable $e) {
         $this->db->rollBack();
         error_log("❌ insertMessageWithStatus error: " . $e->getMessage());
+        error_log("❌ Stack trace: " . $e->getTraceAsString());
         throw $e;
     }
 }
-
 
     private function createMessageStatus(int $messageId, int $userId, string $userType, bool $isRead = false, bool $isDelivered = false): void
     {
@@ -341,7 +423,7 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
         SELECT
             m.id,
             m.conversation_id,
-            m.sender_id,           // ✅ IMPORTANTE: Este campo debe estar
+            m.sender_id,
             m.receiver_id,
             m.text,
             m.type,
@@ -351,7 +433,7 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
             m.attachment_url,
             m.metadata,
             m.read_at,
-            m.sender_type as sender, // ✅ Alias para mantener compatibilidad
+            m.sender_type as sender,
             u.avatar_url,
             u.name,
             ms.is_read,
@@ -367,7 +449,7 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
           AND ms.user_type = :userRole
         LIMIT 1
     ");
-
+   
     $stmt->execute([
         'id' => $id,
         'userId' => $userId,
@@ -419,6 +501,10 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $this->mapMessage($row);
     }
+
+
+
+
 
     public function markAsDeliveredForUser(int $messageId, int $userId, string $userRole): bool
     {
@@ -481,28 +567,28 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
         }
     }
 
-    public function markAsReadForUser(array $messageIds, int $userId, string $userRole): int
-    {
-        if (empty($messageIds)) return 0;
-
-        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
-
-        $sql = "UPDATE message_status
-                SET is_read = TRUE, read_at = NOW()
-                WHERE message_id IN ($placeholders)
-                  AND user_id = ?
-                  AND user_type = ?
-                  AND is_read = FALSE";
-
-        $stmt = $this->db->prepare($sql);
-
-        $params = array_merge($messageIds, [$userId, $userRole]);
-        $stmt->execute($params);
-
-        return $stmt->rowCount();
+public function markAsReadForUser($messageIds, $userId, $userRole)
+{
+    if (empty($messageIds)) {
+        return 0;
     }
-
-    public function markReadBatch(array $ids, int $readerId): int
+    
+    $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+    $sql = "UPDATE message_status 
+            SET is_read = 1, read_at = NOW() 
+            WHERE message_id IN ({$placeholders}) 
+            AND user_id = ? 
+            AND user_type = ? 
+            AND is_read = 0";
+    
+    $params = array_merge($messageIds, [$userId, $userRole]);
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute($params);
+    
+    return $stmt->rowCount();
+}
+ 
+   public function markReadBatch(array $ids, int $readerId): int
     {
         if (empty($ids)) return 0;
 

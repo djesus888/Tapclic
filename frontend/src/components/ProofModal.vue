@@ -46,10 +46,10 @@
           class="mt-4"
         >
           <img
-  :src="getImageUrl(proof.proof_url)"
-  alt="Comprobante"
-  class="rounded-lg border max-h-80 mx-auto object-contain"
->
+            :src="getImageUrl(proof.proof_url, 'payments')"
+            alt="Comprobante"
+            class="rounded-lg border max-h-80 mx-auto object-contain"
+          >
         </div>
 
         <!-- ACCIONES -->
@@ -89,6 +89,7 @@
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import PaymentPill from './PaymentPill.vue'
+import { getImageUrl } from '@/utils/imageHelper'
 
 export default {
   name: 'ProofModal',
@@ -117,6 +118,7 @@ export default {
     }
   },
   methods: {
+    getImageUrl,
     async confirm() {
       const auth = useAuthStore()
       try {

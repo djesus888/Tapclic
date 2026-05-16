@@ -61,7 +61,7 @@ import Swal from 'sweetalert2'
 const unrated = ref([])
 
 const fetchUnrated = async () => {
-  const res = await axios.get('/api/services/unrated')
+  const res = await axios.get('/services/unrated')
   unrated.value = res.data.map(s => ({ ...s, rating: 0, comment: '' }))
 }
 
@@ -71,7 +71,7 @@ const submitRating = async (service) => {
   }
 
   try {
-    await axios.post('/api/services/rate', {
+    await axios.post('/services/rate', {
       service_id: service.id,
       rating: service.rating,
       comment: service.comment

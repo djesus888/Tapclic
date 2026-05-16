@@ -1,391 +1,343 @@
 <template>
-  <div class="chat-view-page">
-    <!-- Encabezido con gradiente -->
-    <div class="header-gradient">
-      <div class="header">
-        <div class="title-section">
-          <button class="back-btn" @click="goBack">
-            <span class="back-icon">←</span>
-            <span>Volver</span>
-          </button>
-          <h1>
-            <span class="chat-icon">💬</span>
-            Conversación
-          </h1>
-          <p class="subtitle">Comunicación directa con proveedores y clientes</p>
-        </div>
-      </div>
-    </div>
+  <!-- Contenedor principal -->
+  <div class="chat-main-container">
+    <!-- Chat directo -->
+    <div v-if="target" class="chat-wrapper-modern">
+      <div class="chat-content">
+        <!-- Header del chat con diseño de tarjeta -->
+        <div class="chat-header-card">
+          <div class="chat-user-info">
+            <div class="user-avatar-wrapper">
+              <img
+                :src="target.avatarUrl || 'https://via.placeholder.com/60?text=Usuario'"
+                :alt="target.name || 'Usuario'"
+                class="user-avatar-modern"
+                @error="handleImageError"
+              />
+              <span
+                class="online-dot"
+                :class="{ 'online': isUserOnline }"
+                :title="isUserOnline ? 'En línea' : 'Desconectado'"
+              ></span>
+            </div>
+            <div class="user-details">
+              <div class="user-name-section">
+                <h2 class="user-name-modern">{{ target.name || 'Cargando...' }}</h2>
+                <span v-if="isUserOnline" class="online-badge-modern">
+                  <span class="pulse-dot"></span>
+                  EN LÍNEA
+                </span>
+              </div>
+              <div class="user-role-badge" :class="target.role ? target.role.toLowerCase() : ''">
+                {{ formatRole(target.role) }}
+              </div>
+              <div v-if="lastSeen && !isUserOnline" class="last-seen">
+                Última vez: {{ formatLastSeen(lastSeen, true) }}
+              </div>
+            </div>
+          </div>
 
-    <!-- Contenedor principal -->
-    <div class="chat-main-container">
-      <!-- Chat directo -->
-      <div v-if="target" class="chat-wrapper-modern">
-        <div class="chat-content">
-          <!-- Header del chat con diseño de tarjeta -->
-          <div class="chat-header-card">
-            <div class="chat-user-info">
-              <div class="user-avatar-wrapper">
+          <!-- Acciones del chat -->
+          <div class="chat-actions">
+            <div class="action-buttons">
+              <button class="action-icon-btn" @click="viewProfile" title="Ver perfil">
+                <span class="icon">👤</span>
+              </button>
+              <div class="file-input-wrapper">
+                <label for="imageInput" class="action-icon-btn" title="Adjuntar imagen">
+                  <span class="icon">📎</span>
+                </label>
+                <input
+                  id="imageInput"
+                  type="file"
+                  accept="image/*"
+                  class="file-input-hidden"
+                  @change="onFileChange"
+                />
+              </div>
+              <button
+                class="action-icon-btn"
+                :class="{ favorited: isFavorite }"
+                @click="toggleFavorite"
+                title="Favoritos"
+              >
+                <span class="icon">{{ isFavorite ? '⭐' : '☆' }}</span>
+              </button>
+              <button class="action-icon-btn" @click="shareConversation" title="Compartir">
+                <span class="icon">🔗</span>
+              </button>
+
+              <!-- Menú desplegable -->
+              <div class="dropdown-modern">
+                <button
+                  @click="showMenu = !showMenu"
+                  class="action-icon-btn"
+                  :class="{ 'active': showMenu }"
+                  title="Más opciones"
+                >
+                  <span class="icon">⋮</span>
+                </button>
+                <transition name="dropdown">
+                  <div v-if="showMenu" class="dropdown-menu-modern">
+                    <button @click="exportChatHistory" class="dropdown-item">
+                      <span class="item-icon">📥</span>
+                      <span>Exportar historial</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button @click="confirmClearMessagesForMe" class="dropdown-item warning">
+                      <span class="item-icon">🗑️</span>
+                      <span>Borrar mis mensajes</span>
+                    </button>
+                    <button @click="confirmDeleteChatForMe" class="dropdown-item danger">
+                      <span class="item-icon">🔥</span>
+                      <span>Borrar chat para mí</span>
+                    </button>
+                    <div v-if="authStore.user?.role === 'admin'" class="admin-section">
+                      <div class="dropdown-divider"></div>
+                      <div class="admin-label">👑 Admin</div>
+                      <button @click="confirmHardDeleteMessages" class="dropdown-item danger">
+                        <span class="item-icon">⚠️</span>
+                        <span>Borrar permanentemente</span>
+                      </button>
+                      <button @click="confirmHardDeleteChat" class="dropdown-item danger">
+                        <span class="item-icon">💀</span>
+                        <span>Eliminar conversación</span>
+                      </button>
+                    </div>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Área de mensajes -->
+        <div
+          ref="scrollRef"
+          class="messages-area-modern"
+          :class="{ 'empty': currentMessages.length === 0 }"
+        >
+          <!-- Estado vacío -->
+          <div v-if="currentMessages.length === 0" class="empty-messages-modern">
+            <div class="empty-icon-wrapper">
+              <span class="empty-icon">💬</span>
+            </div>
+            <h3 class="empty-title">No hay mensajes aún</h3>
+            <p class="empty-subtitle">Envía el primer mensaje para comenzar la conversación</p>
+          </div>
+
+          <!-- Lista de mensajes -->
+          <div v-else class="messages-list-modern">
+            <div
+              v-for="msg in currentMessages"
+              :key="msg.id"
+              class="message-modern"
+              :class="{ 'sent': msg.is_mine === true, 'received': msg.is_mine === false }"
+            >
+              <!-- Avatar para mensajes recibidos -->
+              <div v-if="!msg.is_mine" class="message-avatar-modern">
                 <img
-                  :src="target.avatarUrl || 'https://via.placeholder.com/60?text=Usuario'"
-                  :alt="target.name || 'Usuario'"
-                  class="user-avatar-modern"
+                  :src="msg.avatar_url || target?.avatarUrl || 'https://via.placeholder.com/36?text=U'"
+                  :alt="msg.sender"
+                  class="avatar-small-modern"
                   @error="handleImageError"
                 />
-                <span
-                  class="online-dot"
-                  :class="{ 'online': isUserOnline }"
-                  :title="isUserOnline ? 'En línea' : 'Desconectado'"
-                ></span>
               </div>
-              <div class="user-details">
-                <div class="user-name-section">
-                  <h2 class="user-name-modern">{{ target.name || 'Cargando...' }}</h2>
-                  <span v-if="isUserOnline" class="online-badge-modern">
-                    <span class="pulse-dot"></span>
-                    EN LÍNEA
-                  </span>
-                </div>
-                <div class="user-role-badge" :class="target.role ? target.role.toLowerCase() : ''">
-                  {{ formatRole(target.role) }}
-                </div>
-                <div v-if="lastSeen && !isUserOnline" class="last-seen">
-                  Última vez: {{ formatLastSeen(lastSeen, true) }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Acciones del chat -->
-            <div class="chat-actions">
-              <div class="action-buttons">
-                <button class="action-icon-btn" @click="viewProfile" title="Ver perfil">
-                  <span class="icon">👤</span>
-                </button>
-                <div class="file-input-wrapper">
-                  <label for="imageInput" class="action-icon-btn" title="Adjuntar imagen">
-                    <span class="icon">📎</span>
-                  </label>
-                  <input
-                    id="imageInput"
-                    type="file"
-                    accept="image/*"
-                    class="file-input-hidden"
-                    @change="onFileChange"
-                  />
-                </div>
-
-                <button
-                  class="action-icon-btn"
-                  :class="{ favorited: isFavorite }"
-                  @click="toggleFavorite"
-                  title="Favoritos"
-                >
-                  <span class="icon">{{ isFavorite ? '⭐' : '☆' }}</span>
-                </button>
-
-                <button
-                  class="action-icon-btn"
-                  @click="shareConversation"
-                  title="Compartir"
-                >
-                  <span class="icon">🔗</span>
-                </button>
-                <!-- Menú desplegable -->
-                <div class="dropdown-modern">
+              <!-- Contenedor del mensaje -->
+              <div class="message-container-modern">
+                <div class="message-bubble" :class="{ 'has-image': msg.type === 'image' }">
+                  <!-- Botón eliminar -->
                   <button
-                    @click="showMenu = !showMenu"
-                    class="action-icon-btn"
-                    :class="{ 'active': showMenu }"
-                    title="Más opciones"
-                  >
-                    <span class="icon">⋮</span>
-                  </button>
-                  <transition name="dropdown">
-                    <div v-if="showMenu" class="dropdown-menu-modern">
-                      <button @click="exportChatHistory" class="dropdown-item">
-                        <span class="item-icon">📥</span>
-                        <span>Exportar historial</span>
-                      </button>
-                      <div class="dropdown-divider"></div>
-
-                      <button @click="confirmClearMessagesForMe" class="dropdown-item warning">
-                        <span class="item-icon">🗑️</span>
-                        <span>Borrar mis mensajes</span>
-                      </button>
-                      <button @click="confirmDeleteChatForMe" class="dropdown-item danger">
-                        <span class="item-icon">🔥</span>
-                        <span>Borrar chat para mí</span>
-                      </button>
-
-                      <div v-if="authStore.user?.role === 'admin'" class="admin-section">
-                        <div class="dropdown-divider"></div>
-                        <div class="admin-label">👑 Admin</div>
-                        <button @click="confirmHardDeleteMessages" class="dropdown-item danger">
-                          <span class="item-icon">⚠️</span>
-                          <span>Borrar permanentemente</span>
-                        </button>
-                        <button @click="confirmHardDeleteChat" class="dropdown-item danger">
-                          <span class="item-icon">💀</span>
-                          <span>Eliminar conversación</span>
-                        </button>
-                      </div>
-                    </div>
-                  </transition>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Área de mensajes -->
-          <div
-            ref="scrollRef"
-            class="messages-area-modern"
-            :class="{ 'empty': currentMessages.length === 0 }"
-          >
-            <!-- Estado vacío -->
-            <div v-if="currentMessages.length === 0" class="empty-messages-modern">
-              <div class="empty-icon-wrapper">
-                <span class="empty-icon">💬</span>
-              </div>
-              <h3 class="empty-title">No hay mensajes aún</h3>
-              <p class="empty-subtitle">Envía el primer mensaje para comenzar la conversación</p>
-            </div>
-
-            <!-- Lista de mensajes -->
-            <div v-else class="messages-list-modern">
-              <div
-                v-for="msg in currentMessages"
-                :key="msg.id"
-                class="message-modern"
-                :class="{
-                  'sent': msg.is_mine === true,
-                  'received': msg.is_mine === false
-                }"
-              >
-                <!-- Avatar para mensajes recibidos -->
-                <div v-if="!msg.is_mine" class="message-avatar-modern">
-                  <img
-                    :src="msg.avatar_url || target?.avatarUrl || 'https://via.placeholder.com/36?text=U'"
-                    :alt="msg.sender"
-                    class="avatar-small-modern"
-                    @error="handleImageError"
-                  />
-                </div>
-
-                <!-- Contenedor del mensaje -->
-                <div class="message-container-modern">
-                  <div class="message-bubble" :class="{ 'has-image': msg.type === 'image' }">
-                    <!-- Botón eliminar -->
-                    <button
-                      v-if="msg.is_mine"
-                      @click="deleteMessageForMe(msg.id)"
-                      class="message-delete-btn-modern"
-                      title="Borrar para mí"
-                    >
-                      ✕
-                    </button>
-
-                    <!-- Texto del mensaje -->
-                    <div v-if="msg.text" class="message-text-modern">
-                      {{ msg.text }}
-                    </div>
-
-                    <!-- Imagen adjunta -->
-                    <div v-if="msg.type === 'image' && msg.attachment_url" class="message-image-modern">
-                      <img
-                        :src="msg.attachment_url"
-                        :alt="msg.text || 'Imagen adjunta'"
-                        class="image-preview-modern"
-                        @load="scrollToBottom"
-                        @error="handleImageError"
-                        @click="openImage(msg.attachment_url, msg.text)"
-                      />
-                    </div>
-
-                    <!-- Info del mensaje -->
-                    <div class="message-footer">
-                      <span class="message-time-modern">
-                        {{ formatMessageTime(msg.created_at) }}
-                      </span>
-                      <!-- Sistema de tildes - SOLO en mensajes propios -->
-                      <span v-if="msg.is_mine" class="message-status-modern">
-                        <span v-if="!msg.is_delivered && !msg.is_read" class="status-sent" title="Enviado">✓</span>
-                        <span v-else-if="msg.is_delivered && !msg.is_read" class="status-delivered" title="Entregado">✓✓</span>
-                        <span v-else-if="msg.is_read" class="status-read" title="Leído">✓✓</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Indicador de typing DENTRO del flujo de mensajes -->
-              <transition name="fade">
-                <div v-if="isTyping" class="typing-indicator-modern">
-                  <div class="typing-bubble">
-                    <div class="typing-dots">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                    <span class="typing-name">{{ typingText }}</span>
-                  </div>
-                </div>
-              </transition>
-            </div>
-          </div>
-
-          <!-- Vista previa de imagen -->
-          <transition name="slide-up">
-            <div v-if="previewUrl" class="image-preview-modern-container">
-              <div class="preview-modern">
-                <div class="preview-header">
-                  <span class="preview-label">📷 Vista previa</span>
-                  <button
-                    @click="clearPreview"
-                    class="preview-close"
+                    v-if="msg.is_mine"
+                    @click="deleteMessageForMe(msg.id)"
+                    class="message-delete-btn-modern"
+                    title="Borrar para mí"
                   >
                     ✕
                   </button>
+
+                  <!-- Texto del mensaje -->
+                  <div v-if="msg.text" class="message-text-modern">
+                    {{ msg.text }}
+                  </div>
+                  <!-- Imagen adjunta -->
+                  <div v-if="msg.type === 'image' && msg.attachment_url" class="message-image-modern">
+                    <img
+                      :src="msg.attachment_url"
+                      :alt="msg.text || 'Imagen adjunta'"
+                      class="image-preview-modern"
+                      @load="scrollToBottom"
+                      @error="handleImageError"
+                      @click="openImage(msg.attachment_url, msg.text)"
+                    />
+                  </div>
+                  <!-- Info del mensaje -->
+                  <div class="message-footer">
+                    <span class="message-time-modern">
+                      {{ formatMessageTime(msg.created_at) }}
+                    </span>
+                    <!-- Sistema de tildes - SOLO en mensajes propios -->
+                    <span v-if="msg.is_mine" class="message-status-modern">
+                      <span v-if="!msg.is_delivered && !msg.is_read" class="status-sent" title="Enviado">✓</span>
+                      <span v-else-if="msg.is_delivered && !msg.is_read" class="status-delivered" title="Entregado">✓✓</span>
+                      <span v-else-if="msg.is_read" class="status-read" title="Leído">✓✓</span>
+                    </span>
+                  </div>
                 </div>
-                <img
-                  :src="previewUrl"
-                  alt="Vista previa"
-                  class="preview-image-modern"
-                />
               </div>
             </div>
-          </transition>
-
-          <!-- Área de entrada -->
-          <div class="input-area-modern">
-            <div class="input-wrapper-modern">
-              <input
-                v-model="newMessage"
-                type="text"
-                :placeholder="uploadingImage ? 'Subiendo imagen...' : 'Escribe tu mensaje aquí...'"
-                autocomplete="off"
-                class="message-input-modern"
-                @keyup.enter="sendMessage"
-                @keydown="handleTyping"
-                @blur="stopTyping"
-                :disabled="loading || uploadingImage"
-              />
-              <button
-                @click="sendMessage"
-                :disabled="loading || uploadingImage || (!newMessage.trim() && !selectedFile)"
-                class="send-btn-modern"
-                :class="{
-                  'loading': loading,
-                  'disabled': (!newMessage.trim() && !selectedFile)
-                }"
-              >
-                <span v-if="loading" class="spinner-small-modern"></span>
-                <span v-else class="send-icon">➢</span>
-              </button>
-            </div>
-            <div class="input-hints-modern">
-              <span class="hint-item">
-                <span class="hint-icon">↵</span> Enter para enviar
-              </span>
-              <span v-if="uploadingImage" class="hint-item uploading">
-                <span class="hint-icon">⏳</span> Subiendo imagen...
-              </span>
-              <span v-else-if="isUserOnline" class="hint-item online">
-                <span class="online-indicator"></span> En línea
-              </span>
-            </div>
+            <!-- Indicador de typing DENTRO del flujo de mensajes -->
+            <transition name="fade">
+              <div v-if="isTyping" class="typing-indicator-modern">
+                <div class="typing-bubble">
+                  <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <span class="typing-name">{{ typingText }}</span>
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
-        <!-- Sidebar de información -->
-        <div class="sidebar-info-modern">
-          <div class="info-card-modern">
-            <h3 class="info-card-title">
-              <span class="title-icon">📋</span>
-              Detalles del chat
-            </h3>
-            <div class="info-content">
-              <div class="info-row">
-                <span class="info-label">Usuario:</span>
-                <span class="info-value highlight">{{ target.name || 'Cargando...' }}</span>
-              </div>
 
-              <div class="info-row">
-                <span class="info-label">Rol:</span>
-                <span class="info-value">
-                  <span class="role-badge-modern" :class="target.role ? target.role.toLowerCase() : ''">
-                    {{ formatRole(target.role) }}
-                  </span>
-                </span>
+        <!-- Vista previa de imagen -->
+        <transition name="slide-up">
+          <div v-if="previewUrl" class="image-preview-modern-container">
+            <div class="preview-modern">
+              <div class="preview-header">
+                <span class="preview-label">📷 Vista previa</span>
+                <button @click="clearPreview" class="preview-close">
+                  ✕
+                </button>
               </div>
-
-              <div class="info-row">
-                <span class="info-label">ID:</span>
-                <span class="info-value code">{{ target.id || '-' }}</span>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">Estado:</span>
-                <span class="info-value status-value" :class="{ 'online': isUserOnline }">
-                  <span class="status-indicator-modern" :class="{ 'online': isUserOnline }"></span>
-                  {{ isUserOnline ? 'En línea' : 'Desconectado' }}
-                </span>
-              </div>
-
-              <div v-if="lastSeen && !isUserOnline" class="info-row">
-                <span class="info-label">Última vez:</span>
-                <span class="info-value">{{ formatLastSeen(lastSeen, true) }}</span>
-              </div>
-
-              <div class="info-divider"></div>
-
-              <!-- Estadísticas -->
-              <div v-if="messageStats" class="stats-grid-modern">
-                <div class="stat-item-modern">
-                  <span class="stat-value">{{ messageStats.total || 0 }}</span>
-                  <span class="stat-label">Total</span>
-                </div>
-                <div class="stat-item-modern">
-                  <span class="stat-value">{{ messageStats.yours || 0 }}</span>
-                  <span class="stat-label">Tuyos</span>
-                </div>
-                <div class="stat-item-modern">
-                  <span class="stat-value">{{ messageStats.theirs || 0 }}</span>
-                  <span class="stat-label">De {{ target?.name?.split(' ')[0] || 'Usuario' }}</span>
-                </div>
-              </div>
+              <img :src="previewUrl" alt="Vista previa" class="preview-image-modern" />
             </div>
+          </div>
+        </transition>
+
+        <!-- Área de entrada -->
+        <div class="input-area-modern">
+          <div class="input-wrapper-modern">
+            <input
+              v-model="newMessage"
+              type="text"
+              :placeholder="uploadingImage ? 'Subiendo imagen...' : 'Escribe tu mensaje aquí...'"
+              autocomplete="off"
+              class="message-input-modern"
+              @keyup.enter="sendMessage"
+              @keydown="handleTyping"
+              @blur="stopTyping"
+              :disabled="loading || uploadingImage"
+            />
+            <button
+              @click="sendMessage"
+              :disabled="loading || uploadingImage || (!newMessage.trim() && !selectedFile)"
+              class="send-btn-modern"
+              :class="{ 'loading': loading, 'disabled': (!newMessage.trim() && !selectedFile) }"
+            >
+              <span v-if="loading" class="spinner-small-modern"></span>
+              <span v-else class="send-icon">➢</span>
+            </button>
+          </div>
+          <div class="input-hints-modern">
+            <span class="hint-item">
+              <span class="hint-icon">↵</span> Enter para enviar
+            </span>
+            <span v-if="uploadingImage" class="hint-item uploading">
+              <span class="hint-icon">⏳</span> Subiendo imagen...
+            </span>
+            <span v-else-if="isUserOnline" class="hint-item online">
+              <span class="online-indicator"></span> En línea
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Estado de carga mejorado -->
-      <div v-else class="loading-state-modern">
-        <div class="loading-card">
-          <div class="spinner-modern"></div>
-          <h3>Cargando conversación...</h3>
-          <p>Preparando el espacio de comunicación</p>
-          <div class="loading-progress">
-            <div class="progress-bar"></div>
+      <!-- Sidebar de información -->
+      <div class="sidebar-info-modern">
+        <div class="info-card-modern">
+          <h3 class="info-card-title">
+            <span class="title-icon">📋</span> Detalles del chat
+          </h3>
+          <div class="info-content">
+            <div class="info-row">
+              <span class="info-label">Usuario:</span>
+              <span class="info-value highlight">{{ target.name || 'Cargando...' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Rol:</span>
+              <span class="info-value">
+                <span class="role-badge-modern" :class="target.role ? target.role.toLowerCase() : ''">
+                  {{ formatRole(target.role) }}
+                </span>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">ID:</span>
+              <span class="info-value code">{{ target.id || '-' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Estado:</span>
+              <span class="info-value status-value" :class="{ 'online': isUserOnline }">
+                <span class="status-indicator-modern" :class="{ 'online': isUserOnline }"></span>
+                {{ isUserOnline ? 'En línea' : 'Desconectado' }}
+              </span>
+            </div>
+            <div v-if="lastSeen && !isUserOnline" class="info-row">
+              <span class="info-label">Última vez:</span>
+              <span class="info-value">{{ formatLastSeen(lastSeen, true) }}</span>
+            </div>
+            <div class="info-divider"></div>
+
+            <!-- Estadísticas -->
+            <div v-if="messageStats" class="stats-grid-modern">
+              <div class="stat-item-modern">
+                <span class="stat-value">{{ messageStats.total || 0 }}</span>
+                <span class="stat-label">Total</span>
+              </div>
+              <div class="stat-item-modern">
+                <span class="stat-value">{{ messageStats.yours || 0 }}</span>
+                <span class="stat-label">Tuyos</span>
+              </div>
+              <div class="stat-item-modern">
+                <span class="stat-value">{{ messageStats.theirs || 0 }}</span>
+                <span class="stat-label">De {{ target?.name?.split(' ')[0] || 'Usuario' }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal de imagen mejorado -->
-    <Teleport to="body">
-      <transition name="modal">
-        <div v-if="showImageModal" class="image-modal-overlay" @click.self="closeImageModal">
-          <div class="image-modal-container" @click.stop>
-            <button class="image-modal-close" @click="closeImageModal">✕</button>
-            <img :src="selectedImage" alt="Imagen ampliada" class="image-modal-img" />
-            <div class="image-modal-caption" v-if="selectedImageCaption">
-              {{ selectedImageCaption }}
-            </div>
+    <!-- Estado de carga mejorado -->
+    <div v-else class="loading-state-modern">
+      <div class="loading-card">
+        <div class="spinner-modern"></div>
+        <h3>Cargando conversación...</h3>
+        <p>Preparando el espacio de comunicación</p>
+        <div class="loading-progress">
+          <div class="progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de imagen mejorado -->
+  <Teleport to="body">
+    <transition name="modal">
+      <div v-if="showImageModal" class="image-modal-overlay" @click.self="closeImageModal">
+        <div class="image-modal-container" @click.stop>
+          <button class="image-modal-close" @click="closeImageModal">✕</button>
+          <img :src="selectedImage" alt="Imagen ampliada" class="image-modal-img" />
+          <div class="image-modal-caption" v-if="selectedImageCaption">
+            {{ selectedImageCaption }}
           </div>
         </div>
-      </transition>
-    </Teleport>
-  </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup>
@@ -426,6 +378,7 @@ const previewUrl = ref(null)
 
 // Typing
 const isTyping = ref(false)
+let typingTimeout = null
 
 // Modal de imagen
 const selectedImage = ref(null)
@@ -435,6 +388,11 @@ const selectedImageCaption = ref('')
 // Favoritos
 const favoriteConversations = ref(new Set(loadFavorites()))
 const messageStats = ref(null)
+
+// ============================================
+// Socket listeners (para limpieza)
+// ============================================
+const socketListeners = {}
 
 // ============================================
 // Computed para mensajes desde store
@@ -459,8 +417,12 @@ const lastSeen = computed(() => {
 })
 
 const typingText = computed(() => {
-  if (!target.value?.id || !target.value?.name) return 'Alguien está escribiendo...'
-  return `${target.value.name} está escribiendo...`
+  if (!target.value?.id) return 'Alguien está escribiendo...'
+  const typingUsersList = conversationStore.getTypingUsers(Number(route.params.id))
+  if (typingUsersList.length > 0 && target.value?.name) {
+    return `${target.value.name} está escribiendo...`
+  }
+  return 'Alguien está escribiendo...'
 })
 
 const isFavorite = computed(() => {
@@ -492,10 +454,7 @@ function formatLastSeen(timestamp, detailed = false) {
 
 function formatMessageTime(timestamp) {
   if (!timestamp) return ''
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // ============================================
@@ -503,16 +462,10 @@ function formatMessageTime(timestamp) {
 // ============================================
 async function fetchMessages() {
   if (!authStore.token || !target.value) return
-
   const conversationId = Number(route.params.id)
-
   try {
-    // Usar el método del store que hace la petición HTTP
     await conversationStore.fetchMessages(conversationId)
-
-    // Marcar mensajes como entregados después de cargar
     await markMessagesAsDelivered()
-
     await loadMessageStats(conversationId)
     await scrollToBottom()
   } catch (err) {
@@ -521,7 +474,7 @@ async function fetchMessages() {
 }
 
 // ============================================
-// MARCAR MENSAJES COMO ENTREGADOS
+// MARCAR MENSAJES COMO ENTREGADOS (MEJORADO CON SOCKET)
 // ============================================
 async function markMessagesAsDelivered() {
   const conversationId = Number(route.params.id)
@@ -531,143 +484,27 @@ async function markMessagesAsDelivered() {
     console.log('📬 Marcando mensajes como entregados para conversación:', conversationId)
     const response = await api.post(
       `/messages/conversation/${conversationId}/delivered`,
-      { target_id: target.value?.id,
+      {
+        target_id: target.value?.id,
         target_role: target.value?.role
-       },
-      { headers: { Authorization: `Bearer ${authStore.token}` } }
+      },
+      {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      }
     )
     if (response.data?.count > 0) {
       console.log(`✅ ${response.data.count} mensajes marcados como entregados`)
     }
+
+    // ✅ SEGUNDA MEJORA: Emitir por socket para notificar al otro cliente
+    if (socketStore.socket?.connected) {
+      socketStore.emit('message_delivered', {
+        conversation_id: conversationId
+      })
+      console.log('📬 Emitido message_delivered por socket para conversación:', conversationId)
+    }
   } catch (err) {
     console.error('❌ Error marcando mensajes como entregados:', err)
-  }
-}
-
-// ============================================
-// SEND MESSAGE - Usar solo HTTP, NO WebSocket
-// ============================================
-const sendMessage = async () => {
-  if ((!newMessage.value.trim() && !selectedFile.value) || !authStore.token) return
-
-  stopTyping()
-  let attachment_url = null
-
-  // Subir imagen si existe
-  if (selectedFile.value) {
-    uploadingImage.value = true
-    const formData = new FormData()
-    formData.append('image', selectedFile.value)
-
-    try {
-      const uploadRes = await api.post('/upload/image', formData, {
-        headers: {
-          Authorization: `Bearer ${authStore.token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      })
-      if (!uploadRes.data?.image_url) {
-        throw new Error('URL de imagen no recibida del servidor')
-      }
-      attachment_url = uploadRes.data.image_url
-    } catch (err) {
-      console.error('Error al subir imagen:', err)
-      uploadingImage.value = false
-      showNotification(
-        err.response?.data?.error || 'Error al subir la imagen',
-        'error'
-      )
-      return
-    }
-    uploadingImage.value = false
-  }
-
-  const messageText = newMessage.value.trim()
-  const conversationId = Number(route.params.id)
-
-  // Crear mensaje temporal para mostrar inmediatamente
-  const tempId = `temp_${Date.now()}_${Math.random()}`
-  const tempMessage = {
-    id: tempId,
-    temp_id: tempId,
-    text: messageText || (attachment_url ? '📷 Imagen' : ''),
-    sender_id: authStore.user?.id,
-    sender: authStore.user?.role,
-    is_mine: true,
-    is_delivered: false,
-    is_read: false,
-    created_at: new Date().toISOString(),
-    attachment_url: attachment_url,
-    type: attachment_url ? 'image' : 'text',
-    avatar_url: authStore.user?.avatar_url || '',
-    _temp: true
-  }
-
-  // Agregar temporalmente a currentMessages a través del store
-  if (!conversationStore.messages[conversationId]) {
-    conversationStore.messages[conversationId] = []
-  }
-  conversationStore.messages[conversationId].push(tempMessage)
-  await scrollToBottom()
-
-  // Guardar texto original
-  const originalMessageText = messageText
-
-  newMessage.value = ''
-  selectedFile.value = null
-  previewUrl.value = null
-  loading.value = true
-
-  // Enviar por HTTP
-  const messageData = {
-    conversation_id: conversationId,
-    recipient_id: target.value.id,
-    recipient_role: target.value.role,
-    text: originalMessageText,
-    temp_id: tempId
-  }
-
-  if (attachment_url) {
-    messageData.attachment_url = attachment_url
-  }
-
-  try {
-    const res = await api.post('/messages/send', messageData, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-
-    const realMessage = res.data.message || res.data
-
-    // Reemplazar mensaje temporal con el real
-    const index = conversationStore.messages[conversationId].findIndex(m => m.id === tempId || m.temp_id === tempId)
-    if (index !== -1) {
-      conversationStore.messages[conversationId][index] = {
-        ...realMessage,
-        conversation_id: conversationId,
-        is_mine: true,
-        is_delivered: false,
-        is_read: false,
-        avatar_url: authStore.user?.avatar_url || '',
-        _temp: false,
-        temp_id: tempId
-      }
-    }
-
-    await loadMessageStats(conversationId)
-  } catch (err) {
-    console.error('Error al enviar mensaje:', err)
-    // Marcar mensaje temporal como error
-    const index = conversationStore.messages[conversationId].findIndex(m => m.id === tempId || m.temp_id === tempId)
-    if (index !== -1) {
-      conversationStore.messages[conversationId][index].error = true
-      conversationStore.messages[conversationId][index].error_message = 'Error al enviar'
-    }
-    showNotification(
-      err.response?.data?.message || 'Error al enviar el mensaje',
-      'error'
-    )
-  } finally {
-    loading.value = false
   }
 }
 
@@ -689,19 +526,137 @@ function clearPreview() {
 }
 
 // ============================================
+// SEND MESSAGE - Función corregida
+// ============================================
+const sendMessage = async () => {
+  console.log('📤 sendMessage called')
+  if ((!newMessage.value.trim() && !selectedFile.value) || !authStore.token) {
+    console.warn('⚠️ No hay mensaje o token')
+    return
+  }
+
+  stopTyping()
+  let attachment_url = null
+
+  // Subir imagen si existe
+  if (selectedFile.value) {
+    uploadingImage.value = true
+    const formData = new FormData()
+    formData.append('image', selectedFile.value)
+
+    try {
+      const uploadRes = await api.post('/upload/image', formData, {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      if (!uploadRes.data?.image_url) {
+        throw new Error('URL de imagen no recibida del servidor')
+      }
+      attachment_url = uploadRes.data.image_url
+    } catch (err) {
+      console.error('Error al subir imagen:', err)
+      uploadingImage.value = false
+      showNotification(err.response?.data?.error || 'Error al subir la imagen', 'error')
+      return
+    }
+    uploadingImage.value = false
+  }
+
+  const messageText = newMessage.value.trim()
+  const conversationId = Number(route.params.id)
+
+  if (!conversationId || !target.value) {
+    console.error('❌ Faltan datos para enviar mensaje')
+    return
+  }
+
+  // Crear mensaje temporal
+  const tempId = `temp_${Date.now()}_${Math.random()}`
+  const tempMessage = {
+    id: tempId,
+    temp_id: tempId,
+    text: messageText || (attachment_url ? '📷 Imagen' : ''),
+    sender_id: authStore.user?.id,
+    sender: authStore.user?.role,
+    is_mine: true,
+    is_delivered: false,
+    is_read: false,
+    created_at: new Date().toISOString(),
+    attachment_url: attachment_url,
+    type: attachment_url ? 'image' : 'text',
+    avatar_url: authStore.user?.avatar_url || '',
+    _temp: true
+  }
+
+  // Agregar temporalmente
+  if (!conversationStore.messages[conversationId]) {
+    conversationStore.messages[conversationId] = []
+  }
+  conversationStore.messages[conversationId].push(tempMessage)
+  await scrollToBottom()
+
+  newMessage.value = ''
+  selectedFile.value = null
+  previewUrl.value = null
+  loading.value = true
+
+  // Enviar por WebSocket
+  const wsMessage = {
+    conversation_id: conversationId,
+    recipient_id: target.value.id,
+    recipient_role: target.value.role,
+    text: messageText,
+    temp_id: tempId,
+    type: attachment_url ? 'image' : 'text',
+    attachment_url: attachment_url
+  }
+
+  console.log('📤 Enviando por WebSocket:', wsMessage)
+  if (socketStore.socket?.connected) {
+    socketStore.socket.emit('send_message', wsMessage)
+  } else {
+    console.warn('⚠️ WebSocket no conectado')
+  }
+
+  // Enviar por HTTP
+  try {
+    const res = await api.post('/messages/send', wsMessage, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    const realMessage = res.data.message || res.data
+    conversationStore.confirmMessageSent({
+      conversation_id: conversationId,
+      temp_id: tempId,
+      message: realMessage
+    })
+    await loadMessageStats(conversationId)
+    console.log('✅ Mensaje guardado en BD')
+  } catch (err) {
+    console.error('❌ Error HTTP:', err)
+    const index = conversationStore.messages[conversationId].findIndex(
+      m => m.id === tempId || m.temp_id === tempId
+    )
+    if (index !== -1) {
+      conversationStore.messages[conversationId][index].error = true
+    }
+    showNotification(err.response?.data?.message || 'Error al enviar', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+// ============================================
 // TYPING
 // ============================================
-let typingTimeout = null
-
 function handleTyping() {
   if (!socketStore.socket?.connected || !isUserOnline.value || !target.value) return
-
   const conversationId = Number(route.params.id)
   if (!conversationId) {
     console.warn('⚠️ No se puede enviar typing: conversationId no disponible')
     return
   }
-
   socketStore.emit('typing', {
     receiver_id: target.value.id,
     receiver_role: target.value.role,
@@ -719,7 +674,6 @@ function handleTyping() {
 
 function stopTyping() {
   if (!socketStore.socket?.connected || !isUserOnline.value || !target.value) return
-
   const conversationId = Number(route.params.id)
   if (!conversationId) {
     console.warn('⚠️ No se puede detener typing: conversationId no disponible')
@@ -742,12 +696,10 @@ function stopTyping() {
 // ============================================
 async function deleteMessageForMe(messageId) {
   if (!confirm('¿Borrar este mensaje solo para ti? El otro usuario aún podrá verlo.')) return
-
   try {
     await api.delete(`/messages/${messageId}/for-me`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-    // Actualizar el store localmente
     const convId = Number(route.params.id)
     if (conversationStore.messages[convId]) {
       conversationStore.messages[convId] = conversationStore.messages[convId].filter(m => m.id !== messageId)
@@ -816,7 +768,6 @@ const confirmHardDeleteChat = () => {
 // ============================================
 const clearAllMessagesForMe = async () => {
   if (!authStore.token || !target.value) return
-
   try {
     loading.value = true
     const messagesToDelete = [...currentMessages.value]
@@ -842,13 +793,11 @@ const clearAllMessagesForMe = async () => {
 
 const clearAllMessages = async () => {
   if (!authStore.token || !target.value) return
-
   try {
     loading.value = true
     const response = await api.delete(`/conversations/${route.params.id}/messages`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-
     if (response.data.success) {
       const convId = Number(route.params.id)
       if (conversationStore.messages[convId]) {
@@ -882,7 +831,6 @@ const fallbackClearMessages = async () => {
     showNotification('Borrando mensajes uno por uno...', 'info')
     const messageIds = currentMessages.value.map(m => m.id)
     let deletedCount = 0
-
     for (const msgId of messageIds) {
       try {
         await api.delete(`/messages/${msgId}`, {
@@ -911,13 +859,11 @@ const fallbackClearMessages = async () => {
 
 const deleteEntireChat = async () => {
   if (!authStore.token || !target.value) return
-
   try {
     loading.value = true
     const response = await api.delete(`/conversations/${route.params.id}`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-
     if (response.data.success) {
       showNotification('Conversación eliminada permanentemente', 'success')
       if (conversationStore.conversations) {
@@ -952,7 +898,6 @@ const legacyDeleteChat = async () => {
     const response = await api.delete(`/messages/${target.value.id}/${target.value.role}`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-
     if (response.data.success) {
       if (response.data.messages && response.data.messages.length > 0) {
         const convId = Number(route.params.id)
@@ -988,11 +933,9 @@ function exportChatHistory() {
     messages: currentMessages.value,
     exportDate: new Date().toISOString()
   }
-
   const dataStr = JSON.stringify(chatData, null, 2)
   const dataBlob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(dataBlob)
-
   const link = document.createElement('a')
   link.href = url
   link.download = `chat_${target.value?.name || 'chat'}_${new Date().getTime()}.json`
@@ -1027,6 +970,19 @@ async function loadMessageStats(conversationId) {
 }
 
 // ============================================
+// SINCRONIZAR ESTADOS DE MENSAJES
+// ============================================
+async function syncMessageStatuses(conversationId) {
+  try {
+    console.log('🔄 Sincronizando estados de mensajes...')
+    await conversationStore.syncMessageStatuses(conversationId)
+    console.log('✅ Estados sincronizados correctamente')
+  } catch (err) {
+    console.error('❌ Error sincronizando estados:', err)
+  }
+}
+
+// ============================================
 // FAVORITOS
 // ============================================
 function loadFavorites() {
@@ -1047,7 +1003,6 @@ function saveFavorites() {
 
 function toggleFavorite() {
   const conversationId = Number(route.params.id)
-
   if (favoriteConversations.value.has(conversationId)) {
     favoriteConversations.value.delete(conversationId)
     showNotification('Conversación quitada de favoritos', 'info')
@@ -1055,7 +1010,6 @@ function toggleFavorite() {
     favoriteConversations.value.add(conversationId)
     showNotification('Conversación agregada a favoritos', 'success')
   }
-
   saveFavorites()
 }
 
@@ -1076,7 +1030,6 @@ function viewProfile() {
 
 function shareConversation() {
   const shareUrl = `${window.location.origin}/chat/${route.params.id}`
-
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(shareUrl)
       .then(() => {
@@ -1144,36 +1097,196 @@ watch(currentMessages, () => {
   scrollToBottom()
 }, { deep: true })
 
-// Watch para reaccionar a cambios en conversationStore y marcar como leídos
-watch(() => conversationStore.messages[Number(route.params.id)], (newMessages) => {
-  if (newMessages) {
-    loadMessageStats(Number(route.params.id))
-    scrollToBottom()
+// ============================================
+// WATCHER PARA MARCAR MENSAJES COMO LEÍDOS
+// ============================================
+let isMarkingRead = false
+let lastMarkedReadTime = 0
+const MARK_READ_DEBOUNCE_MS = 100
 
-    // Marcar como leídos los mensajes recibidos
-    const unreadMessages = newMessages.filter(m => !m.is_mine && !m.is_read)
-    if (unreadMessages.length > 0) {
-      conversationStore.markAsRead(
-        Number(route.params.id),
-        unreadMessages.map(m => m.id)
-      )
+watch(() => conversationStore.messages[Number(route.params.id)], async (newMessages, oldMessages) => {
+  if (!newMessages) return
+
+  await loadMessageStats(Number(route.params.id))
+  await scrollToBottom()
+
+  const now = Date.now()
+  if (now - lastMarkedReadTime < MARK_READ_DEBOUNCE_MS) {
+    return
+  }
+
+  lastMarkedReadTime = now
+  if (isMarkingRead) return
+
+  const unreadMessages = newMessages.filter(m => !m.is_mine && !m.is_read)
+
+  if (unreadMessages.length > 0) {
+    isMarkingRead = true
+    const messageIds = unreadMessages.map(m => m.id)
+    const convId = Number(route.params.id)
+
+    console.log('📖 [ChatView] Marcando como leídos:', messageIds.length, 'mensajes (inmediato)')
+
+    conversationStore.markMessagesAsReadLocally(convId, messageIds)
+
+    if (socketStore.socket?.connected) {
+      socketStore.emit('message_read', {
+        conversation_id: convId,
+        message_ids: messageIds
+      })
+    }
+
+    await conversationStore.markAsRead(convId, messageIds).catch(err => {
+      console.error('❌ Error al marcar como leídos en servidor:', err)
+    })
+
+    setTimeout(() => {
+      isMarkingRead = false
+    }, 200)
+  }
+}, { deep: true, immediate: true })
+
+// ============================================
+// WATCHER PARA MARCAR MENSAJES COMO ENTREGADOS
+// ============================================
+let lastMarkedDeliveredTime = 0
+const MARK_DELIVERED_DEBOUNCE_MS = 100
+
+watch(() => conversationStore.messages[Number(route.params.id)], async (newMessages) => {
+  if (!newMessages) return
+
+  const now = Date.now()
+  if (now - lastMarkedDeliveredTime < MARK_DELIVERED_DEBOUNCE_MS) return
+  lastMarkedDeliveredTime = now
+
+  const undeliveredMessages = newMessages.filter(m => !m.is_mine && !m.is_delivered && m.id && !String(m.id).startsWith('temp'))
+
+  if (undeliveredMessages.length > 0) {
+    const messageIds = undeliveredMessages.map(m => m.id)
+    const convId = Number(route.params.id)
+    console.log('📬 [ChatView] Marcando como entregados:', messageIds.length, 'mensajes')
+    conversationStore.markMessagesAsDeliveredLocally(convId, messageIds)
+    if (socketStore.socket?.connected) {
+      socketStore.emit('message_delivered', {
+        conversation_id: convId,
+        message_ids: messageIds
+      })
     }
   }
-}, { deep: true })
+}, { deep: true, immediate: true })
 
-// Watch para typing indicator
-watch(() => conversationStore.getTypingUsers(Number(route.params.id)), (typingUsers) => {
-  isTyping.value = typingUsers.size > 0
-}, { immediate: true })
+// Watch para typing indicator usando getTypingUsers
+watch(() => conversationStore.getTypingUsers(Number(route.params.id)), (typingUsersList) => {
+  isTyping.value = typingUsersList.length > 0
+}, { immediate: true, deep: true })
+
+// Watch para scroll en typing
+watch(isTyping, (newVal) => {
+  if (newVal) {
+    nextTick(() => scrollToBottom())
+  }
+})
+
+// ============================================
+// HANDLERS DE EVENTOS DE SOCKET (CORREGIDOS)
+// ============================================
+
+// ✅ CORREGIDO: Handler para nuevos mensajes - AHORA AGREGA AL STORE
+const handleNewMessage = (data) => {
+  console.log('📨 [ChatView] new_message recibido:', data)
+  const messageData = data.message || data
+  const convId = Number(route.params.id)
+  if (messageData.conversation_id === convId) {
+    // ✅ 🔥 AGREGAR MENSAJE AL STORE (CLAVE)
+    conversationStore.addMessage(convId, messageData)
+    // Scroll
+    nextTick(() => scrollToBottom())
+  }
+}
+
+// REEMPLAZAR handleMessageDelivered con:
+const handleMessageDelivered = (data) => {
+  console.log('📬 [ChatView] message_delivered RECIBIDO:', data);
+  
+  // ✅ CORRECCIÓN 1: Normalizar conversation_id (puede venir como string)
+  const conversationId = Number(route.params.id);
+  const deliveredConversationId = Number(data.conversation_id || data.conversationId);
+  
+  console.log(`📬 Comparando IDs: local=${conversationId}, recibido=${deliveredConversationId}`);
+  
+  // ✅ CORRECCIÓN 2: Comparar como números
+  if (deliveredConversationId === conversationId) {
+    // ✅ CORRECCIÓN 3: Extraer message_ids de todas las formas posibles
+    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : []);
+    
+    console.log('📬 IDs de mensajes a marcar como entregados:', messageIds);
+    
+    if (messageIds.length > 0) {
+      // Actualizar localmente
+      conversationStore.markMessagesAsDeliveredLocally(conversationId, messageIds);
+      
+      // ✅ CORRECCIÓN 4: Forzar actualización visual inmediata
+      nextTick(() => {
+        loadMessageStats(conversationId);
+        scrollToBottom();
+      });
+      
+      console.log('✅ Estados de entrega actualizados para mensajes propios');
+    }
+  }
+};
+
+// REEMPLAZAR handleMessageRead con:
+const handleMessageRead = (data) => {
+  console.log('✅ [ChatView] message_read RECIBIDO:', data);
+  
+  // ✅ CORRECCIÓN 1: Normalizar conversation_id
+  const conversationId = Number(route.params.id);
+  const readConversationId = Number(data.conversation_id || data.conversationId);
+  
+  console.log(`✅ Comparando IDs: local=${conversationId}, recibido=${readConversationId}`);
+  
+  // ✅ CORRECCIÓN 2: Comparar como números
+  if (readConversationId === conversationId) {
+    // ✅ CORRECCIÓN 3: Extraer message_ids de todas las formas posibles
+    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : []);
+    
+    console.log('✅ IDs de mensajes a marcar como leídos:', messageIds);
+    
+    if (messageIds.length > 0) {
+      // Actualizar localmente
+      conversationStore.markMessagesAsReadLocally(conversationId, messageIds);
+      
+      // ✅ CORRECCIÓN 4: Forzar actualización visual inmediata
+      nextTick(() => {
+        loadMessageStats(conversationId);
+        scrollToBottom();
+      });
+      
+      console.log('✅ Estados de lectura actualizados para mensajes propios');
+    }
+  }
+};
+
+// Handler para indicadores de escritura
+const handleTypingIndicator = (data) => {
+  const convId = Number(route.params.id)
+  if (data.conversation_id === convId) {
+    console.log('⌨️ [ChatView] typing_indicator recibido:', data)
+  }
+}
 
 // ============================================
 // LIFECYCLE HOOKS
 // ============================================
 onMounted(async () => {
+  conversationStore.activeConversationId = Number(route.params.id)
+
   const conversationId = Number(route.params.id)
 
   try {
     console.log('🔍 Cargando conversación:', conversationId)
+
     let conversation = await conversationStore.fetchConversation(conversationId)
 
     if (!conversation) {
@@ -1184,6 +1297,7 @@ onMounted(async () => {
 
     console.log('📦 Conversación recibida:', conversation)
     const other = conversation.other_participant
+
     if (!other) {
       console.error('No se encontró el otro participante', conversation)
       router.replace('/chats')
@@ -1200,9 +1314,68 @@ onMounted(async () => {
     console.log('✅ Target asignado:', target.value)
 
     await fetchMessages()
+    await markMessagesAsDelivered()
+    await conversationStore.syncMessageStatuses(conversationId)
+    await conversationStore.fetchConversations()
+
+    // Esperar a que el socket esté conectado antes de unirse
+    const waitForSocket = () => {
+      return new Promise((resolve) => {
+        if (socketStore.socket?.connected) {
+          resolve(true)
+        } else {
+          const checkInterval = setInterval(() => {
+            if (socketStore.socket?.connected) {
+              clearInterval(checkInterval)
+              resolve(true)
+            }
+          }, 100)
+          setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve(false)
+          }, 5000)
+        }
+      })
+    }
+
+    await waitForSocket()
 
     // Unirse a la sala de conversación
-    socketStore.joinConversationRoom(conversationId)
+    const joined = await socketStore.joinConversationRoom(conversationId)
+    if (joined) {
+      console.log('✅ Unido a sala de conversación:', conversationId)
+    } else {
+      console.warn('⚠️ No se pudo unir a la sala de conversación')
+    }
+
+    // =====================================================
+    // 🔥 AGREGAR TODOS LOS LISTENERS DE SOCKET
+    // =====================================================
+    // 1. Nuevos mensajes
+    socketStore.on('new_message', handleNewMessage)
+    socketListeners.new_message = handleNewMessage
+
+    // 2. Indicadores de escritura
+    socketStore.on('typing_indicator', handleTypingIndicator)
+    socketListeners.typing_indicator = handleTypingIndicator
+
+    // 3. Mensajes entregados (tildes ✓✓ gris) - CORREGIDO
+    socketStore.on('message_delivered', handleMessageDelivered)
+    socketListeners.message_delivered = handleMessageDelivered
+
+    // 4. Mensajes leídos (tildes ✓✓ azul) - CORREGIDO
+    socketStore.on('message_read', handleMessageRead)
+    socketListeners.message_read = handleMessageRead
+
+    // 5. Confirmación de mensajes
+    const handleMessageSentConfirmation = (data) => {
+      console.log('✅ [ChatView] message_sent_confirmation:', data)
+      nextTick(() => loadMessageStats(conversationId))
+    }
+    socketStore.on('message_sent_confirmation', handleMessageSentConfirmation)
+    socketListeners.message_sent_confirmation = handleMessageSentConfirmation
+
+    console.log('🎧 Todos los listeners de socket registrados correctamente')
 
   } catch (error) {
     console.error('Error al cargar la conversación:', error)
@@ -1211,8 +1384,27 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  conversationStore.activeConversationId = null
+
   // Salir de la sala de conversación
   socketStore.leaveConversationRoom(Number(route.params.id))
+
+  // Limpiar TODOS los listeners del socket
+  if (socketListeners.new_message) {
+    socketStore.off('new_message', socketListeners.new_message)
+  }
+  if (socketListeners.typing_indicator) {
+    socketStore.off('typing_indicator', socketListeners.typing_indicator)
+  }
+  if (socketListeners.message_delivered) {
+    socketStore.off('message_delivered', socketListeners.message_delivered)
+  }
+  if (socketListeners.message_read) {
+    socketStore.off('message_read', socketListeners.message_read)
+  }
+  if (socketListeners.message_sent_confirmation) {
+    socketStore.off('message_sent_confirmation', socketListeners.message_sent_confirmation)
+  }
 
   // Limpiar timeout de typing
   if (typingTimeout) {
@@ -1220,7 +1412,6 @@ onUnmounted(() => {
   }
 })
 </script>
-
 
 <style scoped>
 :root {
@@ -2713,6 +2904,9 @@ onUnmounted(() => {
   transition: transform var(--transition-normal);
 }
 
+.status-sent { color: #9ca3af; } /* gris */
+.status-delivered { color: #9ca3af; } /* gris */
+.status-read { color: #3b82f6; } /* azul */
 .message-modern:hover {
   transform: translateX(5px);
 }

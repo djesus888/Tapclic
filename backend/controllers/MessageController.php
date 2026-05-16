@@ -1,4 +1,10 @@
 <?php
+// ✅ NUEVO: Configurar error reporting para ver errores
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', '/data/data/com.termux/files/usr/var/log/php_error.log');
+
 // backend/controllers/MessageController.php
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/Message.php';
@@ -87,10 +93,11 @@ class MessageController
 
         if (
             $conversation['participant1_id'] != $user->id &&
-                 $conversation['participant2_id'] != $user->id &&
-                    $user->role !== 'admin') {
-                   http_response_code(403);
-               echo json_encode(["message" => "No tienes permiso para acceder a esta conversación"]);
+            $conversation['participant2_id'] != $user->id &&
+            $user->role !== 'admin'
+        ) {
+            http_response_code(403);
+            echo json_encode(["message" => "No tienes permiso para acceder a esta conversación"]);
             exit;
         }
         return $conversation;
@@ -142,59 +149,77 @@ class MessageController
         exit;
     }
 
-public function getMessagesByConversation($conversationId)
-{
-    $user = $this->authUser();
-    $conversation = $this->checkConversationAccess($conversationId);
+    public function getMessagesByConversation($conversationId)
+    {
+        $user = $this->authUser();
+        $conversation = $this->checkConversationAccess($conversationId);
 
-    // ✅ CORREGIDO: Marcar como entregados y obtener información para notificar
-    $deliveryResult = $this->messageModel->markConversationMessagesAsDeliveredAndNotify(
-        $conversationId,
-        $user->id,
-        $user->role
-    );
-    
-    // ✅ NUEVO: Si se marcaron mensajes como entregados, notificar a los remitentes
-    if ($deliveryResult !== 0 && is_array($deliveryResult) && $deliveryResult['count'] > 0) {
-        // Agrupar por remitente para notificar individualmente
-        $sendersGrouped = [];
-        foreach ($deliveryResult['senders'] as $msg) {
-            $senderKey = $msg['sender_type'] . '_' . $msg['sender_id'];
-            if (!isset($sendersGrouped[$senderKey])) {
-                $sendersGrouped[$senderKey] = [
-                    'sender_id' => $msg['sender_id'],
-                    'sender_type' => $msg['sender_type'],
-                    'message_ids' => []
-                ];
+        // ✅ CORREGIDO: Marcar como entregados (ahora devuelve solo el contador)
+        $deliveredCount = $this->messageModel->markConversationMessagesAsDeliveredAndNotify(
+            $conversationId,
+            $user->id,
+            $user->role
+        );
+
+        // ✅ NUEVO: Si se marcaron mensajes como entregados, notificar a los remitentes
+        if ($deliveredCount > 0) {
+            $sql = "SELECT DISTINCT m.id, m.sender_id, m.sender_type
+                    FROM messages m
+                    INNER JOIN message_status ms ON m.id = ms.message_id
+                    WHERE m.conversation_id = :conversation_id
+                      AND ms.user_id = :user_id
+                      AND ms.user_type = :user_type
+                      AND ms.delivered_at IS NOT NULL
+                      AND ms.is_delivered = TRUE";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'conversation_id' => $conversationId,
+                'user_id' => $user->id,
+                'user_type' => $user->role
+            ]);
+            $affectedMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!empty($affectedMessages)) {
+                // Agrupar por remitente para notificar individualmente
+                $sendersGrouped = [];
+                foreach ($affectedMessages as $msg) {
+                    $senderKey = $msg['sender_type'] . '_' . $msg['sender_id'];
+                    if (!isset($sendersGrouped[$senderKey])) {
+                        $sendersGrouped[$senderKey] = [
+                            'sender_id' => $msg['sender_id'],
+                            'sender_type' => $msg['sender_type'],
+                            'message_ids' => []
+                        ];
+                    }
+                    $sendersGrouped[$senderKey]['message_ids'][] = $msg['id'];
+                }
+
+                // Notificar a cada remitente
+                foreach ($sendersGrouped as $senderData) {
+                    WebSocketService::emitToUser(
+                        $senderData['sender_type'],
+                        $senderData['sender_id'],
+                        'message_delivered',
+                        [
+                            'conversation_id' => $conversationId,
+                            'message_ids' => $senderData['message_ids'],
+                            'delivered_at' => date('Y-m-d H:i:s')
+                        ]
+                    );
+                }
+                error_log("📬 Notificada entrega de " . count($affectedMessages) . " mensajes en conversación {$conversationId}");
             }
-            $sendersGrouped[$senderKey]['message_ids'][] = $msg['id'];
         }
-        
-        // Notificar a cada remitente
-        foreach ($sendersGrouped as $senderData) {
-            WebSocketService::emitToUser(
-                $senderData['sender_type'],
-                $senderData['sender_id'],
-                'message_delivered',
-                [
-                    'conversation_id' => $conversationId,
-                    'message_ids' => $senderData['message_ids'],
-                    'delivered_at' => date('Y-m-d H:i:s')
-                ]
-            );
-        }
-        error_log("📬 Notificada entrega de " . $deliveryResult['count'] . " mensajes en conversación {$conversationId}");
+        $messages = $this->messageModel->getMessagesByConversationForUser(
+            $conversationId,
+            $user->id,
+            $user->role
+        );
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(["success" => true, "messages" => $messages], JSON_UNESCAPED_UNICODE);
     }
-
-    $messages = $this->messageModel->getMessagesByConversationForUser(
-        $conversationId,
-        $user->id,
-        $user->role
-    );
-
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(["success" => true, "messages" => $messages], JSON_UNESCAPED_UNICODE);
-}
 
     public function uploadMessageImage(): void
     {
@@ -203,7 +228,6 @@ public function getMessagesByConversation($conversationId)
             $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
             $this->jsonError(400, 'Error al subir la imagen: código ' . $code);
         }
-
         $file = $_FILES['image'];
         $maxSize = 5 * 1024 * 1024;
         if ($file['size'] > $maxSize) {
@@ -230,7 +254,6 @@ public function getMessagesByConversation($conversationId)
         if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
             $this->jsonError(500, 'Error al guardar el archivo');
         }
-
         $baseUrl = $this->getBaseUrl();
         $imageUrl = $baseUrl . '/uploads/messages/' . $filename;
 
@@ -239,6 +262,7 @@ public function getMessagesByConversation($conversationId)
         exit;
     }
 
+    // ✅ CORREGIDO: markAsRead - AHORA EMITE UN SOLO EVENTO CON TODOS LOS IDs
     public function markAsRead($data)
     {
         $user = $this->authUser();
@@ -251,24 +275,29 @@ public function getMessagesByConversation($conversationId)
         }
 
         $ids = array_map('intval', $ids);
-        $this->messageModel->markAsReadForUser($ids, $user->id, $user->role);
 
-        foreach ($ids as $id) {
-            $msg = $this->messageModel->getMessageById($id);
-            // ✅ CORREGIDO: Eliminada la condición receiver_id que causaba problemas
-            if ($msg && isset($msg['sender_id'])) {
-                // ✅ CORREGIDO: Usar emitToRoom para la sala de conversación
-                WebSocketService::emitToRoom(
-                    "conversation_{$msg['conversation_id']}",
-                    'message_read',
-                    [
-                        'conversation_id' => $msg['conversation_id'],
-                        'message_ids' => [$id],
-                        'user_id' => $user->id,
-                        'read_at' => date('Y-m-d H:i:s')
-                    ]
-                );
-            }
+        // ✅ CORREGIDO: Marcar como leído para el usuario actual
+        $updated = $this->messageModel->markAsReadForUser($ids, $user->id, $user->role);
+
+        error_log("📖 markAsRead: {$updated} mensajes marcados como leídos para usuario {$user->id}");
+
+        // ✅ 🔥 CORRECCIÓN CRÍTICA: Emitir UN SOLO evento con TODOS los message_ids
+        // Obtener conversation_id del primer mensaje (todos deberían ser de la misma conversación)
+        $firstMsg = $this->messageModel->getMessageById($ids[0]);
+
+        if ($firstMsg && isset($firstMsg['conversation_id'])) {
+            WebSocketService::emitToRoom(
+                "conversation_{$firstMsg['conversation_id']}",
+                'message_read',
+                [
+                    'conversation_id' => $firstMsg['conversation_id'],
+                    'message_ids' => $ids, // 🔥 TODOS LOS IDs JUNTOS
+                    'user_id' => $user->id,
+                    'user_role' => $user->role,
+                    'read_at' => date('Y-m-d H:i:s')
+                ]
+            );
+            error_log("📖 Emitido message_read para " . count($ids) . " mensajes en conversación {$firstMsg['conversation_id']}");
         }
 
         header('Content-Type: application/json; charset=utf-8');
@@ -316,204 +345,222 @@ public function getMessagesByConversation($conversationId)
         exit;
     }
 
+    // ✅ CORREGIDO: sendMessage mejorado
+    public function sendMessage($data)
+    {
+        // ✅ NUEVO: Log completo de lo que llega
+        error_log("========== sendMessage llamado ==========");
+        error_log("Data recibida: " . json_encode($data, JSON_UNESCAPED_UNICODE));
+        error_log("POST raw: " . file_get_contents('php://input'));
 
-// ✅ CORREGIDO: sendMessage mejorado
-public function sendMessage($data)
-{
-    $user = $this->authUser();
-    $senderId = $user->id;
-    $senderType = $user->role;
+        try {
+            $user = $this->authUser();
+            $senderId = $user->id;
+            $senderType = $user->role;
+            $receiverId = intval($data['recipient_id'] ?? $data['provider_id'] ?? 0);
+            $receiverType = $data['recipient_role'] ?? '';
+            $text = trim($data['text'] ?? '');
+            $attachment_url = $data['attachment_url'] ?? $data['image_url'] ?? null;
+            $parent_id = $data['parent_id'] ?? null;
+            $metadata = $data['metadata'] ?? null;
+            $conversationId = isset($data['conversation_id']) ? intval($data['conversation_id']) : null;
+            $type = empty($attachment_url) ? 'text' : 'image';
 
-    $receiverId = intval($data['recipient_id'] ?? $data['provider_id'] ?? 0);
-    $receiverType = $data['recipient_role'] ?? '';
-    $text = trim($data['text'] ?? '');
-    $attachment_url = $data['attachment_url'] ?? $data['image_url'] ?? null;
-    $parent_id = $data['parent_id'] ?? null;
-    $metadata = $data['metadata'] ?? null;
-    $conversationId = isset($data['conversation_id']) ? intval($data['conversation_id']) : null;
-    $type = empty($attachment_url) ? 'text' : 'image';
+            if (!$receiverId || !$receiverType || ($text === '' && empty($attachment_url))) {
+                http_response_code(400);
+                echo json_encode(["message" => "Faltan datos requeridos"]);
+                exit;
+            }
 
-    if (!$receiverId || !$receiverType || ($text === '' && empty($attachment_url))) {
-        http_response_code(400);
-        echo json_encode(["message" => "Faltan datos requeridos"]);
-        exit;
-    }
+            if (!$conversationId) {
+                $conversationId = $this->conversationModel->findOrCreate($senderId, $senderType, $receiverId, $receiverType);
+            } else {
+                $conversation = $this->conversationModel->getById($conversationId);
+                if (!$conversation) {
+                    http_response_code(404);
+                    echo json_encode(["message" => "Conversación no encontrada"]);
+                    exit;
+                }
+                if ($conversation['participant1_id'] != $senderId && $conversation['participant2_id'] != $senderId) {
+                    http_response_code(403);
+                    echo json_encode(["message" => "No tienes acceso a esta conversación"]);
+                    exit;
+                }
+            }
 
-    if (!$conversationId) {
-        $conversationId = $this->conversationModel->findOrCreate($senderId, $senderType, $receiverId, $receiverType);
-    } else {
-        $conversation = $this->conversationModel->getById($conversationId);
-        if (!$conversation) {
-            http_response_code(404);
-            echo json_encode(["message" => "Conversación no encontrada"]);
+            try {
+                $this->db->beginTransaction();
+
+                $message = $this->messageModel->insertMessageWithStatus(
+                    $conversationId,
+                    $senderId,
+                    $receiverId,
+                    $text,
+                    $type,
+                    $attachment_url,
+                    $senderType,
+                    $receiverType
+                );
+
+                // ✅ NUEVO: Agregar datos de conversación al mensaje
+                $message['conversation_id'] = $conversationId;
+                $message['is_mine'] = true;
+
+                // ✅ NUEVO: Asegurar que sender_id está presente (por si acaso)
+                if (!isset($message['sender_id'])) {
+                    $message['sender_id'] = $senderId;
+                }
+
+                // ✅ NUEVO: Log para depuración
+                error_log("📦 Mensaje insertado: " . json_encode([
+                    'id' => $message['id'],
+                    'sender_id' => $message['sender_id'],
+                    'sender' => $message['sender'] ?? $senderType,
+                    'text' => substr($message['text'] ?? '', 0, 30)
+                ]));
+
+                $messageForReceiver = $message;
+                $messageForReceiver['is_mine'] = false;
+                $message['sender_id'] = $senderId;
+                $this->db->commit();
+
+                // ✅ NUEVO: Obtener el mensaje con estados COMPLETOS para el remitente
+                $messageWithStatus = $this->messageModel->getMessageByIdForUser(
+                    $message['id'],
+                    $senderId,
+                    $senderType
+                );
+
+                // Si por alguna razón falla, usar el mensaje base
+                if (!$messageWithStatus || empty($messageWithStatus)) {
+                    $messageWithStatus = $message;
+                    $messageWithStatus['is_delivered'] = false;
+                    $messageWithStatus['is_read'] = false;
+                }
+
+                // ✅ Asegurar que is_mine está correcto
+                $messageWithStatus['is_mine'] = true;
+                error_log("📦 Enviando confirmación al remitente {$senderId}: " . json_encode([
+                    'message_id' => $message['id'],
+                    'is_delivered' => $messageWithStatus['is_delivered'] ?? false,
+                    'is_read' => $messageWithStatus['is_read'] ?? false
+                ]));
+
+                // Enviar a la sala de conversación (para todos los participantes)
+                WebSocketService::emitToRoom(
+                    "conversation_{$conversationId}",
+                    'new_message',
+                    [
+                        'conversation_id' => $conversationId,
+                        'message' => $messageWithStatus,
+                        'temp_id' => $data['temp_id'] ?? null,
+                        'status' => 'sent'
+                    ]
+                );
+
+                // ✅ NUEVO: Enviar confirmación al remitente CON TODOS LOS ESTADOS
+                WebSocketService::emitToUser(
+                    $senderType,
+                    $senderId,
+                    'message_sent_confirmation',
+                    [
+                        'conversation_id' => $conversationId,
+                        'message' => $messageWithStatus,
+                        'temp_id' => $data['temp_id'] ?? null,
+                        'status' => 'confirmed'
+                    ]
+                );
+
+                // ✅ IMPORTANTE: Devolver respuesta HTTP
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(["success" => true, "message" => $messageWithStatus], JSON_UNESCAPED_UNICODE);
+                exit;
+
+            } catch (Throwable $e) {
+                $this->db->rollBack();
+                error_log("❌ Excepción en insertMessage: " . $e->getMessage());
+                http_response_code(500);
+                echo json_encode(["message" => "Error al guardar el mensaje"]);
+                exit;
+            }
+        } catch (Exception $e) {
+            error_log("❌ EXCEPCIÓN: " . $e->getMessage());
+            error_log("❌ STACK: " . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode(["message" => $e->getMessage()]);
             exit;
         }
-        if ($conversation['participant1_id'] != $senderId && $conversation['participant2_id'] != $senderId) {
-            http_response_code(403);
-            echo json_encode(["message" => "No tienes acceso a esta conversación"]);
-            exit;
-        }
     }
-
-    try {
-        $this->db->beginTransaction();
-
-        $message = $this->messageModel->insertMessageWithStatus(
-            $conversationId,
-            $senderId,
-            $receiverId,
-            $text,
-            $type,
-            $attachment_url,
-            $senderType,
-            $receiverType
-        );
-
-        // ✅ NUEVO: Agregar datos de conversación al mensaje
-        $message['conversation_id'] = $conversationId;
-        $message['is_mine'] = true;
-        
-        // ✅ NUEVO: Asegurar que sender_id está presente (por si acaso)
-        if (!isset($message['sender_id'])) {
-            $message['sender_id'] = $senderId;
-        }
-
-        // ✅ NUEVO: Log para depuración
-        error_log("📦 Mensaje insertado: " . json_encode([
-            'id' => $message['id'],
-            'sender_id' => $message['sender_id'],
-            'sender' => $message['sender'] ?? $senderType,
-            'text' => substr($message['text'] ?? '', 0, 30)
-        ]));
-
-        $messageForReceiver = $message;
-        $messageForReceiver['is_mine'] = false;
-        $message['sender_id'] = $senderId;
-        $this->db->commit();  
-
-        // ✅ CORREGIDO: Enviar a la sala de conversación
-        WebSocketService::emitToRoom(
-            "conversation_{$conversationId}",
-            'new_message',
-            [
-                'conversation_id' => $conversationId,
-                'message' => $message,
-                'temp_id' => $data['temp_id'] ?? null,
-                'status' => 'sent'
-            ]
-        );
-
-        // ✅ NUEVO: Enviar confirmación al remitente
-        WebSocketService::emitToUser(
-            $senderType,
-            $senderId,
-            'message_sent_confirmation',
-            [
-                'conversation_id' => $conversationId,
-                'message' => $message,
-                'temp_id' => $data['temp_id'] ?? null,
-                'status' => 'confirmed'
-            ]
-        );
-
-        // Enviar notificación push
-        WebSocketService::sendNotification(
-            $receiverType,
-            $receiverId,
-            'Nuevo mensaje',
-            $text ?: '📷 Imagen',
-            [
-                'url' => '/chat/' . $conversationId,
-                'action' => 'view_chat',
-                'notification_type' => 'new_message',
-                'conversation_id' => $conversationId,
-                'sender_name' => $user->name ?? $user->username ?? 'Usuario'
-            ]
-        );
-
-    } catch (Throwable $e) {
-        $this->db->rollBack();
-        error_log("❌ Excepción en insertMessage: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(["message" => "Error al guardar el mensaje"]);
-        exit;
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(["success" => true, "message" => $message], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 
     // =====================================================
     // ✅ NUEVO: Marcar TODOS los mensajes de una conversación como entregados
     // =====================================================
-public function markConversationAsDelivered($conversationId)
-{
-    $user = $this->authUser();
+    public function markConversationAsDelivered($conversationId)
+    {
+        $user = $this->authUser();
 
-    // Verificar que el usuario tiene acceso a la conversación
-    $conversation = $this->checkConversationAccess($conversationId);
-    if (!$conversation) {
-        $this->jsonError(400, "Conversación inválida");
-        return; // ✅ IMPORTANTE
-    }
+        // Verificar que el usuario tiene acceso a la conversación
+        $conversation = $this->checkConversationAccess($conversationId);
+        if (!$conversation) {
+            $this->jsonError(400, "Conversación inválida");
+            return;
+        }
 
-    // Marcar todos los mensajes no entregados como entregados
-    $count = $this->messageModel->markConversationMessagesAsDelivered(
-        $conversationId,
-        $user->id,
-        $user->role
-    );
+        // Marcar todos los mensajes no entregados como entregados
+        $count = $this->messageModel->markConversationMessagesAsDelivered(
+            $conversationId,
+            $user->id,
+            $user->role
+        );
 
-    // ✅ NUEVO: manejar caso sin mensajes pendientes (NO error)
-    if ($count === 0) {
+        // ✅ NUEVO: manejar caso sin mensajes pendientes (NO error)
+        if ($count === 0) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'count' => 0,
+                'message' => "No hay mensajes pendientes por marcar como entregados"
+            ]);
+            exit;
+        }
+
+        // Si se marcaron mensajes, notificar al emisor
+        if ($count > 0) {
+            $sql = "SELECT m.id, m.sender_id
+                    FROM messages m
+                    INNER JOIN message_status ms ON m.id = ms.message_id
+                    WHERE m.conversation_id = ?
+                      AND ms.user_id = ?
+                      AND ms.user_type = ?
+                      AND ms.delivered_at IS NOT NULL";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$conversationId, $user->id, $user->role]);
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $messageIds = array_column($messages, 'id');
+
+            if (!empty($messageIds)) {
+                WebSocketService::emitToRoom(
+                    "conversation_{$conversationId}",
+                    'message_delivered',
+                    [
+                        'conversation_id' => $conversationId,
+                        'message_ids' => $messageIds,
+                        'delivered_at' => date('Y-m-d H:i:s')
+                    ]
+                );
+                error_log("📬 Notificada entrega de " . count($messageIds) . " mensajes en conversación {$conversationId}");
+            }
+        }
+
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'success' => true,
-            'count' => 0,
-            'message' => "No hay mensajes pendientes por marcar como entregados"
+            'count' => $count,
+            'message' => "{$count} mensajes marcados como entregados"
         ]);
         exit;
     }
-
-    // Si se marcaron mensajes, notificar al emisor
-    if ($count > 0) {
-        $sql = "SELECT m.id, m.sender_id
-                FROM messages m
-                INNER JOIN message_status ms ON m.id = ms.message_id
-                WHERE m.conversation_id = ?
-                  AND ms.user_id = ?
-                  AND ms.user_type = ?
-                  AND ms.delivered_at IS NOT NULL";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$conversationId, $user->id, $user->role]);
-        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $messageIds = array_column($messages, 'id');
-
-        if (!empty($messageIds)) {
-            WebSocketService::emitToRoom(
-                "conversation_{$conversationId}",
-                'message_delivered',
-                [
-                    'conversation_id' => $conversationId,
-                    'message_ids' => $messageIds,
-                    'delivered_at' => date('Y-m-d H:i:s')
-                ]
-            );
-            error_log("📬 Notificada entrega de " . count($messageIds) . " mensajes en conversación {$conversationId}");
-        }
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'success' => true,
-        'count' => $count,
-        'message' => "{$count} mensajes marcados como entregados"
-    ]);
-    exit;
-}
 
     public function markAsDelivered($data)
     {
@@ -548,11 +595,40 @@ public function markConversationAsDelivered($conversationId)
         exit;
     }
 
+    public function getMessageStatuses($conversationId)
+    {
+        $user = $this->authUser();
+        $this->checkConversationAccess($conversationId);
+        $sql = "SELECT
+                    m.id,
+                    m.conversation_id,
+                    ms.is_delivered,
+                    ms.delivered_at,
+                    ms.is_read,
+                    ms.read_at
+                FROM messages m
+                INNER JOIN message_status ms ON m.id = ms.message_id
+                WHERE m.conversation_id = ?
+                  AND ms.user_id = ?
+                  AND ms.user_type = ?
+                ORDER BY m.created_at ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$conversationId, $user->id, $user->role]);
+        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => true,
+            'messages' => $messages
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     public function deleteMessageForUser($messageId)
     {
         $user = $this->authUser();
         $message = $this->checkMessageAccess($messageId, false);
-
         $conversation = $this->conversationModel->getById($message['conversation_id']);
 
         $success = $this->messageModel->deleteMessageForUser($messageId, $user->id, $user->role);
@@ -630,10 +706,8 @@ public function markConversationAsDelivered($conversationId)
     {
         $user = $this->authUser();
         $conversation = $this->checkConversationAccess($conversationId, true);
-
         $this->messageModel->hardDeleteMessagesByConversation($conversationId);
         $success = $this->conversationModel->deleteConversation($conversationId);
-
         if ($success) {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(["success" => true]);

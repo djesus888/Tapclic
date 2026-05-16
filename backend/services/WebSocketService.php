@@ -28,10 +28,20 @@ class WebSocketService
             $wsUrl = self::getWebSocketUrlFromDatabase();
         }
 
-        // 3. Si no existe, usar valor por defecto (solo desarrollo)
+        // 3. Si no existe, construir desde API_URL
+        if (empty($wsUrl)) {
+            $apiUrl = getenv('API_URL');
+            if (!empty($apiUrl)) {
+                // Convertir http:// a ws://, https:// a wss://
+                $wsUrl = preg_replace('/^http(s?):\/\//', 'ws$1://', $apiUrl);
+                error_log("🔧 WebSocket URL construida desde API_URL: $wsUrl");
+            }
+        }
+
+        // 4. Fallback final
         if (empty($wsUrl)) {
             $wsUrl = self::isDevelopment() ? 'http://localhost:3001' : 'https://ws.tapclic.com';
-            error_log("⚠️ WebSocket URL no configurada, usando: $wsUrl");
+            error_log("⚠️ WebSocket URL no configurada, usando fallback: $wsUrl");
         }
 
         self::$baseUrl = rtrim($wsUrl, '/');
@@ -57,6 +67,10 @@ class WebSocketService
             if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $url = $row['api_host'];
                 if (!empty($url)) {
+                    // Convertir a WebSocket URL si es necesario
+                    if (strpos($url, 'http') === 0) {
+                        $url = preg_replace('/^http(s?):\/\//', 'ws$1://', $url);
+                    }
                     return $url;
                 }
             }
@@ -76,12 +90,48 @@ class WebSocketService
     }
 
     /**
+     * Verificar si la URL es accesible
+     */
+    private static function isUrlReachable(string $url): bool
+    {
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 3,
+                CURLOPT_NOBODY => true,
+                CURLOPT_SSL_VERIFYPEER => !self::isDevelopment(),
+                CURLOPT_SSL_VERIFYHOST => self::isDevelopment() ? 0 : 2
+            ]);
+            curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            // Aceptamos cualquier código 2xx o 3xx
+            return $httpCode >= 200 && $httpCode < 400;
+        } catch (Exception $e) {
+            if (self::isDevelopment()) {
+                error_log("⚠️ WebSocket reachability check falló: " . $e->getMessage());
+            }
+            return false;
+        }
+    }
+
+    /**
      * Emitir evento a través de WebSocket (método unificado)
      */
     public static function emit(string $event, array $payload, ?array $target = null): bool
     {
         try {
-            $url = self::getBaseUrl() . '/emit';
+            $baseUrl = self::getBaseUrl();
+            $url = $baseUrl . '/emit';
+            
+            // ✅ Verificar que la URL es accesible
+            if (!self::isUrlReachable($baseUrl)) {
+                error_log("⚠️ WebSocket server no reachable: " . $baseUrl);
+                return false;
+            }
+            
             $data = [
                 'event' => $event,
                 'payload' => $payload
@@ -101,18 +151,22 @@ class WebSocketService
                 }
             }
 
+            $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+            
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
+                CURLOPT_POSTFIELDS => $jsonData,
                 CURLOPT_HTTPHEADER => [
                     'Content-Type: application/json; charset=utf-8',
                     'Accept: application/json',
                     'X-Internal-Request: true',
-                    'X-Server-Name: ' . (gethostname() ?: 'unknown')
+                    'X-Server-Name: ' . (gethostname() ?: 'unknown'),
+                    'Content-Length: ' . strlen($jsonData)
                 ],
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => self::$timeout,
+                CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_SSL_VERIFYPEER => !self::isDevelopment(),
                 CURLOPT_SSL_VERIFYHOST => self::isDevelopment() ? 0 : 2,
                 CURLOPT_VERBOSE => false
@@ -127,8 +181,9 @@ class WebSocketService
 
             if (!$success && self::isDevelopment()) {
                 error_log("❌ WebSocket error: HTTP $status - $error");
-                error_log("📦 Data enviada: " . json_encode($data, JSON_PRETTY_PRINT));
+                error_log("📦 Data enviada: " . $jsonData);
             }
+            
             return $success;
         } catch (Exception $e) {
             error_log("❌ Excepción en WebSocketService::emit: " . $e->getMessage());
@@ -139,24 +194,31 @@ class WebSocketService
     /**
      * Emitir evento a sala específica
      */
-    public static function emitToRoom(string $room, string $event, array $payload): bool
-    {
-        $target = ['room' => $room];
-
-        // Si es sala de conversación, añadir conversation_id
-        if (strpos($room, 'conversation_') === 0) {
-            $conversationId = intval(str_replace('conversation_', '', $room));
-            if ($conversationId > 0) {
-                $target['conversation_id'] = $conversationId;
-            }
+public static function emitToRoom(string $room, string $event, array $payload): bool
+{
+    $target = ['room' => $room];
+    
+    error_log("📡 Emitiendo a sala {$room}: {$event}");
+    
+    // Si es sala de conversación, añadir conversation_id
+    if (strpos($room, 'conversation_') === 0) {
+        $conversationId = intval(str_replace('conversation_', '', $room));
+        if ($conversationId > 0) {
+            $target['conversation_id'] = $conversationId;
         }
-
-        if (!isset($payload['conversation_id']) && isset($target['conversation_id'])) {
-            $payload['conversation_id'] = $target['conversation_id'];
-        }
-
-        return self::emit($event, $payload, $target);
     }
+
+    if (!isset($payload['conversation_id']) && isset($target['conversation_id'])) {
+        $payload['conversation_id'] = $target['conversation_id'];
+    }
+    
+    // ✅ Agregar timestamp para depuración
+    if (!isset($payload['timestamp'])) {
+        $payload['timestamp'] = time();
+    }
+
+    return self::emit($event, $payload, $target);
+}
 
     /**
      * Emitir evento a usuario específico

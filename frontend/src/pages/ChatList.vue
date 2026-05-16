@@ -5,7 +5,7 @@
         <h1><span class="chat-icon">💬</span> Mis Conversaciones</h1>
         <p>Mensajes con proveedores y clientes</p>
       </div>
-      <div class="actions" v-if="chatStore.conversations.length > 0">
+      <div class="actions" v-if="conversationStore.conversations?.length > 0">
         <div class="online-indicator">
           <span class="dot" :class="{ 'online': isConnected }"></span>
           <span>{{ isConnected ? 'Conectado' : 'Desconectado' }}</span>
@@ -18,7 +18,7 @@
 
     <!-- Empty State -->
     <div
-      v-if="chatStore.conversations.length === 0"
+      v-if="!conversationStore.conversations || conversationStore.conversations.length === 0"
       class="empty-state"
     >
       <div class="empty-icon">📭</div>
@@ -41,7 +41,7 @@
         <div class="stat-item">
           <div class="stat-icon">💬</div>
           <div class="stat-content">
-            <h3>{{ chatStore.conversations.length }}</h3>
+            <h3>{{ conversationStore.conversations?.length || 0 }}</h3>
             <p>Conversaciones</p>
           </div>
         </div>
@@ -68,7 +68,6 @@
           </div>
         </div>
       </div>
-
       <!-- Filters -->
       <div class="filters-section">
         <div class="filter-group">
@@ -83,7 +82,6 @@
             <option value="client">Clientes</option>
           </select>
         </div>
-
         <div class="filter-group">
           <label for="sort-filter">Ordenar por:</label>
           <select
@@ -97,7 +95,6 @@
             <option value="online">Online primero</option>
           </select>
         </div>
-
         <div class="filter-group">
           <label for="search">Buscar conversación:</label>
           <input
@@ -120,7 +117,6 @@
           </label>
         </div>
       </div>
-
       <!-- Conversations Grid -->
       <div class="conversations-grid">
         <div
@@ -130,7 +126,7 @@
           @click="openChat(conv.id)"
           :class="{
             'unread': conv.unreadCount > 0,
-            'online-contact': isUserOnline(interlocutor(conv).id)
+            'online-contact': isUserOnline(interlocutor(conv)?.id)
           }"
         >
           <!-- Unread Badge -->
@@ -141,15 +137,15 @@
           <!-- Avatar & Online Status -->
           <div class="avatar-container">
             <img
-              :src="avatarUrl(interlocutor(conv).avatar)"
+              :src="avatarUrl(interlocutor(conv)?.avatar_url || interlocutor(conv)?.avatar)"
               class="user-avatar"
-              :alt="interlocutor(conv).name"
+              :alt="interlocutor(conv)?.name || 'Usuario'"
               @error="handleImageError"
             >
             <span
               class="online-dot"
-              :class="{ 'online': isUserOnline(interlocutor(conv).id) }"
-              :title="isUserOnline(interlocutor(conv).id) ? 'En línea' : 'Desconectado'"
+              :class="{ 'online': isUserOnline(interlocutor(conv)?.id) }"
+              :title="isUserOnline(interlocutor(conv)?.id) ? 'En línea' : 'Desconectado'"
             ></span>
           </div>
 
@@ -158,13 +154,13 @@
             <div class="conversation-header">
               <div class="user-info">
                 <div class="user-name-wrapper">
-                  <h3 class="user-name">{{ interlocutor(conv).name }}</h3>
-                  <span class="online-badge" v-if="isUserOnline(interlocutor(conv).id)">
+                  <h3 class="user-name">{{ interlocutor(conv)?.name || 'Usuario' }}</h3>
+                  <span class="online-badge" v-if="isUserOnline(interlocutor(conv)?.id)">
                     EN LÍNEA
                   </span>
                 </div>
                 <span class="user-role capitalize">
-                  {{ interlocutor(conv).role === 'provider' ? 'Proveedor' : 'Cliente' }}
+                  {{ interlocutor(conv)?.role === 'provider' ? 'Proveedor' : 'Cliente' }}
                 </span>
               </div>
               <span class="time-ago">
@@ -176,7 +172,7 @@
               </span>
             </div>
 
-            <!-- 🔥 MODIFICADO: Último mensaje con status -->
+            <!-- Último mensaje con status -->
             <div class="last-message-wrapper">
               <p class="last-message">
                 <span v-if="conv.lastMessage?.sender_id === authStore.user?.id" class="you-indicator">
@@ -184,9 +180,9 @@
                 </span>
                 {{ truncateMessage(getLastMessageText(conv), 60) }}
               </p>
-              
-              <!-- 🔥 NUEVO: Status del último mensaje -->
-              <span v-if="conv.lastMessage?.sender_id === authStore.user?.id" 
+
+              <!-- Status del último mensaje -->
+              <span v-if="conv.lastMessage?.sender_id === authStore.user?.id"
                     class="message-status"
                     :class="getLastMessageStatusClass(conv)">
                 {{ getLastMessageStatusIcon(conv) }}
@@ -202,13 +198,11 @@
               </span>
               <span class="typing-text">escribiendo...</span>
             </div>
-
             <!-- Message Preview (cuando no hay último mensaje) -->
             <div class="message-preview" v-else-if="!conv.lastMessage">
               <span class="message-text">Sin mensajes todavía...</span>
             </div>
           </div>
-
           <!-- Quick Actions -->
           <div class="quick-actions">
             <button
@@ -267,7 +261,7 @@ import { es } from 'date-fns/locale'
  * Stores & Router
  * ------------------------------------ */
 const authStore = useAuthStore()
-const chatStore = useConversationStore()
+const conversationStore = useConversationStore()
 const socketStore = useSocketStore()
 const onlineUsersStore = useOnlineUsersStore()
 const router = useRouter()
@@ -296,25 +290,28 @@ const isConnected = computed(() => socketStore.isConnected)
 const onlineCount = computed(() => onlineUsersStore.onlineCount)
 
 const totalUnread = computed(() => {
-  return chatStore.conversations.reduce((total, conv) => total + conv.unreadCount, 0)
+  if (!conversationStore.conversations) return 0
+  return conversationStore.conversations.reduce((total, conv) => total + (conv.unreadCount || 0), 0)
 })
 
 const uniqueParticipants = computed(() => {
+  if (!conversationStore.conversations) return 0
   const ids = new Set()
-  chatStore.conversations.forEach(conv => {
-    const interlocutorId = interlocutor(conv).id
+  conversationStore.conversations.forEach(conv => {
+    const interlocutorId = interlocutor(conv)?.id
     if (interlocutorId) ids.add(interlocutorId)
   })
   return ids.size
 })
 
 const filteredConversations = computed(() => {
-  let conversations = [...chatStore.conversations]
+  if (!conversationStore.conversations) return []
+  let conversations = [...conversationStore.conversations]
 
   // Filtrar por rol
   if (selectedRole.value) {
     conversations = conversations.filter(conv =>
-      interlocutor(conv).role === selectedRole.value
+      interlocutor(conv)?.role === selectedRole.value
     )
   }
 
@@ -322,14 +319,14 @@ const filteredConversations = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     conversations = conversations.filter(conv =>
-      interlocutor(conv).name.toLowerCase().includes(query)
+      interlocutor(conv)?.name?.toLowerCase().includes(query)
     )
   }
 
   // Filtrar solo online
   if (showOnlineOnly.value) {
     conversations = conversations.filter(conv =>
-      isUserOnline(interlocutor(conv).id)
+      isUserOnline(interlocutor(conv)?.id)
     )
   }
 
@@ -343,17 +340,17 @@ const filteredConversations = computed(() => {
       })
       break
     case 'unread':
-      conversations.sort((a, b) => b.unreadCount - a.unreadCount)
+      conversations.sort((a, b) => (b.unreadCount || 0) - (a.unreadCount || 0))
       break
     case 'name':
       conversations.sort((a, b) =>
-        interlocutor(a).name.localeCompare(interlocutor(b).name)
+        (interlocutor(a)?.name || '').localeCompare(interlocutor(b)?.name || '')
       )
       break
     case 'online':
       conversations.sort((a, b) => {
-        const aOnline = isUserOnline(interlocutor(a).id)
-        const bOnline = isUserOnline(interlocutor(b).id)
+        const aOnline = isUserOnline(interlocutor(a)?.id)
+        const bOnline = isUserOnline(interlocutor(b)?.id)
         if (aOnline && !bOnline) return -1
         if (!aOnline && bOnline) return 1
         return 0
@@ -372,15 +369,14 @@ onMounted(() => {
   if (authStore.token) {
     socketStore.init()
   }
-
   // Cargar conversaciones
-  chatStore.fetchConversations()
+  conversationStore.fetchConversations()
 
   // Escuchar eventos de typing
   window.addEventListener('user_typing', handleTypingEvent)
   window.addEventListener('new_message', handleNewMessage)
-  
-  // 🔥 NUEVO: Escuchar actualizaciones de mensajes
+
+  // Escuchar actualizaciones de mensajes
   window.addEventListener('message_delivered', handleMessageDelivered)
   window.addEventListener('message_read', handleMessageRead)
 })
@@ -409,17 +405,35 @@ function openChat(conversationId) {
 }
 
 function interlocutor(conv) {
-  return (
-    conv.participants?.find(p => p.id !== authStore.user?.id) ||
-    conv.participants?.[0] ||
-    { id: null, name: 'Usuario', role: 'user', avatar: null }
-  )
+  if (!conv) {
+    return { id: null, name: 'Usuario', role: 'user', avatar_url: null }
+  }
+  // Usar other_participant si existe (estructura de conversationStore)
+  if (conv.other_participant) {
+    return {
+      id: conv.other_participant.id,
+      name: conv.other_participant.name,
+      role: conv.other_participant.role,
+      avatar_url: conv.other_participant.avatar_url
+    }
+  }
+  // Fallback a participants
+  if (conv.participants && conv.participants.length > 0) {
+    const other = conv.participants.find(p => p.id !== authStore.user?.id) || conv.participants[0]
+    return {
+      id: other?.id,
+      name: other?.name,
+      role: other?.role,
+      avatar_url: other?.avatar_url || other?.avatar
+    }
+  }
+  return { id: null, name: 'Usuario', role: 'user', avatar_url: null }
 }
 
 function avatarUrl(avatar) {
   if (!avatar) return '/img/default-avatar.png'
   if (avatar.startsWith('http')) return avatar
-  return `${import.meta.env.VITE_API_URL.replace('/api', '')}${avatar}`
+  return `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${avatar}`
 }
 
 function truncateMessage(message, length) {
@@ -427,28 +441,25 @@ function truncateMessage(message, length) {
   return message.length > length ? message.substring(0, length) + '...' : message
 }
 
-/* 🔥 NUEVO: Obtener texto del último mensaje */
+/* Obtener texto del último mensaje */
 function getLastMessageText(conv) {
   if (!conv.lastMessage) return 'Sin mensajes todavía...'
-  
   if (conv.lastMessage.type === 'image') return '📷 Imagen'
   if (conv.lastMessage.type === 'file') return '📎 Archivo'
   return conv.lastMessage.text || ''
 }
 
-/* 🔥 NUEVO: Obtener clase de status del último mensaje */
+/* Obtener clase de status del último mensaje */
 function getLastMessageStatusClass(conv) {
   if (!conv.lastMessage) return ''
-  
   if (conv.lastMessage.is_read) return 'status-read'
   if (conv.lastMessage.is_delivered) return 'status-delivered'
   return 'status-sent'
 }
 
-/* 🔥 NUEVO: Obtener ícono de status del último mensaje */
+/* Obtener ícono de status del último mensaje */
 function getLastMessageStatusIcon(conv) {
   if (!conv.lastMessage) return ''
-  
   if (conv.lastMessage.is_read) return '✓✓'
   if (conv.lastMessage.is_delivered) return '✓✓'
   return '✓'
@@ -490,27 +501,27 @@ function handleTypingEvent(event) {
 
 function handleNewMessage(event) {
   // Recargar conversaciones cuando llega un nuevo mensaje
-  chatStore.fetchConversations()
+  conversationStore.fetchConversations()
 }
 
-/* 🔥 NUEVO: Manejar mensajes entregados */
+/* Manejar mensajes entregados */
 function handleMessageDelivered(event) {
-  const { conversation_id, message_id } = event.detail
+  const { conversation_id, message_id } = event.detail || {}
   // Actualizar la vista si es necesario
-  chatStore.fetchConversations()
+  conversationStore.fetchConversations()
 }
 
-/* 🔥 NUEVO: Manejar mensajes leídos */
+/* Manejar mensajes leídos */
 function handleMessageRead(event) {
-  const { conversation_id, message_ids } = event.detail
+  const { conversation_id, message_ids } = event.detail || {}
   // Actualizar la vista si es necesario
-  chatStore.fetchConversations()
+  conversationStore.fetchConversations()
 }
 
 function isTyping(conversationId) {
-  const conv = chatStore.conversations.find(c => c.id === conversationId)
+  const conv = conversationStore.conversations?.find(c => c.id === conversationId)
   if (!conv) return false
-  const otherUser = interlocutor(conv).id
+  const otherUser = interlocutor(conv)?.id
   return typingStatus.value.get(otherUser)?.isTyping || false
 }
 
@@ -519,32 +530,32 @@ function isTyping(conversationId) {
  * ------------------------------------ */
 function markAsRead(conversation) {
   if (!conversation || conversation.unreadCount === 0) return
-
   // Buscar mensajes no leídos de esta conversación
-  const unreadMessageIds = chatStore.messages[conversation.id]
+  const unreadMessageIds = conversationStore.messages?.[conversation.id]
     ?.filter(m => !m.is_read && m.sender !== authStore.user?.role)
     .map(m => m.id) || []
 
   if (unreadMessageIds.length > 0) {
-    chatStore.markAsRead(conversation.id, unreadMessageIds)
+    conversationStore.markAsRead(conversation.id, unreadMessageIds)
     showToast('Conversación marcada como leída', 'success')
   }
 }
 
 function markAllAsRead() {
-  const promises = chatStore.conversations.map(conv => {
+  if (!conversationStore.conversations) return
+  const promises = conversationStore.conversations.map(conv => {
     if (conv.unreadCount > 0) {
-      const unreadMessageIds = chatStore.messages[conv.id]
+      const unreadMessageIds = conversationStore.messages?.[conv.id]
         ?.filter(m => !m.is_read && m.sender !== authStore.user?.role)
         .map(m => m.id) || []
-      
+
       if (unreadMessageIds.length > 0) {
-        return chatStore.markAsRead(conv.id, unreadMessageIds)
+        return conversationStore.markAsRead(conv.id, unreadMessageIds)
       }
     }
     return Promise.resolve()
   })
-  
+
   Promise.all(promises).then(() => {
     showToast('Todas las conversaciones marcadas como leídas', 'success')
   })
@@ -601,6 +612,265 @@ function showToast(message, type = 'info') {
   }, 3000)
 }
 </script>
+
+<style scoped>
+/* Agrega aquí tus estilos si los necesitas */
+.capitalize {
+  text-transform: capitalize;
+}
+
+.conversations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.conversation-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.conversation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.conversation-card.unread {
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+}
+
+.unread-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: #ef4444;
+  color: white;
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.avatar-container {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  margin-right: 1rem;
+}
+
+.user-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #9ca3af;
+  border: 2px solid white;
+}
+
+.online-dot.online {
+  background: #10b981;
+}
+
+.conversation-content {
+  flex: 1;
+  margin-left: 1rem;
+}
+
+.conversation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.user-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.online-badge {
+  font-size: 0.7rem;
+  background: #10b981;
+  color: white;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.time-ago {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.last-message {
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin: 0.25rem 0;
+}
+
+.you-indicator {
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.message-status {
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.status-sent {
+  color: #9ca3af;
+}
+
+.status-delivered {
+  color: #3b82f6;
+}
+
+.status-read {
+  color: #10b981;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.typing-dots .dot {
+  width: 4px;
+  height: 4px;
+  background: #9ca3af;
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.typing-text {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-quick {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: transform 0.2s;
+}
+
+.btn-quick:hover {
+  transform: scale(1.1);
+}
+
+.btn-quick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  justify-content: center;
+}
+
+.action-btn {
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-btn.secondary {
+  background: #6b7280;
+}
+
+.action-btn:hover {
+  background: #2563eb;
+}
+
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  z-index: 1000;
+  animation: slideIn 0.3s ease;
+}
+
+.toast.success {
+  background: #10b981;
+}
+
+.toast.info {
+  background: #3b82f6;
+}
+
+.toast.error {
+  background: #ef4444;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+</style>
 
 <style scoped>
 /* 🔥 NUEVO: Estilos para status de mensajes */
