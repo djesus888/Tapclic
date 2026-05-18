@@ -7,7 +7,7 @@
           <div class="modal-icon">
             <span class="icon">⏳</span>
           </div>
-          
+
           <div class="modal-content">
             <h3 class="modal-title">
               {{ $t('contacting_provider', { name: providerName }) }}
@@ -15,19 +15,19 @@
             <p class="modal-description">
               {{ $t('waiting_provider_response') }}
             </p>
-            
+
             <div class="modal-timer">
               <div class="timer-display">
                 {{ formatTime(countdown) }}
               </div>
               <div class="timer-progress">
-                <div 
-                  class="progress-bar" 
+                <div
+                  class="progress-bar"
                   :style="{ width: `${(countdown / 90) * 100}%` }"
                 ></div>
               </div>
             </div>
-            
+
             <div class="modal-status">
               <div class="status-item">
                 <span class="status-icon">{{ socketConnected ? '✅' : '⚠️' }}</span>
@@ -44,7 +44,7 @@
           <div class="modal-icon">
             <span class="icon">✅</span>
           </div>
-          
+
           <div class="modal-content">
             <h3 class="modal-title modal-title-success">
               {{ $t('service_accepted') }}
@@ -52,7 +52,7 @@
             <p class="modal-description">
               {{ $t('provider_accepted_request', { name: providerName }) }}
             </p>
-            
+
             <div class="modal-actions">
               <button
                 class="btn-success"
@@ -72,7 +72,7 @@
           <div class="modal-icon">
             <span class="icon">❌</span>
           </div>
-          
+
           <div class="modal-content">
             <h3 class="modal-title modal-title-error">
               {{ $t('request_rejected') }}
@@ -80,7 +80,7 @@
             <p class="modal-description">
               {{ $t('provider_rejected_request', { name: providerName }) }}
             </p>
-            
+
             <div class="modal-actions">
               <button
                 class="btn-secondary"
@@ -107,7 +107,7 @@
           <div class="modal-icon">
             <span class="icon">⚠️</span>
           </div>
-          
+
           <div class="modal-content">
             <h3 class="modal-title modal-title-warning">
               {{ $t('provider_busy') }}
@@ -115,7 +115,7 @@
             <p class="modal-description">
               {{ $t('provider_is_busy', { name: providerName }) }}
             </p>
-            
+
             <div class="modal-actions">
               <button
                 class="btn-secondary"
@@ -142,7 +142,7 @@
           <div class="modal-icon">
             <span class="icon">⏰</span>
           </div>
-          
+
           <div class="modal-content">
             <h3 class="modal-title modal-title-info">
               {{ $t('no_response') }}
@@ -150,7 +150,7 @@
             <p class="modal-description">
               {{ $t('provider_no_response', { name: providerName }) }}
             </p>
-            
+
             <div class="modal-actions">
               <button
                 class="btn-secondary"
@@ -242,7 +242,13 @@ const createSocketHandler = () => {
 
     if (!payload || typeof payload !== 'object') return;
 
-    const incomingId = String(payload.request_id || payload.id || '');
+    // Buscar en payload.request.id (estructura anidada del backend)
+    const incomingId = String(
+      payload.request_id ||
+      payload.id ||
+      payload.request?.id ||
+      ''
+    );
     const currentId = String(props.requestId || '');
 
     if (incomingId !== currentId) {
@@ -250,11 +256,12 @@ const createSocketHandler = () => {
       return;
     }
 
-    const newStatus = payload.status;
+    // Buscar status en payload.request.status
+    const newStatus = payload.status || payload.request?.status;
     if (['accepted', 'rejected', 'busy'].includes(newStatus)) {
       console.log(`✅ [SOCKET] Status actualizado: ${status.value} → ${newStatus}`);
       status.value = newStatus;
-      stopTimers(); // Detener polling si socket funciona
+      stopTimers();
     }
   };
 };
@@ -263,13 +270,13 @@ const createSocketHandler = () => {
   POLLING FALLBACK
 ---------------------------------------------------------- */
 const startPolling = () => {
-  if (pollingInterval) return; // Evitar duplicados
-  
+  if (pollingInterval) return;
+
   console.log('🔄 [POLLING] Iniciando fallback polling...');
-  
+
   pollingInterval = setInterval(async () => {
     if (!props.requestId || status.value !== 'pending' || socketConnected.value) {
-      return; // No hacer polling si socket está conectado
+      return;
     }
 
     try {
@@ -283,12 +290,12 @@ const startPolling = () => {
         console.log(`✅ [POLLING] Status cambiado: ${newStatus}`);
         const handler = createSocketHandler();
         handler({ request_id: props.requestId, status: newStatus });
-        stopPolling(); // Detener polling una vez que funciona
+        stopPolling();
       }
     } catch (err) {
       console.error('❌ [POLLING] Error:', err.message);
     }
-  }, 4000); // Cada 4s (menos agresivo)
+  }, 4000);
 };
 
 const stopPolling = () => {
@@ -307,6 +314,19 @@ const reset = () => {
   countdown.value = 90;
 };
 
+const startTimer = () => {
+  stopTimers();
+  timerInterval = setInterval(() => {
+    countdown.value--;
+    if (countdown.value <= 0 && status.value === 'pending') {
+      console.log('⏰ Tiempo agotado, no-response');
+      status.value = 'no-response';
+      stopPolling();
+      stopTimers();
+    }
+  }, 1000);
+};
+
 const startProcess = async () => {
   if (!props.requestId) return;
 
@@ -320,7 +340,7 @@ const startProcess = async () => {
     console.log('⏳ Esperando conexión socket...');
     const maxWait = 5000;
     const startTime = Date.now();
-    
+
     await new Promise(resolve => {
       const checkInterval = setInterval(() => {
         if (socketConnected.value || Date.now() - startTime > maxWait) {
@@ -333,11 +353,11 @@ const startProcess = async () => {
 
   // 2. CONFIGURAR SOCKET HANDLER
   socketHandler = createSocketHandler();
-  socketStore.off('request_updated', socketHandler); // Limpieza previa
+  socketStore.off('request_updated', socketHandler);
   socketStore.on('request_updated', socketHandler);
   console.log('📡 [SOCKET] Listener registrado. Conectado:', socketConnected.value);
 
-  // 3. INICIAR POLLING COMO FALLBACK (solo si socket no conectado)
+  // 3. INICIAR POLLING COMO FALLBACK
   if (!socketConnected.value) {
     console.warn('⚠️ Socket no conectado, usando polling fallback');
     startPolling();
@@ -346,21 +366,13 @@ const startProcess = async () => {
   }
 
   // 4. INICIAR CUENTA REGRESIVA
-  timerInterval = setInterval(() => {
-    countdown.value--;
-    if (countdown.value <= 0 && status.value === 'pending') {
-      console.log('⏰ Tiempo agotado, no-response');
-      status.value = 'no-response';
-      stopPolling();
-    }
-  }, 1000);
+  startTimer();
 
   // 5. WATCHER PARA RECONEXIÓN
   reconnectionWatcher = watch(socketConnected, (connected) => {
     if (connected && status.value === 'pending' && !pollingInterval) {
       console.log('🔄 [RECONNECT] Socket reconectado, desactivando polling');
       stopPolling();
-      // Re-registrar listener por si acaso
       socketStore.off('request_updated', socketHandler);
       socketStore.on('request_updated', socketHandler);
     } else if (!connected && status.value === 'pending') {
@@ -376,11 +388,11 @@ const stopProcess = () => {
 };
 
 /* ----------------------------------------------------------
-  ACCIONES CANCELAR
+  ACCIONES
 ---------------------------------------------------------- */
 const cancelRequest = async () => {
   if (!props.requestId || !authStore.token) return false;
-  
+
   try {
     const res = await api.post(
       '/requests/cancel',
@@ -389,7 +401,7 @@ const cancelRequest = async () => {
         headers: { Authorization: `Bearer ${authStore.token}` }
       }
     );
-    
+
     if (res.data?.success) {
       console.log('✅ Solicitud cancelada vía API:', props.requestId);
       return true;
@@ -399,7 +411,6 @@ const cancelRequest = async () => {
     }
   } catch (err) {
     console.error('❌ Error al cancelar solicitud:', err);
-    // Incluso si falla, intentamos continuar para no bloquear al usuario
     return false;
   }
 };
@@ -410,9 +421,18 @@ const handleCancel = async () => {
   emit('cancel');
 };
 
-const handleRetry = async () => {
-  await cancelRequest();
-  cleanup();
+const handleRetry = () => {
+  console.log('🔄 Reiniciando contador para nuevo intento...');
+  // Reiniciar estado visual
+  status.value = 'pending';
+  countdown.value = 90;
+  // Reiniciar timer
+  startTimer();
+  // Reactivar polling si socket no conectado
+  if (!socketConnected.value) {
+    startPolling();
+  }
+  // Emitir para que el padre reintente la lógica
   emit('retry-request');
 };
 

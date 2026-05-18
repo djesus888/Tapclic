@@ -47,10 +47,9 @@ window.addEventListener('error', (e) => {
 
 window.addEventListener('unhandledrejection', (e) => {
   console.error('>>> PROMESA RECHAZADA:', e.reason)
-  
+
   // ✅ Mostrar mensaje según idioma para errores de red
   if (e.reason?.isNetworkError) {
-    // Obtener título según idioma
     let title = 'Problema de conexión'
     try {
       const savedLocale = localStorage.getItem('userLocale') || 'es'
@@ -58,7 +57,7 @@ window.addEventListener('unhandledrejection', (e) => {
         title = 'Connection problem'
       }
     } catch {}
-    
+
     app.config.globalProperties.$swal?.fire({
       icon: 'warning',
       title: title,
@@ -68,7 +67,7 @@ window.addEventListener('unhandledrejection', (e) => {
     })
     return
   }
-  
+
   app.config.globalProperties.$swal?.fire({
     icon: 'error',
     title: 'Error en Promesa',
@@ -106,7 +105,6 @@ const notificationStore = useNotificationStore()
 
 // ✅ INICIALIZACIÓN PRINCIPAL (solo con token válido)
 async function initializeApp() {
-  // Esperar a que el auth se cargue del localStorage
   await authStore.loadFromStorage()
 
   if (!authStore.token || !authStore.user) {
@@ -115,19 +113,16 @@ async function initializeApp() {
   }
 
   try {
-    // Inicializar notificaciones
     if (!notificationStore._initialized) {
       await notificationStore.initialize()
       console.log('📬 Notificaciones inicializadas')
     }
 
-    // ✅ Conectar socket UNA SOLA VEZ
     if (!socketStore.isConnected && !socketStore._creating) {
       await socketStore.connect(authStore.token, authStore.user)
       console.log('🔌 Socket conectado en main.js')
     }
 
-    // Inicializar config del sistema
     await systemStore.fetchConfig()
 
     return true
@@ -147,7 +142,6 @@ watch(
     if (newToken) {
       await initializeApp()
     } else {
-      // Desconectar al cerrar sesión
       socketStore.disconnect?.()
       notificationStore._initialized = false
       notificationStore.notifications = []
@@ -174,18 +168,22 @@ window.addEventListener('show-notification-toast', (e) => {
   })
 })
 
-// Modal de rating
+// ✅ CORREGIDO: Modal de rating - ahora busca history_id correctamente
 window.addEventListener('open-rating-modal', async (e) => {
   try {
     const { request_id } = e.detail
     if (!authStore.token) return
 
+    // ✅ CORREGIDO: Obtener el history_id desde la respuesta correcta
     const { data } = await api.get(`/history/by-request/${request_id}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
     }).catch(() => ({ data: null }))
 
-    const historyId = data?.history_id
+    // ✅ CORREGIDO: El endpoint devuelve { success: true, history: { id, ... } }
+    const historyId = data?.history?.id || data?.history_id || data?.id
+
     if (!historyId) {
+      console.warn('⚠️ No se encontró history_id para request:', request_id, 'Respuesta:', data)
       Swal.fire('Aún no disponible', 'El servicio no está listo para reseñas.', 'info')
       return
     }

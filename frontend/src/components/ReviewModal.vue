@@ -136,7 +136,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch, onUnmounted } from 'vue'
-import axios from 'axios'
+import api from '@/axios'
 
 export interface Review {
   id?: number | string;
@@ -299,13 +299,13 @@ async function submit() {
     // Obtener el token del localStorage si no viene como prop
     const token = props.authToken || localStorage.getItem('token')
 
-    await axios.post(
+    await api.post(
       endpoint,
       form,
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+        // 'Content-Type': 'multipart/form-data'
         }
       }
     )

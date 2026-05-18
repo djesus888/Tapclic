@@ -36,6 +36,10 @@ class NotificationController {
         } elseif ($method === 'GET' && preg_match('/\/api\/notifications$/', $uri)) {
             $this->index($auth);
         }
+        // ✅ NUEVA RUTA: Contador de notificaciones sin leer
+        elseif ($method === 'GET' && preg_match('/\/api\/notifications\/unread-count/', $uri)) {
+            $this->unreadCount($auth);
+        }
         // --- RUTAS REALES DE PRODUCCIÓN ---
         elseif ($method === 'POST' && preg_match('/\/api\/notifications\/email/', $uri)) {
             $this->sendEmailNotification($auth);
@@ -71,6 +75,15 @@ class NotificationController {
         echo json_encode($result);
     }
 
+    // ✅ NUEVO: Endpoint para obtener solo el contador de no leídas
+    private function unreadCount($auth) {
+        $count = $this->model->getUnreadCount($auth->id, $auth->role);
+        echo json_encode([
+            'success' => true,
+            'unread_count' => $count
+        ]);
+    }
+
     private function markAsRead($auth) {
         $data = json_decode(file_get_contents("php://input"), true);
 
@@ -85,7 +98,8 @@ class NotificationController {
     }
 
     private function markAllAsRead($auth) {
-        $ok = $this->model->markAllAsRead($auth->id);
+        // ✅ CORREGIDO: Pasar el rol para filtrar correctamente
+        $ok = $this->model->markAllAsRead($auth->id, $auth->role);
         echo json_encode(["success" => $ok]);
     }
 
@@ -131,25 +145,23 @@ class NotificationController {
             return;
         }
 
-        // Guardar en base de datos
-        $notificationData = [
-            'receiver_id' => $auth->id,
-            'receiver_role' => $auth->role,
-            'sender_id' => $auth->id,
-            'title' => $subject,
-            'message' => $message,
-            'type' => 'email',
-            'metadata' => json_encode(['to' => $to, 'type' => $type])
-        ];
-
-        $this->model->send($notificationData);
-
-        // Enviar email real con PHPMailer
+        // ✅ CORREGIDO: Primero intentar enviar email, luego guardar en BD solo si fue exitoso
         try {
             $htmlMessage = $this->formatEmailMessage($message, $auth->name);
             $result = Mailer::sendWithResponse($to, $subject, $htmlMessage);
 
             if ($result['success']) {
+                // Guardar en base de datos solo si el email se envió correctamente
+                $notificationData = [
+                    'receiver_id' => $auth->id,
+                    'receiver_role' => $auth->role,
+                    'sender_id' => $auth->id,
+                    'title' => $subject,
+                    'message' => $message,
+                    'data_json' => json_encode(['to' => $to, 'type' => $type])
+                ];
+                $this->model->send($notificationData);
+
                 echo json_encode(['success' => true, 'message' => 'Email enviado correctamente']);
             } else {
                 http_response_code(500);
@@ -196,24 +208,22 @@ class NotificationController {
             return;
         }
 
-        // Guardar en base de datos
-        $notificationData = [
-            'receiver_id' => $auth->id,
-            'receiver_role' => $auth->role,
-            'sender_id' => $auth->id,
-            'title' => 'Notificación SMS',
-            'message' => $message,
-            'type' => 'sms',
-            'metadata' => json_encode(['to' => $to])
-        ];
-
-        $this->model->send($notificationData);
-
-        // Enviar SMS real con Twilio
+        // ✅ CORREGIDO: Primero intentar enviar SMS, luego guardar en BD solo si fue exitoso
         try {
             $result = SMS::sendWithResponse($to, $message);
 
             if ($result['success']) {
+                // Guardar en base de datos solo si el SMS se envió correctamente
+                $notificationData = [
+                    'receiver_id' => $auth->id,
+                    'receiver_role' => $auth->role,
+                    'sender_id' => $auth->id,
+                    'title' => 'Notificación SMS',
+                    'message' => $message,
+                    'data_json' => json_encode(['to' => $to])
+                ];
+                $this->model->send($notificationData);
+
                 echo json_encode(['success' => true, 'message' => 'SMS enviado correctamente']);
             } else {
                 http_response_code(500);

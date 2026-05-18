@@ -138,7 +138,7 @@
       </div>
     </div>
 
-    <!-- MODALES GLOBALES (MANTENIENDO TU LÓGICA) -->
+    <!-- MODALES GLOBALES -->
     <ServiceDetailsModal
       v-if="modalService"
       :is-open="showServiceDetails"
@@ -194,7 +194,19 @@
       @open-payment="openPaymentModal"
     />
 
-    <!-- HISTORY DETAIL MODAL - REDISEÑADO -->
+    <!-- ✅ ReviewModal para calificar al proveedor (se abre con evento open_rating_modal) -->
+    <ReviewModal
+      v-if="showReviewModal"
+      :model-value="reviewData"
+      mode="new"
+      target-role="provider"
+      :service-history-id="reviewServiceHistoryId"
+      :auth-token="authStore.token"
+      @close="showReviewModal = false"
+      @save="onReviewSaved"
+    />
+
+    <!-- HISTORY DETAIL MODAL -->
     <div v-if="historyModal" class="modal-overlay" @click.self="closeHistoryModal">
       <div class="modern-modal">
         <div class="modal-header">
@@ -254,13 +266,15 @@ import Servicios from '@/components/usuario/Servicios.vue';
 import SolicitudesActivas from '@/components/usuario/SolicitudesActivas.vue';
 import Soporte from '@/components/shared/Soporte.vue';
 import Historial from '@/components/shared/Historial.vue';
+import ReviewModal from '@/components/ReviewModal.vue';
 
 export default {
   name: 'DashboardUser',
   components: {
     ServiceDetailsModal, RequestConfirmationModal, ProviderContactModal,
     PaymentModal, ChatRoomModal, NewTicketModal, LiveOrderTracking,
-    PaymentPill, Servicios, SolicitudesActivas, Soporte, Historial
+    PaymentPill, Servicios, SolicitudesActivas, Soporte, Historial,
+    ReviewModal
   },
   data() {
     return {
@@ -293,11 +307,15 @@ export default {
       CACHE_TTL: 5000,
       hasError: false,
       errorMessage: '',
-      socketHandlers: []
+      socketHandlers: [],
+      showReviewModal: false,
+      reviewData: { rating: 0, comment: '', tags: [], photos: [] },
+      reviewServiceHistoryId: null
     };
   },
   computed: {
     notificationStore() { return useNotificationStore(); },
+    authStore() { return useAuthStore(); },
     globalLoading() {
       const loadingMap = {
         services: this.loading,
@@ -358,18 +376,13 @@ export default {
       this.openChat({ id: 1, name: 'Soporte', role: 'admin', avatarUrl: '/img/support-avatar.png' });
     },
 
-    // ===========================================
-    // NUEVOS MÉTODOS PARA SOPORTE (AGREGADOS)
-    // ===========================================
     handleReplyTicket(ticket) {
       console.log('👤 Usuario responde al ticket:', ticket.id);
-      // Abrir el chat de soporte
       this.openSupportChat();
     },
 
     async handleCloseTicket(ticket) {
       console.log('👤 Usuario cierra ticket:', ticket.id);
-
       const result = await this.$swal?.fire({
         icon: 'question',
         title: '¿Cerrar ticket?',
@@ -391,7 +404,6 @@ export default {
           if (response.data?.success) {
             this.lastFetch.tickets = 0;
             await this.fetchTickets();
-
             this.$swal?.fire({
               icon: 'success',
               title: 'Ticket cerrado',
@@ -413,14 +425,12 @@ export default {
 
     handleCopyTicketId(ticket) {
       console.log('👤 Usuario copia ID del ticket:', ticket.id);
-      // El toast ya se muestra desde el modal
     },
 
     handleChatWithTicket(ticket) {
       console.log('👤 Usuario abre chat con ticket:', ticket.id);
       this.openSupportChat();
     },
-    // ===========================================
 
     resetFlow() {
       this.showServiceDetails = false;
@@ -482,11 +492,7 @@ export default {
         console.error(err);
         this.hasError = true;
         this.errorMessage = err.response?.data?.message || 'Error al cargar servicios';
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: this.errorMessage
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: this.errorMessage });
       } finally {
         this.loading = false;
       }
@@ -504,17 +510,9 @@ export default {
         const requests = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.requests) ? res.data.requests : Array.isArray(res.data?.data) ? res.data.data : [];
         this.activeRequests = requests.map(r => this.normalizeService(r));
         this.lastFetch.activeRequests = now;
-        if (requests.length > 0 && this.activeRequests.length < requests.length) {
-          this.playNotification();
-        }
       } catch (err) {
         console.error('Error cargando solicitudes activas:', err);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: err.message,
-          timer: 4000
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: err.message, timer: 4000 });
       } finally {
         this.activeRequestsLoading = false;
       }
@@ -529,8 +527,6 @@ export default {
         const res = await api.get(this.buildPath('support/tickets'), {
           headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
         });
-
-        // NORMALIZAR: Convertir description a last_message
         this.tickets = (Array.isArray(res.data) ? res.data : res.data?.tickets || []).map(ticket => ({
           ...ticket,
           last_message: ticket.description || ticket.message || 'Sin mensaje'
@@ -538,12 +534,7 @@ export default {
         this.lastFetch.tickets = now;
       } catch (err) {
         console.error('Error cargando tickets:', err);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: err.message,
-          timer: 4000
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: err.message, timer: 4000 });
       } finally {
         this.supportLoading = false;
       }
@@ -559,12 +550,7 @@ export default {
         this.lastFetch.faq = now;
       } catch (err) {
         console.error('Error cargando FAQ:', err);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: err.message,
-          timer: 4000
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: err.message, timer: 4000 });
       } finally {
         this.faqLoading = false;
       }
@@ -584,12 +570,7 @@ export default {
         this.lastFetch.history = now;
       } catch (err) {
         console.error('Error loading history:', err);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: err.message,
-          timer: 4000
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: err.message, timer: 4000 });
       } finally {
         this.historyLoading = false;
       }
@@ -715,14 +696,11 @@ export default {
     },
 
     handleRetry() {
-  this.resetFlow();
-  this.$nextTick(() => {
-    this.onConfirmRequest({
-      details: this.lastSpecDetails || '',
-      contractAccepted: true
-    });
-  });
-},
+      this.resetFlow();
+      this.$nextTick(() => {
+        this.onConfirmRequest({ details: this.lastSpecDetails || '', contractAccepted: true });
+      });
+    },
 
     statusLabel(status) {
       const map = { completado: this.$t('status_completed') || 'Completado', fallido: this.$t('status_failed') || 'Fallido', inconcluso: this.$t('status_incomplete') || 'Inconcluso', cancelado: this.$t('status_cancelled') || 'Cancelado' };
@@ -730,12 +708,7 @@ export default {
     },
 
     statusColor(status) {
-      const colorMap = {
-        completado: 'status-completed',
-        fallido: 'status-failed',
-        inconcluso: 'status-incomplete',
-        cancelado: 'status-cancelled'
-      };
+      const colorMap = { completado: 'status-completed', fallido: 'status-failed', inconcluso: 'status-incomplete', cancelado: 'status-cancelled' };
       return colorMap[status] || 'status-default';
     },
 
@@ -765,6 +738,46 @@ export default {
       const req = this.activeRequests.find(r => r.id === requestId);
       if (req) req.payment_status = paymentStatus;
       if (this.showPayment && this.modalService?.requestId === requestId) this.modalService.payment_status = paymentStatus;
+    },
+
+    // ✅ Manejar el evento open_rating_modal desde el backend
+handleOpenRatingModal(data) {
+  console.log('⭐ Evento open_rating_modal recibido:', data);
+  // Disparar el evento global que main.js ya escucha y maneja con Swal.fire
+  window.dispatchEvent(new CustomEvent('open-rating-modal', {
+    detail: {
+      request_id: data.request_id,
+      from_role: 'provider',
+      targetRole: 'provider',
+      message: '¿Quieres calificar al proveedor por este servicio?'
+    }
+  }));
+},
+
+    // ✅ Obtener history_id a partir del request.id
+async fetchHistoryIdByRequest(requestId) {
+  try {
+    const authStore = useAuthStore();
+    const res = await api.get(`/history/by-request/${requestId}`, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    });
+    // ✅ CORREGIDO: la API devuelve { success: true, history: { id: 68, ... } }
+    return res.data?.history?.id || res.data?.history_id || null;
+  } catch (err) {
+    console.error('Error obteniendo history_id:', err);
+    return null;
+  }
+},
+
+
+
+    // ✅ Callback cuando se guarda la reseña
+    onReviewSaved() {
+      console.log('✅ Reseña guardada correctamente');
+      this.showReviewModal = false;
+      this.reviewServiceHistoryId = null;
+      this.lastFetch.history = 0;
+      this.fetchHistory();
     },
 
     handleDashboardRefresh() {
@@ -805,14 +818,21 @@ export default {
             this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); break;
         }
       };
+      // ✅ Handler para abrir modal de calificación
+      const openRatingModalHandler = (data) => {
+        this.handleOpenRatingModal(data);
+      };
+
       socketStore.on('request_updated', requestUpdatedHandler);
       socketStore.on('payment_updated', paymentUpdatedHandler);
       socketStore.on('new-notification', newNotificationHandler);
+      socketStore.on('open_rating_modal', openRatingModalHandler);
 
       this.socketHandlers = [
         { event: 'request_updated', handler: requestUpdatedHandler },
         { event: 'payment_updated', handler: paymentUpdatedHandler },
-        { event: 'new-notification', handler: newNotificationHandler }
+        { event: 'new-notification', handler: newNotificationHandler },
+        { event: 'open_rating_modal', handler: openRatingModalHandler }
       ];
     },
 

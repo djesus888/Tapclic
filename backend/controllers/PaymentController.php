@@ -22,11 +22,10 @@ class PaymentController
     {
         $uploadDir = __DIR__ . '/../public/uploads/payments/';
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        
         $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
         $name = "payment_{$requestId}_" . time() . ".$ext";
         $target = $uploadDir . $name;
-        
+
         return move_uploaded_file($file['tmp_name'], $target) ? "/uploads/payments/$name" : null;
     }
 
@@ -102,7 +101,7 @@ class PaymentController
 
         $request = (new ServiceRequest())->getById((int)$requestId);
 
-        // Notificación DB
+        // ✅ CORREGIDO: Notificación DB con data_json completo
         $notif = [
             'sender_id' => $auth->id,
             'receiver_id' => $request['provider_id'],
@@ -112,25 +111,34 @@ class PaymentController
                 ? 'El cliente pagará en efectivo'
                 : 'Cliente subió comprobante – verifica el pago',
             'data_json' => json_encode([
+                'type' => 'payment',
+                'notification_type' => 'payment_received',
                 'url' => '/dashboard/provider',
-                'action' => 'default',
-                'notification_type' => 'general',
-                'request_id' => $requestId
+                'action' => 'verify_payment',
+                'request_id' => (int)$requestId,
+                'payment_id' => $paymentId
             ])
         ];
-        
         (new ServiceRequest())->saveNotification($notif);
 
-        // Notificación WebSocket
-        WebSocketService::notify(
-            $request['provider_id'],
+        // ✅ CORREGIDO: Notificación WebSocket con payload completo para el badge
+        WebSocketService::sendNotification(
             'provider',
+            $request['provider_id'],
             'Pago registrado',
-            $notif['message']
+            $notif['message'],
+            [
+                'event' => 'payment_received',
+                'notification_type' => 'payment_received',
+                'url' => '/dashboard/provider',
+                'action' => 'verify_payment',
+                'request_id' => (int)$requestId,
+                'payment_id' => $paymentId
+            ]
         );
 
         // ✅ EVENTO payment_updated al provider
-        WebSocketService::emitEvent(
+        WebSocketService::emitToUser(
             'provider',
             $request['provider_id'],
             'payment_updated',
@@ -140,6 +148,20 @@ class PaymentController
                 'proof_url' => $proofUrl,
                 'method' => $method,
                 'reference' => $reference,
+            ]
+        );
+
+        // ✅ Emitir request_updated al provider para sincronizar su dashboard
+        WebSocketService::emitToUser(
+            'provider',
+            $request['provider_id'],
+            'request_updated',
+            [
+                'request' => [
+                    'id' => (int)$requestId,
+                    'payment_status' => 'verifying',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]
             ]
         );
 
@@ -155,22 +177,22 @@ class PaymentController
     {
         $input = json_decode(file_get_contents('php://input'), true);
         $paymentId = $input['id'] ?? null;
-        
+
         if (!$paymentId) {
             $this->badRequest();
             return;
         }
 
         $stmt = $this->conn->prepare("
-            SELECT p.id, p.status, p.service_request_id, sr.provider_id, sr.user_id
+            SELECT p.id, p.status, p.service_request_id, sr.provider_id, sr.user_id, sr.service_id
             FROM payments p
             JOIN service_requests sr ON sr.id = p.service_request_id
             WHERE p.id = :pid
         ");
-        
+
         $stmt->execute([':pid' => $paymentId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$row || $row['provider_id'] != $auth->id) {
             http_response_code(403);
             echo json_encode(['error' => 'No autorizado']);
@@ -195,14 +217,77 @@ class PaymentController
             throw $e;
         }
 
+        // ✅ CORREGIDO: Notificación DB para el USUARIO (pago confirmado)
+        $notif = [
+            'sender_id' => $auth->id,
+            'receiver_id' => $row['user_id'],
+            'receiver_role' => 'user',
+            'title' => 'Pago confirmado',
+            'message' => 'El proveedor certificó que recibió tu pago',
+            'data_json' => json_encode([
+                'type' => 'payment',
+                'notification_type' => 'payment_received',
+                'url' => '/orders/' . $row['service_request_id'],
+                'action' => 'view_order',
+                'request_id' => (int)$row['service_request_id'],
+                'payment_id' => (int)$paymentId
+            ])
+        ];
+        (new ServiceRequest())->saveNotification($notif);
+
+        // ✅ CORREGIDO: Notificación WebSocket para el USUARIO (pago confirmado)
+        WebSocketService::sendNotification(
+            'user',
+            $row['user_id'],
+            'Pago confirmado',
+            'El proveedor certificó que recibió tu pago',
+            [
+                'event' => 'payment_received',
+                'notification_type' => 'payment_received',
+                'url' => '/orders/' . $row['service_request_id'],
+                'action' => 'view_order',
+                'request_id' => (int)$row['service_request_id'],
+                'payment_id' => (int)$paymentId
+            ]
+        );
+
         // ✅ EVENTO payment_updated al usuario
-        WebSocketService::emitEvent(
+        WebSocketService::emitToUser(
             'user',
             $row['user_id'],
             'payment_updated',
             [
                 'request_id' => (int)$row['service_request_id'],
                 'payment_status' => 'paid',
+            ]
+        );
+
+        // ✅ Emitir request_updated al usuario para sincronizar dashboard
+        WebSocketService::emitToUser(
+            'user',
+            $row['user_id'],
+            'request_updated',
+            [
+                'request' => [
+                    'id' => (int)$row['service_request_id'],
+                    'payment_status' => 'paid',
+                    'status' => 'accepted',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]
+            ]
+        );
+
+        // ✅ Emitir request_updated al provider para sincronizar su dashboard
+        WebSocketService::emitToUser(
+            'provider',
+            $row['provider_id'],
+            'request_updated',
+            [
+                'request' => [
+                    'id' => (int)$row['service_request_id'],
+                    'payment_status' => 'paid',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]
             ]
         );
 
@@ -213,7 +298,7 @@ class PaymentController
     {
         $input = json_decode(file_get_contents('php://input'), true);
         $paymentId = $input['id'] ?? null;
-        
+
         if (!$paymentId) {
             $this->badRequest();
             return;
@@ -225,10 +310,10 @@ class PaymentController
             JOIN service_requests sr ON sr.id = p.service_request_id
             WHERE p.id = :pid
         ");
-        
+
         $stmt->execute([':pid' => $paymentId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$row || $row['provider_id'] != $auth->id) {
             http_response_code(403);
             echo json_encode(['error' => 'No autorizado']);
@@ -247,14 +332,76 @@ class PaymentController
             throw $e;
         }
 
+        // ✅ CORREGIDO: Notificación DB para el USUARIO (pago rechazado)
+        $notif = [
+            'sender_id' => $auth->id,
+            'receiver_id' => $row['user_id'],
+            'receiver_role' => 'user',
+            'title' => 'Pago rechazado',
+            'message' => 'El proveedor rechazó tu comprobante de pago. Contacta al proveedor para más detalles.',
+            'data_json' => json_encode([
+                'type' => 'payment',
+                'notification_type' => 'payment_received',
+                'url' => '/orders/' . $row['service_request_id'],
+                'action' => 'view_order',
+                'request_id' => (int)$row['service_request_id'],
+                'payment_id' => (int)$paymentId
+            ])
+        ];
+        (new ServiceRequest())->saveNotification($notif);
+
+        // ✅ CORREGIDO: Notificación WebSocket para el USUARIO (pago rechazado)
+        WebSocketService::sendNotification(
+            'user',
+            $row['user_id'],
+            'Pago rechazado',
+            'El proveedor rechazó tu comprobante de pago. Contacta al proveedor para más detalles.',
+            [
+                'event' => 'payment_received',
+                'notification_type' => 'payment_received',
+                'url' => '/orders/' . $row['service_request_id'],
+                'action' => 'view_order',
+                'request_id' => (int)$row['service_request_id'],
+                'payment_id' => (int)$paymentId
+            ]
+        );
+
         // ✅ EVENTO payment_updated al usuario
-        WebSocketService::emitEvent(
+        WebSocketService::emitToUser(
             'user',
             $row['user_id'],
             'payment_updated',
             [
                 'request_id' => (int)$row['service_request_id'],
                 'payment_status' => 'rejected',
+            ]
+        );
+
+        // ✅ Emitir request_updated al usuario para sincronizar dashboard
+        WebSocketService::emitToUser(
+            'user',
+            $row['user_id'],
+            'request_updated',
+            [
+                'request' => [
+                    'id' => (int)$row['service_request_id'],
+                    'payment_status' => 'pending',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]
+            ]
+        );
+
+        // ✅ Emitir request_updated al provider para sincronizar su dashboard
+        WebSocketService::emitToUser(
+            'provider',
+            $row['provider_id'],
+            'request_updated',
+            [
+                'request' => [
+                    'id' => (int)$row['service_request_id'],
+                    'payment_status' => 'pending',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]
             ]
         );
 
@@ -268,7 +415,6 @@ class PaymentController
             $this->badRequest();
             return;
         }
-
         $stmt = $this->conn->prepare("
             SELECT p.id, p.capture_file, p.reference, p.payment_method, p.status
             FROM payments p
@@ -277,10 +423,9 @@ class PaymentController
             ORDER BY p.created_at DESC
             LIMIT 1
         ");
-        
         $stmt->execute([':rid' => $requestId, ':uid' => $auth->id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$row) {
             http_response_code(404);
             echo json_encode(['error' => 'Sin datos']);
@@ -306,10 +451,10 @@ class PaymentController
             WHERE p.user_id = :uid
             ORDER BY p.created_at DESC
         ");
-        
+
         $stmt->execute([':uid' => $auth->id]);
         $list = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         echo json_encode(['success' => true, 'data' => $list]);
     }
 
@@ -320,7 +465,7 @@ class PaymentController
             FROM provider_payment_methods
             WHERE provider_id = ? AND is_active = 1
         ");
-        
+
         $stmt->execute([$providerId]);
         $raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -330,7 +475,7 @@ class PaymentController
             'zelle' => null,
             'paypal' => null,
         ];
-        
+
         foreach ($raw as $m) {
             switch ($m['method_type']) {
                 case 'pago_movil':
@@ -361,7 +506,7 @@ class PaymentController
                     break;
             }
         }
-        
+
         echo json_encode(['paymentInfo' => $out]);
     }
 }

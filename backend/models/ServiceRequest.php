@@ -16,7 +16,7 @@ class ServiceRequest
         $query = "INSERT INTO {$this->table}
                   (service_id, user_id, provider_id, price, payment_method, additional_details, payment_status, created_at)
                   VALUES (:service_id, :user_id, :provider_id, :price, :payment_method, :additional_details, 'pending', NOW())";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->bindValue(':service_id', $data['service_id'], PDO::PARAM_INT);
         $stmt->bindValue(':user_id', $data['user_id'], PDO::PARAM_INT);
@@ -50,7 +50,7 @@ class ServiceRequest
             WHERE sr.user_id = :id OR sr.provider_id = :id
             ORDER BY sr.created_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -71,7 +71,7 @@ class ServiceRequest
               AND sr.status = 'completed'
             ORDER BY sr.created_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -91,7 +91,7 @@ class ServiceRequest
             WHERE sr.status = 'pending'
             ORDER BY sr.created_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -112,7 +112,7 @@ class ServiceRequest
               AND sr.provider_id = :provider_id
             ORDER BY sr.created_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':provider_id' => $providerId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -133,7 +133,7 @@ class ServiceRequest
               AND sr.user_id = :user_id
             ORDER BY sr.created_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -179,7 +179,7 @@ class ServiceRequest
               AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
             ORDER BY sr.updated_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':id' => $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -225,7 +225,7 @@ class ServiceRequest
               AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
             ORDER BY sr.updated_at DESC
         ";
-        
+
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':pid' => $providerId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -245,7 +245,7 @@ class ServiceRequest
                 SET status = :status, updated_at = NOW()
                 WHERE id = :id
                   AND (user_id = :actorId OR provider_id = :actorId)";
-        
+
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([
             ':status'  => $newStatus,
@@ -254,8 +254,31 @@ class ServiceRequest
         ]);
     }
 
+    // ✅ CORREGIDO: saveNotification con verificación anti-duplicados
     public function saveNotification($data)
     {
+        // Verificar duplicado antes de insertar (misma notificación en los últimos 10 segundos)
+        $checkQuery = "SELECT COUNT(*) as count FROM notifications
+                       WHERE receiver_id = :receiver_id
+                       AND receiver_role = :receiver_role
+                       AND title = :title
+                       AND message = :message
+                       AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND)";
+
+        $checkStmt = $this->conn->prepare($checkQuery);
+        $checkStmt->execute([
+            ':receiver_id'   => $data['receiver_id'],
+            ':receiver_role' => $data['receiver_role'],
+            ':title'         => $data['title'],
+            ':message'       => $data['message']
+        ]);
+
+        $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
+        if ($result['count'] > 0) {
+            error_log("Notificación duplicada detectada en saveNotification, omitiendo inserción");
+            return true; // Retornar true para no romper el flujo
+        }
+
         $query = "INSERT INTO notifications
                   (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
                   VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, :data_json, 0, NOW())";
@@ -278,7 +301,7 @@ class ServiceRequest
                     payment_proof_url = :proof,
                     updated_at = NOW()
                 WHERE id = :id";
-        
+
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([':status' => $status, ':proof' => $proofUrl, ':id' => $requestId]);
     }
@@ -293,14 +316,14 @@ class ServiceRequest
         if ($req && $req['status'] === 'completed') {
             throw new Exception("No se puede cancelar un servicio finalizado");
         }
-        
+
         $sql = "UPDATE {$this->table}
                 SET status = 'cancelled',
                     cancelled_by = :actorRole,
                     updated_at = NOW()
                 WHERE id = :id
                   AND (user_id = :actorId OR provider_id = :actorId)";
-        
+
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([
             ':actorRole' => $actorRole,
@@ -329,14 +352,14 @@ class ServiceRequest
                   AND provider_id = :provider
                   AND status IN ('pending','accepted','in_progress')
                 LIMIT 1";
-        
+
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([
             ':user'     => $userId,
             ':service'  => $serviceId,
             ':provider' => $providerId
         ]);
-        
+
         return (bool) $stmt->fetchColumn();
     }
 
@@ -361,7 +384,7 @@ class ServiceRequest
             $hasProc = (bool) $pdo->query(
                 "SELECT COUNT(*) FROM mysql.proc WHERE name = 'close_request'"
             )->fetchColumn();
-            
+
             if ($hasProc) {
                 $pdo->prepare("CALL close_request(:id, :st)")
                     ->execute(['id' => $reqId, 'st' => $status]);
@@ -369,13 +392,13 @@ class ServiceRequest
             }
 
             $pdo->beginTransaction();
-            
+
             $payData = $pdo->prepare("SELECT payment_status, payment_method FROM {$this->table} WHERE id = ?");
             $payData->execute([$reqId]);
             $payRow  = $payData->fetch(PDO::FETCH_ASSOC);
             $finStatus = $payRow['payment_status'] ?? 'pending';
             $finMethod = $payRow['payment_method'] ?? null;
-            
+
             $sql = "INSERT INTO service_history
                       (user_id, service_id, request_id, service_title, service_price,
                        provider_name, status, finished_at, provider_id,
@@ -399,7 +422,7 @@ class ServiceRequest
 
             $stmtReq = $pdo->prepare("DELETE FROM {$this->table} WHERE id = ?");
             $stmtReq->execute([$reqId]);
-            
+
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
@@ -407,19 +430,19 @@ class ServiceRequest
         }
     }
 
-/**
- * Obtiene los datos básicos de un servicio para WebSocket
- */
-public function getServiceDetailsForRequest($serviceId)
-{
-    $sql = "SELECT id, title, description, price, image_url, location, provider_id 
-            FROM services 
-            WHERE id = :id 
-            LIMIT 1";
-    
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute([':id' => $serviceId]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
-   }
+    /**
+     * Obtiene los datos básicos de un servicio para WebSocket
+     */
+    public function getServiceDetailsForRequest($serviceId)
+    {
+        $sql = "SELECT id, title, description, price, image_url, location, provider_id
+                FROM services
+                WHERE id = :id
+                LIMIT 1";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([':id' => $serviceId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
 ?>

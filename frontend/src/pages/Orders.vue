@@ -431,8 +431,8 @@ async function fetchOrders () {
   loading.value = true
   try {
     const [activeRes, historyRes] = await Promise.all([
-      api.get('/api/requests/active', { headers: { Authorization: `Bearer ${authStore.token}` } }),
-      api.get('/api/history', { headers: { Authorization: `Bearer ${authStore.token}` } })
+      api.get('/requests/active', { headers: { Authorization: `Bearer ${authStore.token}` } }),
+      api.get('/history', { headers: { Authorization: `Bearer ${authStore.token}` } })
     ])
     activeOrders.value = (activeRes.data?.data || []).map(mapRequest)
     historyOrders.value = (historyRes.data?.history || []).map(mapHistory)
@@ -472,7 +472,7 @@ async function cancelOrder (id) {
   })
   if (!isConfirmed) return
   try {
-    await api.post('/api/requests/cancel', { id }, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    await api.post('/requests/cancel', { id }, { headers: { Authorization: `Bearer ${authStore.token}` } })
     await fetchOrders()
     Swal.fire(t('orders.cancelled'), '', 'success')
   } catch {
@@ -482,7 +482,7 @@ async function cancelOrder (id) {
 
 async function finaliseOrder (id) {
   try {
-    await api.post('/api/requests/finalized', { id }, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    await api.post('/requests/finalized', { id }, { headers: { Authorization: `Bearer ${authStore.token}` } })
     await fetchOrders()
   } catch {
     Swal.fire(t('error'), t('orders.finaliseFailed'), 'error')
@@ -549,11 +549,11 @@ async function sendReview () {
           form.append('images[]', file)
         }
       })
-      await api.post('/api/history/rate', form, {
+      await api.post('/history/rate', form, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       })
     } else {
-      await api.post('/api/history/rate', payload, { headers })
+      await api.post('/history/rate', payload, { headers })
     }
 
     reviewModal.open = false

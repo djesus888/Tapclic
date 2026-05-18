@@ -39,9 +39,24 @@ class WebSocketService
         }
 
         // 4. Fallback final
+        // Usar protocolo HTTP correcto para el endpoint /emit
+        // El servidor Node.js expone endpoints HTTP (POST /emit, GET /status)
         if (empty($wsUrl)) {
-            $wsUrl = self::isDevelopment() ? 'http://localhost:3001' : 'https://ws.tapclic.com';
+            if (self::isDevelopment()) {
+                $wsUrl = 'http://localhost:3001';
+            } else {
+                // En producción, mantener https:// si el dominio tiene SSL
+                $wsUrl = 'https://ws.tapclic.com';
+            }
             error_log("⚠️ WebSocket URL no configurada, usando fallback: $wsUrl");
+        }
+
+        // Asegurar que usamos http:// o https:// (no ws://)
+        // Porque las peticiones CURL van al endpoint HTTP /emit
+        if (strpos($wsUrl, 'ws://') === 0) {
+            $wsUrl = preg_replace('/^ws:/', 'http:', $wsUrl);
+        } elseif (strpos($wsUrl, 'wss://') === 0) {
+            $wsUrl = preg_replace('/^wss:/', 'https:', $wsUrl);
         }
 
         self::$baseUrl = rtrim($wsUrl, '/');
@@ -51,7 +66,7 @@ class WebSocketService
     }
 
     /**
-     * Obtener URL desde base de datos (api_host)
+     * Obtener URL desde base de datos (ws_host)
      */
     private static function getWebSocketUrlFromDatabase(): ?string
     {
@@ -60,17 +75,14 @@ class WebSocketService
             $database = new \Database();
             $db = $database->getConnection();
 
-            $query = "SELECT api_host FROM system_config WHERE id = 1 LIMIT 1";
+            $query = "SELECT ws_host FROM system_config WHERE id = 1 LIMIT 1";
             $stmt = $db->prepare($query);
             $stmt->execute();
 
             if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $url = $row['api_host'];
+                $url = $row['ws_host'];
                 if (!empty($url)) {
-                    // Convertir a WebSocket URL si es necesario
-                    if (strpos($url, 'http') === 0) {
-                        $url = preg_replace('/^http(s?):\/\//', 'ws$1://', $url);
-                    }
+                    // Mantener como http/https para CURL
                     return $url;
                 }
             }
@@ -106,7 +118,7 @@ class WebSocketService
             curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            
+
             // Aceptamos cualquier código 2xx o 3xx
             return $httpCode >= 200 && $httpCode < 400;
         } catch (Exception $e) {
@@ -125,16 +137,16 @@ class WebSocketService
         try {
             $baseUrl = self::getBaseUrl();
             $url = $baseUrl . '/emit';
-            
-            // ✅ Verificar que la URL es accesible
+
+            // Verificar reachability pero NO bloquear el envío
             if (!self::isUrlReachable($baseUrl)) {
-                error_log("⚠️ WebSocket server no reachable: " . $baseUrl);
-                return false;
+                error_log("⚠️ WebSocket server no reachable: " . $baseUrl . " - Intentando enviar de todas formas...");
             }
-            
+
             $data = [
                 'event' => $event,
-                'payload' => $payload
+                'payload' => $payload,
+                'timestamp' => time() // ✅ AGREGADO: timestamp para debugging
             ];
 
             // Añadir target si existe (room o usuario específico)
@@ -149,10 +161,22 @@ class WebSocketService
                 if (isset($target['conversation_id'])) {
                     $data['conversation_id'] = $target['conversation_id'];
                 }
+                // ✅ AGREGADO: soporte para broadcast a rol completo
+                if (isset($target['broadcast_role'])) {
+                    $data['broadcast_role'] = $target['broadcast_role'];
+                }
             }
 
             $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
-            
+
+            // ✅ AGREGADO: Log detallado para debugging
+            error_log("📤 [WS] Emitiendo evento '$event' a URL: $url");
+            error_log("📦 [WS] Payload: " . json_encode([
+                'event' => $event,
+                'target' => $target ? array_keys($target) : 'broadcast',
+                'payload_keys' => array_keys($payload)
+            ]));
+
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
@@ -179,14 +203,16 @@ class WebSocketService
 
             $success = ($status >= 200 && $status < 300) && empty($error);
 
-            if (!$success && self::isDevelopment()) {
-                error_log("❌ WebSocket error: HTTP $status - $error");
-                error_log("📦 Data enviada: " . $jsonData);
+            if (!$success) {
+                error_log("❌ [WS] Error HTTP $status: $error");
+                error_log("📦 [WS] Data enviada: " . substr($jsonData, 0, 500));
+            } else {
+                error_log("✅ [WS] Evento '$event' enviado correctamente (HTTP $status)");
             }
-            
+
             return $success;
         } catch (Exception $e) {
-            error_log("❌ Excepción en WebSocketService::emit: " . $e->getMessage());
+            error_log("❌ [WS] Excepción en emit: " . $e->getMessage());
             return false;
         }
     }
@@ -194,31 +220,31 @@ class WebSocketService
     /**
      * Emitir evento a sala específica
      */
-public static function emitToRoom(string $room, string $event, array $payload): bool
-{
-    $target = ['room' => $room];
-    
-    error_log("📡 Emitiendo a sala {$room}: {$event}");
-    
-    // Si es sala de conversación, añadir conversation_id
-    if (strpos($room, 'conversation_') === 0) {
-        $conversationId = intval(str_replace('conversation_', '', $room));
-        if ($conversationId > 0) {
-            $target['conversation_id'] = $conversationId;
+    public static function emitToRoom(string $room, string $event, array $payload): bool
+    {
+        $target = ['room' => $room];
+
+        error_log("📡 Emitiendo a sala {$room}: {$event}");
+
+        // Si es sala de conversación, añadir conversation_id
+        if (strpos($room, 'conversation_') === 0) {
+            $conversationId = intval(str_replace('conversation_', '', $room));
+            if ($conversationId > 0) {
+                $target['conversation_id'] = $conversationId;
+            }
         }
-    }
 
-    if (!isset($payload['conversation_id']) && isset($target['conversation_id'])) {
-        $payload['conversation_id'] = $target['conversation_id'];
-    }
-    
-    // ✅ Agregar timestamp para depuración
-    if (!isset($payload['timestamp'])) {
-        $payload['timestamp'] = time();
-    }
+        if (!isset($payload['conversation_id']) && isset($target['conversation_id'])) {
+            $payload['conversation_id'] = $target['conversation_id'];
+        }
 
-    return self::emit($event, $payload, $target);
-}
+        // Agregar timestamp para depuración
+        if (!isset($payload['timestamp'])) {
+            $payload['timestamp'] = time();
+        }
+
+        return self::emit($event, $payload, $target);
+    }
 
     /**
      * Emitir evento a usuario específico
@@ -238,6 +264,31 @@ public static function emitToRoom(string $room, string $event, array $payload): 
             $payload['conversation_id'] = $target['conversation_id'];
         }
 
+        // ✅ AGREGADO: timestamp si no existe
+        if (!isset($payload['timestamp'])) {
+            $payload['timestamp'] = time();
+        }
+
+        error_log("📤 [WS] Emitiendo '$event' a {$receiverRole}_{$receiverId}");
+
+        return self::emit($event, $payload, $target);
+    }
+
+    /**
+     * ✅ NUEVO: Emitir evento a todos los usuarios de un rol específico
+     */
+    public static function emitToRole(string $receiverRole, string $event, array $payload): bool
+    {
+        $target = [
+            'broadcast_role' => $receiverRole
+        ];
+
+        if (!isset($payload['timestamp'])) {
+            $payload['timestamp'] = time();
+        }
+
+        error_log("📤 [WS] Emitiendo '$event' a todos los usuarios con rol: {$receiverRole}");
+
         return self::emit($event, $payload, $target);
     }
 
@@ -252,6 +303,7 @@ public static function emitToRoom(string $room, string $event, array $payload): 
         array $data = []
     ): bool {
         $payload = [
+            'event' => $data['event'] ?? 'status_changed', // ✅ CORRECCIÓN: Incluir event para el switch en socketStore
             'title' => $title,
             'message' => $message,
             'notification_type' => $data['notification_type'] ?? 'general',
@@ -259,8 +311,13 @@ public static function emitToRoom(string $room, string $event, array $payload): 
             'action' => $data['action'] ?? null,
             'conversation_id' => $data['conversation_id'] ?? null,
             'sender_name' => $data['sender_name'] ?? null,
+            'request_id' => $data['request_id'] ?? null, // ✅ AGREGADO
+            'service_id' => $data['service_id'] ?? null, // ✅ AGREGADO
             'timestamp' => time()
         ];
+
+        // ✅ AGREGADO: Log para debugging
+        error_log("📢 [WS] Enviando notificación a {$receiverRole}_{$receiverId}: $title");
 
         return self::emitToUser($receiverRole, $receiverId, 'new-notification', $payload);
     }
@@ -286,12 +343,16 @@ public static function emitToRoom(string $room, string $event, array $payload): 
             $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            return ($status === 200);
+            if ($status === 200) {
+                error_log("✅ [WS] Health check OK");
+                return true;
+            } else {
+                error_log("⚠️ [WS] Health check falló: HTTP $status");
+                return false;
+            }
 
         } catch (Exception $e) {
-            if (self::isDevelopment()) {
-                error_log("⚠️ WebSocket health check falló: " . $e->getMessage());
-            }
+            error_log("⚠️ [WS] Health check excepción: " . $e->getMessage());
             return false;
         }
     }
@@ -302,6 +363,7 @@ public static function emitToRoom(string $room, string $event, array $payload): 
     public static function setBaseUrl(string $url): void
     {
         self::$baseUrl = rtrim($url, '/');
+        error_log("🔧 [WS] URL base configurada manualmente: " . self::$baseUrl);
     }
 
     /**

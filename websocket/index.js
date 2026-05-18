@@ -8,19 +8,19 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// ✅ CORREGIDO: Configuración UTF-8 para tildes
+// Configuración UTF-8 para tildes
 app.use(express.json({
   limit: '50mb',
   type: 'application/json'
 }));
 
-// ✅ NUEVO: Middleware para forzar UTF-8 en todas las respuestas
+// Middleware para forzar UTF-8 en todas las respuestas
 app.use((req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
 
-// ✅ CORREGIDO: CORS con origen específico en lugar de '*'
+// CORS con origen específico
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
@@ -29,21 +29,19 @@ app.use(cors({
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    // ✅ CORREGIDO: CORS con origen específico en lugar de '*'
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     methods: ['GET', 'POST'],
     credentials: true
   },
   pingInterval: 25000,
   pingTimeout: 60000,
-  // ✅ CORREGIDO: Transportes permitidos
   transports: ['websocket', 'polling']
 });
 
-// ✅ MEJORADO: Un solo mapa de usuarios (eliminado connectedUsers duplicado)
-const userSockets = new Map(); // Mapa de sockets por usuario
+// Mapa de sockets por usuario
+const userSockets = new Map();
 const pendingEvents = new Map();
-const typingUsers = new Map(); // ✅ MEJORADO: Ahora guarda también el timeout
+const typingUsers = new Map();
 
 const MAX_PENDING_EVENTS = 1000;
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
@@ -79,7 +77,7 @@ function addPendingEvent(room, event, payload, reqBody = {}) {
   pendingEvents.set(room, filtered);
 }
 
-// ✅ MEJORADO: Middleware de autenticación con más validación
+// Middleware de autenticación con más validación
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
 
@@ -108,21 +106,26 @@ io.on('connection', (socket) => {
   const { id, role } = socket.user;
   const room = `${role}_${id}`;
 
-  // ✅ CORREGIDO: Manejo de conexiones duplicadas - CERRAR CONEXIÓN VIEJA
+  // Manejo de conexiones duplicadas - CERRAR CONEXIÓN VIEJA
   const userKey = `${id}_${role}`;
 
   if (userSockets.has(userKey)) {
     console.log(`⚠️ Conexión duplicada para ${userKey}, cerrando conexión vieja`);
     const oldSocket = userSockets.get(userKey);
-    oldSocket.disconnect(true); // cerrar conexión vieja
+    oldSocket.disconnect(true);
     userSockets.delete(userKey);
   }
 
-  // ✅ Solo llegamos aquí si la conexión es válida
+  // Guardar socket
   userSockets.set(userKey, socket);
   socket.join(room);
   const roomSize = io.sockets.adapter.rooms.get(room)?.size || 0;
   console.log(`🔌 Conectado: ${id} (${role}) | Room '${room}' size: ${roomSize}`);
+
+  // ✅ CORRECCIÓN: También unirse a sala de rol para broadcast
+  const roleRoom = `role_${role}`;
+  socket.join(roleRoom);
+  console.log(`🔌 ${id} también unido a sala de rol: ${roleRoom}`);
 
   // Enviar eventos pendientes al conectar
   if (pendingEvents.has(room)) {
@@ -142,8 +145,7 @@ io.on('connection', (socket) => {
     pendingEvents.set(room, []);
   }
 
-  // ✅ NUEVO: Evento para enviar mensajes
-  // ✅ CORREGIDO: Evento send_message con soporte UTF-8 completo
+  // Evento para enviar mensajes
   socket.on('send_message', (data) => {
     try {
       console.log('📨 [NODE] send_message recibido:', JSON.stringify(data, null, 2));
@@ -157,29 +159,25 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // ✅ EXTRAER TEXTO DE FORMA SEGURA - PRESERVANDO UTF-8
+      // EXTRAER TEXTO DE FORMA SEGURA - PRESERVANDO UTF-8
       let messageText = '';
 
       if (typeof data.text === 'string') {
-        // Texto directo - preservar tal cual
         messageText = data.text;
       } else if (data.message && typeof data.message === 'string') {
         messageText = data.message;
       } else if (data.message && typeof data.message === 'object') {
-        // Si es objeto, buscar la propiedad text
         messageText = data.message.text || data.message.content || '';
       } else {
         messageText = data.text || data.message || '';
       }
 
-      // ✅ Convertir a string y asegurar UTF-8 (no modificar caracteres)
       messageText = String(messageText);
 
-      // Para log, solo primeros 30 caracteres
       const messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
       console.log(`📨 Mensaje recibido: ${id} → conv_${data.conversation_id}: ${messageForLog}`);
 
-      // ✅ CONSTRUIR DATOS DEL MENSAJE - PRESERVANDO TODOS LOS CAMPOS
+      // CONSTRUIR DATOS DEL MENSAJE
       const messageData = {
         id: data.id || Date.now(),
         temp_id: data.temp_id || null,
@@ -218,7 +216,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ CORREGIDO: Manejar typing con mejor validación Y CONTROL DE TIMEOUTS
+  // Manejar typing con mejor validación
   socket.on('typing', (data) => {
     if (!data) {
       console.error('❌ Evento typing recibido sin datos');
@@ -232,7 +230,6 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Determinar la sala destino
     let targetRoom;
     if (receiver_id && receiver_role) {
       targetRoom = `${receiver_role}_${receiver_id}`;
@@ -240,10 +237,8 @@ io.on('connection', (socket) => {
       targetRoom = `conversation_${conversation_id}`;
     }
 
-    // ✅ MEJORADO: Gestionar estado de typing con limpieza de timeouts anteriores
     const typingKey = `${conversation_id}_${id}`;
 
-    // Si ya existe un timeout para este usuario, lo cancelamos
     if (typingUsers.has(typingKey)) {
       const existing = typingUsers.get(typingKey);
       if (existing.timeout) {
@@ -252,7 +247,6 @@ io.on('connection', (socket) => {
     }
 
     if (is_typing) {
-      // Crear nuevo timeout para limpiar el estado automáticamente
       const timeout = setTimeout(() => {
         const current = typingUsers.get(typingKey);
         if (current && Date.now() - current.timestamp >= TYPING_TIMEOUT_MS) {
@@ -272,13 +266,12 @@ io.on('connection', (socket) => {
         userRole: role,
         conversationId: conversation_id,
         timestamp: Date.now(),
-        timeout 
+        timeout
       });
     } else {
       typingUsers.delete(typingKey);
     }
 
-    // Emitir al destinatario
     io.to(targetRoom).emit('typing_indicator', {
       conversation_id: conversation_id,
       user_id: id,
@@ -303,7 +296,6 @@ io.on('connection', (socket) => {
     }
 
     const conversationRoom = `conversation_${conversation_id}`;
-    // ✅ CORREGIDO: Unificar formato con user_id y user_role
     io.to(conversationRoom).emit('message_read', {
       conversation_id: conversation_id,
       message_ids: message_ids,
@@ -324,7 +316,6 @@ io.on('connection', (socket) => {
     }
 
     const conversationRoom = `conversation_${conversation_id}`;
-    // ✅ CORREGIDO: Unificar formato con user_id y user_role
     io.to(conversationRoom).emit('message_delivered', {
       conversation_id: conversation_id,
       message_ids: message_ids,
@@ -362,10 +353,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ MEJORADO: Seguridad adicional en join-room
   socket.on('join-room', (roomName, callback) => {
     try {
-      // Validar que solo pueda unirse a salas de conversación
       if (!roomName.startsWith('conversation_')) {
         console.error(`❌ Intento de unirse a sala no permitida: ${roomName}`);
         if (callback && typeof callback === 'function') {
@@ -404,8 +393,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('mark_notification_read', (data) => {
+    const { notification_id } = data;
+    if (notification_id) {
+      console.log(`✅ Notificación ${notification_id} marcada como leída por ${id}`);
+    }
+  });
+
   socket.on('disconnect', (reason) => {
-    // ✅ CORREGIDO: Limpiar solo si es el socket actual
     if (userSockets.get(userKey) === socket) {
       userSockets.delete(userKey);
     }
@@ -427,40 +422,68 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ MEJORADO: Endpoint /emit con soporte UTF-8 y room directo
+// ✅ CORREGIDO: Endpoint /emit con soporte para broadcast_role
 app.post('/emit', (req, res) => {
-  // Asegurar UTF-8
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  const { receiver_id, receiver_role, title, message, event, payload, conversation_id, room } = req.body;
+  const {
+    receiver_id,
+    receiver_role,
+    title,
+    message,
+    event,
+    payload,
+    conversation_id,
+    room,
+    broadcast_role
+  } = req.body;
 
-  console.log("📥 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
+  console.log("📥 [EMIT] BODY RECIBIDO:", JSON.stringify({
+    event,
+    receiver_id,
+    receiver_role,
+    broadcast_role,
+    room,
+    conversation_id,
+    hasPayload: !!payload,
+    hasTitle: !!title,
+    hasMessage: !!message
+  }));
 
-  // ✅ CORREGIDO: Validación de estructura de payload
   if (event && typeof event !== 'string') {
     return res.status(400).json({ error: 'Invalid event' });
   }
 
   const rooms = [];
+
+  // ✅ Soporte para broadcast_role (emitToRole)
+  if (broadcast_role) {
+    const roleRoom = `role_${broadcast_role}`;
+    rooms.push(roleRoom);
+    console.log(`📢 [EMIT] Broadcast a rol: ${roleRoom}`);
+  }
+
   if (receiver_id && receiver_role) {
     rooms.push(`${receiver_role}_${receiver_id}`);
   }
   if (conversation_id) {
     rooms.push(`conversation_${conversation_id}`);
   }
-  // ✅ AGREGADO: Soporte para room directo (como envía PHP)
   if (room) {
     rooms.push(room);
   }
 
   if (rooms.length === 0) {
-    return res.status(400).json({ error: 'Se requiere receiver_id/receiver_role, conversation_id o room' });
+    console.error('❌ [EMIT] No se pudo determinar sala destino');
+    return res.status(400).json({
+      error: 'Se requiere receiver_id/receiver_role, broadcast_role, conversation_id o room'
+    });
   }
 
   if (event) {
-    // ✅ CORREGIDO: Asegurar conversation_id en el payload
+    // ✅ CORREGIDO: Asegurar conversation_id en el payload y preservar estructura anidada
     const eventPayload = {
-      ...(payload || req.body || {}),
+      ...(payload || {}),
       conversation_id: conversation_id || payload?.conversation_id || null
     };
 
@@ -469,33 +492,37 @@ app.post('/emit', (req, res) => {
 
       if (socketsInRoom && socketsInRoom.size > 0) {
         io.to(room).emit(event, eventPayload);
-        console.log('📡 /emit event entregado en vivo →', room, event);
+        console.log(`📡 [EMIT] Evento '${event}' entregado en vivo → ${room} (${socketsInRoom.size} sockets)`);
       } else {
         addPendingEvent(room, event, eventPayload);
-        console.log('🕒 /emit event guardado (offline) →', room, event);
+        console.log(`🕒 [EMIT] Evento '${event}' guardado (offline) → ${room}`);
       }
     });
-  } else {
-    // Notificación tradicional
-    const notificationPayload = {
-      id: Date.now(),
-      receiver_id,
-      receiver_role,
-      title,
-      message,
-      is_read: 0,
-      created_at: new Date().toISOString(),
-    };
 
-    const targetRoom = `${receiver_role}_${receiver_id}`;
-    const socketsInRoom = io.sockets.adapter.rooms.get(targetRoom);
+    // ✅ CORREGIDO: SOLO enviar notificación tradicional si hay title Y message
+    // Eventos como payment_updated, request_updated NO tienen title/message
+    if (title && message) {
+      const notificationPayload = {
+        id: Date.now(),
+        receiver_id,
+        receiver_role,
+        title,
+        message,
+        is_read: 0,
+        created_at: new Date().toISOString(),
+      };
 
-    if (socketsInRoom && socketsInRoom.size > 0) {
-      io.to(targetRoom).emit('new-notification', notificationPayload);
-      console.log('📡 /emit notification → room:', targetRoom, 'title:', title);
-    } else {
-      addPendingEvent(targetRoom, 'new-notification', notificationPayload);
-      console.log('🕒 /emit notification guardada (offline) →', targetRoom, title);
+      rooms.forEach(room => {
+        const socketsInRoom = io.sockets.adapter.rooms.get(room);
+
+        if (socketsInRoom && socketsInRoom.size > 0) {
+          io.to(room).emit('new-notification', notificationPayload);
+          console.log(`📡 [EMIT] Notificación → ${room}: ${title}`);
+        } else {
+          addPendingEvent(room, 'new-notification', notificationPayload);
+          console.log(`🕒 [EMIT] Notificación guardada (offline) → ${room}: ${title}`);
+        }
+      });
     }
   }
 
@@ -507,12 +534,10 @@ app.post('/emit', (req, res) => {
 });
 
 app.post('/emit-event', (req, res) => {
-  // Asegurar UTF-8
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   const { receiver_id, receiver_role, event, conversation_id } = req.body;
 
-  // ✅ CORREGIDO: Validación de estructura de payload
   if (event && typeof event !== 'string') {
     return res.status(400).json({ error: 'Invalid event' });
   }
@@ -534,7 +559,6 @@ app.post('/emit-event', (req, res) => {
     return res.status(400).json({ error: 'Se requiere receiver_id/receiver_role o conversation_id' });
   }
 
-  // ✅ CORREGIDO: Asegurar conversation_id en el payload
   const finalPayload = {
     ...(req.body.payload || req.body || {}),
     conversation_id: conversation_id || req.body.payload?.conversation_id || null
@@ -546,11 +570,6 @@ app.post('/emit-event', (req, res) => {
     if (socketsInRoom && socketsInRoom.size > 0) {
       io.to(room).emit(event, finalPayload);
       console.log('📡 POST /emit-event entregado en vivo →', { room, event });
-      if (event === 'new_message') {
-        console.log('💬 Nuevo mensaje en tiempo real enviado a', room);
-      } else if (event === 'typing_indicator') {
-        console.log('✍️ Indicador de typing enviado a', room);
-      }
     } else {
       addPendingEvent(room, event, finalPayload);
       console.log('🕒 POST /emit-event guardado (offline) →', { room, event });
@@ -565,7 +584,7 @@ app.post('/emit-event', (req, res) => {
   });
 });
 
-// ✅ CORREGIDO: Endpoint /status actualizado
+// Endpoint /status actualizado
 app.get('/status', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   const usersOnline = Array.from(userSockets.keys()).map(key => {
@@ -584,7 +603,7 @@ app.get('/status', (req, res) => {
   });
 });
 
-// ✅ NUEVO: Limpieza periódica de eventos pendientes (cada 10 minutos)
+// Limpieza periódica de eventos pendientes (cada 10 minutos)
 setInterval(() => {
   const now = Date.now();
   let cleanedCount = 0;

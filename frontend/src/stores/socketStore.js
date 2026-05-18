@@ -309,8 +309,9 @@ export const useSocketStore = defineStore('socket', {
       const conversationStore = useConversationStore();
 
       // =====================================================
-      // ✅ CORRECCIÓN: Listener ÚNICO para new-notification
-      // (antes estaba duplicado, causando comportamientos impredecibles)
+      // ✅ CORREGIDO: Listener ÚNICO para new-notification
+      // SOLO el socketStore llama a addNotification, el notificationStore
+      // ya NO tiene su propio listener para evitar duplicados
       // =====================================================
       socket.on('new-notification', (notification) => {
         console.log('📢 [SOCKET] Notificación recibida:', notification);

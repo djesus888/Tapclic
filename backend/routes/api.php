@@ -60,6 +60,17 @@ if (preg_match('~/api/login~', $request)) {
 ) {
     (new ServiceController())->handle($method);
 
+// --- RUTAS PAGOS (NUEVAS) ---
+} elseif (
+    preg_match('~/api/payments/create~', $request) ||
+    preg_match('~/api/payments/mine~', $request) ||
+    preg_match('~/api/payments/public~', $request) ||
+    preg_match('~/api/payments/confirm-payment~', $request) ||
+    preg_match('~/api/payments/reject-payment~', $request) ||
+    preg_match('~/api/payments/proof~', $request)
+) {
+    (new PaymentController())->handle($method);
+
 // --- RUTAS SOLICITUDES (REQUESTS) ---
 } elseif (
     preg_match('~/api/requests/create~', $request) ||
@@ -92,9 +103,11 @@ if (preg_match('~/api/login~', $request)) {
     (new HistoryController())->handle($method);
 
 // --- RUTAS NOTIFICACIONES ---
+// ✅ CORREGIDO: Añadida ruta unread-count
 } elseif (
     preg_match('~/api/notifications/send~', $request) ||
     preg_match('~/api/notifications/mine~', $request) ||
+    preg_match('~/api/notifications/unread-count~', $request) ||
     preg_match('~/api/notifications/read~', $request) ||
     preg_match('~/api/notifications/read-all~', $request) ||
     preg_match('~/api/notifications/email~', $request) ||
