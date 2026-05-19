@@ -1,0 +1,1 @@
+{"env":{"browser":true,"node":false},"globals":{"confirm":"readonly","clearTimeout":"readonly","FileReader":"readonly","FormData":"readonly","alert":"readonly","prompt":"readonly","URL":"readonly","CustomEvent":"readonly"}}
