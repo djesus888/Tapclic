@@ -7,37 +7,31 @@
         <p>Resumen completo de estadísticas y actividades</p>
       </div>
       <div class="header-actions">
-        <button class="btn-refresh" @click="fetchStats">
-          🔄 Actualizar
+        <button class="btn-refresh" @click="fetchStats" :disabled="loading">
+          {{ loading ? '⏳ Cargando...' : '🔄 Actualizar' }}
         </button>
       </div>
     </div>
 
     <!-- Tarjetas estadísticas -->
     <div class="stats-grid">
-      <div 
-        v-for="card in statCards" 
+      <div
+        v-for="card in statCards"
         :key="card.title"
         class="stat-card"
-        :class="`stat-${card.title.replace(/([A-Z])/g, '-$1').toLowerCase()}`"
+        :class="`stat-${card.title}`"
       >
         <div class="card-badge" v-if="card.title === 'onlineUsers' && card.value > 0">
           En línea
         </div>
-        
+
         <div class="card-icon">
           <component :is="card.icon" class="icon" />
         </div>
-        
+
         <div class="card-content">
-          <p class="card-title">{{ t(`stats.${card.title}`) }}</p>
+          <p class="card-title">{{ t(card.title)}}</p>
           <h3 class="card-value">{{ formatValue(card) }}</h3>
-          
-          <div class="card-trend" v-if="showTrend(card.title)">
-            <span :class="getTrendClass(card.title)">
-              {{ getTrendIcon(card.title) }} {{ getTrendText(card.title) }}
-            </span>
-          </div>
         </div>
       </div>
     </div>
@@ -46,40 +40,39 @@
     <div class="activities-section">
       <div class="section-header">
         <h2>📋 {{ t("latestActivities") }}</h2>
-        <span class="activity-count">{{ translatedActivities.length }} actividades</span>
+        <span class="activity-count">{{ activities.length }} actividades</span>
       </div>
-      
+
       <div class="activities-container">
-        <div v-if="translatedActivities.length === 0" class="empty-activities">
+        <div v-if="activities.length === 0" class="empty-activities">
           <div class="empty-icon">📊</div>
           <h3>No hay actividades recientes</h3>
           <p>Las actividades del sistema aparecerán aquí</p>
         </div>
-        
+
         <div v-else class="activities-list">
-          <div 
-            v-for="(activity, index) in translatedActivities" 
+          <div
+            v-for="(activity, index) in activities"
             :key="index"
             class="activity-item"
-            :class="`activity-${(index % 3) + 1}`"
           >
             <div class="activity-icon">
-              <span>{{ getActivityIcon(index) }}</span>
+              <span>{{ getActivityIcon(activity) }}</span>
             </div>
-            
+
             <div class="activity-content">
-              <p class="activity-text">{{ activity }}</p>
-              <span class="activity-time">{{ getRelativeTime(index) }}</span>
+              <p class="activity-text">{{ formatActivity(activity) }}</p>
+              <span class="activity-time">{{ formatActivityTime(activity.created_at) }}</span>
             </div>
-            
-            <div class="activity-status" :class="getStatusClass(index)">
-              {{ getStatusText(index) }}
+
+            <div class="activity-status" :class="getStatusClass(activity)">
+              {{ getStatusText(activity) }}
             </div>
           </div>
         </div>
       </div>
-      
-      <!-- Resumen rápido -->
+
+      <!-- Resumen rápido con datos reales -->
       <div class="quick-summary">
         <div class="summary-item">
           <div class="summary-icon">👥</div>
@@ -88,7 +81,7 @@
             <p>{{ statCards[0].value }}</p>
           </div>
         </div>
-        
+
         <div class="summary-item">
           <div class="summary-icon">💰</div>
           <div class="summary-content">
@@ -96,7 +89,7 @@
             <p>{{ formatPrice(statCards[4].value) }}</p>
           </div>
         </div>
-        
+
         <div class="summary-item">
           <div class="summary-icon">⏱️</div>
           <div class="summary-content">
@@ -110,7 +103,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, computed } from "vue";
+import { onMounted, onBeforeUnmount, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/axios";
@@ -142,61 +135,139 @@ export default {
   setup() {
     const { t } = useI18n();
     const authStore = useAuthStore();
-    const state = reactive({
-      statCards: [
-        { title: "users", value: 0, icon: "Users" },
-        { title: "onlineUsers", value: 0, icon: "Activity" },
-        { title: "pendingOrders", value: 0, icon: "Package" },
-        { title: "activeProviders", value: 0, icon: "UserCheck" },
-        { title: "monthIncome", value: 0, icon: "DollarSign" },
-        { title: "pendingReviews", value: 0, icon: "Star" },
-        { title: "services", value: 0, icon: "ClipboardList" },
-        { title: "notifications", value: 0, icon: "Bell" },
-        { title: "settings", value: "-", icon: "Settings" },
-      ],
-      activities: [],
-      loading: false,
-    });
+
+    // ✅ CORREGIDO: Estado reactivo accesible directamente
+    const statCards = reactive([
+      { title: "users", value: 0, icon: "Users" },
+      { title: "onlineUsers", value: 0, icon: "Activity" },
+      { title: "pendingOrders", value: 0, icon: "Package" },
+      { title: "activeProviders", value: 0, icon: "UserCheck" },
+      { title: "monthIncome", value: 0, icon: "DollarSign" },
+      { title: "pendingReviews", value: 0, icon: "Star" },
+      { title: "services", value: 0, icon: "ClipboardList" },
+      { title: "notifications", value: 0, icon: "Bell" },
+      { title: "settings", value: "-", icon: "Settings" },
+    ]);
+    const activities = reactive([]);
+    const loading = reactive({ value: false });
+    
+    // ✅ NUEVO: Timer para auto-actualización cada 30 segundos
+    let autoRefreshTimer = null;
 
     const fetchStats = async () => {
-      state.loading = true;
+      loading.value = true;
       try {
         const res = await api.get("/admin/stats");
         const data = res.data;
 
-        // Actualiza todas las tarjetas
-        state.statCards[0].value = data.totalUsers || 0;
-        state.statCards[1].value = data.onlineUsers || 0;
-        state.statCards[2].value = data.pendingOrders || 0;
-        state.statCards[3].value = data.activeProviders || 0;
-        state.statCards[4].value = data.monthIncome || 0;
-        state.statCards[5].value = data.pendingReviews || 0;
-        state.statCards[6].value = data.totalServices || 0;
-        state.statCards[7].value = data.totalNotifications || 0;
-        state.statCards[8].value = data.settings ?? 0;
-        state.activities = data.latestActivities || [];
+        // Actualiza todas las tarjetas con datos reales del backend
+        statCards[0].value = data.totalUsers || 0;
+        statCards[1].value = data.onlineUsers || 0;
+        statCards[2].value = data.pendingOrders || 0;
+        statCards[3].value = data.activeProviders || 0;
+        statCards[4].value = data.monthIncome || 0;
+        statCards[5].value = data.pendingReviews || 0;
+        statCards[6].value = data.totalServices || 0;
+        statCards[7].value = data.totalNotifications || 0;
+        statCards[8].value = data.settings ?? "-";
+        
+        // ✅ CORREGIDO: Reemplazar array manteniendo reactividad
+        activities.splice(0, activities.length, ...(data.latestActivities || []));
       } catch (err) {
         console.error("Error al cargar estadísticas", err);
       } finally {
-        state.loading = false;
+        loading.value = false;
       }
     };
 
-    const translatedActivities = computed(() =>
-      state.activities.map(({ message_key, params }) => {
-        if (!params || Object.keys(params).length === 0) {
-          return t(message_key);
-        } else {
-          return t(message_key, params);
-        }
-      })
-    );
+    // ✅ NUEVO: Iniciar auto-refresh cada 30 segundos
+    const startAutoRefresh = () => {
+      stopAutoRefresh();
+      autoRefreshTimer = setInterval(() => {
+        fetchStats();
+      }, 30000); // 30 segundos
+    };
 
-    // Métodos para formatear valores
-    const formatValue = (card) => {
-      if (card.title === 'monthIncome') {
-        return formatPrice(card.value);
+    const stopAutoRefresh = () => {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
       }
+    };
+
+    // Formatear actividad con message_key y params reales
+    const formatActivity = (activity) => {
+      if (!activity) return "";
+      if (activity.message_key) {
+        const params = activity.params || {};
+        return t(activity.message_key, params);
+      }
+      if (activity.message) return activity.message;
+      return "Actividad registrada";
+    };
+
+    // Formatear tiempo real desde created_at
+    const formatActivityTime = (dateStr) => {
+      if (!dateStr) return "";
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHrs = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMin < 1) return "Ahora mismo";
+      if (diffMin < 60) return `Hace ${diffMin} min`;
+      if (diffHrs < 24) return `Hace ${diffHrs} ${diffHrs === 1 ? 'hora' : 'horas'}`;
+      if (diffDays < 7) return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+      return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    // Ícono según tipo de actividad
+    const getActivityIcon = (activity) => {
+      if (!activity) return '📋';
+      const type = activity.type || activity.action_type || '';
+      const icons = {
+        'user_created': '👤',
+        'user_login': '🔑',
+        'service_created': '🛠️',
+        'request_created': '📦',
+        'payment_completed': '💰',
+        'review_created': '⭐',
+        'ticket_created': '🎫',
+        'settings_updated': '⚙️',
+        'notification_sent': '🔔',
+      };
+      return icons[type] || '📋';
+    };
+
+    // Clase según tipo de actividad
+    const getStatusClass = (activity) => {
+      if (!activity) return 'status-info';
+      const type = activity.type || activity.action_type || '';
+      if (type.includes('created') || type.includes('completed')) return 'status-success';
+      if (type.includes('login') || type.includes('sent')) return 'status-info';
+      if (type.includes('updated')) return 'status-warning';
+      if (type.includes('error') || type.includes('failed')) return 'status-error';
+      return 'status-info';
+    };
+
+    // Texto según tipo de actividad
+    const getStatusText = (activity) => {
+      if (!activity) return 'Info';
+      const type = activity.type || activity.action_type || '';
+      if (type.includes('created')) return 'Creado';
+      if (type.includes('completed')) return 'Completado';
+      if (type.includes('login')) return 'Acceso';
+      if (type.includes('updated')) return 'Actualizado';
+      if (type.includes('sent')) return 'Enviado';
+      if (type.includes('error') || type.includes('failed')) return 'Error';
+      return 'Info';
+    };
+
+    const formatValue = (card) => {
+      if (card.title === 'monthIncome') return formatPrice(card.value);
+      if (card.value === '-') return '-';
       return card.value;
     };
 
@@ -210,81 +281,34 @@ export default {
       }).format(amount);
     };
 
-    // Métodos para tendencias (simulados)
-    const showTrend = (title) => {
-      return ['users', 'monthIncome', 'activeProviders'].includes(title);
-    };
-
-    const getTrendClass = (title) => {
-      const trends = {
-        'users': 'trend-up',
-        'monthIncome': 'trend-up',
-        'activeProviders': 'trend-neutral'
-      };
-      return trends[title] || 'trend-neutral';
-    };
-
-    const getTrendIcon = (title) => {
-      const icons = {
-        'users': '📈',
-        'monthIncome': '💰',
-        'activeProviders': '➡️'
-      };
-      return icons[title] || '📊';
-    };
-
-    const getTrendText = (title) => {
-      const texts = {
-        'users': '+12%',
-        'monthIncome': '+23%',
-        'activeProviders': '+5%'
-      };
-      return texts[title] || '0%';
-    };
-
-    // Métodos para actividades
-    const getActivityIcon = (index) => {
-      const icons = ['👤', '🛠️', '💰', '⭐', '🔔', '⚙️'];
-      return icons[index % icons.length];
-    };
-
-    const getRelativeTime = (index) => {
-      const times = ['Hace 5 min', 'Hace 15 min', 'Hace 1 hora', 'Hace 3 horas', 'Hace 1 día', 'Hace 2 días'];
-      return times[index % times.length];
-    };
-
-    const getStatusClass = (index) => {
-      const statuses = ['success', 'warning', 'info', 'error', 'success', 'info'];
-      return `status-${statuses[index % statuses.length]}`;
-    };
-
-    const getStatusText = (index) => {
-      const texts = ['Completado', 'Pendiente', 'En progreso', 'Error', 'Completado', 'Info'];
-      return texts[index % texts.length];
-    };
-
-    // Método para calcular tasa de actividad
     const calculateActivityRate = () => {
-      const totalUsers = state.statCards[0].value || 1;
-      const onlineUsers = state.statCards[1].value || 0;
+      const totalUsers = statCards[0].value || 1;
+      const onlineUsers = statCards[1].value || 0;
       return Math.round((onlineUsers / totalUsers) * 100);
     };
 
-    onMounted(fetchStats);
+    // ✅ Iniciar todo al montar
+    onMounted(() => {
+      fetchStats();
+      startAutoRefresh();
+    });
+
+    // ✅ Limpiar timer al desmontar
+    onBeforeUnmount(() => {
+      stopAutoRefresh();
+    });
 
     return {
-      ...state,
+      statCards,
+      activities,
+      loading,
       t,
-      translatedActivities,
       fetchStats,
       formatValue,
       formatPrice,
-      showTrend,
-      getTrendClass,
-      getTrendIcon,
-      getTrendText,
+      formatActivity,
+      formatActivityTime,
       getActivityIcon,
-      getRelativeTime,
       getStatusClass,
       getStatusText,
       calculateActivityRate,

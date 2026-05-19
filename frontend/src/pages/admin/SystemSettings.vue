@@ -1,4 +1,4 @@
-<!-- src/pages/admin/SystemSettings.vue - VERSIÓN COMPLETA CON TODOS LOS CAMPOS -->
+<!-- src/pages/admin/SystemSettings.vue - VERSIÓN COMPLETA CON FEATURES -->
 <template>
   <div class="admin-system-settings">
     <!-- Loading State -->
@@ -25,9 +25,8 @@
             {{ systemConfig.company_name }} • {{ systemConfig.company_address }}
           </p>
         </div>
-        
+
         <div class="header-actions">
-          <!-- Estado del sistema -->
           <div class="status-badges">
             <div class="status-badge" :class="systemConfig.system_active ? 'active' : 'inactive'">
               <span class="status-dot"></span>
@@ -38,23 +37,14 @@
               {{ systemConfig.maintenance_mode ? 'MANTENIMIENTO' : 'OPERATIVO' }}
             </div>
           </div>
-          
-          <!-- Botones de acción -->
+
           <div class="action-buttons">
-            <button 
-              class="btn-save-all"
-              @click="saveAllSettings"
-              :disabled="!hasChanges || saving"
-            >
+            <button class="btn-save-all" @click="saveAllSettings" :disabled="!hasChanges || saving">
               <span v-if="saving" class="save-loading"></span>
               <span v-else>💾 Guardar Todo</span>
             </button>
-            <button class="btn-refresh" @click="loadSystemConfig">
-              🔄 Actualizar
-            </button>
-            <button class="btn-reset" @click="resetToDefaults" title="Restaurar valores por defecto">
-              🔄 Reset
-            </button>
+            <button class="btn-refresh" @click="loadSystemConfig">🔄 Actualizar</button>
+            <button class="btn-reset" @click="resetToDefaults" title="Restaurar valores por defecto">🔄 Reset</button>
           </div>
         </div>
       </div>
@@ -73,13 +63,8 @@
 
       <!-- Pestañas de navegación -->
       <div class="settings-tabs">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.id"
-          class="tab-button"
-          :class="{ active: activeTab === tab.id }"
-          @click="activeTab = tab.id"
-        >
+        <button v-for="tab in tabs" :key="tab.id" class="tab-button"
+          :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
           <span class="tab-icon">{{ tab.icon }}</span>
           {{ tab.name }}
         </button>
@@ -94,88 +79,30 @@
               <h2>🏢 Información General</h2>
               <p>Configuración básica del sistema</p>
             </div>
-
             <div class="section-content">
               <div class="form-grid">
-                <!-- Nombre del Sistema -->
                 <div class="form-group">
-                  <label class="form-label required">
-                    <span class="label-icon">🏷️</span>
-                    Nombre del Sistema
-                  </label>
-                  <input
-                    type="text"
-                    v-model="systemConfig.system_name"
-                    @input="markAsChanged"
-                    placeholder="TapClic"
-                    class="form-input"
-                    required
-                  >
+                  <label class="form-label required"><span class="label-icon">🏷️</span>Nombre del Sistema</label>
+                  <input type="text" v-model="systemConfig.system_name" @input="markAsChanged" placeholder="TapClic" class="form-input" required>
                   <p class="form-help">Nombre que aparece en toda la plataforma</p>
                 </div>
-
-                <!-- Versión del Sistema -->
                 <div class="form-group">
-                  <label class="form-label required">
-                    <span class="label-icon">📦</span>
-                    Versión del Sistema
-                  </label>
-                  <input
-                    type="text"
-                    v-model="systemConfig.system_version"
-                    @input="markAsChanged"
-                    placeholder="1.0.0"
-                    class="form-input"
-                    required
-                  >
+                  <label class="form-label required"><span class="label-icon">📦</span>Versión del Sistema</label>
+                  <input type="text" v-model="systemConfig.system_version" @input="markAsChanged" placeholder="1.0.0" class="form-input" required>
                   <p class="form-help">Versión actual del software (ej: 1.2.3)</p>
                 </div>
-
-                <!-- Host del Sistema -->
                 <div class="form-group">
-                  <label class="form-label required">
-                    <span class="label-icon">🌐</span>
-                    Host del Sistema
-                  </label>
-                  <input
-                    type="url"
-                    v-model="systemConfig.system_host"
-                    @input="markAsChanged"
-                    placeholder="https://tapclic.com"
-                    class="form-input"
-                    required
-                  >
+                  <label class="form-label required"><span class="label-icon">🌐</span>Host del Sistema</label>
+                  <input type="url" v-model="systemConfig.system_host" @input="markAsChanged" placeholder="https://tapclic.com" class="form-input" required>
                   <p class="form-help">URL base de la plataforma</p>
                 </div>
-
-                <!-- Nombre de la Empresa -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">🏢</span>
-                    Nombre de la Empresa
-                  </label>
-                  <input
-                    type="text"
-                    v-model="systemConfig.company_name"
-                    @input="markAsChanged"
-                    placeholder="Nombre de la empresa"
-                    class="form-input"
-                  >
+                  <label class="form-label"><span class="label-icon">🏢</span>Nombre de la Empresa</label>
+                  <input type="text" v-model="systemConfig.company_name" @input="markAsChanged" placeholder="Nombre de la empresa" class="form-input">
                 </div>
-
-                <!-- Dirección de la Empresa -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">📍</span>
-                    Dirección de la Empresa
-                  </label>
-                  <input
-                    type="text"
-                    v-model="systemConfig.company_address"
-                    @input="markAsChanged"
-                    placeholder="Dirección completa"
-                    class="form-input"
-                  >
+                  <label class="form-label"><span class="label-icon">📍</span>Dirección de la Empresa</label>
+                  <input type="text" v-model="systemConfig.company_address" @input="markAsChanged" placeholder="Dirección completa" class="form-input">
                 </div>
               </div>
             </div>
@@ -187,10 +114,8 @@
               <h2>🖥️ Estado del Sistema</h2>
               <p>Control de operaciones del sistema</p>
             </div>
-
             <div class="section-content">
               <div class="toggle-grid">
-                <!-- Sistema Activo -->
                 <div class="toggle-item">
                   <div class="toggle-info">
                     <h4>Sistema Activo</h4>
@@ -198,13 +123,7 @@
                   </div>
                   <div class="toggle-control">
                     <label class="toggle-switch large">
-                      <input 
-                        type="checkbox" 
-                        v-model="systemConfig.system_active" 
-                        true-value="1"
-                        false-value="0"
-                        @change="markAsChanged"
-                      >
+                      <input type="checkbox" v-model="systemConfig.system_active" true-value="1" false-value="0" @change="markAsChanged">
                       <span class="toggle-slider"></span>
                     </label>
                     <span class="toggle-text" :class="systemConfig.system_active ? 'active' : 'inactive'">
@@ -212,8 +131,6 @@
                     </span>
                   </div>
                 </div>
-
-                <!-- Modo Mantenimiento -->
                 <div class="toggle-item">
                   <div class="toggle-info">
                     <h4>Modo Mantenimiento</h4>
@@ -221,13 +138,7 @@
                   </div>
                   <div class="toggle-control">
                     <label class="toggle-switch large">
-                      <input 
-                        type="checkbox" 
-                        v-model="systemConfig.maintenance_mode" 
-                        true-value="1"
-                        false-value="0"
-                        @change="markAsChanged"
-                      >
+                      <input type="checkbox" v-model="systemConfig.maintenance_mode" true-value="1" false-value="0" @change="markAsChanged">
                       <span class="toggle-slider"></span>
                     </label>
                     <span class="toggle-text" :class="systemConfig.maintenance_mode ? 'maintenance' : 'normal'">
@@ -235,8 +146,6 @@
                     </span>
                   </div>
                 </div>
-
-                <!-- Permitir Registro -->
                 <div class="toggle-item">
                   <div class="toggle-info">
                     <h4>Permitir Registro de Usuarios</h4>
@@ -244,13 +153,7 @@
                   </div>
                   <div class="toggle-control">
                     <label class="toggle-switch large">
-                      <input 
-                        type="checkbox" 
-                        v-model="systemConfig.allow_user_registration" 
-                        true-value="1"
-                        false-value="0"
-                        @change="markAsChanged"
-                      >
+                      <input type="checkbox" v-model="systemConfig.allow_user_registration" true-value="1" false-value="0" @change="markAsChanged">
                       <span class="toggle-slider"></span>
                     </label>
                     <span class="toggle-text" :class="systemConfig.allow_user_registration ? 'active' : 'inactive'">
@@ -270,151 +173,82 @@
               <h2>🎨 Apariencia</h2>
               <p>Personaliza la imagen de la plataforma</p>
             </div>
-
             <div class="section-content">
-              <!-- Logo y Favicon -->
               <div class="upload-section">
                 <h3>🖼️ Logo y Favicon</h3>
                 <div class="upload-grid">
-                  <!-- Logo -->
                   <div class="upload-card">
                     <div class="upload-header">
                       <h4>Logo del Sistema</h4>
                       <p>Se muestra en el header de la plataforma (recomendado: 200x60px)</p>
                     </div>
-                    
                     <div class="upload-area" @click="triggerLogoUpload">
                       <div class="upload-preview">
-                        <img 
-                          v-if="logoPreview || systemConfig.system_logo" 
-                          :src="getImageUrl(logoPreview || systemConfig.system_logo)" 
-                          alt="Logo preview"
-                          class="preview-image"
-                          @error="handleImageError"
-                        >
+                        <img v-if="logoPreview || systemConfig.system_logo" :src="getImageUrl(logoPreview || systemConfig.system_logo)" alt="Logo preview" class="preview-image" @error="handleImageError">
                         <div v-else class="upload-placeholder">
                           <span class="upload-icon">🖼️</span>
                           <p>Haz clic para subir logo</p>
                           <small>PNG, JPG o SVG (max 2MB)</small>
                         </div>
                       </div>
-                      <input
-                        type="file"
-                        ref="logoInput"
-                        @change="handleLogoUpload"
-                        accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                        class="hidden-input"
-                      />
+                      <input type="file" ref="logoInput" @change="handleLogoUpload" accept="image/png,image/jpeg,image/jpg,image/svg+xml" class="hidden-input">
                     </div>
-
                     <div v-if="logoFile" class="upload-controls">
                       <div class="file-info">
                         <span class="file-name">{{ logoFile.name }}</span>
                         <span class="file-size">{{ formatFileSize(logoFile.size) }}</span>
                       </div>
                       <div class="upload-actions">
-                        <button class="btn-cancel" @click="cancelLogoUpload">
-                          Cancelar
-                        </button>
-                        <button 
-                          class="btn-upload" 
-                          @click="uploadFile('logo')"
-                          :disabled="uploadingLogo"
-                        >
-                          {{ uploadingLogo ? 'Subiendo...' : 'Subir Logo' }}
-                        </button>
+                        <button class="btn-cancel" @click="cancelLogoUpload">Cancelar</button>
+                        <button class="btn-upload" @click="uploadFile('logo')" :disabled="uploadingLogo">{{ uploadingLogo ? 'Subiendo...' : 'Subir Logo' }}</button>
                       </div>
                     </div>
-                    
                     <div v-else-if="systemConfig.system_logo" class="current-file">
                       <p><strong>Logo actual:</strong> {{ getFileName(systemConfig.system_logo) }}</p>
-                      <button class="btn-remove" @click="removeLogo" title="Eliminar logo">
-                        🗑️ Eliminar
-                      </button>
+                      <button class="btn-remove" @click="removeLogo" title="Eliminar logo">🗑️ Eliminar</button>
                     </div>
                   </div>
-
-                  <!-- Favicon -->
                   <div class="upload-card">
                     <div class="upload-header">
                       <h4>Favicon</h4>
                       <p>Icono que aparece en la pestaña del navegador (32x32px)</p>
                     </div>
-                    
                     <div class="upload-area" @click="triggerFaviconUpload">
                       <div class="upload-preview favicon-preview">
-                        <img 
-                          v-if="faviconPreview || systemConfig.system_favicon" 
-                          :src="getImageUrl(faviconPreview || systemConfig.system_favicon)" 
-                          alt="Favicon preview"
-                          class="preview-image"
-                          @error="handleImageError"
-                        >
+                        <img v-if="faviconPreview || systemConfig.system_favicon" :src="getImageUrl(faviconPreview || systemConfig.system_favicon)" alt="Favicon preview" class="preview-image" @error="handleImageError">
                         <div v-else class="upload-placeholder">
                           <span class="upload-icon">📌</span>
                           <p>Haz clic para subir favicon</p>
                           <small>PNG o ICO (32x32px)</small>
                         </div>
                       </div>
-                      <input
-                        type="file"
-                        ref="faviconInput"
-                        @change="handleFaviconUpload"
-                        accept="image/png,image/x-icon"
-                        class="hidden-input"
-                      />
+                      <input type="file" ref="faviconInput" @change="handleFaviconUpload" accept="image/png,image/x-icon" class="hidden-input">
                     </div>
-
                     <div v-if="faviconFile" class="upload-controls">
                       <div class="file-info">
                         <span class="file-name">{{ faviconFile.name }}</span>
                         <span class="file-size">{{ formatFileSize(faviconFile.size) }}</span>
                       </div>
                       <div class="upload-actions">
-                        <button class="btn-cancel" @click="cancelFaviconUpload">
-                          Cancelar
-                        </button>
-                        <button 
-                          class="btn-upload" 
-                          @click="uploadFile('favicon')"
-                          :disabled="uploadingFavicon"
-                        >
-                          {{ uploadingFavicon ? 'Subiendo...' : 'Subir Favicon' }}
-                        </button>
+                        <button class="btn-cancel" @click="cancelFaviconUpload">Cancelar</button>
+                        <button class="btn-upload" @click="uploadFile('favicon')" :disabled="uploadingFavicon">{{ uploadingFavicon ? 'Subiendo...' : 'Subir Favicon' }}</button>
                       </div>
                     </div>
-                    
                     <div v-else-if="systemConfig.system_favicon" class="current-file">
                       <p><strong>Favicon actual:</strong> {{ getFileName(systemConfig.system_favicon) }}</p>
-                      <button class="btn-remove" @click="removeFavicon" title="Eliminar favicon">
-                        🗑️ Eliminar
-                      </button>
+                      <button class="btn-remove" @click="removeFavicon" title="Eliminar favicon">🗑️ Eliminar</button>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <!-- Color del Tema -->
               <div class="theme-section">
                 <h3>🎨 Color del Tema</h3>
                 <div class="theme-control">
                   <label class="theme-label">
                     Color Principal
                     <div class="color-picker">
-                      <input 
-                        type="color" 
-                        v-model="systemConfig.theme_color"
-                        @change="markAsChanged"
-                        class="color-input"
-                      >
-                      <input
-                        type="text"
-                        v-model="systemConfig.theme_color"
-                        @input="markAsChanged"
-                        placeholder="#409EFF"
-                        class="color-text"
-                        pattern="^#[0-9A-Fa-f]{6}$"
-                      >
+                      <input type="color" v-model="systemConfig.theme_color" @change="markAsChanged" class="color-input">
+                      <input type="text" v-model="systemConfig.theme_color" @input="markAsChanged" placeholder="#409EFF" class="color-text" pattern="^#[0-9A-Fa-f]{6}$">
                     </div>
                   </label>
                   <div class="color-preview-area">
@@ -440,20 +274,11 @@
               <h2>🌍 Configuración Regional</h2>
               <p>Ajustes de idioma, moneda y zona horaria</p>
             </div>
-
             <div class="section-content">
               <div class="form-grid">
-                <!-- Idioma por defecto -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">🌎</span>
-                    Idioma por Defecto
-                  </label>
-                  <select
-                    v-model="systemConfig.default_language"
-                    @change="markAsChanged"
-                    class="form-select"
-                  >
+                  <label class="form-label"><span class="label-icon">🌎</span>Idioma por Defecto</label>
+                  <select v-model="systemConfig.default_language" @change="markAsChanged" class="form-select">
                     <option value="es">Español</option>
                     <option value="en">English</option>
                     <option value="pt">Português</option>
@@ -461,18 +286,9 @@
                   </select>
                   <p class="form-help">Idioma principal de la plataforma</p>
                 </div>
-
-                <!-- Zona horaria -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">🕐</span>
-                    Zona Horaria
-                  </label>
-                  <select
-                    v-model="systemConfig.timezone"
-                    @change="markAsChanged"
-                    class="form-select"
-                  >
+                  <label class="form-label"><span class="label-icon">🕐</span>Zona Horaria</label>
+                  <select v-model="systemConfig.timezone" @change="markAsChanged" class="form-select">
                     <option value="America/Caracas">America/Caracas (Venezuela)</option>
                     <option value="America/Bogota">America/Bogota (Colombia)</option>
                     <option value="America/Mexico_City">America/Mexico_City (México)</option>
@@ -482,18 +298,9 @@
                     <option value="UTC">UTC</option>
                   </select>
                 </div>
-
-                <!-- Moneda -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">💰</span>
-                    Moneda
-                  </label>
-                  <select
-                    v-model="systemConfig.currency"
-                    @change="markAsChanged"
-                    class="form-select"
-                  >
+                  <label class="form-label"><span class="label-icon">💰</span>Moneda</label>
+                  <select v-model="systemConfig.currency" @change="markAsChanged" class="form-select">
                     <option value="USD">USD - Dólar Americano</option>
                     <option value="EUR">EUR - Euro</option>
                     <option value="COP">COP - Peso Colombiano</option>
@@ -506,66 +313,29 @@
                   </select>
                   <p class="form-help">Moneda para precios y pagos</p>
                 </div>
-
-                <!-- Items por página -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">📄</span>
-                    Items por Página
-                  </label>
-                  <input
-                    type="number"
-                    v-model.number="systemConfig.items_per_page"
-                    @input="markAsChanged"
-                    min="5"
-                    max="100"
-                    step="5"
-                    class="form-input"
-                  >
+                  <label class="form-label"><span class="label-icon">📄</span>Items por Página</label>
+                  <input type="number" v-model.number="systemConfig.items_per_page" @input="markAsChanged" min="5" max="100" step="5" class="form-input">
                   <p class="form-help">Número de items mostrados en listas (5-100)</p>
                 </div>
               </div>
             </div>
           </div>
-
-          <!-- Contacto -->
           <div class="section-card">
             <div class="section-header">
               <h2>📞 Información de Contacto</h2>
               <p>Datos de contacto para soporte</p>
             </div>
-
             <div class="section-content">
               <div class="form-grid">
-                <!-- Email de soporte -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">✉️</span>
-                    Email de Soporte
-                  </label>
-                  <input
-                    type="email"
-                    v-model="systemConfig.support_email"
-                    @input="markAsChanged"
-                    placeholder="soporte@tapclic.com"
-                    class="form-input"
-                  >
+                  <label class="form-label"><span class="label-icon">✉️</span>Email de Soporte</label>
+                  <input type="email" v-model="systemConfig.support_email" @input="markAsChanged" placeholder="soporte@tapclic.com" class="form-input">
                   <p class="form-help">Email para contacto y soporte técnico</p>
                 </div>
-
-                <!-- Teléfono de soporte -->
                 <div class="form-group">
-                  <label class="form-label">
-                    <span class="label-icon">📞</span>
-                    Teléfono de Soporte
-                  </label>
-                  <input
-                    type="tel"
-                    v-model="systemConfig.support_phone"
-                    @input="markAsChanged"
-                    placeholder="+58 412 1234567"
-                    class="form-input"
-                  >
+                  <label class="form-label"><span class="label-icon">📞</span>Teléfono de Soporte</label>
+                  <input type="tel" v-model="systemConfig.support_phone" @input="markAsChanged" placeholder="+58 412 1234567" class="form-input">
                   <p class="form-help">Teléfono para contacto y soporte</p>
                 </div>
               </div>
@@ -580,222 +350,120 @@
               <h2>🔒 Seguridad</h2>
               <p>Configuración de seguridad del sistema</p>
             </div>
-
             <div class="section-content">
               <div class="security-grid">
-                <!-- Intentos máximos de login -->
                 <div class="security-item">
-                  <label class="security-label">
-                    <span class="label-icon">🔐</span>
-                    Intentos Máximos de Login
-                  </label>
+                  <label class="security-label"><span class="label-icon">🔐</span>Intentos Máximos de Login</label>
                   <div class="security-control">
-                    <input
-                      type="number"
-                      v-model.number="systemConfig.max_login_attempts"
-                      @input="markAsChanged"
-                      min="1"
-                      max="10"
-                      class="security-input"
-                    >
+                    <input type="number" v-model.number="systemConfig.max_login_attempts" @input="markAsChanged" min="1" max="10" class="security-input">
                     <span class="security-unit">intentos</span>
                   </div>
                   <p class="security-help">Intentos fallidos antes de bloquear la cuenta (1-10)</p>
                 </div>
-
-                <!-- Tiempo de sesión -->
                 <div class="security-item">
-                  <label class="security-label">
-                    <span class="label-icon">⏱️</span>
-                    Tiempo de Sesión
-                  </label>
+                  <label class="security-label"><span class="label-icon">⏱️</span>Tiempo de Sesión</label>
                   <div class="security-control">
-                    <input
-                      type="number"
-                      v-model.number="systemConfig.session_timeout_minutes"
-                      @input="markAsChanged"
-                      min="5"
-                      max="1440"
-                      class="security-input"
-                    >
+                    <input type="number" v-model.number="systemConfig.session_timeout_minutes" @input="markAsChanged" min="5" max="1440" class="security-input">
                     <span class="security-unit">minutos</span>
                   </div>
                   <p class="security-help">Tiempo antes de expirar la sesión inactiva (5-1440 min)</p>
                 </div>
-
-                <!-- Expiración de contraseña -->
                 <div class="security-item">
-                  <label class="security-label">
-                    <span class="label-icon">📅</span>
-                    Expiración de Contraseña
-                  </label>
+                  <label class="security-label"><span class="label-icon">📅</span>Expiración de Contraseña</label>
                   <div class="security-control">
-                    <input
-                      type="number"
-                      v-model.number="systemConfig.password_expiration_days"
-                      @input="markAsChanged"
-                      min="0"
-                      max="365"
-                      class="security-input"
-                    >
+                    <input type="number" v-model.number="systemConfig.password_expiration_days" @input="markAsChanged" min="0" max="365" class="security-input">
                     <span class="security-unit">días</span>
                   </div>
                   <p class="security-help">Días antes de requerir cambio de contraseña (0 = nunca)</p>
-                </div>
-              </div>
-
-              <!-- Configuración avanzada de seguridad -->
-              <div class="advanced-security">
-                <h3>⚙️ Configuración Avanzada</h3>
-                <div class="json-editor">
-                  <label class="json-label">
-                    Configuración Extra (JSON)
-                    <span class="json-help">Para configuraciones personalizadas adicionales</span>
-                  </label>
-                  <div class="json-container">
-                    <textarea
-                      v-model="extraJsonText"
-                      @input="updateExtraJson"
-                      placeholder='{"example": "value"}'
-                      class="json-textarea"
-                      rows="8"
-                    ></textarea>
-                    <div class="json-actions">
-                      <button class="btn-json-format" @click="formatJson">
-                        🔧 Formatear JSON
-                      </button>
-                      <span class="json-status" :class="jsonValid ? 'valid' : 'invalid'">
-                        {{ jsonValid ? '✅ JSON válido' : '❌ JSON inválido' }}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Pestaña 5: Estadísticas -->
-        <div v-if="activeTab === 'stats'" class="tab-panel">
+        <!-- ✅ Pestaña 5: Funcionalidades -->
+        <div v-if="activeTab === 'features'" class="tab-panel">
           <div class="section-card">
             <div class="section-header">
-              <h2>📊 Estadísticas del Sistema</h2>
-              <button class="btn-refresh-stats" @click="loadSystemStats" :disabled="loadingStats">
-                {{ loadingStats ? 'Actualizando...' : '🔄 Actualizar' }}
-              </button>
+              <h2>🧩 Funcionalidades del Sistema</h2>
+              <p>Activa o desactiva módulos de la plataforma</p>
             </div>
-
             <div class="section-content">
-              <!-- Estadísticas principales -->
-              <div class="stats-grid" v-if="systemStats">
-                <div class="stat-card primary">
-                  <div class="stat-icon">👥</div>
-                  <div class="stat-content">
-                    <h4>Usuarios Online</h4>
-                    <p class="stat-value">{{ systemStats.onlineUsers || 0 }}</p>
-                    <p class="stat-subtext">En los últimos 5 minutos</p>
+              <div class="toggle-grid">
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <h4>💰 Wallet / Billetera</h4>
+                    <p>Permite a los usuarios recargar saldo y pagar con wallet</p>
+                  </div>
+                  <div class="toggle-control">
+                    <label class="toggle-switch large">
+                      <input type="checkbox" v-model="systemConfig.wallet_enabled" true-value="1" false-value="0" @change="markAsChanged">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text" :class="systemConfig.wallet_enabled ? 'active' : 'inactive'">
+                      {{ systemConfig.wallet_enabled ? 'ACTIVADO' : 'DESACTIVADO' }}
+                    </span>
                   </div>
                 </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">👤</div>
-                  <div class="stat-content">
-                    <h4>Usuarios Totales</h4>
-                    <p class="stat-value">{{ systemStats.totalUsers || 0 }}</p>
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <h4>⭐ Reseñas / Calificaciones</h4>
+                    <p>Permite a los usuarios dejar reseñas después de un servicio</p>
+                  </div>
+                  <div class="toggle-control">
+                    <label class="toggle-switch large">
+                      <input type="checkbox" v-model="systemConfig.reviews_enabled" true-value="1" false-value="0" @change="markAsChanged">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text" :class="systemConfig.reviews_enabled ? 'active' : 'inactive'">
+                      {{ systemConfig.reviews_enabled ? 'ACTIVADO' : 'DESACTIVADO' }}
+                    </span>
                   </div>
                 </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">📦</div>
-                  <div class="stat-content">
-                    <h4>Órdenes Pendientes</h4>
-                    <p class="stat-value">{{ systemStats.pendingOrders || 0 }}</p>
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <h4>💬 Chat / Mensajería</h4>
+                    <p>Permite la comunicación entre usuarios y proveedores</p>
+                  </div>
+                  <div class="toggle-control">
+                    <label class="toggle-switch large">
+                      <input type="checkbox" v-model="systemConfig.chat_enabled" true-value="1" false-value="0" @change="markAsChanged">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text" :class="systemConfig.chat_enabled ? 'active' : 'inactive'">
+                      {{ systemConfig.chat_enabled ? 'ACTIVADO' : 'DESACTIVADO' }}
+                    </span>
                   </div>
                 </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">🛠️</div>
-                  <div class="stat-content">
-                    <h4>Proveedores Activos</h4>
-                    <p class="stat-value">{{ systemStats.activeProviders || 0 }}</p>
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <h4>🎫 Sistema de Tickets</h4>
+                    <p>Permite a los usuarios abrir tickets de soporte</p>
+                  </div>
+                  <div class="toggle-control">
+                    <label class="toggle-switch large">
+                      <input type="checkbox" v-model="systemConfig.tickets_enabled" true-value="1" false-value="0" @change="markAsChanged">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text" :class="systemConfig.tickets_enabled ? 'active' : 'inactive'">
+                      {{ systemConfig.tickets_enabled ? 'ACTIVADO' : 'DESACTIVADO' }}
+                    </span>
                   </div>
                 </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">💰</div>
-                  <div class="stat-content">
-                    <h4>Ingresos del Mes</h4>
-                    <p class="stat-value">${{ formatCurrency(systemStats.monthIncome || 0) }}</p>
+                <div class="toggle-item">
+                  <div class="toggle-info">
+                    <h4>📊 Panel de Analytics</h4>
+                    <p>Muestra estadísticas avanzadas en el dashboard</p>
                   </div>
-                </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">⭐</div>
-                  <div class="stat-content">
-                    <h4>Revisiones Pendientes</h4>
-                    <p class="stat-value">{{ systemStats.pendingReviews || 0 }}</p>
+                  <div class="toggle-control">
+                    <label class="toggle-switch large">
+                      <input type="checkbox" v-model="systemConfig.analytics_enabled" true-value="1" false-value="0" @change="markAsChanged">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text" :class="systemConfig.analytics_enabled ? 'active' : 'inactive'">
+                      {{ systemConfig.analytics_enabled ? 'ACTIVADO' : 'DESACTIVADO' }}
+                    </span>
                   </div>
-                </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">📋</div>
-                  <div class="stat-content">
-                    <h4>Servicios Activos</h4>
-                    <p class="stat-value">{{ systemStats.totalServices || 0 }}</p>
-                  </div>
-                </div>
-
-                <div class="stat-card">
-                  <div class="stat-icon">🔔</div>
-                  <div class="stat-content">
-                    <h4>Notificaciones</h4>
-                    <p class="stat-value">{{ systemStats.totalNotifications || 0 }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Loading para estadísticas -->
-              <div v-else class="stats-loading">
-                <div class="loading-spinner small"></div>
-                <p>Cargando estadísticas...</p>
-              </div>
-
-              <!-- Fecha de actualización -->
-              <div v-if="lastStatsUpdate" class="stats-footer">
-                <p class="update-time">
-                  📅 Actualizado: {{ formatDateTime(lastStatsUpdate) }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Información del Sistema -->
-          <div class="section-card">
-            <div class="section-header">
-              <h2>🖥️ Información del Sistema</h2>
-            </div>
-
-            <div class="section-content">
-              <div class="system-info-grid">
-                <div class="info-item">
-                  <span class="info-label">Base de Datos:</span>
-                  <span class="info-value">MariaDB</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">Backend:</span>
-                  <span class="info-value">PHP</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">Frontend:</span>
-                  <span class="info-value">Vue.js 3</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">Última Actualización:</span>
-                  <span class="info-value">{{ formatDateTime(systemConfig.updated_at) }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">Creado:</span>
-                  <span class="info-value">{{ formatDateTime(systemConfig.created_at) }}</span>
                 </div>
               </div>
             </div>
@@ -806,19 +474,11 @@
       <!-- Footer con acciones -->
       <div class="action-footer" v-if="hasChanges">
         <div class="footer-left">
-          <span class="changes-indicator">
-            ⚠️ Tienes cambios sin guardar
-          </span>
+          <span class="changes-indicator">⚠️ Tienes cambios sin guardar</span>
         </div>
         <div class="footer-right">
-          <button class="btn-discard" @click="resetChanges">
-            Descartar Cambios
-          </button>
-          <button 
-            class="btn-save" 
-            @click="saveAllSettings"
-            :disabled="saving"
-          >
+          <button class="btn-discard" @click="resetChanges">Descartar Cambios</button>
+          <button class="btn-save" @click="saveAllSettings" :disabled="saving">
             <span v-if="saving" class="save-loading"></span>
             <span v-else>💾 Guardar Configuración</span>
           </button>
@@ -829,7 +489,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/axios'
 
@@ -837,14 +497,10 @@ const authStore = useAuthStore()
 
 // Estados
 const loading = ref(true)
-const loadingStats = ref(false)
 const saving = ref(false)
 const activeTab = ref('general')
 const successMessage = ref('')
 const errorMessage = ref('')
-const lastStatsUpdate = ref(null)
-
-// Archivos
 const logoInput = ref(null)
 const faviconInput = ref(null)
 const logoFile = ref(null)
@@ -854,438 +510,152 @@ const faviconPreview = ref(null)
 const uploadingLogo = ref(false)
 const uploadingFavicon = ref(false)
 
-// Datos del sistema (EXACTAMENTE como en tu tabla)
 const systemConfig = ref({
-  id: 1,
-  system_name: 'TapClic',
-  system_host: '',
-  system_active: 1,
-  system_version: '1.0.0',
-  system_logo: '',
-  system_favicon: '',
-  default_language: 'es',
-  timezone: 'UTC',
-  currency: 'USD',
-  support_email: '',
-  support_phone: '',
-  company_name: '',
-  company_address: '',
-  maintenance_mode: 0,
-  max_login_attempts: 5,
-  password_expiration_days: 90,
-  session_timeout_minutes: 30,
-  items_per_page: 20,
-  theme_color: '#409EFF',
-  allow_user_registration: 1,
-  extra_json: '{}',
-  created_at: null,
-  updated_at: null
+  id: 1, system_name: 'TapClic', system_host: '', system_active: 1, system_version: '1.0.0',
+  system_logo: '', system_favicon: '', default_language: 'es', timezone: 'UTC', currency: 'USD',
+  support_email: '', support_phone: '', company_name: '', company_address: '',
+  maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
+  session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
+  allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
+  chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1,
+  extra_json: '{}', created_at: null, updated_at: null
 })
 
-const systemStats = ref(null)
 const originalConfig = ref({})
-const jsonValid = ref(true)
 
-// Tabs
+// ✅ Tabs - Eliminada "Estadísticas" (duplicada en DashboardAdmin), agregada "Funcionalidades"
 const tabs = [
   { id: 'general', name: 'General', icon: '⚙️' },
   { id: 'appearance', name: 'Apariencia', icon: '🎨' },
   { id: 'regional', name: 'Regional', icon: '🌍' },
   { id: 'security', name: 'Seguridad', icon: '🔒' },
-  { id: 'stats', name: 'Estadísticas', icon: '📊' }
+  { id: 'features', name: 'Funcionalidades', icon: '🧩' }
 ]
 
-// Computed
-const hasChanges = computed(() => {
-  return JSON.stringify(systemConfig.value) !== JSON.stringify(originalConfig.value) ||
-         logoFile.value || faviconFile.value
-})
+const hasChanges = computed(() =>
+  JSON.stringify(systemConfig.value) !== JSON.stringify(originalConfig.value) || logoFile.value || faviconFile.value
+)
 
-const extraJsonText = computed({
-  get() {
-    try {
-      if (!systemConfig.value.extra_json || systemConfig.value.extra_json.trim() === '') {
-        return '{}'
-      }
-      return JSON.stringify(JSON.parse(systemConfig.value.extra_json), null, 2)
-    } catch {
-      return systemConfig.value.extra_json || '{}'
-    }
-  },
-  set(value) {
-    systemConfig.value.extra_json = value
-    markAsChanged()
-  }
-})
+onMounted(loadSystemConfig)
 
-// Lifecycle
-onMounted(async () => {
-  await Promise.all([
-    loadSystemConfig(),
-    loadSystemStats()
-  ])
-})
-
-// Métodos de carga
 async function loadSystemConfig() {
   try {
     loading.value = true
     const response = await api.get('/admin/system-config', {
-      headers: { 
-        Authorization: `Bearer ${authStore.token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: { Authorization: `Bearer ${authStore.token}` }
     })
-    
-    // Asignar todos los campos desde la API
     const data = response.data
-    
-    // Convertir valores booleanos/numericos
-    const booleanFields = ['system_active', 'maintenance_mode', 'allow_user_registration']
+    const booleanFields = ['system_active', 'maintenance_mode', 'allow_user_registration', 'wallet_enabled', 'reviews_enabled', 'chat_enabled', 'tickets_enabled', 'analytics_enabled']
     const numericFields = ['max_login_attempts', 'password_expiration_days', 'session_timeout_minutes', 'items_per_page']
-    
-    booleanFields.forEach(field => {
-      if (data[field] !== undefined) {
-        data[field] = data[field] ? 1 : 0
-      }
-    })
-    
-    numericFields.forEach(field => {
-      if (data[field] !== undefined) {
-        data[field] = parseInt(data[field]) || 0
-      }
-    })
-    
-    // Asegurar extra_json es string JSON válido
-    if (data.extra_json && typeof data.extra_json === 'object') {
-      data.extra_json = JSON.stringify(data.extra_json)
-    } else if (!data.extra_json || data.extra_json.trim() === '') {
-      data.extra_json = '{}'
-    }
-    
+    booleanFields.forEach(f => { if (data[f] !== undefined) data[f] = data[f] ? 1 : 0 })
+    numericFields.forEach(f => { if (data[f] !== undefined) data[f] = parseInt(data[f]) || 0 })
+    if (data.extra_json && typeof data.extra_json === 'object') data.extra_json = JSON.stringify(data.extra_json)
+    else if (!data.extra_json || data.extra_json.trim() === '') data.extra_json = '{}'
     Object.assign(systemConfig.value, data)
     originalConfig.value = JSON.parse(JSON.stringify(systemConfig.value))
-    
   } catch (error) {
-    console.error('Error cargando configuración:', error)
     showError('Error al cargar la configuración del sistema')
   } finally {
     loading.value = false
   }
 }
 
-async function loadSystemStats() {
-  try {
-    loadingStats.value = true
-    const response = await api.get('/admin/stats', {
-      headers: { 
-        Authorization: `Bearer ${authStore.token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    systemStats.value = response.data
-    lastStatsUpdate.value = new Date()
-    
-  } catch (error) {
-    console.error('Error cargando estadísticas:', error)
-    showError('Error al cargar estadísticas')
-  } finally {
-    loadingStats.value = false
-  }
-}
-
-// Manejo de cambios
-function markAsChanged() {
-  // La propiedad computed hasChanges se actualiza automáticamente
-}
-
+function markAsChanged() {}
 function resetChanges() {
   if (confirm('¿Descartar todos los cambios?')) {
     systemConfig.value = JSON.parse(JSON.stringify(originalConfig.value))
-    logoFile.value = null
-    faviconFile.value = null
-    logoPreview.value = null
-    faviconPreview.value = null
+    logoFile.value = null; faviconFile.value = null; logoPreview.value = null; faviconPreview.value = null
   }
 }
-
 function resetToDefaults() {
-  if (confirm('¿Restaurar todos los valores por defecto? Se perderán los cambios no guardados.')) {
-    systemConfig.value = {
-      ...systemConfig.value,
-      system_name: 'TapClic',
-      system_host: '',
-      system_active: 1,
-      system_version: '1.0.0',
-      system_logo: '',
-      system_favicon: '',
-      default_language: 'es',
-      timezone: 'UTC',
-      currency: 'USD',
-      support_email: '',
-      support_phone: '',
-      company_name: '',
-      company_address: '',
-      maintenance_mode: 0,
-      max_login_attempts: 5,
-      password_expiration_days: 90,
-      session_timeout_minutes: 30,
-      items_per_page: 20,
-      theme_color: '#409EFF',
-      allow_user_registration: 1,
-      extra_json: '{}'
-    }
+  if (confirm('¿Restaurar todos los valores por defecto?')) {
+    Object.assign(systemConfig.value, {
+      system_name: 'TapClic', system_host: '', system_active: 1, system_version: '1.0.0',
+      system_logo: '', system_favicon: '', default_language: 'es', timezone: 'UTC', currency: 'USD',
+      support_email: '', support_phone: '', company_name: '', company_address: '',
+      maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
+      session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
+      allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
+      chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1, extra_json: '{}'
+    })
     markAsChanged()
   }
 }
 
-// Manejo de archivos
-function triggerLogoUpload() {
-  logoInput.value.click()
-}
+function triggerLogoUpload() { logoInput.value.click() }
+function triggerFaviconUpload() { faviconInput.value.click() }
 
-function triggerFaviconUpload() {
-  faviconInput.value.click()
-}
-
-function handleLogoUpload(event) {
+function handleFileUpload(event, type) {
   const file = event.target.files[0]
-  if (!file) return
-  
-  if (!validateImageFile(file)) return
-  
-  logoFile.value = file
-  
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    logoPreview.value = e.target.result
-  }
-  reader.readAsDataURL(file)
-  
+  if (!file || !validateImageFile(file)) return
+  if (type === 'logo') { logoFile.value = file; readPreview(file, 'logo') }
+  else { faviconFile.value = file; readPreview(file, 'favicon') }
   markAsChanged()
 }
+function handleLogoUpload(e) { handleFileUpload(e, 'logo') }
+function handleFaviconUpload(e) { handleFileUpload(e, 'favicon') }
 
-function handleFaviconUpload(event) {
-  const file = event.target.files[0]
-  if (!file) return
-  
-  if (!validateImageFile(file)) return
-  
-  faviconFile.value = file
-  
+function readPreview(file, type) {
   const reader = new FileReader()
-  reader.onload = (e) => {
-    faviconPreview.value = e.target.result
-  }
+  reader.onload = (e) => { if (type === 'logo') logoPreview.value = e.target.result; else faviconPreview.value = e.target.result }
   reader.readAsDataURL(file)
-  
-  markAsChanged()
 }
-
 function validateImageFile(file) {
-  // Validar tamaño (2MB máximo)
-  if (file.size > 2 * 1024 * 1024) {
-    showError('La imagen no debe superar 2MB')
-    return false
-  }
-  
-  // Validar tipo
-  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon']
-  if (!validTypes.includes(file.type)) {
-    showError('Formato de imagen no válido. Use PNG, JPG o SVG')
-    return false
-  }
-  
+  if (file.size > 2 * 1024 * 1024) { showError('La imagen no debe superar 2MB'); return false }
   return true
 }
-
-function cancelLogoUpload() {
-  logoFile.value = null
-  logoPreview.value = null
-  logoInput.value.value = ''
-}
-
-function cancelFaviconUpload() {
-  faviconFile.value = null
-  faviconPreview.value = null
-  faviconInput.value.value = ''
-}
+function cancelLogoUpload() { logoFile.value = null; logoPreview.value = null; logoInput.value.value = '' }
+function cancelFaviconUpload() { faviconFile.value = null; faviconPreview.value = null; faviconInput.value.value = '' }
 
 async function uploadFile(type) {
   const file = type === 'logo' ? logoFile.value : faviconFile.value
   const endpoint = type === 'logo' ? '/admin/upload-logo' : '/admin/upload-favicon'
   const uploadingRef = type === 'logo' ? uploadingLogo : uploadingFavicon
-  const configKey = type === 'logo' ? 'system_logo' : 'system_favicon'
-  
   if (!file) return
-  
   try {
     uploadingRef.value = true
-    
-    const formData = new FormData()
-    formData.append('file', file)
-    
-    const response = await api.post(endpoint, formData, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    })
-    
-    // Actualizar URL en la configuración
-    systemConfig.value[configKey] = response.data.url
-    
-    // Limpiar archivo temporal
-    if (type === 'logo') {
-      cancelLogoUpload()
-    } else {
-      cancelFaviconUpload()
-    }
-    
+    const formData = new FormData(); formData.append('file', file)
+    const response = await api.post(endpoint, formData, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    systemConfig.value[type === 'logo' ? 'system_logo' : 'system_favicon'] = response.data.url
+    if (type === 'logo') cancelLogoUpload(); else cancelFaviconUpload()
     showSuccess(`${type === 'logo' ? 'Logo' : 'Favicon'} actualizado correctamente`)
-    
   } catch (error) {
-    console.error(`Error subiendo ${type}:`, error.response || error)
-    showError(`Error al subir ${type === 'logo' ? 'el logo' : 'el favicon'}: ${error.response?.data?.error || error.message}`)
-  } finally {
-    uploadingRef.value = false
-  }
+    showError(`Error al subir: ${error.response?.data?.error || error.message}`)
+  } finally { uploadingRef.value = false }
 }
 
-function removeLogo() {
-  if (confirm('¿Eliminar el logo actual?')) {
-    systemConfig.value.system_logo = ''
-    markAsChanged()
-  }
-}
+function removeLogo() { if (confirm('¿Eliminar logo?')) { systemConfig.value.system_logo = ''; markAsChanged() } }
+function removeFavicon() { if (confirm('¿Eliminar favicon?')) { systemConfig.value.system_favicon = ''; markAsChanged() } }
 
-function removeFavicon() {
-  if (confirm('¿Eliminar el favicon actual?')) {
-    systemConfig.value.system_favicon = ''
-    markAsChanged()
-  }
-}
-
-// Guardar configuración
 async function saveAllSettings() {
   try {
     saving.value = true
-    
-    // Preparar datos para enviar
-    const configData = { ...systemConfig.value }
-    
-    // Validar JSON extra
-    try {
-      if (configData.extra_json && configData.extra_json.trim() !== '') {
-        JSON.parse(configData.extra_json)
-      }
-    } catch (e) {
-      showError('El JSON extra no es válido. Corríjalo antes de guardar.')
-      saving.value = false
-      return
-    }
-    
-    // Enviar a la API
-    const response = await api.put('/admin/system-config', configData, {
-      headers: { 
-        Authorization: `Bearer ${authStore.token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    // Actualizar estado local
+    await api.put('/admin/system-config', { ...systemConfig.value }, { headers: { Authorization: `Bearer ${authStore.token}` } })
     originalConfig.value = JSON.parse(JSON.stringify(systemConfig.value))
-    
     showSuccess('Configuración guardada correctamente')
-    
-    // Recargar estadísticas después de guardar
-    await loadSystemStats()
-    
   } catch (error) {
-    console.error('Error guardando configuración:', error.response || error)
     showError(`Error al guardar: ${error.response?.data?.error || error.message}`)
-  } finally {
-    saving.value = false
-  }
-}
-
-// JSON handling
-function updateExtraJson(event) {
-  systemConfig.value.extra_json = event.target.value
-  try {
-    JSON.parse(event.target.value || '{}')
-    jsonValid.value = true
-  } catch {
-    jsonValid.value = false
-  }
-  markAsChanged()
-}
-
-function formatJson() {
-  try {
-    const parsed = JSON.parse(systemConfig.value.extra_json || '{}')
-    systemConfig.value.extra_json = JSON.stringify(parsed, null, 2)
-    jsonValid.value = true
-    markAsChanged()
-  } catch (e) {
-    showError('No se puede formatear: JSON inválido')
-  }
-}
-
-// Utilidades
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount)
-}
-
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-function formatDateTime(dateString) {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  } finally { saving.value = false }
 }
 
 function getImageUrl(path) {
   if (!path) return ''
-  if (path.startsWith('http')) return path
+  if (path.startsWith('http') || path.startsWith('blob:')) return path
   if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
   return `${import.meta.env.VITE_API_URL}/logos/${path}`
 }
-
-function getFileName(path) {
-  if (!path) return ''
-  return path.split('/').pop() || path
+function getFileName(path) { return path ? path.split('/').pop() || path : '' }
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
-
-function handleImageError(event) {
-  event.target.src = '/img/default-image.png'
-}
-
-function showSuccess(message) {
-  successMessage.value = message
-  setTimeout(() => successMessage.value = '', 5000)
-}
-
-function showError(message) {
-  errorMessage.value = message
-  setTimeout(() => errorMessage.value = '', 8000)
-}
+function handleImageError(e) { e.target.src = '/img/default-image.png' }
+function showSuccess(msg) { successMessage.value = msg; setTimeout(() => successMessage.value = '', 5000) }
+function showError(msg) { errorMessage.value = msg; setTimeout(() => errorMessage.value = '', 8000) }
 </script>
+
 
 <style scoped>
 /* Estilos CSS completos - Mantengo los que ya tenía y agrego los nuevos */

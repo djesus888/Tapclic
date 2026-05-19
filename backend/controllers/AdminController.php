@@ -908,7 +908,7 @@ public function getAnalyticsOverview(): void
             AND u.active = 1
             AND (s.created_at BETWEEN ? AND ? OR r.created_at BETWEEN ? AND ?)
             GROUP BY u.id
-            ORDER BY request_count DESC
+/            ORDER BY request_count DESC
             LIMIT 10
         ");
         $providersStmt->execute([
@@ -1833,13 +1833,14 @@ public function getAnalyticsOverview(): void
     {
         $this->requireAdmin();
         $input = json_decode(file_get_contents('php://input'), true);
-        $fields = [
-            'system_name','system_host','company_name','company_address',
-            'support_email','support_phone','default_language','timezone','currency',
-            'theme_color','items_per_page','max_login_attempts','session_timeout_minutes',
-            'password_expiration_days','system_active','maintenance_mode','allow_user_registration',
-            'system_logo','system_favicon'
-        ];
+       $fields = [
+    'system_name','system_host','company_name','company_address',
+    'support_email','support_phone','default_language','timezone','currency',
+    'theme_color','items_per_page','max_login_attempts','session_timeout_minutes',
+    'password_expiration_days','system_active','maintenance_mode','allow_user_registration',
+    'wallet_enabled','reviews_enabled','chat_enabled','tickets_enabled','analytics_enabled',
+    'system_logo','system_favicon'
+];
         $sets = implode(' = ?, ', $fields) . ' = ?';
         $values = array_map(fn($f) => $input[$f] ?? null, $fields);
         $values[] = 1; // WHERE id = 1

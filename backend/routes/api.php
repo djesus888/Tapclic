@@ -240,6 +240,16 @@ if (preg_match('~/api/login~', $request)) {
         (new AdminController())->updateSecurityConfig();
     }
 
+
+// --- RUTAS ADMIN (CONFIGURACIÓN DEL SISTEMA) ---
+} elseif (preg_match('~/api/admin/system-config~', $request)) {
+    if ($method === 'GET') {
+        (new AdminController())->getSystemConfig();
+    } elseif ($method === 'PUT') {
+        (new AdminController())->updateSystemConfig();
+    }
+
+
 // --- RUTAS DEL SISTEMA ---
 } elseif (preg_match('~/api/system$~', $request)) {
     (new SystemController())->handle($method);

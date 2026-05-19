@@ -9,8 +9,12 @@
     "service_created": "{user} creó un nuevo servicio",
     "services": "Servicios",
     "status": "Estado",
-    "support_ticket_opened": "Nuevo ticket de soporte abierto"
-  },
+    "support_ticket_opened": "Nuevo ticket de soporte abierto",
+    "user_created": "{user} se registró en la plataforma",
+    "request_created": "{user} solicitó '{service}'",
+    "payment_completed": "{user} completó el pago de '{service}'",
+    "review_created": "{user} dejó una reseña"
+},
   "addComments": "Agregar comentarios",
   "addService": "Agregar servicio",
   "adminDashboard": "Panel de Admin",
@@ -263,11 +267,16 @@
       "zelleEmail": "ejemplo@gmail.com"
     },
     "stats": {
-      "activeGateways": "Pasarelas Activas",
-      "successRate": "Tasa de Éxito",
-      "totalCollected": "Total Recaudado",
-      "transactions": "Transacciones"
-    },
+    "users": "Usuarios",
+    "onlineUsers": "En línea",
+    "pendingOrders": "Pedidos pendientes",
+    "activeProviders": "Proveedores activos",
+    "monthIncome": "Ingresos del mes",
+    "pendingReviews": "Reseñas pendientes",
+    "services": "Servicios",
+    "notifications": "Notificaciones",
+    "settings": "Configuraciones"
+},
     "subtitle": "Configura y gestiona los métodos de pago de la plataforma",
     "title": "Pasarelas de Pago",
     "transactions": "Transacciones",

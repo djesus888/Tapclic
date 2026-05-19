@@ -93,7 +93,7 @@
           </div>
 
           <!-- Conversaciones -->
-          <div class="action-btn-container">
+          <div class="action-btn-container" v-if="systemStore.chatEnabled">
             <button
               aria-label="Ver conversaciones"
               :aria-expanded="activePanel === 'conversations'"
@@ -256,7 +256,7 @@
     <!-- ========== PANEL DE CONVERSACIONES MEJORADO ========== -->
     <transition name="slide-panel">
       <div
-        v-if="activePanel === 'conversations'"
+        v-if="activePanel === 'conversations' && systemStore.chatEnabled"
         class="right-panel"
         role="dialog"
         aria-label="Panel de conversaciones"
@@ -397,7 +397,7 @@
           <!-- Menú para Usuario -->
           <template v-if="authStore.user?.role === 'user'">
             <RouterLink
-              v-for="item in userMenuItems"
+              v-for="item in filteredUserMenu"
               :key="item.to"
               :to="item.to"
               class="menu-item"
@@ -412,7 +412,7 @@
           <!-- Menú para Proveedor -->
           <template v-else-if="authStore.user?.role === 'provider'">
             <RouterLink
-              v-for="item in providerMenuItems"
+              v-for="item in filteredProviderMenu"
               :key="item.to"
               :to="item.to"
               class="menu-item"
@@ -427,7 +427,7 @@
           <!-- Menú para Admin -->
           <template v-else-if="authStore.user?.role === 'admin'">
             <RouterLink
-              v-for="item in adminMenuItems"
+              v-for="item in filteredAdminMenu"
               :key="item.to"
               :to="item.to"
               class="menu-item"
@@ -485,6 +485,7 @@ import { useConversationStore } from '@/stores/conversationStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useNotificationCacheStore } from '@/stores/notificationCacheStore'
 import { useSocketStore } from '@/stores/socketStore'
+import { useSystemStore } from '@/stores/systemStore'
 import { formatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import NotificationModal from '@/layouts/NotificationModal.vue'
@@ -497,12 +498,14 @@ const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const conversationStore = useConversationStore()
 const socketStore = useSocketStore()
+const systemStore = useSystemStore()
 const router = useRouter()
 const { locale, t } = useI18n()
 const cache = useNotificationCacheStore()
 
 onMounted(() => {
   notificationStore.initialize()
+  systemStore.fetchConfig()
 })
 
 const showUserPanel = ref(false)
@@ -521,10 +524,10 @@ const userMenuItems = [
   { to: '/', label: 'home', icon: '🏠' },
   { to: '/requests', label: 'requests', icon: '📨' },
   { to: '/orders', label: 'myOrders', icon: '📦' },
-  { to: '/chats', label: 'chats', icon: '💬' },
+  { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '👤' },
-  { to: '/reviews', label: 'reviews', icon: '⭐' },
-  { to: '/wallet', label: 'wallet', icon: '💰' },
+  { to: '/reviews', label: 'reviews', icon: '⭐', feature: 'reviews' },
+  { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
   { to: '/config', label: 'settings', icon: '⚙️' }
 ]
 
@@ -536,10 +539,10 @@ const providerMenuItems = [
   { to: '/services/new', label: 'addService', icon: '➕' },
   { to: '/payment', label: 'payment_method', icon: '💳' },
   { to: '/earnings', label: 'myEarnings', icon: '📈' },
-  { to: '/chats', label: 'chats', icon: '💬' },
+  { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '🛡️' },
-  { to: '/reviews', label: 'reviews', icon: '⭐' },
-  { to: '/wallet', label: 'wallet', icon: '💰' },
+  { to: '/reviews', label: 'reviews', icon: '⭐', feature: 'reviews' },
+  { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
   { to: '/config', label: 'settings', icon: '⚙️' }
 ]
 
@@ -555,14 +558,30 @@ const adminMenuItems = [
   { to: '/admin/security', label: 'security', icon: '🔒' },
   { to: '/admin/backups', label: 'backups', icon: '💾' },
   { to: '/admin/logs', label: 'systemLogs', icon: '📋' },
-  { to: '/admin/analytics', label: 'analytics', icon: '📈' },
-  { to: '/admin/adminwallet', label: 'Admin Wallet', icon: '💰' },
+  { to: '/admin/analytics', label: 'analytics', icon: '📈', feature: 'analytics' },
+  { to: '/admin/adminwallet', label: 'Admin Wallet', icon: '💰', feature: 'wallet' },
   { to: '/admin/system-config', label: 'serverConfig', icon: '🌐' },
-  { to: '/chats', label: 'chats', icon: '💬' },
+  { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '👤' },
-  { to: '/wallet', label: 'wallet', icon: '💰' },
+  { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
   { to: '/config', label: 'settings', icon: '🔧' }
 ]
+
+// ✅ Menús filtrados por features
+const filteredUserMenu = computed(() => userMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
+const filteredProviderMenu = computed(() => providerMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
+const filteredAdminMenu = computed(() => adminMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
+
+function isFeatureEnabled(feature) {
+  switch (feature) {
+    case 'wallet': return systemStore.walletEnabled
+    case 'reviews': return systemStore.reviewsEnabled
+    case 'chat': return systemStore.chatEnabled
+    case 'tickets': return systemStore.ticketsEnabled
+    case 'analytics': return systemStore.analyticsEnabled
+    default: return true
+  }
+}
 
 const isAnyPanelOpen = computed(() => activePanel.value || showUserPanel.value)
 
@@ -571,7 +590,6 @@ const toggleUserPanel = () => {
   activePanel.value = null
 }
 
-// ✅ CORREGIDO: No marcar como leídas al abrir el panel, solo al hacer clic en "Marcar todas"
 const togglePanel = (panel) => {
   activePanel.value = activePanel.value === panel ? null : panel
   showUserPanel.value = false
@@ -608,7 +626,6 @@ const sanitizeMessage = (message) => {
   return DOMPurify.sanitize(message, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'span'] })
 }
 
-// ✅ CORREGIDO: Usar nextTick para esperar que el DOM se actualice después del cambio de estado
 const markAllAsRead = async () => {
   if (markingAllAsRead.value) return
 
@@ -627,15 +644,11 @@ const markAllAsRead = async () => {
       return
     }
 
-    // ✅ CORREGIDO: Marcar primero en BD, luego actualizar store
     await api.post('/notifications/read-all', {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    // ✅ CORREGIDO: Mutar los elementos sin reemplazar el array
     notificationStore.markAllAsRead()
-
-    // ✅ CORREGIDO: Esperar a que Vue procese la reactividad antes de cualquier otra operación
     await nextTick()
 
     try {
@@ -651,7 +664,6 @@ const markAllAsRead = async () => {
   } catch (error) {
     console.error('❌ Error al marcar todas como leídas:', error)
   } finally {
-    // ✅ CORREGIDO: Esperar al nextTick antes de liberar el botón
     await nextTick()
     markingAllAsRead.value = false
   }
