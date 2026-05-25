@@ -62,12 +62,13 @@
 <script>
 
 export default {
+  emits: ["on-open-change"],
   name: 'HistoryDetailsModal',
   props: {
     isOpen: { type: Boolean, required: true },
     item: {
       type: Object,
-      required: true,
+      required: false,
       default: () => ({ title: '', description: '', providerName: '', date: '', status: '', paymentMethod: '', price: 0 })
     }
   },

@@ -28,7 +28,10 @@ export default [
         URL: 'readonly',
         CustomEvent: 'readonly',
         Blob: 'readonly',
-        getImageUrl: 'readonly'
+        getImageUrl: 'readonly',
+        format: 'readonly',
+        es: 'readonly',
+        URLSearchParams: 'readonly'
       }
     },
     rules: {

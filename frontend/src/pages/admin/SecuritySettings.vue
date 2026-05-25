@@ -2,8 +2,11 @@
 <template>
   <div class="admin-security">
     <!-- Loading State -->
-    <div v-if="loading" class="loading-overlay">
-      <div class="loading-spinner"></div>
+    <div
+      v-if="loading"
+      class="loading-overlay"
+    >
+      <div class="loading-spinner" />
       <p>Cargando configuración de seguridad...</p>
     </div>
 
@@ -15,34 +18,60 @@
             <span class="title-icon">🔒</span>
             Seguridad del Sistema
           </h1>
-          <p class="page-subtitle">Protege tu plataforma TapClic</p>
+          <p class="page-subtitle">
+            Protege tu plataforma TapClic
+          </p>
         </div>
         
         <div class="header-actions">
-          <div class="security-score" :class="getSecurityScoreClass(securityScore)">
+          <div
+            class="security-score"
+            :class="getSecurityScoreClass(securityScore)"
+          >
             <span class="score-label">Puntuación:</span>
             <span class="score-value">{{ securityScore }}/100</span>
           </div>
-          <button class="btn-scan" @click="runSecurityScan" :disabled="scanning">
-            <span v-if="scanning" class="scan-loading"></span>
+          <button
+            class="btn-scan"
+            :disabled="scanning"
+            @click="runSecurityScan"
+          >
+            <span
+              v-if="scanning"
+              class="scan-loading"
+            />
             <span v-else>🔍 Escanear Seguridad</span>
           </button>
         </div>
       </div>
 
       <!-- Alertas de seguridad -->
-      <div v-if="securityAlerts.length > 0" class="security-alerts">
+      <div
+        v-if="securityAlerts.length > 0"
+        class="security-alerts"
+      >
         <div class="alert-header">
           <span class="alert-icon">⚠️</span>
           <h3>Alertas de Seguridad ({{ securityAlerts.length }})</h3>
         </div>
         <div class="alert-list">
-          <div v-for="alert in securityAlerts" :key="alert.id" class="alert-item" :class="alert.level">
+          <div
+            v-for="alert in securityAlerts"
+            :key="alert.id"
+            class="alert-item"
+            :class="alert.level"
+          >
             <div class="alert-content">
               <h4>{{ alert.title }}</h4>
               <p>{{ alert.description }}</p>
-              <div class="alert-actions" v-if="alert.action">
-                <button class="btn-fix" @click="executeFix(alert)">
+              <div
+                v-if="alert.action"
+                class="alert-actions"
+              >
+                <button
+                  class="btn-fix"
+                  @click="executeFix(alert)"
+                >
                   🔧 {{ alert.action }}
                 </button>
               </div>
@@ -63,14 +92,20 @@
         >
           <span class="tab-icon">{{ tab.icon }}</span>
           {{ tab.name }}
-          <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
+          <span
+            v-if="tab.badge"
+            class="tab-badge"
+          >{{ tab.badge }}</span>
         </button>
       </div>
 
       <!-- Contenido de las pestañas -->
       <div class="tab-content">
         <!-- Pestaña 1: SSL & Dominio -->
-        <div v-if="activeTab === 'ssl'" class="tab-panel">
+        <div
+          v-if="activeTab === 'ssl'"
+          class="tab-panel"
+        >
           <div class="section-card">
             <div class="section-header">
               <h2>🌐 SSL & Dominio</h2>
@@ -79,7 +114,10 @@
 
             <div class="section-content">
               <!-- Estado SSL -->
-              <div class="ssl-status-card" :class="sslStatus.valid ? 'valid' : 'invalid'">
+              <div
+                class="ssl-status-card"
+                :class="sslStatus.valid ? 'valid' : 'invalid'"
+              >
                 <div class="ssl-header">
                   <div class="ssl-icon">
                     <span v-if="sslStatus.valid">🔐</span>
@@ -87,16 +125,25 @@
                   </div>
                   <div class="ssl-info">
                     <h3>Certificado SSL</h3>
-                    <p v-if="sslStatus.valid" class="ssl-valid">
+                    <p
+                      v-if="sslStatus.valid"
+                      class="ssl-valid"
+                    >
                       ✅ Certificado válido instalado
                     </p>
-                    <p v-else class="ssl-invalid">
+                    <p
+                      v-else
+                      class="ssl-invalid"
+                    >
                       ❌ {{ sslStatus.message || 'Problema con SSL' }}
                     </p>
                   </div>
                 </div>
                 
-                <div class="ssl-details" v-if="sslStatus.valid">
+                <div
+                  v-if="sslStatus.valid"
+                  class="ssl-details"
+                >
                   <div class="ssl-detail">
                     <span class="detail-label">Emisor:</span>
                     <span class="detail-value">{{ sslStatus.issuer || 'Desconocido' }}</span>
@@ -109,7 +156,10 @@
                     <span class="detail-label">Expira:</span>
                     <span class="detail-value">
                       {{ sslStatus.expires || 'No disponible' }}
-                      <span v-if="sslStatus.expires_in_days" class="expiry-days">
+                      <span
+                        v-if="sslStatus.expires_in_days"
+                        class="expiry-days"
+                      >
                         ({{ sslStatus.expires_in_days }} días)
                       </span>
                     </span>
@@ -117,11 +167,18 @@
                 </div>
                 
                 <div class="ssl-actions">
-                  <button class="btn-refresh-ssl" @click="checkSSLStatus">
+                  <button
+                    class="btn-refresh-ssl"
+                    @click="checkSSLStatus"
+                  >
                     🔄 Verificar SSL
                   </button>
-                  <a v-if="securityConfig.system_host" :href="securityConfig.system_host" 
-                     target="_blank" class="btn-visit-site">
+                  <a
+                    v-if="securityConfig.system_host"
+                    :href="securityConfig.system_host" 
+                    target="_blank"
+                    class="btn-visit-site"
+                  >
                     🌐 Visitar Sitio
                   </a>
                 </div>
@@ -137,28 +194,32 @@
                       URL del Sistema
                     </label>
                     <input
-                      type="url"
                       v-model="securityConfig.system_host"
-                      @input="markAsChanged"
-                      placeholder="https://tudominio.com"
-                      class="form-input"
-                      :disabled="true" <!-- Temporalmente deshabilitado hasta que creemos endpoint para actualizar -->
-                    >
+                                        />
                     <p class="form-help">
                       Cambia esta configuración en Configuración del Sistema → General
                     </p>
                   </div>
                   
                   <div class="domain-checks">
-                    <div class="check-item" :class="domainChecks.https ? 'passed' : 'failed'">
+                    <div
+                      class="check-item"
+                      :class="domainChecks.https ? 'passed' : 'failed'"
+                    >
                       <span class="check-icon">{{ domainChecks.https ? '✅' : '❌' }}</span>
                       <span class="check-text">HTTPS Habilitado</span>
                     </div>
-                    <div class="check-item" :class="domainChecks.ssl ? 'passed' : 'failed'">
+                    <div
+                      class="check-item"
+                      :class="domainChecks.ssl ? 'passed' : 'failed'"
+                    >
                       <span class="check-icon">{{ domainChecks.ssl ? '✅' : '❌' }}</span>
                       <span class="check-text">Certificado SSL Válido</span>
                     </div>
-                    <div class="check-item" :class="domainChecks.redirect ? 'passed' : 'failed'">
+                    <div
+                      class="check-item"
+                      :class="domainChecks.redirect ? 'passed' : 'failed'"
+                    >
                       <span class="check-icon">{{ domainChecks.redirect ? '✅' : '❌' }}</span>
                       <span class="check-text">Redirección HTTP → HTTPS</span>
                     </div>
@@ -170,12 +231,18 @@
         </div>
 
         <!-- Pestaña 2: Sesiones Activas -->
-        <div v-if="activeTab === 'sessions'" class="tab-panel">
+        <div
+          v-if="activeTab === 'sessions'"
+          class="tab-panel"
+        >
           <div class="section-card">
             <div class="section-header">
               <h2>👥 Sesiones Activas</h2>
               <p>Sesiones de usuarios actualmente conectados</p>
-              <button class="btn-refresh-sessions" @click="loadActiveSessions">
+              <button
+                class="btn-refresh-sessions"
+                @click="loadActiveSessions"
+              >
                 🔄 Actualizar
               </button>
             </div>
@@ -200,19 +267,39 @@
               <!-- Lista de sesiones -->
               <div class="sessions-table">
                 <div class="table-header">
-                  <div class="table-col user">Usuario</div>
-                  <div class="table-col ip">IP</div>
-                  <div class="table-col device">Dispositivo</div>
-                  <div class="table-col last-active">Última Actividad</div>
-                  <div class="table-col actions">Acciones</div>
+                  <div class="table-col user">
+                    Usuario
+                  </div>
+                  <div class="table-col ip">
+                    IP
+                  </div>
+                  <div class="table-col device">
+                    Dispositivo
+                  </div>
+                  <div class="table-col last-active">
+                    Última Actividad
+                  </div>
+                  <div class="table-col actions">
+                    Acciones
+                  </div>
                 </div>
                 
-                <div v-if="sessions.length === 0" class="empty-sessions">
+                <div
+                  v-if="sessions.length === 0"
+                  class="empty-sessions"
+                >
                   <p>No hay sesiones activas en las últimas 24 horas</p>
                 </div>
                 
-                <div v-else class="sessions-list">
-                  <div v-for="session in sessions" :key="session.id" class="session-item">
+                <div
+                  v-else
+                  class="sessions-list"
+                >
+                  <div
+                    v-for="session in sessions"
+                    :key="session.id"
+                    class="session-item"
+                  >
                     <div class="table-col user">
                       <div class="user-info">
                         <div class="user-avatar">
@@ -228,36 +315,53 @@
                     
                     <div class="table-col ip">
                       <span class="ip-address">{{ session.ip_address || 'N/A' }}</span>
-                      <button v-if="session.ip_address" 
-                              class="btn-block-ip" 
-                              @click="blockIP(session.ip_address, `Sesión usuario: ${session.user_name}`)"
-                              title="Bloquear esta IP">
+                      <button
+                        v-if="session.ip_address" 
+                        class="btn-block-ip" 
+                        title="Bloquear esta IP"
+                        @click="blockIP(session.ip_address, `Sesión usuario: ${session.user_name}`)"
+                      >
                         🚫
                       </button>
                     </div>
                     
                     <div class="table-col device">
-                      <span class="device-info" :title="session.user_agent">
+                      <span
+                        class="device-info"
+                        :title="session.user_agent"
+                      >
                         {{ getDeviceInfo(session.user_agent) }}
                       </span>
                     </div>
                     
                     <div class="table-col last-active">
-                      <span class="time-ago" :title="formatDateTime(session.last_activity)">
+                      <span
+                        class="time-ago"
+                        :title="formatDateTime(session.last_activity)"
+                      >
                         {{ timeAgo(session.last_activity) }}
                       </span>
-                      <span v-if="session.minutes_inactive > 5" class="inactive-warning">
+                      <span
+                        v-if="session.minutes_inactive > 5"
+                        class="inactive-warning"
+                      >
                         ({{ session.minutes_inactive }} min inactivo)
                       </span>
                     </div>
                     
                     <div class="table-col actions">
-                      <button class="btn-terminate" @click="terminateSession(session.id)"
-                              title="Terminar esta sesión">
+                      <button
+                        class="btn-terminate"
+                        title="Terminar esta sesión"
+                        @click="terminateSession(session.id)"
+                      >
                         🔓 Terminar
                       </button>
-                      <button class="btn-terminate-all" @click="terminateUserSessions(session.user_id)"
-                              title="Terminar todas las sesiones de este usuario">
+                      <button
+                        class="btn-terminate-all"
+                        title="Terminar todas las sesiones de este usuario"
+                        @click="terminateUserSessions(session.user_id)"
+                      >
                         👥 Todas
                       </button>
                     </div>
@@ -267,8 +371,11 @@
               
               <!-- Acciones masivas -->
               <div class="bulk-actions">
-                <button class="btn-terminate-all-sessions" @click="terminateAllSessions"
-                        :disabled="sessions.length === 0">
+                <button
+                  class="btn-terminate-all-sessions"
+                  :disabled="sessions.length === 0"
+                  @click="terminateAllSessions"
+                >
                   🚫 Terminar Todas las Sesiones
                 </button>
                 <p class="warning-text">
@@ -280,7 +387,10 @@
         </div>
 
         <!-- Pestaña 3: Auditoría -->
-        <div v-if="activeTab === 'audit'" class="tab-panel">
+        <div
+          v-if="activeTab === 'audit'"
+          class="tab-panel"
+        >
           <div class="section-card">
             <div class="section-header">
               <h2>📋 Registros de Auditoría</h2>
@@ -292,16 +402,28 @@
               <div class="audit-filters">
                 <div class="filter-group">
                   <label>Buscar:</label>
-                  <input type="text" v-model="auditFilters.search" 
-                         @input="debouncedLoadAuditLogs" 
-                         placeholder="Acción, detalles, IP...">
+                  <input
+                    v-model="auditFilters.search"
+                    type="text" 
+                    placeholder="Acción, detalles, IP..." 
+                    @input="debouncedLoadAuditLogs"
+                  >
                 </div>
                 
                 <div class="filter-group">
                   <label>Tipo:</label>
-                  <select v-model="auditFilters.type" @change="loadAuditLogs">
-                    <option value="">Todos</option>
-                    <option v-for="type in auditActionTypes" :key="type" :value="type">
+                  <select
+                    v-model="auditFilters.type"
+                    @change="loadAuditLogs"
+                  >
+                    <option value="">
+                      Todos
+                    </option>
+                    <option
+                      v-for="type in auditActionTypes"
+                      :key="type"
+                      :value="type"
+                    >
                       {{ type }}
                     </option>
                   </select>
@@ -309,15 +431,26 @@
                 
                 <div class="filter-group">
                   <label>Desde:</label>
-                  <input type="date" v-model="auditFilters.date_from" @change="loadAuditLogs">
+                  <input
+                    v-model="auditFilters.date_from"
+                    type="date"
+                    @change="loadAuditLogs"
+                  >
                 </div>
                 
                 <div class="filter-group">
                   <label>Hasta:</label>
-                  <input type="date" v-model="auditFilters.date_to" @change="loadAuditLogs">
+                  <input
+                    v-model="auditFilters.date_to"
+                    type="date"
+                    @change="loadAuditLogs"
+                  >
                 </div>
                 
-                <button class="btn-clear-filters" @click="clearAuditFilters">
+                <button
+                  class="btn-clear-filters"
+                  @click="clearAuditFilters"
+                >
                   🗑️ Limpiar
                 </button>
               </div>
@@ -341,39 +474,74 @@
               <!-- Tabla de logs -->
               <div class="audit-table">
                 <div class="table-header">
-                  <div class="table-col time">Fecha/Hora</div>
-                  <div class="table-col user">Usuario</div>
-                  <div class="table-col type">Tipo</div>
-                  <div class="table-col action">Acción</div>
-                  <div class="table-col ip">IP</div>
-                  <div class="table-col details">Detalles</div>
+                  <div class="table-col time">
+                    Fecha/Hora
+                  </div>
+                  <div class="table-col user">
+                    Usuario
+                  </div>
+                  <div class="table-col type">
+                    Tipo
+                  </div>
+                  <div class="table-col action">
+                    Acción
+                  </div>
+                  <div class="table-col ip">
+                    IP
+                  </div>
+                  <div class="table-col details">
+                    Detalles
+                  </div>
                 </div>
                 
-                <div v-if="loadingAuditLogs" class="loading-logs">
-                  <div class="loading-spinner small"></div>
+                <div
+                  v-if="loadingAuditLogs"
+                  class="loading-logs"
+                >
+                  <div class="loading-spinner small" />
                   <p>Cargando registros...</p>
                 </div>
                 
-                <div v-else-if="auditLogs.length === 0" class="empty-logs">
+                <div
+                  v-else-if="auditLogs.length === 0"
+                  class="empty-logs"
+                >
                   <p>No hay registros de auditoría</p>
                 </div>
                 
-                <div v-else class="logs-list">
-                  <div v-for="log in auditLogs" :key="log.id" class="log-item" :class="log.action_type">
+                <div
+                  v-else
+                  class="logs-list"
+                >
+                  <div
+                    v-for="log in auditLogs"
+                    :key="log.id"
+                    class="log-item"
+                    :class="log.action_type"
+                  >
                     <div class="table-col time">
                       <span class="log-time">{{ formatDateTime(log.created_at) }}</span>
                     </div>
                     
                     <div class="table-col user">
-                      <div v-if="log.user_id" class="user-info-small">
+                      <div
+                        v-if="log.user_id"
+                        class="user-info-small"
+                      >
                         <span class="user-name">{{ log.user_name || 'Usuario' }}</span>
                         <span class="user-role">{{ log.role }}</span>
                       </div>
-                      <span v-else class="system-label">Sistema</span>
+                      <span
+                        v-else
+                        class="system-label"
+                      >Sistema</span>
                     </div>
                     
                     <div class="table-col type">
-                      <span class="type-badge" :class="log.action_type">
+                      <span
+                        class="type-badge"
+                        :class="log.action_type"
+                      >
                         {{ log.action_type }}
                       </span>
                     </div>
@@ -387,7 +555,10 @@
                     </div>
                     
                     <div class="table-col details">
-                      <span class="log-details" :title="log.details">
+                      <span
+                        class="log-details"
+                        :title="log.details"
+                      >
                         {{ truncateText(log.details, 50) }}
                       </span>
                     </div>
@@ -396,8 +567,15 @@
               </div>
 
               <!-- Paginación -->
-              <div v-if="auditPagination.last_page > 1" class="audit-pagination">
-                <button class="btn-prev" @click="prevAuditPage" :disabled="auditPagination.current_page === 1">
+              <div
+                v-if="auditPagination.last_page > 1"
+                class="audit-pagination"
+              >
+                <button
+                  class="btn-prev"
+                  :disabled="auditPagination.current_page === 1"
+                  @click="prevAuditPage"
+                >
                   ← Anterior
                 </button>
                 
@@ -410,21 +588,33 @@
                   </span>
                 </div>
                 
-                <button class="btn-next" @click="nextAuditPage" 
-                        :disabled="auditPagination.current_page === auditPagination.last_page">
+                <button
+                  class="btn-next"
+                  :disabled="auditPagination.current_page === auditPagination.last_page" 
+                  @click="nextAuditPage"
+                >
                   Siguiente →
                 </button>
               </div>
 
               <!-- Acciones de logs -->
               <div class="audit-actions">
-                <button class="btn-export-logs" @click="exportAuditLogs">
+                <button
+                  class="btn-export-logs"
+                  @click="exportAuditLogs"
+                >
                   📄 Exportar a CSV
                 </button>
-                <button class="btn-clear-old-logs" @click="clearOldAuditLogs">
+                <button
+                  class="btn-clear-old-logs"
+                  @click="clearOldAuditLogs"
+                >
                   🗑️ Limpiar Registros Antiguos
                 </button>
-                <button class="btn-refresh-logs" @click="loadAuditLogs">
+                <button
+                  class="btn-refresh-logs"
+                  @click="loadAuditLogs"
+                >
                   🔄 Actualizar
                 </button>
               </div>
@@ -433,7 +623,10 @@
         </div>
 
         <!-- Pestaña 4: IPs Bloqueadas -->
-        <div v-if="activeTab === 'ips'" class="tab-panel">
+        <div
+          v-if="activeTab === 'ips'"
+          class="tab-panel"
+        >
           <div class="section-card">
             <div class="section-header">
               <h2>🚫 IPs Bloqueadas</h2>
@@ -447,35 +640,67 @@
                 <div class="form-grid">
                   <div class="form-group">
                     <label class="form-label">Dirección IP</label>
-                    <input type="text" v-model="newIP.ip_address" 
-                           placeholder="Ej: 192.168.1.100" class="form-input">
-                    <p class="form-help">IP a bloquear (IPv4 o IPv6)</p>
+                    <input
+                      v-model="newIP.ip_address"
+                      type="text" 
+                      placeholder="Ej: 192.168.1.100"
+                      class="form-input"
+                    >
+                    <p class="form-help">
+                      IP a bloquear (IPv4 o IPv6)
+                    </p>
                   </div>
                   
                   <div class="form-group">
                     <label class="form-label">Razón</label>
-                    <input type="text" v-model="newIP.reason" 
-                           placeholder="Ej: Intentos fallidos de login" class="form-input">
+                    <input
+                      v-model="newIP.reason"
+                      type="text" 
+                      placeholder="Ej: Intentos fallidos de login"
+                      class="form-input"
+                    >
                   </div>
                   
                   <div class="form-group">
                     <label class="form-label">Expiración</label>
-                    <select v-model="newIP.expiration_type" class="form-select">
-                      <option value="1h">1 Hora</option>
-                      <option value="24h">24 Horas</option>
-                      <option value="7d">7 Días</option>
-                      <option value="30d">30 Días</option>
-                      <option value="permanent">Permanente</option>
-                      <option value="custom">Personalizada</option>
+                    <select
+                      v-model="newIP.expiration_type"
+                      class="form-select"
+                    >
+                      <option value="1h">
+                        1 Hora
+                      </option>
+                      <option value="24h">
+                        24 Horas
+                      </option>
+                      <option value="7d">
+                        7 Días
+                      </option>
+                      <option value="30d">
+                        30 Días
+                      </option>
+                      <option value="permanent">
+                        Permanente
+                      </option>
+                      <option value="custom">
+                        Personalizada
+                      </option>
                     </select>
-                    <input v-if="newIP.expiration_type === 'custom'" 
-                           type="datetime-local" v-model="newIP.custom_expires" 
-                           class="form-input" style="margin-top: 8px;">
+                    <input
+                      v-if="newIP.expiration_type === 'custom'" 
+                      v-model="newIP.custom_expires"
+                      type="datetime-local" 
+                      class="form-input"
+                      style="margin-top: 8px;"
+                    >
                   </div>
                 </div>
                 
-                <button class="btn-block-ip-form" @click="blockNewIP" 
-                        :disabled="!isValidIP(newIP.ip_address)">
+                <button
+                  class="btn-block-ip-form"
+                  :disabled="!isValidIP(newIP.ip_address)" 
+                  @click="blockNewIP"
+                >
                   🚫 Bloquear IP
                 </button>
               </div>
@@ -484,32 +709,62 @@
               <div class="blocked-ips-list">
                 <h3>IPs Actualmente Bloqueadas ({{ blockedIPs.active }})</h3>
                 
-                <div v-if="loadingBlockedIPs" class="loading-ips">
-                  <div class="loading-spinner small"></div>
+                <div
+                  v-if="loadingBlockedIPs"
+                  class="loading-ips"
+                >
+                  <div class="loading-spinner small" />
                   <p>Cargando IPs bloqueadas...</p>
                 </div>
                 
-                <div v-else-if="blockedIPs.list.length === 0" class="empty-ips">
+                <div
+                  v-else-if="blockedIPs.list.length === 0"
+                  class="empty-ips"
+                >
                   <p>No hay IPs bloqueadas</p>
                 </div>
                 
-                <div v-else class="ips-table">
+                <div
+                  v-else
+                  class="ips-table"
+                >
                   <div class="table-header">
-                    <div class="table-col ip">IP Address</div>
-                    <div class="table-col reason">Razón</div>
-                    <div class="table-col blocked-by">Bloqueado Por</div>
-                    <div class="table-col created">Fecha</div>
-                    <div class="table-col expires">Expira</div>
-                    <div class="table-col status">Estado</div>
-                    <div class="table-col actions">Acciones</div>
+                    <div class="table-col ip">
+                      IP Address
+                    </div>
+                    <div class="table-col reason">
+                      Razón
+                    </div>
+                    <div class="table-col blocked-by">
+                      Bloqueado Por
+                    </div>
+                    <div class="table-col created">
+                      Fecha
+                    </div>
+                    <div class="table-col expires">
+                      Expira
+                    </div>
+                    <div class="table-col status">
+                      Estado
+                    </div>
+                    <div class="table-col actions">
+                      Acciones
+                    </div>
                   </div>
                   
                   <div class="ips-list">
-                    <div v-for="ip in blockedIPs.list" :key="ip.id" class="ip-item">
+                    <div
+                      v-for="ip in blockedIPs.list"
+                      :key="ip.id"
+                      class="ip-item"
+                    >
                       <div class="table-col ip">
                         <span class="ip-value">{{ ip.ip_address }}</span>
-                        <button class="btn-copy-ip" @click="copyToClipboard(ip.ip_address)"
-                                title="Copiar IP">
+                        <button
+                          class="btn-copy-ip"
+                          title="Copiar IP"
+                          @click="copyToClipboard(ip.ip_address)"
+                        >
                           📋
                         </button>
                       </div>
@@ -527,29 +782,46 @@
                       </div>
                       
                       <div class="table-col expires">
-                        <span v-if="ip.expires_at" class="expires-date">
+                        <span
+                          v-if="ip.expires_at"
+                          class="expires-date"
+                        >
                           {{ formatDate(ip.expires_at) }}
-                          <span v-if="ip.status === 'active'" class="expires-in">
+                          <span
+                            v-if="ip.status === 'active'"
+                            class="expires-in"
+                          >
                             ({{ daysUntil(ip.expires_at) }} días)
                           </span>
                         </span>
-                        <span v-else class="permanent">Permanente</span>
+                        <span
+                          v-else
+                          class="permanent"
+                        >Permanente</span>
                       </div>
                       
                       <div class="table-col status">
-                        <span class="status-badge" :class="ip.status">
+                        <span
+                          class="status-badge"
+                          :class="ip.status"
+                        >
                           {{ ip.status === 'active' ? 'Activo' : 
-                             ip.status === 'expired' ? 'Expirado' : 'Permanente' }}
+                            ip.status === 'expired' ? 'Expirado' : 'Permanente' }}
                         </span>
                       </div>
                       
                       <div class="table-col actions">
-                        <button v-if="ip.status === 'active'" 
-                                class="btn-unblock-ip" 
-                                @click="unblockIP(ip.id)">
+                        <button
+                          v-if="ip.status === 'active'" 
+                          class="btn-unblock-ip" 
+                          @click="unblockIP(ip.id)"
+                        >
                           🔓 Desbloquear
                         </button>
-                        <button class="btn-delete-ip" @click="deleteIP(ip.id)">
+                        <button
+                          class="btn-delete-ip"
+                          @click="deleteIP(ip.id)"
+                        >
                           🗑️ Eliminar
                         </button>
                       </div>
@@ -578,7 +850,10 @@
         </div>
 
         <!-- Pestaña 5: Configuración -->
-        <div v-if="activeTab === 'config'" class="tab-panel">
+        <div
+          v-if="activeTab === 'config'"
+          class="tab-panel"
+        >
           <div class="section-card">
             <div class="section-header">
               <h2>⚙️ Configuración de Seguridad</h2>
@@ -597,8 +872,14 @@
                       <p>Número de intentos fallidos antes de bloquear la cuenta</p>
                     </div>
                     <div class="setting-control">
-                      <input type="number" v-model.number="securityConfig.max_login_attempts"
-                             @input="markAsChanged" min="1" max="10" class="number-input">
+                      <input
+                        v-model.number="securityConfig.max_login_attempts"
+                        type="number"
+                        min="1"
+                        max="10"
+                        class="number-input"
+                        @input="markAsChanged"
+                      >
                       <span class="setting-unit">intentos</span>
                     </div>
                   </div>
@@ -609,8 +890,14 @@
                       <p>Minutos de inactividad antes de cerrar sesión automáticamente</p>
                     </div>
                     <div class="setting-control">
-                      <input type="number" v-model.number="securityConfig.session_timeout_minutes"
-                             @input="markAsChanged" min="5" max="1440" class="number-input">
+                      <input
+                        v-model.number="securityConfig.session_timeout_minutes"
+                        type="number"
+                        min="5"
+                        max="1440"
+                        class="number-input"
+                        @input="markAsChanged"
+                      >
                       <span class="setting-unit">minutos</span>
                     </div>
                   </div>
@@ -621,8 +908,14 @@
                       <p>Días antes de requerir cambio de contraseña (0 = nunca)</p>
                     </div>
                     <div class="setting-control">
-                      <input type="number" v-model.number="securityConfig.password_expiration_days"
-                             @input="markAsChanged" min="0" max="365" class="number-input">
+                      <input
+                        v-model.number="securityConfig.password_expiration_days"
+                        type="number"
+                        min="0"
+                        max="365"
+                        class="number-input"
+                        @input="markAsChanged"
+                      >
                       <span class="setting-unit">días</span>
                     </div>
                   </div>
@@ -639,9 +932,14 @@
                     </div>
                     <div class="setting-control">
                       <label class="toggle-switch">
-                        <input type="checkbox" v-model="securityConfig.allow_user_registration"
-                               true-value="1" false-value="0" @change="markAsChanged">
-                        <span class="toggle-slider"></span>
+                        <input
+                          v-model="securityConfig.allow_user_registration"
+                          type="checkbox"
+                          true-value="1"
+                          false-value="0"
+                          @change="markAsChanged"
+                        >
+                        <span class="toggle-slider" />
                       </label>
                       <span class="toggle-label">
                         {{ securityConfig.allow_user_registration == 1 ? 'PERMITIDO' : 'BLOQUEADO' }}
@@ -656,9 +954,14 @@
                     </div>
                     <div class="setting-control">
                       <label class="toggle-switch">
-                        <input type="checkbox" v-model="securityConfig.email_verification"
-                               true-value="1" false-value="0" @change="markAsChanged">
-                        <span class="toggle-slider"></span>
+                        <input
+                          v-model="securityConfig.email_verification"
+                          type="checkbox"
+                          true-value="1"
+                          false-value="0"
+                          @change="markAsChanged"
+                        >
+                        <span class="toggle-slider" />
                       </label>
                       <span class="toggle-label">
                         {{ securityConfig.email_verification == 1 ? 'REQUERIDA' : 'OPCIONAL' }}
@@ -678,9 +981,14 @@
                     </div>
                     <div class="setting-control">
                       <label class="toggle-switch">
-                        <input type="checkbox" v-model="securityConfig.strong_passwords"
-                               true-value="1" false-value="0" @change="markAsChanged">
-                        <span class="toggle-slider"></span>
+                        <input
+                          v-model="securityConfig.strong_passwords"
+                          type="checkbox"
+                          true-value="1"
+                          false-value="0"
+                          @change="markAsChanged"
+                        >
+                        <span class="toggle-slider" />
                       </label>
                       <span class="toggle-label">
                         {{ securityConfig.strong_passwords == 1 ? 'REQUERIDAS' : 'NO REQUERIDAS' }}
@@ -695,9 +1003,14 @@
                     </div>
                     <div class="setting-control">
                       <label class="toggle-switch">
-                        <input type="checkbox" v-model="securityConfig.multiple_sessions"
-                               true-value="1" false-value="0" @change="markAsChanged">
-                        <span class="toggle-slider"></span>
+                        <input
+                          v-model="securityConfig.multiple_sessions"
+                          type="checkbox"
+                          true-value="1"
+                          false-value="0"
+                          @change="markAsChanged"
+                        >
+                        <span class="toggle-slider" />
                       </label>
                       <span class="toggle-label">
                         {{ securityConfig.multiple_sessions == 1 ? 'PERMITIDAS' : 'BLOQUEADAS' }}
@@ -712,34 +1025,50 @@
                 <h3>📊 Métricas de Seguridad</h3>
                 <div class="metrics-grid">
                   <div class="metric-card">
-                    <div class="metric-icon">🔐</div>
+                    <div class="metric-icon">
+                      🔐
+                    </div>
                     <div class="metric-content">
                       <h4>Intentos Fallidos (7d)</h4>
-                      <p class="metric-value">{{ securityStats.failed_logins_7d || 0 }}</p>
+                      <p class="metric-value">
+                        {{ securityStats.failed_logins_7d || 0 }}
+                      </p>
                     </div>
                   </div>
                   
                   <div class="metric-card">
-                    <div class="metric-icon">👤</div>
+                    <div class="metric-icon">
+                      👤
+                    </div>
                     <div class="metric-content">
                       <h4>Usuarios Bloqueados</h4>
-                      <p class="metric-value">{{ securityStats.blocked_users || 0 }}</p>
+                      <p class="metric-value">
+                        {{ securityStats.blocked_users || 0 }}
+                      </p>
                     </div>
                   </div>
                   
                   <div class="metric-card">
-                    <div class="metric-icon">🌐</div>
+                    <div class="metric-icon">
+                      🌐
+                    </div>
                     <div class="metric-content">
                       <h4>Sesiones Activas</h4>
-                      <p class="metric-value">{{ securityStats.active_sessions || 0 }}</p>
+                      <p class="metric-value">
+                        {{ securityStats.active_sessions || 0 }}
+                      </p>
                     </div>
                   </div>
                   
                   <div class="metric-card">
-                    <div class="metric-icon">🛡️</div>
+                    <div class="metric-icon">
+                      🛡️
+                    </div>
                     <div class="metric-content">
                       <h4>IPs Bloqueadas</h4>
-                      <p class="metric-value">{{ blockedIPs.active || 0 }}</p>
+                      <p class="metric-value">
+                        {{ blockedIPs.active || 0 }}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -747,12 +1076,21 @@
 
               <!-- Guardar configuración -->
               <div class="save-section">
-                <button class="btn-save-security" @click="saveSecurityConfig" 
-                        :disabled="!hasChanges || saving">
-                  <span v-if="saving" class="save-loading"></span>
+                <button
+                  class="btn-save-security"
+                  :disabled="!hasChanges || saving" 
+                  @click="saveSecurityConfig"
+                >
+                  <span
+                    v-if="saving"
+                    class="save-loading"
+                  />
                   <span v-else>💾 Guardar Configuración de Seguridad</span>
                 </button>
-                <button class="btn-reset-security" @click="resetSecurityConfig">
+                <button
+                  class="btn-reset-security"
+                  @click="resetSecurityConfig"
+                >
                   🔄 Restaurar Valores por Defecto
                 </button>
               </div>
@@ -763,19 +1101,28 @@
 
       <!-- Footer con acciones globales -->
       <div class="global-actions">
-        <div class="action-card" @click="exportSecurityReport">
+        <div
+          class="action-card"
+          @click="exportSecurityReport"
+        >
           <span class="action-icon">📄</span>
           <h4>Exportar Reporte</h4>
           <p>Generar reporte completo de seguridad</p>
         </div>
         
-        <div class="action-card" @click="runVulnerabilityScan">
+        <div
+          class="action-card"
+          @click="runVulnerabilityScan"
+        >
           <span class="action-icon">🔍</span>
           <h4>Escaneo Completo</h4>
           <p>Buscar vulnerabilidades del sistema</p>
         </div>
         
-        <div class="action-card" @click="showSecurityTips">
+        <div
+          class="action-card"
+          @click="showSecurityTips"
+        >
           <span class="action-icon">💡</span>
           <h4>Consejos de Seguridad</h4>
           <p>Mejores prácticas recomendadas</p>
