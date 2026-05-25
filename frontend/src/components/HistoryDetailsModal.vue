@@ -62,7 +62,6 @@
 <script>
 
 export default {
-  emits: ["on-open-change"],
   name: 'HistoryDetailsModal',
   props: {
     isOpen: { type: Boolean, required: true },
@@ -72,6 +71,7 @@ export default {
       default: () => ({ title: '', description: '', providerName: '', date: '', status: '', paymentMethod: '', price: 0 })
     }
   },
+  emits: ["on-open-change"],
   computed: {
     formattedDate() {
       if (!this.item.date) return '';
