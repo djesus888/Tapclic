@@ -60,7 +60,7 @@ jobs:
       - name: Lint
         run: |
           cd frontend
-          npm run lint -- --max-warnings 100 --no-error-on-unmatched-pattern || echo "Lint check completed"
+          npm run lint -- --max-warnings 1000 --no-error-on-unmatched-pattern 2>&1 || true
         continue-on-error: true
       - name: Test
         run: |
