@@ -35,10 +35,12 @@ export default [
       'no-console': 'off',
       'no-unused-vars': 'warn',
       'no-undef': 'warn',
+      'no-empty': 'warn',
       'vue/no-undef-components': 'off',
       'vue/no-unused-vars': 'warn',
       'vue/no-unused-components': 'warn',
       'vue/no-v-html': 'warn',
+      'vue/multi-word-component-names': 'warn',
       'no-underscore-dangle': 'off'
     }
   }
