@@ -44,6 +44,7 @@ export default [
       'vue/no-unused-components': 'warn',
       'vue/no-v-html': 'warn',
       'vue/multi-word-component-names': 'warn',
+      'vue/html-self-closing': 'warn',
       'no-underscore-dangle': 'off'
     }
   }

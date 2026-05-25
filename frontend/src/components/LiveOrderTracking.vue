@@ -2,7 +2,10 @@
   <Teleport to="body">
     <div class="live-tracking-container">
       <!-- Overlay de fondo - FIXED: Ahora cubre toda la pantalla -->
-      <div class="modal-overlay" @click="$emit('close')"></div>
+      <div
+        class="modal-overlay"
+        @click="$emit('close')"
+      />
 
       <!-- Modal principal -->
       <div class="modal-content-wrapper">
@@ -11,16 +14,30 @@
           <div class="header-content">
             <button 
               class="back-button"
-              @click="$emit('close')"
               aria-label="Cerrar"
+              @click="$emit('close')"
             >
-              <svg class="back-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              <svg
+                class="back-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
             <div class="header-info">
-              <h1 class="modal-title">🚀 {{ $t('live_tracking') }}</h1>
-              <p class="modal-subtitle">Seguimiento en tiempo real</p>
+              <h1 class="modal-title">
+                🚀 {{ $t('live_tracking') }}
+              </h1>
+              <p class="modal-subtitle">
+                Seguimiento en tiempo real
+              </p>
             </div>
             <div class="status-badge">
               <span :class="`status-${mappedStatus}`">{{ $t(mappedStatus) }}</span>
@@ -38,7 +55,10 @@
                 <span>Ruta del proveedor</span>
               </div>
               <div class="map-actions">
-                <button class="map-btn" @click="refreshMap">
+                <button
+                  class="map-btn"
+                  @click="refreshMap"
+                >
                   <span class="btn-icon">🔄</span>
                   <span class="btn-text">Actualizar</span>
                 </button>
@@ -55,24 +75,31 @@
                 referrerpolicy="no-referrer-when-downgrade"
                 title="Mapa de seguimiento"
               />
-              <div v-else class="map-placeholder">
-                <div class="placeholder-icon">🗺️</div>
-                <p class="placeholder-text">{{ $t('loading_map') }}</p>
+              <div
+                v-else
+                class="map-placeholder"
+              >
+                <div class="placeholder-icon">
+                  🗺️
+                </div>
+                <p class="placeholder-text">
+                  {{ $t('loading_map') }}
+                </p>
                 <div class="loading-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+                  <span />
+                  <span />
+                  <span />
                 </div>
               </div>
             </div>
             
             <div class="map-legend">
               <div class="legend-item">
-                <span class="legend-dot origin"></span>
+                <span class="legend-dot origin" />
                 <span>Origen (Proveedor)</span>
               </div>
               <div class="legend-item">
-                <span class="legend-dot destination"></span>
+                <span class="legend-dot destination" />
                 <span>Destino (Tu ubicación)</span>
               </div>
             </div>
@@ -86,7 +113,7 @@
             </h3>
             
             <div class="timeline-container">
-              <div class="timeline-line"></div>
+              <div class="timeline-line" />
               <div class="timeline-steps">
                 <div
                   v-for="(step, idx) in timelineSteps"
@@ -96,12 +123,18 @@
                 >
                   <div class="step-circle">
                     <span class="step-number">{{ idx + 1 }}</span>
-                    <span class="step-icon" v-if="currentStepIndex >= idx">
+                    <span
+                      v-if="currentStepIndex >= idx"
+                      class="step-icon"
+                    >
                       {{ getStepIcon(step.key) }}
                     </span>
                   </div>
                   <span class="step-label">{{ $t(step.label) }}</span>
-                  <span class="step-time" v-if="currentStepIndex === idx">
+                  <span
+                    v-if="currentStepIndex === idx"
+                    class="step-time"
+                  >
                     En progreso
                   </span>
                 </div>
@@ -123,12 +156,17 @@
                   alt="Provider"
                   class="provider-avatar"
                   @error="handleImageError"
-                />
+                >
                 <div class="provider-info">
-                  <h4 class="provider-name">{{ localOrder.provider?.name || 'Proveedor' }}</h4>
+                  <h4 class="provider-name">
+                    {{ localOrder.provider?.name || 'Proveedor' }}
+                  </h4>
                   
                   <!-- RATING CORREGIDO Y SEGURO -->
-                  <div class="provider-rating" v-if="hasValidRating">
+                  <div
+                    v-if="hasValidRating"
+                    class="provider-rating"
+                  >
                     <span class="stars">
                       <span 
                         v-for="n in 5" 
@@ -142,18 +180,28 @@
                     <span class="rating-value">{{ formattedRating }}</span>
                   </div>
                   
-                  <p class="provider-status" :class="{ offline: !isProviderConnected }">
+                  <p
+                    class="provider-status"
+                    :class="{ offline: !isProviderConnected }"
+                  >
                     {{ isProviderConnected ? 'Conectado' : 'Desconectado' }}
                   </p>
                 </div>
               </div>
               
               <div class="provider-actions">
-                <button class="action-btn chat" @click="openChat" :disabled="!isProviderConnected">
+                <button
+                  class="action-btn chat"
+                  :disabled="!isProviderConnected"
+                  @click="openChat"
+                >
                   <span class="action-icon">💬</span>
                   <span class="action-text">{{ $t('chat') }}</span>
                 </button>
-                <button class="action-btn call" @click="callProvider">
+                <button
+                  class="action-btn call"
+                  @click="callProvider"
+                >
                   <span class="action-icon">📞</span>
                   <span class="action-text">{{ $t('call') }}</span>
                 </button>
@@ -197,9 +245,15 @@
                 <span class="detail-label">Método de pago:</span>
                 <span class="detail-value payment-method">{{ localOrder.payment_method || 'No definido' }}</span>
               </div>
-              <div class="detail-item" v-if="localOrder.payment_status">
+              <div
+                v-if="localOrder.payment_status"
+                class="detail-item"
+              >
                 <span class="detail-label">Estado pago:</span>
-                <span class="detail-value payment-status" :class="`payment-${localOrder.payment_status}`">
+                <span
+                  class="detail-value payment-status"
+                  :class="`payment-${localOrder.payment_status}`"
+                >
                   {{ formatPaymentStatus(localOrder.payment_status) }}
                 </span>
               </div>
@@ -209,31 +263,62 @@
           <!-- Acciones principales -->
           <div class="actions-section">
             <div class="actions-grid">
-              <button class="action-card primary" @click="openPayment" :disabled="!canMakePayment">
+              <button
+                class="action-card primary"
+                :disabled="!canMakePayment"
+                @click="openPayment"
+              >
                 <div class="action-icon-wrapper">
                   <span class="action-main-icon">💳</span>
                 </div>
                 <div class="action-content">
                   <h4>{{ $t('pay') }}</h4>
-                  <p v-if="canMakePayment">Completar pago</p>
-                  <p v-else class="disabled-text">Pago no disponible</p>
+                  <p v-if="canMakePayment">
+                    Completar pago
+                  </p>
+                  <p
+                    v-else
+                    class="disabled-text"
+                  >
+                    Pago no disponible
+                  </p>
                 </div>
-                <span class="action-arrow" v-if="canMakePayment">→</span>
+                <span
+                  v-if="canMakePayment"
+                  class="action-arrow"
+                >→</span>
               </button>
               
-              <button class="action-card secondary" @click="openChat" :disabled="!isProviderConnected">
+              <button
+                class="action-card secondary"
+                :disabled="!isProviderConnected"
+                @click="openChat"
+              >
                 <div class="action-icon-wrapper">
                   <span class="action-main-icon">💬</span>
                 </div>
                 <div class="action-content">
                   <h4>{{ $t('chat') }}</h4>
-                  <p v-if="isProviderConnected">Contactar proveedor</p>
-                  <p v-else class="disabled-text">Proveedor offline</p>
+                  <p v-if="isProviderConnected">
+                    Contactar proveedor
+                  </p>
+                  <p
+                    v-else
+                    class="disabled-text"
+                  >
+                    Proveedor offline
+                  </p>
                 </div>
-                <span class="action-arrow" v-if="isProviderConnected">→</span>
+                <span
+                  v-if="isProviderConnected"
+                  class="action-arrow"
+                >→</span>
               </button>
               
-              <button class="action-card tertiary" @click="callProvider">
+              <button
+                class="action-card tertiary"
+                @click="callProvider"
+              >
                 <div class="action-icon-wrapper">
                   <span class="action-main-icon">📞</span>
                 </div>
@@ -248,9 +333,23 @@
         </div>
 
         <!-- Botón de cierre flotante -->
-        <button class="floating-close-btn" @click="$emit('close')" aria-label="Cerrar ventana">
-          <svg class="close-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <button
+          class="floating-close-btn"
+          aria-label="Cerrar ventana"
+          @click="$emit('close')"
+        >
+          <svg
+            class="close-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
