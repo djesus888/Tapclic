@@ -15,23 +15,32 @@
       </div>
 
       <!-- ESTADÍSTICAS RÁPIDAS -->
-      <div class="header-stats" v-if="!loading.available && !loading.inProgress">
+      <div
+        v-if="!loading.available && !loading.inProgress"
+        class="header-stats"
+      >
         <div class="stat-card">
-          <div class="stat-icon">📋</div>
+          <div class="stat-icon">
+            📋
+          </div>
           <div class="stat-info">
             <h3>{{ availableRequests.length }}</h3>
             <p>Solicitudes Pendientes</p>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">⚡</div>
+          <div class="stat-icon">
+            ⚡
+          </div>
           <div class="stat-info">
             <h3>{{ inProgressRequests.length }}</h3>
             <p>Activos en progreso</p>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">📅</div>
+          <div class="stat-icon">
+            📅
+          </div>
           <div class="stat-info">
             <h3>{{ historyRequests.length }}</h3>
             <p>En historial</p>
@@ -41,8 +50,11 @@
     </div>
 
     <!-- PULL-TO-REFRESH INDICATOR -->
-    <div v-if="pulling" class="pull-refresh-indicator">
-      <div class="spinner"></div>
+    <div
+      v-if="pulling"
+      class="pull-refresh-indicator"
+    >
+      <div class="spinner" />
       <p>{{ $t('release_to_refresh') }}</p>
     </div>
 
@@ -50,9 +62,15 @@
     <div class="tabs-container">
       <div class="tabs-header">
         <h2>Gestión de Servicios</h2>
-        <p class="tabs-subtitle">Selecciona una categoría para gestionar</p>
+        <p class="tabs-subtitle">
+          Selecciona una categoría para gestionar
+        </p>
       </div>
-      <nav class="tabs-navigation" role="tablist" :aria-label="$t('tabs')">
+      <nav
+        class="tabs-navigation"
+        role="tablist"
+        :aria-label="$t('tabs')"
+      >
         <button
           v-for="tab in tabs"
           :key="`${tab.value}-${$i18n.locale}`"
@@ -62,9 +80,15 @@
           :class="['tab-button', { 'tab-button-active': activeTab === tab.value }]"
           @click="activeTab = tab.value"
         >
-          <span class="tab-icon" v-html="getTabIcon(tab.value)"></span>
+          <span
+            class="tab-icon"
+            v-html="getTabIcon(tab.value)"
+          />
           <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="getTabCount(tab.value) > 0" class="tab-badge">
+          <span
+            v-if="getTabCount(tab.value) > 0"
+            class="tab-badge"
+          >
             {{ getTabCount(tab.value) }}
           </span>
         </button>
@@ -74,10 +98,15 @@
     <!-- CONTENIDO PRINCIPAL -->
     <div class="dashboard-content">
       <!-- SOLICITUDES PENDIENTES -->
-      <div v-if="activeTab === 'available'" class="tab-content">
+      <div
+        v-if="activeTab === 'available'"
+        class="tab-content"
+      >
         <div class="tab-header">
           <h3>📋 Solicitudes Pendientes</h3>
-          <p class="tab-description">Acepta nuevas solicitudes de clientes</p>
+          <p class="tab-description">
+            Acepta nuevas solicitudes de clientes
+          </p>
         </div>
 
         <SolicitudesDisponibles
@@ -88,18 +117,28 @@
           @busy="busyRequest"
         />
 
-        <div v-if="!loading.available && availableRequests.length === 0" class="empty-state">
-          <div class="empty-icon">📭</div>
+        <div
+          v-if="!loading.available && availableRequests.length === 0"
+          class="empty-state"
+        >
+          <div class="empty-icon">
+            📭
+          </div>
           <h4>No hay solicitudes disponibles</h4>
           <p>Las nuevas solicitudes aparecerán aquí automáticamente</p>
         </div>
       </div>
 
       <!-- SOLICITUDES ACTIVAS -->
-      <div v-if="activeTab === 'in-progress'" class="tab-content">
+      <div
+        v-if="activeTab === 'in-progress'"
+        class="tab-content"
+      >
         <div class="tab-header">
           <h3>⚡ Solicitudes Activas</h3>
-          <p class="tab-description">Gestiona los servicios en progreso</p>
+          <p class="tab-description">
+            Gestiona los servicios en progreso
+          </p>
         </div>
 
         <SolicitudesActivas
@@ -112,18 +151,28 @@
           @toggle-dropdown="toggleDropdown"
         />
 
-        <div v-if="!loading.inProgress && inProgressRequests.length === 0" class="empty-state">
-          <div class="empty-icon">🚀</div>
+        <div
+          v-if="!loading.inProgress && inProgressRequests.length === 0"
+          class="empty-state"
+        >
+          <div class="empty-icon">
+            🚀
+          </div>
           <h4>No hay servicios activos</h4>
           <p>Acepta solicitudes para comenzar a trabajar</p>
         </div>
       </div>
 
       <!-- SOPORTE -->
-      <div v-if="activeTab === 'support'" class="tab-content">
+      <div
+        v-if="activeTab === 'support'"
+        class="tab-content"
+      >
         <div class="tab-header">
           <h3>🛠️ Centro de Soporte</h3>
-          <p class="tab-description">Obtén ayuda y resuelve dudas</p>
+          <p class="tab-description">
+            Obtén ayuda y resuelve dudas
+          </p>
         </div>
 
         <Soporte
@@ -142,10 +191,15 @@
       </div>
 
       <!-- HISTORIAL -->
-      <div v-if="activeTab === 'history'" class="tab-content">
+      <div
+        v-if="activeTab === 'history'"
+        class="tab-content"
+      >
         <div class="tab-header">
           <h3>📅 Historial de Servicios</h3>
-          <p class="tab-description">Revisa tus servicios completados</p>
+          <p class="tab-description">
+            Revisa tus servicios completados
+          </p>
         </div>
 
         <Historial
@@ -154,8 +208,13 @@
           @open-history="openHistoryModal"
         />
 
-        <div v-if="!loading.history && historyRequests.length === 0" class="empty-state">
-          <div class="empty-icon">📖</div>
+        <div
+          v-if="!loading.history && historyRequests.length === 0"
+          class="empty-state"
+        >
+          <div class="empty-icon">
+            📖
+          </div>
           <h4>Historial vacío</h4>
           <p>Los servicios completados aparecerán aquí</p>
         </div>
@@ -183,7 +242,10 @@
     />
 
     <!-- TOAST NOTIFICATIONS -->
-    <div v-if="pulling" class="toast toast-info">
+    <div
+      v-if="pulling"
+      class="toast toast-info"
+    >
       ⏳ Soltando para actualizar...
     </div>
   </div>
@@ -271,16 +333,16 @@ export default {
       showProofModal: false,
       selectedHistory: {},
       historyModal: false,
-      _lastPullRefresh: 0,
-      _pullRefreshCooldown: 5000,
-      _socketHandlers: [],
-      _initialized: false,
-      _lastFetch: {
+      lastPullRefresh_: 0,
+      pullRefreshCooldown_: 5000,
+      socketHandlers_: [],
+      initialized_: false,
+      lastFetch_: {
         support: 0,
         history: 0,
         faq: 0
       },
-      _CACHE_TTL: 5000
+      CACHE_TTL_: 5000
     };
   },
 
@@ -294,6 +356,51 @@ export default {
         });
       }
     }
+  },
+
+  async mounted() {
+    const auth = useAuthStore();
+    const socketStore = useSocketStore();
+    const notificationStore = useNotificationStore();
+    try {
+      socketStore.init();
+      await notificationStore.initialize();
+      this.setupSocketHandlers(socketStore);
+      this.providerId = auth.user?.id;
+      await auth.loadLocale();
+      await this.initializeTabs();
+      await this.$nextTick();
+      if (!socketStore.isConnected) {
+        await new Promise(resolve => {
+          const checkInterval = setInterval(() => {
+            if (socketStore.isConnected) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+      await Promise.allSettled([
+        this.fetchAvailableRequests(),
+        this.fetchActiveRequests(),
+        this.fetchTickets(),
+        this.fetchFaq(),
+        this.fetchHistoryRequests()
+      ]);
+      this.initialized_ = true;
+    } catch (error) {
+      console.error('❌ Error inicializando DashboardProvider:', error);
+      this.$swal?.fire({ icon: 'error', title: 'Error', text: error.message });
+    }
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
+  },
+
+  beforeUnmount() {
+    this.cleanupSocketHandlers();
+    this.resetModals();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   },
 
   methods: {
@@ -318,9 +425,9 @@ export default {
     },
 
     async onVisibilityChange() {
-      if (!document.hidden && this._initialized) {
+      if (!document.hidden && this.initialized_) {
         console.log('👀 Provider volvió de background → refrescando');
-        this._lastPullRefresh = 0;
+        this.lastPullRefresh_ = 0;
         await this.syncRequests();
       }
     },
@@ -454,7 +561,7 @@ export default {
       socketStore.on('payment_updated', onPaymentUpdated);
       socketStore.on('new-notification', onNewNotification);
       socketStore.on('new_request_created', onNewRequest);
-      this._socketHandlers = [
+      this.socketHandlers_ = [
         { event: 'request_updated', handler: onRequestUpdated },
         { event: 'payment_updated', handler: onPaymentUpdated },
         { event: 'new-notification', handler: onNewNotification },
@@ -464,10 +571,10 @@ export default {
 
     cleanupSocketHandlers() {
       const socketStore = useSocketStore();
-      this._socketHandlers.forEach(({ event, handler }) => {
+      this.socketHandlers_.forEach(({ event, handler }) => {
         socketStore.off(event, handler);
       });
-      this._socketHandlers = [];
+      this.socketHandlers_ = [];
     },
 
     async initializeTabs() {
@@ -495,8 +602,8 @@ export default {
       const deltaY = y - this.pullStartY;
       if (deltaY > 120) {
         const now = Date.now();
-        if (now - this._lastPullRefresh > this._pullRefreshCooldown) {
-          this._lastPullRefresh = now;
+        if (now - this.lastPullRefresh_ > this.pullRefreshCooldown_) {
+          this.lastPullRefresh_ = now;
           this.pulling = false;
           this.syncRequests();
         } else {
@@ -707,7 +814,7 @@ export default {
         });
 
         if (response.data.success) {
-          this._lastFetch.support = 0;
+          this.lastFetch_.support = 0;
           await this.fetchTickets();
           this.$swal?.fire({
             icon: 'success',
@@ -837,7 +944,7 @@ export default {
 
     async fetchHistoryRequests() {
       const now = Date.now();
-      if (now - this._lastFetch.history < this._CACHE_TTL && this.historyRequests.length > 0) return;
+      if (now - this.lastFetch_.history < this.CACHE_TTL_ && this.historyRequests.length > 0) return;
       const auth = useAuthStore();
       if (!auth.token) {
         this.loading.history = false;
@@ -850,7 +957,7 @@ export default {
         });
         const data = Array.isArray(res.data?.history) ? res.data.history : res.data || [];
         this.historyRequests = data.map(h => this.normalizeHistory(h));
-        this._lastFetch.history = now;
+        this.lastFetch_.history = now;
       } catch (e) {
         console.error(e);
         this.$swal?.fire({
@@ -865,7 +972,7 @@ export default {
 
     async fetchTickets() {
       const now = Date.now();
-      if (now - this._lastFetch.support < this._CACHE_TTL && this.tickets.length > 0) return;
+      if (now - this.lastFetch_.support < this.CACHE_TTL_ && this.tickets.length > 0) return;
       const auth = useAuthStore();
       if (!auth.token) {
         this.loading.support = false;
@@ -883,7 +990,7 @@ export default {
           description: ticket.description
         }));
 
-        this._lastFetch.support = now;
+        this.lastFetch_.support = now;
       } catch (e) {
         console.error(e);
         this.$swal?.fire({
@@ -898,12 +1005,12 @@ export default {
 
     async fetchFaq() {
       const now = Date.now();
-      if (now - this._lastFetch.faq < this._CACHE_TTL && this.faqItems.length > 0) return;
+      if (now - this.lastFetch_.faq < this.CACHE_TTL_ && this.faqItems.length > 0) return;
       this.loading.faq = true;
       try {
         const res = await api.get('/support/faq');
         this.faqItems = Array.isArray(res.data?.faq) ? res.data.faq : res.data || [];
-        this._lastFetch.faq = now;
+        this.lastFetch_.faq = now;
       } catch (e) {
         console.error(e);
         this.$swal?.fire({
@@ -1021,54 +1128,9 @@ export default {
 
     onTicketCreated() {
       this.showNewTicket = false;
-      this._lastFetch.support = 0;
+      this.lastFetch_.support = 0;
       this.fetchTickets();
     }
-  },
-
-  async mounted() {
-    const auth = useAuthStore();
-    const socketStore = useSocketStore();
-    const notificationStore = useNotificationStore();
-    try {
-      socketStore.init();
-      await notificationStore.initialize();
-      this.setupSocketHandlers(socketStore);
-      this.providerId = auth.user?.id;
-      await auth.loadLocale();
-      await this.initializeTabs();
-      await this.$nextTick();
-      if (!socketStore.isConnected) {
-        await new Promise(resolve => {
-          const checkInterval = setInterval(() => {
-            if (socketStore.isConnected) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 100);
-        });
-      }
-      await Promise.allSettled([
-        this.fetchAvailableRequests(),
-        this.fetchActiveRequests(),
-        this.fetchTickets(),
-        this.fetchFaq(),
-        this.fetchHistoryRequests()
-      ]);
-      this._initialized = true;
-    } catch (error) {
-      console.error('❌ Error inicializando DashboardProvider:', error);
-      this.$swal?.fire({ icon: 'error', title: 'Error', text: error.message });
-    }
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
-    window.addEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
-  },
-
-  beforeUnmount() {
-    this.cleanupSocketHandlers();
-    this.resetModals();
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
-    window.removeEventListener('refresh-provider-dashboard', this.handleProviderRefresh);
   }
 };
 </script>

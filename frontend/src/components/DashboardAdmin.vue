@@ -7,7 +7,11 @@
         <p>Resumen completo de estadísticas y actividades</p>
       </div>
       <div class="header-actions">
-        <button class="btn-refresh" @click="fetchStats" :disabled="loading">
+        <button
+          class="btn-refresh"
+          :disabled="loading"
+          @click="fetchStats"
+        >
           {{ loading ? '⏳ Cargando...' : '🔄 Actualizar' }}
         </button>
       </div>
@@ -21,17 +25,27 @@
         class="stat-card"
         :class="`stat-${card.title}`"
       >
-        <div class="card-badge" v-if="card.title === 'onlineUsers' && card.value > 0">
+        <div
+          v-if="card.title === 'onlineUsers' && card.value > 0"
+          class="card-badge"
+        >
           En línea
         </div>
 
         <div class="card-icon">
-          <component :is="card.icon" class="icon" />
+          <component
+            :is="card.icon"
+            class="icon"
+          />
         </div>
 
         <div class="card-content">
-          <p class="card-title">{{ t(card.title)}}</p>
-          <h3 class="card-value">{{ formatValue(card) }}</h3>
+          <p class="card-title">
+            {{ t(card.title) }}
+          </p>
+          <h3 class="card-value">
+            {{ formatValue(card) }}
+          </h3>
         </div>
       </div>
     </div>
@@ -44,13 +58,21 @@
       </div>
 
       <div class="activities-container">
-        <div v-if="activities.length === 0" class="empty-activities">
-          <div class="empty-icon">📊</div>
+        <div
+          v-if="activities.length === 0"
+          class="empty-activities"
+        >
+          <div class="empty-icon">
+            📊
+          </div>
           <h3>No hay actividades recientes</h3>
           <p>Las actividades del sistema aparecerán aquí</p>
         </div>
 
-        <div v-else class="activities-list">
+        <div
+          v-else
+          class="activities-list"
+        >
           <div
             v-for="(activity, index) in activities"
             :key="index"
@@ -61,11 +83,16 @@
             </div>
 
             <div class="activity-content">
-              <p class="activity-text">{{ formatActivity(activity) }}</p>
+              <p class="activity-text">
+                {{ formatActivity(activity) }}
+              </p>
               <span class="activity-time">{{ formatActivityTime(activity.created_at) }}</span>
             </div>
 
-            <div class="activity-status" :class="getStatusClass(activity)">
+            <div
+              class="activity-status"
+              :class="getStatusClass(activity)"
+            >
               {{ getStatusText(activity) }}
             </div>
           </div>
@@ -75,7 +102,9 @@
       <!-- Resumen rápido con datos reales -->
       <div class="quick-summary">
         <div class="summary-item">
-          <div class="summary-icon">👥</div>
+          <div class="summary-icon">
+            👥
+          </div>
           <div class="summary-content">
             <h4>Usuarios totales</h4>
             <p>{{ statCards[0].value }}</p>
@@ -83,7 +112,9 @@
         </div>
 
         <div class="summary-item">
-          <div class="summary-icon">💰</div>
+          <div class="summary-icon">
+            💰
+          </div>
           <div class="summary-content">
             <h4>Ingresos mensuales</h4>
             <p>{{ formatPrice(statCards[4].value) }}</p>
@@ -91,7 +122,9 @@
         </div>
 
         <div class="summary-item">
-          <div class="summary-icon">⏱️</div>
+          <div class="summary-icon">
+            ⏱️
+          </div>
           <div class="summary-content">
             <h4>Tasa de actividad</h4>
             <p>{{ calculateActivityRate() }}%</p>

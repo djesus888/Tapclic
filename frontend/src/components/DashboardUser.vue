@@ -6,10 +6,15 @@
         <h1 class="dashboard-title">
           <span class="dashboard-icon">📊</span> Catalogo
         </h1>
-        <p class="dashboard-subtitle">Gestiona tus servicios, solicitudes y soporte</p>
+        <p class="dashboard-subtitle">
+          Gestiona tus servicios, solicitudes y soporte
+        </p>
       </div>
 
-      <div class="header-stats" v-if="selectedTab === 'services' && services.length > 0">
+      <div
+        v-if="selectedTab === 'services' && services.length > 0"
+        class="header-stats"
+      >
         <div class="stat-badge">
           <span class="stat-icon">📋</span>
           <div class="stat-info">
@@ -23,7 +28,11 @@
     <!-- TABS MODERNAS -->
     <div class="tabs-container">
       <div class="tabs-wrapper">
-        <nav class="tabs-nav" role="tablist" :aria-label="$t('tabs')">
+        <nav
+          class="tabs-nav"
+          role="tablist"
+          :aria-label="$t('tabs')"
+        >
           <button
             role="tab"
             :aria-selected="selectedTab === 'services'"
@@ -83,16 +92,16 @@
           v-if="selectedTab === 'services'"
           :services="services"
           :loading="loading"
-          @open-service-details="openServiceDetails"
           class="content-section"
+          @open-service-details="openServiceDetails"
         />
 
         <SolicitudesActivas
           v-if="selectedTab === 'activeRequests'"
           :requests="activeRequests"
           :loading="activeRequestsLoading"
-          @open-live-tracking="openLiveTracking"
           class="content-section"
+          @open-live-tracking="openLiveTracking"
         />
 
         <!-- SOPORTE - AHORA CON TODOS LOS EVENTOS -->
@@ -103,36 +112,47 @@
           :loading-tickets="supportLoading"
           :loading-faq="faqLoading"
           :show-new-ticket="showNewTicket"
+          class="content-section"
           @open-support-chat="openSupportChat"
           @show-new-ticket="showNewTicket = true"
           @reply-ticket="handleReplyTicket"
           @close-ticket="handleCloseTicket"
           @copy-ticket-id="handleCopyTicketId"
           @open-chat-with-ticket="handleChatWithTicket"
-          class="content-section"
         />
 
         <Historial
           v-if="selectedTab === 'history'"
           :requests="history"
           :loading="historyLoading"
-          @open-history="openHistoryModal"
           class="content-section"
+          @open-history="openHistoryModal"
         />
       </div>
 
       <!-- Loading State Global -->
-      <div v-if="globalLoading" class="loading-overlay">
-        <div class="loading-spinner"></div>
+      <div
+        v-if="globalLoading"
+        class="loading-overlay"
+      >
+        <div class="loading-spinner" />
         <p>Cargando...</p>
       </div>
 
       <!-- Error State -->
-      <div v-if="hasError && selectedTab === 'services'" class="error-state">
-        <div class="error-icon">⚠️</div>
+      <div
+        v-if="hasError && selectedTab === 'services'"
+        class="error-state"
+      >
+        <div class="error-icon">
+          ⚠️
+        </div>
         <h3>Error al cargar servicios</h3>
         <p>{{ errorMessage }}</p>
-        <button class="retry-btn" @click="fetchServices">
+        <button
+          class="retry-btn"
+          @click="fetchServices"
+        >
           🔄 Reintentar
         </button>
       </div>
@@ -148,7 +168,11 @@
       @on-start-chat="openChat"
     />
 
-    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
 
     <RequestConfirmationModal
       v-if="modalService"
@@ -207,11 +231,22 @@
     />
 
     <!-- HISTORY DETAIL MODAL -->
-    <div v-if="historyModal" class="modal-overlay" @click.self="closeHistoryModal">
+    <div
+      v-if="historyModal"
+      class="modal-overlay"
+      @click.self="closeHistoryModal"
+    >
       <div class="modern-modal">
         <div class="modal-header">
-          <h2 class="modal-title">{{ sanitize(selectedHistory.service_title || selectedHistory.title) }}</h2>
-          <button class="modal-close" @click="closeHistoryModal">✕</button>
+          <h2 class="modal-title">
+            {{ sanitize(selectedHistory.service_title || selectedHistory.title) }}
+          </h2>
+          <button
+            class="modal-close"
+            @click="closeHistoryModal"
+          >
+            ✕
+          </button>
         </div>
 
         <div class="modal-content">
@@ -223,7 +258,10 @@
 
             <div class="info-item">
               <span class="info-label">Estado:</span>
-              <span class="info-badge" :class="statusColor(selectedHistory.status)">
+              <span
+                class="info-badge"
+                :class="statusColor(selectedHistory.status)"
+              >
                 {{ statusLabel(selectedHistory.status) }}
               </span>
             </div>
@@ -241,7 +279,12 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-secondary" @click="closeHistoryModal">Cerrar</button>
+          <button
+            class="btn-secondary"
+            @click="closeHistoryModal"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

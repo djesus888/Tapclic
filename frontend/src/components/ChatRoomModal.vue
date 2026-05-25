@@ -348,7 +348,6 @@
 </template>
 
 <script setup>
-/* global confirm, clearTimeout, FileReader, FormData, Blob, URL */
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
 import api from '@/axios';
 import { useAuthStore } from '@/stores/authStore';

@@ -18,14 +18,28 @@ export default [
         clearInterval: 'readonly',
         setInterval: 'readonly',
         atob: 'readonly',
-        _: 'readonly'
+        _: 'readonly',
+        confirm: 'readonly',
+        clearTimeout: 'readonly',
+        FileReader: 'readonly',
+        FormData: 'readonly',
+        alert: 'readonly',
+        prompt: 'readonly',
+        URL: 'readonly',
+        CustomEvent: 'readonly',
+        Blob: 'readonly',
+        getImageUrl: 'readonly'
       }
     },
     rules: {
       'no-console': 'off',
       'no-unused-vars': 'warn',
+      'no-undef': 'warn',
       'vue/no-undef-components': 'off',
-      'vue/no-unused-vars': 'warn'
+      'vue/no-unused-vars': 'warn',
+      'vue/no-unused-components': 'warn',
+      'vue/no-v-html': 'warn',
+      'no-underscore-dangle': 'off'
     }
   }
 ]
