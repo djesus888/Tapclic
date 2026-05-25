@@ -17,30 +17,27 @@
         <h1 class="detail-title">{{ $t('service_details') }}</h1>
       </div>
 
-     <!-- Grid principal -->
-<div class="detail-grid">
-  <!-- Columna izquierda: Imagen y info básica -->
-  <div class="left-column">
-    <!-- Imagen del servicio -->
-    <div class="service-image-section">
-      <div class="image-container">
-        <img
-          v-if="service.image_url"
-          :src="getImageUrl(service.image_url)"
-          :alt="service.title || $t('service')"
-          class="service-image"
-          @error="handleImageError"
-        />
-        <div v-else class="image-placeholder">
-          <span class="placeholder-icon">📸</span>
-          <p>{{ $t('no_image_available') }}</p>
-        </div>
-      </div>
-      <div class="image-badge">🖼️ {{ $t('service_image') }}</div>
-    </div>
-  </div>
-</div>
-
+      <!-- Grid principal -->
+      <div class="detail-grid">
+        <!-- Columna izquierda: Imagen y info básica -->
+        <div class="left-column">
+          <!-- Imagen del servicio -->
+          <div class="service-image-section">
+            <div class="image-container">
+              <img
+                v-if="service.image_url"
+                :src="getImageUrl(service.image_url)"
+                :alt="service.title || $t('service')"
+                class="service-image"
+                @error="handleImageError"
+              />
+              <div v-else class="image-placeholder">
+                <span class="placeholder-icon">📸</span>
+                <p>{{ $t('no_image_available') }}</p>
+              </div>
+            </div>
+            <div class="image-badge">🖼️ {{ $t('service_image') }}</div>
+          </div>
 
           <!-- Información básica -->
           <div class="basic-info-card">
@@ -64,7 +61,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> <!-- Cierre de left-column -->
 
         <!-- Columna derecha: Proveedor y acciones -->
         <div class="right-column">
@@ -198,8 +195,8 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </div> <!-- Cierre de right-column -->
+      </div> <!-- Cierre de detail-grid -->
 
       <!-- Sección de acciones secundarias -->
       <div class="secondary-actions">
@@ -216,9 +213,9 @@
           <span class="button-text">{{ $t('track_order') }}</span>
         </button>
       </div>
-    </div>
+    </div> <!-- Cierre de service-detail-container -->
 
-    <!-- MODALES (MANTENIDOS EXACTAMENTE IGUAL) -->
+    <!-- MODALES -->
     <!-- 1. Detalle del servicio -->
     <ServiceDetailsModal
       v-if="modalService"
@@ -274,7 +271,7 @@
       @close="showLiveTracking = false"
       @open-chat="openChat"
     />
-  </div>
+  </div> <!-- Cierre de service-detail-page -->
 </template>
 
 <script setup lang="ts">
