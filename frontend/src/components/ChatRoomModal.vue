@@ -13,26 +13,37 @@
               :alt="target.name"
               class="avatar-image"
               @error="handleImageError"
-            />
+            >
             <span
               class="avatar-online-dot"
               :class="{ 'online': isTargetOnline }"
               :title="isTargetOnline ? 'En línea' : 'Desconectado'"
-            ></span>
+            />
           </div>
           <div class="user-info">
             <div class="user-name-wrapper">
-              <h3 class="user-name">{{ target.name }}</h3>
-              <span v-if="isTargetOnline" class="online-badge">EN LÍNEA</span>
+              <h3 class="user-name">
+                {{ target.name }}
+              </h3>
+              <span
+                v-if="isTargetOnline"
+                class="online-badge"
+              >EN LÍNEA</span>
             </div>
-            <p class="user-role">{{ formatRole(target.role) }}</p>
+            <p class="user-role">
+              {{ formatRole(target.role) }}
+            </p>
           </div>
         </div>
 
         <div class="header-right">
           <!-- Botón adjuntar imagen -->
           <div class="file-input-wrapper">
-            <label for="imageInput" class="attach-btn" title="Adjuntar imagen">
+            <label
+              for="imageInput"
+              class="attach-btn"
+              title="Adjuntar imagen"
+            >
               📎
             </label>
             <input
@@ -41,54 +52,57 @@
               accept="image/*"
               class="file-input"
               @change="onFileChange"
-            />
+            >
           </div>
 
           <!-- Menú desplegable -->
           <div class="dropdown-wrapper">
             <button
-              @click="showMenu = !showMenu"
               class="menu-btn"
               :class="{ 'active': showMenu }"
+              @click="showMenu = !showMenu"
             >
               ⋮
             </button>
-            <div v-if="showMenu" class="dropdown-menu">
+            <div
+              v-if="showMenu"
+              class="dropdown-menu"
+            >
               <button
-                @click="confirmClearMessagesForMe"
                 class="dropdown-item"
+                @click="confirmClearMessagesForMe"
               >
                 <span class="item-icon">🗑️</span>
                 <span class="item-text">Borrar mis mensajes</span>
               </button>
               <button
                 v-if="authStore.user?.role === 'admin'"
-                @click="confirmHardDeleteMessages"
                 class="dropdown-item"
+                @click="confirmHardDeleteMessages"
               >
                 <span class="item-icon">⚠️</span>
                 <span class="item-text">Borrar permanentemente (admin)</span>
               </button>
-              <div class="dropdown-divider"></div>
+              <div class="dropdown-divider" />
               <button
-                @click="confirmDeleteChatForMe"
                 class="dropdown-item"
+                @click="confirmDeleteChatForMe"
               >
                 <span class="item-icon">🔥</span>
                 <span class="item-text">Borrar chat para mí</span>
               </button>
               <button
                 v-if="authStore.user?.role === 'admin'"
-                @click="confirmHardDeleteChat"
                 class="dropdown-item"
+                @click="confirmHardDeleteChat"
               >
                 <span class="item-icon">💀</span>
                 <span class="item-text">Eliminar permanentemente (admin)</span>
               </button>
-              <div class="dropdown-divider"></div>
+              <div class="dropdown-divider" />
               <button
-                @click="exportChatHistory"
                 class="dropdown-item"
+                @click="exportChatHistory"
               >
                 <span class="item-icon">📥</span>
                 <span class="item-text">Exportar historial</span>
@@ -98,9 +112,9 @@
 
           <!-- Botón cerrar -->
           <button
-            @click="$emit('close')"
             class="close-btn"
             title="Cerrar chat"
+            @click="$emit('close')"
           >
             ✕
           </button>
@@ -114,18 +128,34 @@
         :class="{ 'empty': messages.length === 0 }"
       >
         <!-- Estado vacío -->
-        <div v-if="messages.length === 0" class="empty-messages">
-          <div class="empty-icon">💬</div>
-          <h3 class="empty-title">No hay mensajes aún</h3>
-          <p class="empty-subtitle">Envía el primer mensaje para comenzar la conversación</p>
+        <div
+          v-if="messages.length === 0"
+          class="empty-messages"
+        >
+          <div class="empty-icon">
+            💬
+          </div>
+          <h3 class="empty-title">
+            No hay mensajes aún
+          </h3>
+          <p class="empty-subtitle">
+            Envía el primer mensaje para comenzar la conversación
+          </p>
           <div class="chat-tips">
-            <p class="tip">💡 Puedes adjuntar imágenes usando el botón 📎</p>
-            <p class="tip">💡 Presiona Enter para enviar mensajes rápidamente</p>
+            <p class="tip">
+              💡 Puedes adjuntar imágenes usando el botón 📎
+            </p>
+            <p class="tip">
+              💡 Presiona Enter para enviar mensajes rápidamente
+            </p>
           </div>
         </div>
 
         <!-- Lista de mensajes -->
-        <div v-else class="messages-list">
+        <div
+          v-else
+          class="messages-list"
+        >
           <div
             v-for="msg in messages"
             :key="msg.id"
@@ -145,25 +175,31 @@
                 :alt="msg.sender"
                 class="avatar-small"
                 @error="handleImageError"
-              />
+              >
             </div>
 
             <!-- Contenedor del mensaje -->
             <div class="message-container">
               <button
                 v-if="msg.sender === authStore.user?.role"
-                @click="deleteMessageForMe(msg.id)"
                 class="message-delete-btn"
                 title="Borrar para mí"
+                @click="deleteMessageForMe(msg.id)"
               >
                 ✕
               </button>
 
-              <div v-if="msg.text" class="message-text">
+              <div
+                v-if="msg.text"
+                class="message-text"
+              >
                 {{ msg.text }}
               </div>
 
-              <div v-if="msg.type === 'image' && msg.attachment_url" class="message-image">
+              <div
+                v-if="msg.type === 'image' && msg.attachment_url"
+                class="message-image"
+              >
                 <img
                   :src="msg.attachment_url"
                   :alt="msg.text || 'Imagen adjunta'"
@@ -171,28 +207,46 @@
                   @load="scrollToBottom"
                   @error="handleImageError"
                   @click="openImage(msg.attachment_url)"
-                />
+                >
               </div>
 
               <div class="message-info">
                 <span class="message-time">
                   {{ formatMessageTime(msg.created_at) }}
                 </span>
-                <span v-if="msg.sender === authStore.user?.role" class="message-status">
-                  <span v-if="!msg.is_delivered && !msg.is_read" class="status-sent" title="Enviado">✓</span>
-                  <span v-else-if="msg.is_delivered && !msg.is_read" class="status-delivered" title="Entregado">✓✓</span>
-                  <span v-else-if="msg.is_read" class="status-read" title="Leído">✓✓</span>
+                <span
+                  v-if="msg.sender === authStore.user?.role"
+                  class="message-status"
+                >
+                  <span
+                    v-if="!msg.is_delivered && !msg.is_read"
+                    class="status-sent"
+                    title="Enviado"
+                  >✓</span>
+                  <span
+                    v-else-if="msg.is_delivered && !msg.is_read"
+                    class="status-delivered"
+                    title="Entregado"
+                  >✓✓</span>
+                  <span
+                    v-else-if="msg.is_read"
+                    class="status-read"
+                    title="Leído"
+                  >✓✓</span>
                 </span>
               </div>
             </div>
           </div>
 
           <!-- Indicador de typing -->
-          <div v-if="isTyping" class="typing-indicator-wrapper">
+          <div
+            v-if="isTyping"
+            class="typing-indicator-wrapper"
+          >
             <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
+              <span />
+              <span />
+              <span />
             </div>
             <span class="typing-text">{{ typingText }}</span>
           </div>
@@ -200,12 +254,15 @@
       </div>
 
       <!-- Vista previa de imagen -->
-      <div v-if="previewUrl" class="image-preview-container">
+      <div
+        v-if="previewUrl"
+        class="image-preview-container"
+      >
         <div class="preview-header">
           <span class="preview-label">Vista previa</span>
           <button
-            @click="selectedFile = null; previewUrl = null"
             class="preview-close"
+            @click="selectedFile = null; previewUrl = null"
           >
             ✕
           </button>
@@ -214,7 +271,7 @@
           :src="previewUrl"
           alt="Vista previa"
           class="preview-image"
-        />
+        >
       </div>
 
       <!-- Área de entrada de mensaje -->
@@ -226,29 +283,38 @@
             placeholder="Escribe tu mensaje aquí..."
             autocomplete="off"
             class="message-input"
+            :disabled="loading || uploadingImage"
             @keyup.enter="sendMessage"
             @keydown="handleTyping"
             @blur="stopTyping"
-            :disabled="loading || uploadingImage"
-          />
+          >
           <button
-            @click="sendMessage"
             :disabled="loading || uploadingImage || (!newMessage.trim() && !selectedFile)"
             class="send-btn"
             :class="{
               'loading': loading,
               'disabled': (!newMessage.trim() && !selectedFile)
             }"
+            @click="sendMessage"
           >
-            <span v-if="loading" class="spinner-small"></span>
+            <span
+              v-if="loading"
+              class="spinner-small"
+            />
             <span v-else>➢</span>
           </button>
         </div>
 
         <div class="input-hints">
           <span class="hint">Presiona Enter para enviar</span>
-          <span class="hint" v-if="uploadingImage">Subiendo imagen...</span>
-          <span v-else-if="isTargetOnline" class="hint online-hint">● En línea</span>
+          <span
+            v-if="uploadingImage"
+            class="hint"
+          >Subiendo imagen...</span>
+          <span
+            v-else-if="isTargetOnline"
+            class="hint online-hint"
+          >● En línea</span>
         </div>
       </div>
     </div>
@@ -256,16 +322,33 @@
 
   <!-- Modal para ver imagen en grande -->
   <Teleport to="body">
-    <div v-if="showImageModal" class="image-modal-overlay" @click="closeImageModal">
-      <div class="image-modal-container" @click.stop>
-        <button class="image-modal-close" @click="closeImageModal">✕</button>
-        <img :src="selectedImage" alt="Imagen ampliada" class="image-modal-img" />
+    <div
+      v-if="showImageModal"
+      class="image-modal-overlay"
+      @click="closeImageModal"
+    >
+      <div
+        class="image-modal-container"
+        @click.stop
+      >
+        <button
+          class="image-modal-close"
+          @click="closeImageModal"
+        >
+          ✕
+        </button>
+        <img
+          :src="selectedImage"
+          alt="Imagen ampliada"
+          class="image-modal-img"
+        >
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
+/* global confirm, clearTimeout, FileReader, FormData, Blob, URL */
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
 import api from '@/axios';
 import { useAuthStore } from '@/stores/authStore';
@@ -432,7 +515,7 @@ const ensureConversation = async () => {
         conversationId.value = res.data.id;
         return true;
       }
-    } catch (err) {
+    } catch (_err) {
       console.log('⚠️ No se encontró conversación existente');
     }
 

@@ -57,7 +57,9 @@ api.interceptors.response.use(
           errorMessage = '📡 No internet - You are not connected to the internet'
           userMessage = 'You are not connected to the internet. Please check your network.'
         }
-      } catch {}
+      } catch {
+// intencionalmente vacio
+}
 
       // ⚠️ SOLO enriquecemos el error
       error.isNetworkError = true
