@@ -6,8 +6,6 @@
         <h1><span class="icon">⚙️</span> {{ $t('config.title') }}</h1>
         <p>{{ $t('config.subtitle') }}</p>
       </div>
-      
-      <!-- Role Badge -->
       <div class="role-badge-section">
         <div class="role-badge" :class="getRoleBadgeClass(user?.role)">
           {{ getUserRoleLabel(user?.role) }}
@@ -18,33 +16,21 @@
 
     <!-- Config Content -->
     <div class="config-content">
-      <!-- Left Panel: Navigation -->
       <div class="config-sidebar">
         <nav class="sidebar-nav">
-          <button
-            v-for="section in sections"
-            :key="section.id"
-            @click="activeSection = section.id"
-            :class="['nav-item', { active: activeSection === section.id }]"
-          >
+          <button v-for="section in sections" :key="section.id" @click="activeSection = section.id"
+            :class="['nav-item', { active: activeSection === section.id }]">
             <span class="nav-icon">{{ section.icon }}</span>
             <span class="nav-text">{{ section.label }}</span>
           </button>
         </nav>
-
-        <!-- Save Status -->
         <div class="save-status" :class="{ 'has-changes': hasUnsavedChanges }">
           <div class="status-icon">{{ hasUnsavedChanges ? '💾' : '✅' }}</div>
           <div class="status-text">
             <h4>{{ hasUnsavedChanges ? 'Cambios sin guardar' : 'Todo guardado' }}</h4>
             <p>{{ hasUnsavedChanges ? 'Guarda para aplicar cambios' : 'Tu configuración está actualizada' }}</p>
           </div>
-          <button
-            v-if="hasUnsavedChanges"
-            @click="saveConfig"
-            :disabled="loading"
-            class="btn-save-changes"
-          >
+          <button v-if="hasUnsavedChanges" @click="saveConfig" :disabled="loading" class="btn-save-changes">
             <span v-if="loading" class="loading-spinner-small"></span>
             <span v-else>💾</span>
             <span>{{ loading ? 'Guardando...' : 'Guardar' }}</span>
@@ -52,15 +38,12 @@
         </div>
       </div>
 
-      <!-- Right Panel: Forms -->
       <div class="config-main">
-        <!-- Loading State -->
         <div v-if="!user" class="loading-section">
           <div class="spinner"></div>
           <p>Cargando configuración...</p>
         </div>
 
-        <!-- Config Forms -->
         <div v-else class="forms-container">
           <!-- Account Section -->
           <div v-show="activeSection === 'account'" class="config-section">
@@ -68,59 +51,21 @@
               <h2><span class="section-icon">👤</span> {{ $t('config.account') }}</h2>
               <p class="section-subtitle">Información básica de tu cuenta</p>
             </div>
-
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">👤</span>
-                  {{ $t('config.name') }}
-                  <span class="required">*</span>
-                </label>
-                <input
-                  v-model="form.name"
-                  type="text"
-                  required
-                  class="form-input"
-                  :class="{ 'input-error': errors.name }"
-                  @input="markUnsavedChanges"
-                />
+                <label class="form-label"><span class="label-icon">👤</span>{{ $t('config.name') }}<span class="required">*</span></label>
+                <input v-model="form.name" type="text" required class="form-input" :class="{ 'input-error': errors.name }" @input="markUnsavedChanges" />
                 <div v-if="errors.name" class="error-message">{{ errors.name }}</div>
-                <div class="form-hint">Tu nombre completo</div>
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">📧</span>
-                  {{ $t('config.email') }}
-                  <span class="required">*</span>
-                </label>
-                <input
-                  v-model="form.email"
-                  type="email"
-                  required
-                  class="form-input"
-                  :class="{ 'input-error': errors.email }"
-                  @input="markUnsavedChanges"
-                />
+                <label class="form-label"><span class="label-icon">📧</span>{{ $t('config.email') }}<span class="required">*</span></label>
+                <input v-model="form.email" type="email" required class="form-input" :class="{ 'input-error': errors.email }" @input="markUnsavedChanges" />
                 <div v-if="errors.email" class="error-message">{{ errors.email }}</div>
-                <div class="form-hint">Usaremos este email para contactarte</div>
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">📱</span>
-                  {{ $t('config.phone') }}
-                </label>
-                <input
-                  v-model="form.phone"
-                  type="tel"
-                  class="form-input"
-                  :class="{ 'input-error': errors.phone }"
-                  @input="markUnsavedChanges"
-                  placeholder="+34 123 456 789"
-                />
+                <label class="form-label"><span class="label-icon">📱</span>{{ $t('config.phone') }}</label>
+                <input v-model="form.phone" type="tel" class="form-input" :class="{ 'input-error': errors.phone }" @input="markUnsavedChanges" placeholder="+34 123 456 789" />
                 <div v-if="errors.phone" class="error-message">{{ errors.phone }}</div>
-                <div class="form-hint">Número de teléfono opcional</div>
               </div>
             </div>
           </div>
@@ -131,67 +76,27 @@
               <h2><span class="section-icon">⚙️</span> {{ $t('config.preferences') }}</h2>
               <p class="section-subtitle">Personaliza tu experiencia</p>
             </div>
-
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">🌐</span>
-                  {{ $t('config.language') }}
-                </label>
+                <label class="form-label"><span class="label-icon">🌐</span>{{ $t('config.language') }}</label>
                 <div class="language-selector">
-                  <div
-                    v-for="lang in languages"
-                    :key="lang.value"
-                    @click="form.language = lang.value; markUnsavedChanges()"
-                    :class="['language-option', { active: form.language === lang.value }]"
-                  >
+                  <div v-for="lang in languages" :key="lang.value" @click="form.language = lang.value; markUnsavedChanges()"
+                    :class="['language-option', { active: form.language === lang.value }]">
                     <span class="language-flag">{{ lang.flag }}</span>
                     <span class="language-name">{{ lang.name }}</span>
                     <span v-if="form.language === lang.value" class="language-check">✅</span>
                   </div>
                 </div>
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">🎨</span>
-                  {{ $t('config.theme') }}
-                </label>
-                <div class="theme-selector">
-                  <div
-                    v-for="theme in themes"
-                    :key="theme.value"
-                    @click="form.theme = theme.value; markUnsavedChanges()"
-                    :class="['theme-option', { active: form.theme === theme.value }]"
-                  >
-                    <span class="theme-icon">{{ theme.icon }}</span>
-                    <span class="theme-name">{{ theme.label }}</span>
-                    <span v-if="form.theme === theme.value" class="theme-check">✓</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">🔔</span>
-                  {{ $t('config.notifications') }}
-                </label>
+                <label class="form-label"><span class="label-icon">🔔</span>{{ $t('config.notifications') }}</label>
                 <div class="notifications-settings">
                   <div class="notification-option">
                     <label class="checkbox-label">
-                      <input
-                        v-model="form.notifications"
-                        type="checkbox"
-                        class="checkbox-input"
-                        @change="markUnsavedChanges"
-                      />
+                      <input v-model="form.notifications" type="checkbox" class="checkbox-input" @change="markUnsavedChanges" />
                       <span class="checkbox-custom"></span>
-                      <span class="checkbox-text">
-                        <span class="checkbox-icon">📢</span>
-                        Recibir notificaciones
-                      </span>
+                      <span class="checkbox-text">Recibir notificaciones</span>
                     </label>
-                    <p class="notification-hint">Te mantendremos informado sobre tus servicios</p>
                   </div>
                 </div>
               </div>
@@ -204,53 +109,30 @@
               <h2><span class="section-icon">🔒</span> {{ $t('config.security') }}</h2>
               <p class="section-subtitle">Protege tu cuenta</p>
             </div>
-
             <div class="security-grid">
               <div class="security-card">
                 <div class="security-icon">🔑</div>
                 <div class="security-content">
                   <h3>Contraseña</h3>
-                  <p>Actualiza tu contraseña regularmente para mayor seguridad</p>
+                  <p>Actualiza tu contraseña regularmente</p>
                 </div>
-                <button
-                  class="btn-security-action"
-                  @click="showChangePassword = true"
-                >
-                  <span class="btn-icon">✏️</span>
-                  Cambiar
-                </button>
+                <button class="btn-security-action" @click="showChangePassword = true">✏️ Cambiar</button>
               </div>
-
               <div class="security-card">
                 <div class="security-icon">📱</div>
                 <div class="security-content">
-                  <h3>Sesión activa</h3>
-                  <p>Sesión iniciada: {{ getLoginTime() }}</p>
+                  <h3>Dispositivos</h3>
+                  <p>Gestiona tus sesiones activas</p>
                 </div>
-                <button
-                  class="btn-security-action"
-                  @click="refreshSession"
-                  :disabled="refreshingSession"
-                >
-                  <span v-if="refreshingSession" class="loading-spinner-small"></span>
-                  <span v-else class="btn-icon">🔄</span>
-                  <span>{{ refreshingSession ? 'Actualizando...' : 'Refrescar' }}</span>
-                </button>
+                <button class="btn-security-action" @click="viewDevices">📊 Ver dispositivos</button>
               </div>
-
               <div class="security-card">
-                <div class="security-icon">🚨</div>
+                <div class="security-icon">📋</div>
                 <div class="security-content">
-                  <h3>Actividad reciente</h3>
-                  <p>Último acceso: {{ getLastActivity() }}</p>
+                  <h3>Actividad</h3>
+                  <p>Ver registros de tu cuenta</p>
                 </div>
-                <button
-                  class="btn-security-action"
-                  @click="viewActivityLog"
-                >
-                  <span class="btn-icon">📊</span>
-                  Ver log
-                </button>
+                <button class="btn-security-action" @click="viewActivityLog">📊 Ver actividad</button>
               </div>
             </div>
           </div>
@@ -261,78 +143,25 @@
               <h2><span class="section-icon">🏢</span> {{ $t('config.providerSection') }}</h2>
               <p class="section-subtitle">Configuración de tu negocio</p>
             </div>
-
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">📍</span>
-                  {{ $t('config.businessAddress') }}
-                </label>
-                <textarea
-                  v-model="form.business_address"
-                  rows="3"
-                  class="form-textarea"
-                  @input="markUnsavedChanges"
-                  placeholder="Dirección completa de tu negocio..."
-                />
-                <div class="form-hint">Dirección donde prestas tus servicios</div>
+                <label class="form-label"><span class="label-icon">📍</span>{{ $t('config.businessAddress') }}</label>
+                <textarea v-model="form.business_address" rows="3" class="form-textarea" @input="markUnsavedChanges" placeholder="Dirección completa de tu negocio..."></textarea>
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">🗺️</span>
-                  {{ $t('config.coverageArea') }}
-                </label>
-                <input
-                  v-model="form.coverage_area"
-                  type="text"
-                  class="form-input"
-                  @input="markUnsavedChanges"
-                  placeholder="Ej: Ciudad, Zona Norte, Área Metropolitana..."
-                />
-                <div class="form-hint">Zonas donde ofreces tus servicios</div>
+                <label class="form-label"><span class="label-icon">🗺️</span>{{ $t('config.coverageArea') }}</label>
+                <input v-model="form.coverage_area" type="text" class="form-input" @input="markUnsavedChanges" placeholder="Ej: Ciudad, Zona Norte..." />
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">🏷️</span>
-                  {{ $t('config.serviceCategories') }}
-                </label>
+                <label class="form-label"><span class="label-icon">🏷️</span>{{ $t('config.serviceCategories') }}</label>
                 <div class="tags-input">
-                  <input
-                    v-model="newCategory"
-                    type="text"
-                    class="tags-input-field"
-                    placeholder="Agrega una categoría..."
-                    @keydown.enter.prevent="addCategory"
-                  />
-                  <button
-                    @click="addCategory"
-                    class="btn-add-tag"
-                    type="button"
-                  >
-                    +
-                  </button>
+                  <input v-model="newCategory" type="text" class="tags-input-field" placeholder="Agrega una categoría..." @keydown.enter.prevent="addCategory" />
+                  <button @click="addCategory" class="btn-add-tag" type="button">+</button>
                 </div>
                 <div class="tags-container">
-                  <span
-                    v-for="(category, index) in categories"
-                    :key="index"
-                    class="tag"
-                  >
-                    {{ category }}
-                    <button
-                      @click="removeCategory(index)"
-                      class="tag-remove"
-                    >
-                      ×
-                    </button>
-                  </span>
-                  <span v-if="categories.length === 0" class="no-tags">
-                    No hay categorías agregadas
-                  </span>
+                  <span v-for="(category, index) in categories" :key="index" class="tag">{{ category }}<button @click="removeCategory(index)" class="tag-remove">×</button></span>
+                  <span v-if="categories.length === 0" class="no-tags">No hay categorías agregadas</span>
                 </div>
-                <div class="form-hint">Separa categorías con comas o presiona Enter</div>
               </div>
             </div>
           </div>
@@ -341,83 +170,28 @@
           <div v-show="activeSection === 'admin' && isAdmin" class="config-section">
             <div class="section-header">
               <h2><span class="section-icon">👑</span> {{ $t('config.adminSection') }}</h2>
-              <p class="section-subtitle">Configuración del sistema</p>
+              <p class="section-subtitle">Accesos rápidos del sistema</p>
             </div>
-
-            <div class="admin-grid">
-              <div class="admin-card">
-                <div class="admin-card-header">
-                  <h3><span class="admin-icon">⚙️</span> {{ $t('config.globalConfig') }}</h3>
-                  <button
-                    class="btn-validate-json"
-                    @click="validateJSON"
-                    :disabled="validatingJSON"
-                  >
-                    <span v-if="validatingJSON" class="loading-spinner-small"></span>
-                    <span v-else class="btn-icon">✓</span>
-                    {{ validatingJSON ? 'Validando...' : 'Validar JSON' }}
-                  </button>
-                </div>
-                <textarea
-                  v-model="form.globalConfig"
-                  rows="6"
-                  class="json-editor"
-                  :class="{ 'json-error': errors.globalConfig, 'json-valid': isJSONValid }"
-                  @input="markUnsavedChanges"
-                  placeholder='{"configKey": "value", "anotherKey": 123}'
-                />
-                <div v-if="errors.globalConfig" class="error-message">{{ errors.globalConfig }}</div>
-                <div v-else-if="isJSONValid" class="success-message">✅ JSON válido</div>
-                <div class="json-hint">Formato JSON válido. Usa Ctrl+Space para autocompletar.</div>
+            <div class="admin-actions">
+              <div class="admin-action-card">
+                <div class="action-icon">👥</div>
+                <div class="action-content"><h3>Gestión de Usuarios</h3><p>Administra usuarios del sistema</p></div>
+                <button class="btn-admin-action" @click="$router.push('/admin/users')">→ Ir</button>
               </div>
-
-              <div class="admin-actions">
-                <div class="admin-action-card">
-                  <div class="action-icon">👥</div>
-                  <div class="action-content">
-                    <h3>{{ $t('config.manageUsers') }}</h3>
-                    <p>Gestiona usuarios del sistema</p>
-                  </div>
-                  <button
-                    class="btn-admin-action"
-                    @click="$router.push('/admin/users')"
-                  >
-                    <span class="btn-icon">→</span>
-                    Ir a gestión
-                  </button>
-                </div>
-
-                <div class="admin-action-card">
-                  <div class="action-icon">📊</div>
-                  <div class="action-content">
-                    <h3>Estadísticas del sistema</h3>
-                    <p>Ver métricas y reportes</p>
-                  </div>
-                  <button
-                    class="btn-admin-action"
-                    @click="$router.push('/admin/stats')"
-                  >
-                    <span class="btn-icon">→</span>
-                    Ver estadísticas
-                  </button>
-                </div>
-
-                <div class="admin-action-card">
-                  <div class="action-icon">🔄</div>
-                  <div class="action-content">
-                    <h3>Backup del sistema</h3>
-                    <p>Copia de seguridad y restauración</p>
-                  </div>
-                  <button
-                    class="btn-admin-action"
-                    @click="createBackup"
-                    :disabled="creatingBackup"
-                  >
-                    <span v-if="creatingBackup" class="loading-spinner-small"></span>
-                    <span v-else class="btn-icon">💾</span>
-                    {{ creatingBackup ? 'Creando...' : 'Crear backup' }}
-                  </button>
-                </div>
+              <div class="admin-action-card">
+                <div class="action-icon">📊</div>
+                <div class="action-content"><h3>Estadísticas</h3><p>Ver métricas y reportes</p></div>
+                <button class="btn-admin-action" @click="$router.push('/admin/analytics')">→ Ir</button>
+              </div>
+              <div class="admin-action-card">
+                <div class="action-icon">💾</div>
+                <div class="action-content"><h3>Backups</h3><p>Copias de seguridad</p></div>
+                <button class="btn-admin-action" @click="$router.push('/admin/backups')">→ Ir</button>
+              </div>
+              <div class="admin-action-card">
+                <div class="action-icon">⚙️</div>
+                <div class="action-content"><h3>Configuración del Sistema</h3><p>Ajustes globales</p></div>
+                <button class="btn-admin-action" @click="$router.push('/admin/system')">→ Ir</button>
               </div>
             </div>
           </div>
@@ -425,37 +199,19 @@
       </div>
     </div>
 
-    <!-- Global Save Button -->
+    <!-- Global Save Bar -->
     <div v-if="hasUnsavedChanges" class="global-save-bar">
-      <div class="save-message">
-        <span class="message-icon">💾</span>
-        <span>Tienes cambios sin guardar</span>
-      </div>
+      <div class="save-message"><span class="message-icon">💾</span><span>Tienes cambios sin guardar</span></div>
       <div class="save-actions">
-        <button
-          class="btn-discard"
-          @click="discardChanges"
-        >
-          Descartar cambios
-        </button>
-        <button
-          class="btn-save"
-          @click="saveConfig"
-          :disabled="loading"
-        >
+        <button class="btn-discard" @click="discardChanges">Descartar cambios</button>
+        <button class="btn-save" @click="saveConfig" :disabled="loading">
           <span v-if="loading" class="loading-spinner"></span>
-          <span v-else>💾</span>
-          {{ loading ? 'Guardando...' : 'Guardar cambios' }}
+          <span v-else>💾</span> {{ loading ? 'Guardando...' : 'Guardar cambios' }}
         </button>
       </div>
     </div>
 
-    <!-- Change Password Modal -->
-    <ChangePasswordModal
-      v-if="showChangePassword"
-      @close="showChangePassword = false"
-      @password-changed="onPasswordChanged"
-    />
+    <ChangePasswordModal v-if="showChangePassword" @close="showChangePassword = false" @password-changed="onPasswordChanged" />
   </div>
 </template>
 
@@ -468,24 +224,18 @@ import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 
-/* ---------- Composables ---------- */
 const router = useRouter()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
 
-/* ---------- Estado ---------- */
 const loading = ref(false)
 const showChangePassword = ref(false)
 const user = ref(null)
 const hasUnsavedChanges = ref(false)
 const activeSection = ref('account')
 const newCategory = ref('')
-const refreshingSession = ref(false)
-const validatingJSON = ref(false)
-const creatingBackup = ref(false)
 const originalForm = ref({})
 
-// Navigation sections
 const sections = computed(() => [
   { id: 'account', label: 'Cuenta', icon: '👤' },
   { id: 'preferences', label: 'Preferencias', icon: '⚙️' },
@@ -494,320 +244,104 @@ const sections = computed(() => [
   ...(isAdmin.value ? [{ id: 'admin', label: 'Administrador', icon: '👑' }] : [])
 ])
 
-// Language options
 const languages = [
   { value: 'es', name: 'Español', flag: '🇪🇸' },
-  { value: 'en', name: 'English', flag: '🇺🇸' },
-  { value: 'pt', name: 'Português', flag: '🇵🇹' }
-]
-
-// Theme options
-const themes = [
-  { value: 'light', label: t('config.light'), icon: '☀️' },
-  { value: 'dark', label: t('config.dark'), icon: '🌙' },
-  { value: 'auto', label: 'Automático', icon: '🔄' }
+  { value: 'en', name: 'English', flag: '🇺🇸' }
 ]
 
 const form = reactive({
-  name: '',
-  email: '',
-  phone: '',
-  language: 'es',
-  theme: 'light',
-  notifications: true,
-  business_address: '',
-  coverage_area: '',
-  service_categories: '',
-  globalConfig: ''
+  name: '', email: '', phone: '',
+  language: 'es', notifications: true,
+  business_address: '', coverage_area: '', service_categories: ''
 })
 
-const errors = reactive({
-  name: '',
-  email: '',
-  phone: '',
-  globalConfig: ''
-})
+const errors = reactive({ name: '', email: '', phone: '' })
 
-/* ---------- Computed ---------- */
 const isAdmin = computed(() => user.value?.role === 'admin')
 const isProvider = computed(() => user.value?.role === 'provider')
-const isJSONValid = computed(() => form.globalConfig.trim() ? !errors.globalConfig : true)
 
 const categories = computed({
-  get() {
-    return form.service_categories
-      ? form.service_categories.split(',').map(c => c.trim()).filter(c => c)
-      : []
-  },
-  set(newCategories) {
-    form.service_categories = newCategories.join(', ')
-    markUnsavedChanges()
-  }
+  get() { return form.service_categories ? form.service_categories.split(',').map(c => c.trim()).filter(c => c) : [] },
+  set(newCategories) { form.service_categories = newCategories.join(', '); markUnsavedChanges() }
 })
 
-/* ---------- Methods ---------- */
-const getRoleBadgeClass = (role) => {
-  const classes = {
-    admin: 'role-admin',
-    provider: 'role-provider',
-    user: 'role-user'
-  }
-  return classes[role] || 'role-default'
-}
+const getRoleBadgeClass = (role) => ({ admin: 'role-admin', provider: 'role-provider', user: 'role-user' }[role] || 'role-default')
+const getUserRoleLabel = (role) => ({ admin: 'Administrador', provider: 'Proveedor', user: 'Usuario' }[role] || 'Usuario')
 
-const getUserRoleLabel = (role) => {
-  const labels = {
-    admin: 'Administrador',
-    provider: 'Proveedor',
-    user: 'Usuario'
-  }
-  return labels[role] || 'Usuario'
-}
-
-const getLoginTime = () => {
-  // Simulación - deberías obtener esto de tu API/auth
-  const now = new Date()
-  return now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-}
-
-const getLastActivity = () => {
-  // Simulación
-  const now = new Date()
-  return now.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-}
-
-const addCategory = () => {
-  if (newCategory.value.trim()) {
-    categories.value = [...categories.value, newCategory.value.trim()]
-    newCategory.value = ''
-  }
-}
-
-const removeCategory = (index) => {
-  const newCategories = [...categories.value]
-  newCategories.splice(index, 1)
-  categories.value = newCategories
-}
+const addCategory = () => { if (newCategory.value.trim()) { categories.value = [...categories.value, newCategory.value.trim()]; newCategory.value = '' } }
+const removeCategory = (index) => { const c = [...categories.value]; c.splice(index, 1); categories.value = c }
 
 const validate = () => {
   let valid = true
-  
-  // Clear previous errors
-  Object.keys(errors).forEach(key => errors[key] = '')
-  
-  // Name validation
-  if (!form.name.trim()) {
-    errors.name = t('config.nameRequired')
-    valid = false
-  }
-  
-  // Email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(form.email)) {
-    errors.email = t('config.emailInvalid')
-    valid = false
-  }
-  
-  // Phone validation (optional)
-  if (form.phone && !/^\+?\d{7,15}$/.test(form.phone.replace(/\s+/g, ''))) {
-    errors.phone = t('config.phoneInvalid')
-    valid = false
-  }
-  
-  // JSON validation (only if admin and has content)
-  if (form.globalConfig.trim()) {
-    try {
-      JSON.parse(form.globalConfig)
-      errors.globalConfig = ''
-    } catch (err) {
-      errors.globalConfig = `${t('config.jsonInvalid')}: ${err.message}`
-      valid = false
-    }
-  }
-  
+  Object.keys(errors).forEach(k => errors[k] = '')
+  if (!form.name.trim()) { errors.name = 'El nombre es requerido'; valid = false }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { errors.email = 'Email inválido'; valid = false }
   return valid
 }
 
-const markUnsavedChanges = () => {
-  hasUnsavedChanges.value = true
-}
+const markUnsavedChanges = () => { hasUnsavedChanges.value = true }
 
 const discardChanges = async () => {
-  const { isConfirmed } = await Swal.fire({
-    title: '¿Descartar cambios?',
-    text: 'Se perderán todos los cambios sin guardar',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, descartar',
-    cancelButtonText: 'Cancelar'
-  })
-  
-  if (isConfirmed) {
-    // Restore original form
-    Object.assign(form, originalForm.value)
-    hasUnsavedChanges.value = false
-    newCategory.value = ''
-  }
+  const { isConfirmed } = await Swal.fire({ title: '¿Descartar cambios?', text: 'Se perderán todos los cambios sin guardar', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, descartar', cancelButtonText: 'Cancelar' })
+  if (isConfirmed) { Object.assign(form, originalForm.value); hasUnsavedChanges.value = false; newCategory.value = '' }
 }
 
+// ✅ CORREGIDO: Guardar perfil con endpoint real
 const saveConfig = async () => {
-  if (!validate()) {
-    Swal.fire('Error', 'Por favor corrige los errores en el formulario', 'error')
-    return
-  }
-  
+  if (!validate()) { Swal.fire('Error', 'Corrige los errores', 'error'); return }
   loading.value = true
-  
   try {
-    const payload = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      language: form.language,
-      theme: form.theme,
-      notifications: form.notifications
-    }
-    
-    // Add provider-specific fields
+    const payload = { name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() }
     if (isProvider.value) {
       payload.business_address = form.business_address.trim()
       payload.coverage_area = form.coverage_area.trim()
       payload.service_categories = form.service_categories.trim()
     }
-    
-    // Add admin-specific fields
-    if (isAdmin.value && form.globalConfig.trim()) {
-      payload.globalConfig = form.globalConfig.trim()
-    }
-    
-    await api.post('/profile/update', payload, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    
-    // Update language in i18n if changed
-    if (form.language !== originalForm.value.language) {
-      locale.value = form.language
-      localStorage.setItem('userLanguage', form.language)
-    }
-    
-    // Update original form
+    await api.post('/profile/update', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    if (form.language !== originalForm.value.language) { locale.value = form.language; localStorage.setItem('userLocale', form.language) }
     Object.assign(originalForm.value, { ...form })
     hasUnsavedChanges.value = false
-    
-    Swal.fire({
-      icon: 'success',
-      title: t('success'),
-      text: t('config.saved'),
-      timer: 2000,
-      showConfirmButton: false,
-      position: 'top-end',
-      toast: true
-    })
-    
+    Swal.fire({ icon: 'success', title: 'Guardado', timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
   } catch (error) {
-    console.error('Error saving config:', error)
-    const message = error.response?.data?.error || t('config.saveFailed')
-    
-    Swal.fire({
-      icon: 'error',
-      title: t('error'),
-      text: message,
-      confirmButtonText: 'Entendido'
-    })
-  } finally {
-    loading.value = false
-  }
+    Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'Error al guardar' })
+  } finally { loading.value = false }
 }
 
+// ✅ CORREGIDO: Obtener perfil real del backend
 const fetchProfile = async () => {
   try {
-    const { data } = await api.get('/profile', {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    
-    user.value = data.user
-    
-    const userData = {
-      name: data.user.name || '',
-      email: data.user.email || '',
-      phone: data.user.phone || '',
-      language: data.user.language || 'es',
-      theme: data.user.theme || 'light',
-      notifications: data.user.notifications ?? true,
-      business_address: data.user.business_address || '',
-      coverage_area: data.user.coverage_area || '',
-      service_categories: data.user.service_categories || '',
-      globalConfig: data.user.globalConfig || ''
+    const { data } = await api.get('/profile', { headers: { Authorization: `Bearer ${authStore.token}` } })
+    user.value = data.user || data
+    const ud = {
+      name: user.value.name || '', email: user.value.email || '', phone: user.value.phone || '',
+      language: user.value.language || localStorage.getItem('userLocale') || 'es',
+      notifications: user.value.notifications ?? true,
+      business_address: user.value.business_address || '', coverage_area: user.value.coverage_area || '',
+      service_categories: user.value.service_categories || ''
     }
-    
-    Object.assign(form, userData)
-    originalForm.value = { ...userData }
-    
-    // Set initial active section based on role
+    Object.assign(form, ud)
+    originalForm.value = { ...ud }
     if (isAdmin.value) activeSection.value = 'admin'
     else if (isProvider.value) activeSection.value = 'provider'
-    
   } catch (error) {
-    console.error('Error fetching profile:', error)
-    Swal.fire(t('error'), t('config.loadFailed'), 'error')
+    Swal.fire('Error', 'No se pudo cargar el perfil', 'error')
   }
 }
 
-const validateJSON = () => {
-  validatingJSON.value = true
-  setTimeout(() => {
-    validate()
-    validatingJSON.value = false
-  }, 500)
-}
-
-const refreshSession = () => {
-  refreshingSession.value = true
-  setTimeout(() => {
-    refreshingSession.value = false
-    Swal.fire('Sesión actualizada', 'Tu sesión ha sido refrescada', 'success')
-  }, 1000)
-}
-
-const createBackup = () => {
-  creatingBackup.value = true
-  setTimeout(() => {
-    creatingBackup.value = false
-    Swal.fire('Backup creado', 'La copia de seguridad se ha creado exitosamente', 'success')
-  }, 2000)
-}
-
-const viewActivityLog = () => {
-  Swal.fire('Registro de actividad', 'Esta funcionalidad está en desarrollo', 'info')
-}
+// ✅ CORREGIDO: Redirige a páginas reales en vez de simular
+const viewDevices = () => router.push('/profile')
+const viewActivityLog = () => router.push('/admin/logs')
 
 const onPasswordChanged = () => {
   showChangePassword.value = false
-  Swal.fire({
-    icon: 'success',
-    title: t('success'),
-    text: t('config.passwordChanged'),
-    timer: 2000,
-    showConfirmButton: false,
-    position: 'top-end',
-    toast: true
-  })
+  Swal.fire({ icon: 'success', title: 'Contraseña actualizada', timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
 }
 
-/* ---------- Lifecycle ---------- */
 onMounted(fetchProfile)
 
-// Watch for form changes
-watch(
-  () => ({ ...form }),
-  (newVal, oldVal) => {
-    // Check if form has changed from original
-    if (JSON.stringify(newVal) !== JSON.stringify(originalForm.value)) {
-      hasUnsavedChanges.value = true
-    }
-  },
-  { deep: true }
-)
+watch(() => ({ ...form }), (newVal) => {
+  if (JSON.stringify(newVal) !== JSON.stringify(originalForm.value)) hasUnsavedChanges.value = true
+}, { deep: true })
 </script>
 
 <style scoped>

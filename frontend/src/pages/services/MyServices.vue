@@ -2,11 +2,24 @@
   <div class="my-services-page">
     <!-- Header -->
     <div class="header">
+
+
+<!-- ✅ Aviso para configurar métodos de pago -->
+<div v-if="!hasPaymentMethods" class="warning-banner">
+  <div class="warning-icon">💳</div>
+  <div class="warning-content">
+    <h3>Configura tus métodos de pago</h3>
+    <p>Para recibir pagos de tus clientes, agrega al menos un método de pago (Pago Móvil, Transferencia, Zelle o PayPal).</p>
+    <router-link to="/payment" class="warning-link">Ir a configurar →</router-link>
+  </div>
+</div>
+
+
       <div class="title-section">
         <h1><span class="services-icon">📋</span> {{ $t('services.myServices') }}</h1>
         <p>{{ $t('services.manageYourServices') }}</p>
       </div>
-      
+
       <router-link
         to="/services/new"
         class="btn-create"
@@ -25,7 +38,7 @@
       >
         <!-- Badge Estado -->
         <div class="card-badge" :class="statusBadgeClass(s.status)">
-          {{ $t(s.status) }}
+          {{ getStatusLabel(s.status) }}
         </div>
 
         <!-- Imagen -->
@@ -49,11 +62,11 @@
           </div>
 
           <h3 class="service-title">{{ s.title }}</h3>
-          <p class="service-description">{{ s.description.slice(0, 80) }}...</p>
-          
+          <p class="service-description">{{ (s.description || '').slice(0, 80) }}...</p>
+
           <div class="service-details-preview" v-if="s.service_details">
             <span class="details-icon">📝</span>
-            <span>{{ s.service_details.slice(0, 40) }}...</span>
+            <span>{{ (s.service_details || '').slice(0, 40) }}...</span>
           </div>
 
           <div class="card-footer">
@@ -61,14 +74,26 @@
               <span class="price">${{ s.price }}</span>
               <span class="price-label">{{ $t('services.price') }}</span>
             </div>
-            
-            <button
-              class="btn-delete"
-              @click.stop="deleteService(s.id)"
-              :title="$t('services.delete')"
-            >
-              🗑️
-            </button>
+
+            <div class="card-actions">
+              <!-- ✅ Botón para pagar servicio pendiente -->
+              <button
+                v-if="s.status === 'pending' || s.status === 'pending_payment'"
+                class="btn-pay-now"
+                @click.stop="goToPay(s.id)"
+                title="Pagar publicación"
+              >
+                💳 Pagar
+              </button>
+
+              <button
+                class="btn-delete"
+                @click.stop="deleteService(s.id)"
+                :title="$t('services.delete')"
+              >
+                🗑️
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -202,7 +227,7 @@
                 <span class="label-icon">🖼️</span>
                 {{ $t('services.imageOptional') }}
               </label>
-              
+
               <div v-if="previewImage" class="image-preview-container">
                 <div class="image-preview">
                   <img :src="previewImage" alt="Preview" class="preview-image">
@@ -276,6 +301,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
@@ -283,6 +309,7 @@ import Swal from 'sweetalert2'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const router = useRouter()
 const services = ref([])
 const showModal = ref(false)
 
@@ -300,26 +327,40 @@ const form = ref({
 const previewImage = ref('')
 const fileInput = ref(null)
 
-// Toast notifications
 const toast = ref({
   show: false,
   message: '',
   type: 'success'
 })
 
-
 /* ----------  Utils  ---------- */
 const getImageUrl = (path) => {
   if (!path) return ''
-  return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`
+  if (path.startsWith('http')) return path
+  // Quitar /api del final de VITE_API_URL si existe
+  const base = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')
+  return `${base}${path}`
 }
 
+const getStatusLabel = (status) => {
+  const labels = {
+    'pending': 'Pendiente',
+    'active': 'Activo',
+    'inactive': 'Inactivo',
+    'pending_payment': 'Pendiente de pago',
+    'approved': 'Aprobado',
+    'rejected': 'Rechazado'
+  }
+  return labels[status] || status
+}
 
 const statusBadgeClass = (status) => {
   switch (status) {
     case 'pending':  return 'status-pending'
     case 'approved': return 'status-approved'
     case 'rejected': return 'status-rejected'
+    case 'active':   return 'status-approved'
+    case 'pending_payment': return 'status-pending'
     default:         return 'status-default'
   }
 }
@@ -333,6 +374,11 @@ const showToast = (message, type = 'info') => {
   setTimeout(() => {
     toast.value.show = false
   }, 3000)
+}
+
+// ✅ Ir a la página de pago
+const goToPay = (serviceId) => {
+  router.push(`/service/${serviceId}/publish`)
 }
 
 /* ----------  Cargar servicios  ---------- */
@@ -364,9 +410,9 @@ const deleteService = async (id) => {
       cancelButton: 'swal-cancel-btn'
     }
   })
-  
+
   if (!confirm.isConfirmed) return
-  
+
   try {
     await api.post('/services/delete', { id }, {
       headers: { Authorization: `Bearer ${authStore.token}` }
@@ -415,9 +461,9 @@ const updateService = async () => {
   formData.append('price', String(form.value.price))
   formData.append('category', form.value.category)
   formData.append('location', form.value.location)
-  
+
   if (form.value.image) formData.append('image', form.value.image)
-  
+
   try {
     await api.post('/services/update', formData, {
       headers: { Authorization: `Bearer ${authStore.token}` }
@@ -429,11 +475,46 @@ const updateService = async () => {
     Swal.fire(t('common.error'), err.response?.data?.error || t('services.updateError'), 'error')
   }
 }
+const hasPaymentMethods = ref(true)
+
+// Verificar métodos de pago al cargar
+const checkPaymentMethods = async () => {
+  try {
+    const { data } = await api.get('/payments/public', {
+      params: { provider_id: authStore.user?.id }
+    })
+    const info = data?.paymentInfo || {}
+    hasPaymentMethods.value = !!(info.pagoMovil || info.transferencia || info.zelle || info.paypal)
+  } catch { hasPaymentMethods.value = false }
+}
+
 
 onMounted(loadServices)
+checkPaymentMethods()
 </script>
 
 <style scoped>
+.warning-banner {
+  background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+  border: 1px solid #ffb74d;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.warning-icon { font-size: 2rem; }
+.warning-content h3 { margin: 0 0 4px; color: #e65100; }
+.warning-content p { margin: 0; color: #bf360c; font-size: 0.9rem; }
+.warning-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .my-services-page {
   max-width: 1400px;
   margin: 0 auto;

@@ -1,6 +1,5 @@
 <template>
   <div class="servicios-container">
-    <!-- Header simplificado -->
     <div class="header-section">
       <div class="header-content">
         <h1><span class="icon">⚙️</span> Servicios Disponibles</h1>
@@ -8,75 +7,40 @@
       </div>
     </div>
 
-    <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <div class="spinner"></div>
       <p>Cargando servicios...</p>
     </div>
 
-    <!-- Services Grid -->
     <div v-else>
-      <!-- Buscador mejorado -->
       <div class="search-section">
         <div class="search-container">
           <div class="search-icon">🔍</div>
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Buscar servicios, categorías o proveedores..."
-            class="search-input"
-            @input="handleSearch"
-          />
+          <input type="text" v-model="searchQuery" placeholder="Buscar servicios, categorías o proveedores..." class="search-input" @input="handleSearch" />
           <div class="search-actions">
-            <button 
-              class="btn-clear-search"
-              @click="clearSearch"
-              v-if="searchQuery"
-              title="Limpiar búsqueda"
-            >
-              ✕
-            </button>
-            <button 
-              class="btn-filter-toggle"
-              @click="toggleFilters"
-              :class="{ active: showFilters }"
-              title="Mostrar/ocultar filtros"
-            >
-              ⚙️
-            </button>
+            <button class="btn-clear-search" @click="clearSearch" v-if="searchQuery" title="Limpiar búsqueda">✕</button>
+            <button class="btn-filter-toggle" @click="toggleFilters" :class="{ active: showFilters }" title="Mostrar/ocultar filtros">⚙️</button>
           </div>
         </div>
-        
         <div class="search-stats" v-if="searchQuery">
-          <span class="search-results-count">
-            {{ filteredServices.length }} resultado{{ filteredServices.length !== 1 ? 's' : '' }} para "{{ searchQuery }}"
-          </span>
+          <span class="search-results-count">{{ filteredServices.length }} resultado{{ filteredServices.length !== 1 ? 's' : '' }} para "{{ searchQuery }}"</span>
         </div>
       </div>
 
-      <!-- Filtros desplegables -->
       <div class="filters-collapsible" v-if="showFilters">
         <div class="filters-section">
           <div class="filter-group">
             <label for="availability-filter">Disponibilidad:</label>
-            <select 
-              id="availability-filter" 
-              v-model="filterAvailability"
-              class="filter-select"
-            >
+            <select id="availability-filter" v-model="filterAvailability" class="filter-select">
               <option value="all">Todos</option>
               <option value="available">Solo disponibles</option>
               <option value="unavailable">No disponibles</option>
+              <option value="online">Proveedor en línea</option>
             </select>
           </div>
-          
           <div class="filter-group">
             <label for="sort-filter">Ordenar por:</label>
-            <select 
-              id="sort-filter" 
-              v-model="sortBy"
-              class="filter-select"
-            >
+            <select id="sort-filter" v-model="sortBy" class="filter-select">
               <option value="recent">Más recientes</option>
               <option value="price-low">Precio: menor a mayor</option>
               <option value="price-high">Precio: mayor a menor</option>
@@ -84,80 +48,40 @@
               <option value="name">Nombre (A-Z)</option>
             </select>
           </div>
-
           <div class="filter-group">
             <label for="price-range">Precio máximo: <strong>${{ priceRange }}</strong></label>
             <div class="price-range">
               <span>$1</span>
-              <input 
-                type="range" 
-                v-model="priceRange" 
-                min="1"
-                :max="maxPrice" 
-                step="1"
-                class="range-slider"
-                @input="updatePriceRange"
-              >
+              <input type="range" v-model="priceRange" min="1" :max="maxPrice" step="1" class="range-slider" @input="updatePriceRange">
               <span>${{ maxPrice }}</span>
             </div>
-            <div class="price-range-labels">
-              <small>Arrastra para ajustar</small>
-              <small>Máx: ${{ priceRange }}</small>
-            </div>
           </div>
-
           <div class="filter-actions">
-            <button class="btn-reset-filters" @click="resetFilters">
-              🔄 Reiniciar filtros
-            </button>
+            <button class="btn-reset-filters" @click="resetFilters">🔄 Reiniciar filtros</button>
           </div>
         </div>
       </div>
 
-      <!-- Services Grid -->
       <div v-if="filteredServices.length > 0" class="services-grid">
-        <div 
-          v-for="service in paginatedServices" 
-          :key="service.id" 
-          class="service-card-modern"
-          @click="$emit('open-service-details', service)"
-        >
-          <!-- Badge de disponibilidad -->
-          <div class="card-badge" :class="service.isAvailable === 1 && service.status === 'active' ? 'available' : 'unavailable'">
-            {{ service.isAvailable === 1 && service.status === 'active' ? 'Disponible' : 'No disponible' }}
+        <div v-for="service in paginatedServices" :key="service.id" class="service-card-modern" @click="$emit('open-service-details', service)">
+          <!-- ✅ Badge dinámico con estado online -->
+          <div class="card-badge" :class="getAvailabilityClass(service)">
+            {{ getAvailabilityText(service) }}
           </div>
-          
-          <!-- Imagen del servicio -->
           <div class="card-image">
-            <img
-              :src="getServiceImage(service)"
-              :alt="sanitize(service.title)"
-              @error="handleImageError"
-            />
+            <img :src="getServiceImage(service)" :alt="sanitize(service.title)" @error="handleImageError" />
             <div class="image-overlay"></div>
           </div>
-
-          <!-- Contenido de la tarjeta -->
           <div class="card-content">
-            <!-- Header con categoría y fecha -->
             <div class="card-header">
               <span class="service-category">{{ service.category || 'General' }}</span>
               <span class="service-date">{{ formatDate(service.created_at) }}</span>
             </div>
-
-            <!-- Título y descripción -->
             <h3 class="service-title">{{ sanitize(service.title) }}</h3>
             <p class="service-description">{{ sanitize(service.description) }}</p>
-
-            <!-- Información del proveedor -->
             <div class="service-provider">
               <div class="provider-info">
-                <img
-                  :src="getProviderAvatar(service)"
-                  :alt="sanitize(service.provider?.name || 'Proveedor')"
-                  class="provider-avatar"
-                  @error="handleAvatarError"
-                />
+                <img :src="getProviderAvatar(service)" :alt="sanitize(service.provider?.name || 'Proveedor')" class="provider-avatar" @error="handleAvatarError" />
                 <div class="provider-details">
                   <span class="provider-name">{{ sanitize(service.provider?.name || 'Proveedor') }}</span>
                   <div class="provider-rating" v-if="hasValidRating(service)">
@@ -167,87 +91,39 @@
                 </div>
               </div>
             </div>
-
-            <!-- Footer con precio y acciones -->
             <div class="card-footer">
               <div class="price-section">
                 <span class="price">${{ formatServicePrice(service) }}</span>
                 <span class="price-unit" v-if="service.price_unit">/ {{ service.price_unit }}</span>
               </div>
-              
               <div class="card-actions">
-                <button 
-                  class="btn-view"
-                  @click.stop="$emit('open-service-details', service)"
-                >
-                  Ver detalles
-                </button>
+                <button class="btn-view" @click.stop="$emit('open-service-details', service)">Ver detalles</button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Empty State -->
       <div v-else class="empty-state">
         <div class="empty-icon">🔍</div>
-        <h3 v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">
-          No se encontraron servicios
-        </h3>
+        <h3 v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">No se encontraron servicios</h3>
         <h3 v-else>No hay servicios disponibles</h3>
-        
-        <p v-if="searchQuery">
-          No hay resultados para "{{ searchQuery }}" con los filtros aplicados
-        </p>
-        <p v-else-if="filterAvailability !== 'all'">
-          No hay servicios {{ filterAvailability === 'available' ? 'disponibles' : 'no disponibles' }}
-        </p>
-        <p v-else-if="priceRange < maxPrice">
-          No hay servicios por menos de ${{ priceRange }}
-        </p>
+        <p v-if="searchQuery">No hay resultados para "{{ searchQuery }}" con los filtros aplicados</p>
+        <p v-else-if="filterAvailability !== 'all'">No hay servicios {{ filterAvailability === 'available' ? 'disponibles' : filterAvailability === 'online' ? 'con proveedor en línea' : 'no disponibles' }}</p>
+        <p v-else-if="priceRange < maxPrice">No hay servicios por menos de ${{ priceRange }}</p>
         <p v-else>No hay servicios disponibles en este momento</p>
-        
         <div class="empty-actions">
-          <button 
-            class="btn-primary"
-            @click="resetFilters"
-            v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice"
-          >
-            Mostrar todos los servicios
-          </button>
-          <button 
-            class="btn-secondary"
-            @click="clearSearch"
-            v-if="searchQuery"
-          >
-            Limpiar búsqueda
-          </button>
+          <button class="btn-primary" @click="resetFilters" v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">Mostrar todos los servicios</button>
+          <button class="btn-secondary" @click="clearSearch" v-if="searchQuery">Limpiar búsqueda</button>
         </div>
       </div>
 
-      <!-- Pagination -->
       <div v-if="filteredServices.length > 12" class="pagination-section">
-        <div class="pagination-info">
-          Mostrando {{ Math.min(currentPage * itemsPerPage, filteredServices.length) }} de {{ filteredServices.length }} servicios
-        </div>
+        <div class="pagination-info">Mostrando {{ Math.min(currentPage * itemsPerPage, filteredServices.length) }} de {{ filteredServices.length }} servicios</div>
         <div class="pagination-controls">
-          <button 
-            class="pagination-btn"
-            @click="prevPage"
-            :disabled="currentPage === 1"
-          >
-            ← Anterior
-          </button>
-          <span class="pagination-page">
-            Página {{ currentPage }} de {{ totalPages }}
-          </span>
-          <button 
-            class="pagination-btn"
-            @click="nextPage"
-            :disabled="currentPage === totalPages"
-          >
-            Siguiente →
-          </button>
+          <button class="pagination-btn" @click="prevPage" :disabled="currentPage === 1">← Anterior</button>
+          <span class="pagination-page">Página {{ currentPage }} de {{ totalPages }}</span>
+          <button class="pagination-btn" @click="nextPage" :disabled="currentPage === totalPages">Siguiente →</button>
         </div>
       </div>
     </div>
@@ -256,7 +132,8 @@
 
 <script>
 import { getImageUrl } from '@/utils/imageHelper'
-import { formatDate as formatDateUtil } from '@/utils/formatDate';
+import { formatDate as formatDateUtil } from '@/utils/formatDate'
+import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 
 export default {
   name: 'ServiciosUsuario',
@@ -270,7 +147,7 @@ export default {
       filterAvailability: 'all',
       sortBy: 'recent',
       searchQuery: '',
-      priceRange: 100, // Valor inicial más bajo
+      priceRange: 100,
       currentPage: 1,
       itemsPerPage: 12,
       searchTimeout: null,
@@ -278,20 +155,16 @@ export default {
     }
   },
   computed: {
-    availableServices() {
-      return this.services.filter(s => s.isAvailable === 1 && s.status === 'active').length;
-    },
     maxPrice() {
       if (this.services.length === 0) return 100;
       const prices = this.services.map(s => this.parsePrice(s.price));
       const max = Math.max(...prices);
-      // Si el máximo es menor a 100, usar 100 como tope
-      return max < 100 ? 100 : Math.ceil(max / 10) * 10; // Redondear a múltiplo de 10
+      return max < 100 ? 100 : Math.ceil(max / 10) * 10;
     },
     filteredServices() {
       let filtered = [...this.services];
-      
-      // Filtrar por búsqueda
+      const onlineStore = useOnlineUsersStore();
+
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(service => {
@@ -303,172 +176,99 @@ export default {
           );
         });
       }
-      
-      // Filtrar por disponibilidad
+
       if (this.filterAvailability === 'available') {
         filtered = filtered.filter(s => s.isAvailable === 1 && s.status === 'active');
       } else if (this.filterAvailability === 'unavailable') {
         filtered = filtered.filter(s => s.isAvailable !== 1 || s.status !== 'active');
+      } else if (this.filterAvailability === 'online') {
+        filtered = filtered.filter(s => {
+          const pid = s.user_id || s.provider?.id || s.provider_id;
+          return onlineStore.isUserOnline(pid);
+        });
       }
-      
-      // Filtrar por precio (rango de 1$ al valor seleccionado)
+
       filtered = filtered.filter(s => {
         const price = this.parsePrice(s.price);
         return price >= 1 && price <= this.priceRange;
       });
-      
-      // Ordenar
+
       switch (this.sortBy) {
-        case 'recent':
-          filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          break;
-        case 'price-low':
-          filtered.sort((a, b) => this.parsePrice(a.price) - this.parsePrice(b.price));
-          break;
-        case 'price-high':
-          filtered.sort((a, b) => this.parsePrice(b.price) - this.parsePrice(a.price));
-          break;
-        case 'rating':
-          filtered.sort((a, b) => {
-            const ratingA = this.getProviderRating(a);
-            const ratingB = this.getProviderRating(b);
-            return ratingB - ratingA;
-          });
-          break;
-        case 'name':
-          filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-          break;
+        case 'recent': filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); break;
+        case 'price-low': filtered.sort((a, b) => this.parsePrice(a.price) - this.parsePrice(b.price)); break;
+        case 'price-high': filtered.sort((a, b) => this.parsePrice(b.price) - this.parsePrice(a.price)); break;
+        case 'rating': filtered.sort((a, b) => (this.getProviderRating(b) - this.getProviderRating(a))); break;
+        case 'name': filtered.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
       }
-      
       return filtered;
     },
     paginatedServices() {
       const start = (this.currentPage - 1) * this.itemsPerPage;
-      const end = start + this.itemsPerPage;
-      return this.filteredServices.slice(start, end);
+      return this.filteredServices.slice(start, start + this.itemsPerPage);
     },
-    totalPages() {
-      return Math.ceil(this.filteredServices.length / this.itemsPerPage);
-    }
+    totalPages() { return Math.ceil(this.filteredServices.length / this.itemsPerPage); }
   },
   watch: {
-    priceRange() {
-      this.currentPage = 1;
-    },
-    filterAvailability() {
-      this.currentPage = 1;
-    },
-    sortBy() {
-      this.currentPage = 1;
-    }
+    priceRange() { this.currentPage = 1; },
+    filterAvailability() { this.currentPage = 1; },
+    sortBy() { this.currentPage = 1; }
   },
   mounted() {
-    // Inicializar el rango de precio
-    this.$nextTick(() => {
-      this.priceRange = this.maxPrice;
-    });
+    this.$nextTick(() => { this.priceRange = this.maxPrice; });
   },
   methods: {
     sanitize(str) {
       if (!str || typeof str !== 'string') return '';
       const tempDiv = document.createElement('div');
       tempDiv.textContent = str;
-      return tempDiv.innerHTML
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/on\w+="[^"]*"/g, '').replace(/on\w+='[^']*'/g, '')
-        .replace(/javascript:/gi, '');
+      return tempDiv.innerHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/on\w+="[^"]*"/g, '').replace(/on\w+='[^']*'/g, '').replace(/javascript:/gi, '');
     },
-    formatDate(date) {
-      return formatDateUtil(date);
-    },
-    parsePrice(price) {
-      if (!price && price !== 0) return 0;
-      const num = Number(price);
-      return isNaN(num) ? 0 : num;
-    },
-    formatServicePrice(service) {
-      const price = this.parsePrice(service.price);
-      return price.toFixed(2);
-    },
-getServiceImage(service) {
-  if (service.image_url) {
-    if (service.image_url.startsWith('http')) {
-      return service.image_url;
-    } else if (service.image_url.startsWith('/uploads/')) {
-      return getImageUrl(service.image_url);
-    }
-    return getImageUrl(`/uploads/${service.image_url}`);
-  }
-  return 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop&crop=entropy';
-},
-  getProviderAvatar(service) {
-  if (service.provider?.avatar_url) {
-    if (service.provider.avatar_url.startsWith('http')) {
-      return service.provider.avatar_url;
-    }
-    return getImageUrl(`/uploads/avatars/${service.provider.avatar_url}`);
-  }
-  return '/img/default-provider.png';
-},
-    getProviderRating(service) {
-      const rating = service.provider?.rating;
-      if (rating === null || rating === undefined) return 0;
-      const num = Number(rating);
-      return isNaN(num) ? 0 : num;
-    },
-    hasValidRating(service) {
-      const rating = this.getProviderRating(service);
-      return rating > 0;
-    },
-    formatRating(service) {
-      const rating = this.getProviderRating(service);
-      return rating.toFixed(1);
-    },
-    handleImageError(event) {
-      event.target.src = 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop';
-    },
-    handleAvatarError(event) {
-      event.target.src = '/img/default-provider.png';
-    },
-    handleSearch() {
-      clearTimeout(this.searchTimeout);
-      this.searchTimeout = setTimeout(() => {
-        this.currentPage = 1;
-      }, 300);
-    },
-    clearSearch() {
-      this.searchQuery = '';
-      this.currentPage = 1;
-    },
-    toggleFilters() {
-      this.showFilters = !this.showFilters;
-    },
-    resetFilters() {
-      this.filterAvailability = 'all';
-      this.sortBy = 'recent';
-      this.searchQuery = '';
-      this.priceRange = this.maxPrice;
-      this.currentPage = 1;
-      this.showFilters = false;
-    },
-    updatePriceRange() {
-      this.currentPage = 1;
-    },
-    prevPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-        this.scrollToTop();
+    formatDate(date) { return formatDateUtil(date); },
+    parsePrice(price) { if (!price && price !== 0) return 0; const num = Number(price); return isNaN(num) ? 0 : num; },
+    formatServicePrice(service) { return this.parsePrice(service.price).toFixed(2); },
+    getServiceImage(service) {
+      if (service.image_url) {
+        if (service.image_url.startsWith('http')) return service.image_url;
+        else if (service.image_url.startsWith('/uploads/')) return getImageUrl(service.image_url);
+        return getImageUrl(`/uploads/${service.image_url}`);
       }
+      return 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop&crop=entropy';
     },
-    nextPage() {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++;
-        this.scrollToTop();
+    getProviderAvatar(service) {
+      if (service.provider?.avatar_url) {
+        if (service.provider.avatar_url.startsWith('http')) return service.provider.avatar_url;
+        return getImageUrl(`/uploads/avatars/${service.provider.avatar_url}`);
       }
+      return '/img/default-provider.png';
     },
-    scrollToTop() {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    getProviderRating(service) { const r = service.provider?.rating; if (r === null || r === undefined) return 0; const num = Number(r); return isNaN(num) ? 0 : num; },
+    hasValidRating(service) { return this.getProviderRating(service) > 0; },
+    formatRating(service) { return this.getProviderRating(service).toFixed(1); },
+    handleImageError(event) { event.target.src = 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop'; },
+    handleAvatarError(event) { event.target.src = '/img/default-provider.png'; },
+
+    // ✅ Dinámico con estado online
+    getAvailabilityClass(service) {
+      const pid = service.user_id || service.provider?.id || service.provider_id;
+      const onlineStore = useOnlineUsersStore();
+      if (!onlineStore.isUserOnline(pid)) return 'offline';
+      return (service.isAvailable === 1 && service.status === 'active') ? 'available' : 'unavailable';
+    },
+    getAvailabilityText(service) {
+      const pid = service.user_id || service.provider?.id || service.provider_id;
+      const onlineStore = useOnlineUsersStore();
+      if (!onlineStore.isUserOnline(pid)) return 'Fuera de línea';
+      return (service.isAvailable === 1 && service.status === 'active') ? 'En línea' : 'No disponible';
+    },
+
+    handleSearch() { clearTimeout(this.searchTimeout); this.searchTimeout = setTimeout(() => { this.currentPage = 1; }, 300); },
+    clearSearch() { this.searchQuery = ''; this.currentPage = 1; },
+    toggleFilters() { this.showFilters = !this.showFilters; },
+    resetFilters() { Object.assign(this, { filterAvailability: 'all', sortBy: 'recent', searchQuery: '', priceRange: this.maxPrice, currentPage: 1, showFilters: false }); },
+    updatePriceRange() { this.currentPage = 1; },
+    prevPage() { if (this.currentPage > 1) { this.currentPage--; this.scrollToTop(); } },
+    nextPage() { if (this.currentPage < this.totalPages) { this.currentPage++; this.scrollToTop(); } },
+    scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   }
 };
 </script>
@@ -837,6 +637,10 @@ getServiceImage(service) {
   background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
 }
 
+.card-badge.offline {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  color: white;
+}
 /* Card Image */
 .card-image {
   position: relative;

@@ -14,7 +14,7 @@ class Service
     }
 
     /* ----------  CREATE  ---------- */
-    public function create(array $data): bool
+    public function create(array $data): int|bool
     {
         $sql = "INSERT INTO {$this->table}
                 (user_id, title, description, service_details, status, price, category, location,
@@ -41,13 +41,15 @@ class Service
             ':isAvailable'         => $data['isAvailable'] ?? 1,
         ]);
 
-        /* --------- notificación al administrador --------- */
-        if ($saved) {
-            $this->notifyAdminNewService($data['user_id'], $data['title']);
-        }
-
-        return $saved;
-    }
+       
+/* --------- notificación al administrador --------- */
+if ($saved) {
+    $serviceId = (int)$this->conn->lastInsertId();  // ✅ Obtener ID del servicio
+    $this->notifyAdminNewService($data['user_id'], $data['title']);  // Después notificar
+    return $serviceId;  // Devolver ID del servicio
+}
+return false;
+}
 
 public function findById(int $id): ?array
 {

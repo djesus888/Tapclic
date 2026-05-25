@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
+require_once __DIR__ . '/../utils/AuditLogger.php';
 
 use services\WebSocketService;
 
@@ -42,12 +43,12 @@ class ServiceController
             if ($current === 1) $redis->expire($key, 3600);
             return $current <= 20;
         } catch (RedisException $e) {
-            // Redis caído: permitimos pasar pero logueamos
             error_log('Redis down: ' . $e->getMessage());
             http_response_code(503);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Servicio temporalmente no disponible']);
+            echo json_encode(['error' => 'Servicio temporalmente no disponible o verifique si redis esta activo']);
             exit;
+           /* return true;*/
         }
     }
 
@@ -84,7 +85,7 @@ class ServiceController
     public function getById(int $id): void
     {
         $service = $this->model->findById($id);
-        
+
         if (!$service) {
             http_response_code(404);
             header('Content-Type: application/json');
@@ -100,7 +101,7 @@ class ServiceController
     private function create(object $auth): void
     {
         header('Content-Type: application/json');
-        
+
         if (!$this->rateLimit($auth->id)) {
             http_response_code(429);
             echo json_encode(['error' => 'Demasiadas peticiones']);
@@ -122,19 +123,33 @@ class ServiceController
         $data['provider_avatar_url'] = $user['avatar_url'] ?? null;
         $data['provider_rating']     = $user['average_rating'] ?? 5.0;
 
-        if ($this->model->create($data)) {
-            WebSocketService::emit([
+        // ✅ Obtener el ID del servicio creado
+        $serviceId = $this->model->create($data);
+
+        if ($serviceId) {
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'service_created', 'Servicio creado', "ID: {$serviceId} - Título: {$data['title']} - Precio: \${$data['price']}");
+
+            // ✅ CORREGIDO: Notificación al admin con URL correcta
+            WebSocketService::emit('new-notification', [
                 'receiver_role' => 'admin',
                 'receiver_id'   => 1,
-                'title'         => 'Nuevo servicio disponible',
-                'message'       => 'Se ha añadido un nuevo servicio.',
+                'title'         => 'Nuevo servicio pendiente de pago',
+                'message'       => "{$user['name']} creó el servicio '{$data['title']}' - Pendiente de pago",
                 'data_json'     => json_encode([
                     'url' => '/admin/services',
-                    'action' => 'view_service',
-                    'notification_type' => 'new_service'
+                    'action' => 'review_service',
+                    'notification_type' => 'new_service',
+                    'service_id' => $serviceId
                 ])
             ]);
-            echo json_encode(['message' => 'Servicio creado correctamente']);
+
+            // ✅ Devolver ID para redirigir al pago
+            echo json_encode([
+                'success' => true,
+                'message' => 'Servicio creado correctamente',
+                'service_id' => (int)$serviceId
+            ]);
         } else {
             http_response_code(500);
             echo json_encode(['error' => 'Error al guardar el servicio']);
@@ -168,7 +183,7 @@ class ServiceController
     private function update(object $auth): void
     {
         header('Content-Type: application/json');
-        
+
         $id = $_POST['id'] ?? null;
         if (!$id) {
             http_response_code(400);
@@ -183,7 +198,9 @@ class ServiceController
         if ($imageUrl) $data['image_url'] = $imageUrl;
 
         if ($this->model->update((int)$id, $auth->id, $data)) {
-            WebSocketService::emit([
+            AuditLogger::log($auth->id, 'service_updated', 'Servicio actualizado', "ID: {$id} - Título: {$data['title']}");
+
+            WebSocketService::emit('new-notification', [
                 'receiver_role' => 'user',
                 'receiver_id'   => 0,
                 'title'         => 'Servicio actualizado',
@@ -205,10 +222,10 @@ class ServiceController
     private function delete(object $auth): void
     {
         header('Content-Type: application/json');
-        
+
         $input = json_decode(file_get_contents('php://input'), true);
         $id    = $input['id'] ?? null;
-        
+
         if (!$id) {
             http_response_code(400);
             echo json_encode(['error' => 'ID requerido']);
@@ -216,14 +233,19 @@ class ServiceController
         }
 
         try {
+            $service = $this->model->findById((int)$id);
+            $title = $service['title'] ?? 'Desconocido';
+
             $deleted = $this->model->delete((int)$id, $auth->id);
             if (!$deleted) {
                 http_response_code(404);
                 echo json_encode(['error' => 'Servicio no encontrado.']);
                 return;
             }
-            
-            WebSocketService::emit([
+
+            AuditLogger::log($auth->id, 'service_deleted', 'Servicio eliminado', "ID: {$id} - Título: {$title}");
+
+            WebSocketService::emit('new-notification', [
                 'receiver_role' => 'user',
                 'receiver_id'   => 0,
                 'title'         => 'Servicio eliminado',
@@ -238,9 +260,7 @@ class ServiceController
         } catch (PDOException $e) {
             if ($e->getCode() === '23000' || $e->getCode() === '1451') {
                 http_response_code(409);
-                echo json_encode([
-                    'message' => 'No se puede eliminar el servicio porque tiene un servicio activo asociado.'
-                ]);
+                echo json_encode(['message' => 'No se puede eliminar el servicio porque tiene un servicio activo asociado.']);
             } else {
                 http_response_code(500);
                 echo json_encode(['error' => 'Error al eliminar el servicio']);
@@ -275,11 +295,11 @@ class ServiceController
     private function handleImageUpload(): ?string
     {
         if (empty($_FILES['image']['name'])) return null;
-        
+
         $file = $_FILES['image'];
         if ($file['error'] !== UPLOAD_ERR_OK) return null;
         if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
-        
+
         [$width, $height] = getimagesize($file['tmp_name']);
         if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
 

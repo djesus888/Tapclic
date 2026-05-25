@@ -4,6 +4,7 @@ require_once __DIR__ . "/../middleware/Auth.php";
 
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../utils/jwt.php';
+require_once __DIR__ . '/../utils/AuditLogger.php';
 
 class UserController {
     private $userModel;
@@ -122,6 +123,8 @@ class UserController {
         }
 
         if ($ok) {
+    // ✅ LOG
+         AuditLogger::log($auth->id, 'profile_updated', 'Perfil actualizado', "Nombre: {$name}");
             echo json_encode(["success" => true]);
         } else {
             http_response_code(500);
@@ -132,17 +135,17 @@ class UserController {
     public function changePassword() {
         $auth = Auth::verify();
         if (!$auth) return $this->unauthorized();
-
         $data = json_decode(file_get_contents("php://input"), true);
         $user = $this->userModel->findById($auth->id);
-
         if (!password_verify($data['current_password'], $user['password'])) {
             echo json_encode(["error" => "Contraseña actual incorrecta"]);
             return;
         }
 
         $ok = $this->userModel->updatePassword($auth->id, $data['new_password']);
-        echo json_encode(["success" => $ok]);
+      // ✅ LOG
+      if ($ok) AuditLogger::log($auth->id, 'password_changed', 'Contraseña cambiada', 'El usuario cambió su contraseña');
+      echo json_encode(["success" => $ok]);
     }
 
     public function updatePreferences() {
@@ -166,8 +169,10 @@ class UserController {
             return;
         }
 
-        $ok = $this->userModel->updateAvatar($auth->id, $url);
-        echo json_encode(["success" => $ok]);
+$ok = $this->userModel->updateAvatar($auth->id, $url);
+// ✅ LOG
+if ($ok) AuditLogger::log($auth->id, 'avatar_updated', 'Avatar actualizado', 'El usuario cambió su foto de perfil');
+echo json_encode(["success" => $ok]);
     }
 
     public function updateProviderData() {

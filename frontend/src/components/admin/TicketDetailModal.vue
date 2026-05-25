@@ -33,7 +33,7 @@
           <button class="btn-close-modal" @click="close">✕</button>
         </div>
       </div>
-      
+
       <!-- Contenido del ticket -->
       <div class="modal-body">
         <div class="ticket-content">
@@ -56,7 +56,7 @@
                 </span>
               </div>
             </div>
-            
+
             <div class="ticket-description-section">
               <h4 class="section-title">Descripción</h4>
               <div class="description-content">
@@ -64,7 +64,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Sidebar con información y acciones -->
           <div class="ticket-sidebar">
             <!-- Información del ticket -->
@@ -107,11 +107,11 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Personas involucradas -->
             <div class="sidebar-section">
               <h4 class="section-title">👥 Personas Involucradas</h4>
-              
+
               <div class="person-card">
                 <div class="person-header">
                   <div class="person-avatar">
@@ -136,7 +136,7 @@
                   Contactar
                 </button>
               </div>
-              
+
               <div class="person-card" v-if="ticket.assigned_to">
                 <div class="person-header">
                   <div class="person-avatar">
@@ -162,7 +162,7 @@
                   Reasignar
                 </button>
               </div>
-              
+
               <div v-else class="unassigned-card">
                 <div class="unassigned-icon">👤</div>
                 <div class="unassigned-content">
@@ -178,7 +178,7 @@
                 </button>
               </div>
             </div>
-            
+
             <!-- Etiquetas -->
             <div class="sidebar-section" v-if="ticket.tags && ticket.tags.length > 0">
               <h4 class="section-title">🏷️ Etiquetas</h4>
@@ -193,7 +193,7 @@
                 </span>
               </div>
             </div>
-            
+
             <!-- Acciones rápidas -->
             <div class="sidebar-section">
               <h4 class="section-title">⚡ Acciones Rápidas</h4>
@@ -234,25 +234,25 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Historial de comentarios -->
         <div class="comments-section">
           <div class="section-header">
             <h3 class="section-title">💬 Historial de Comentarios</h3>
             <span class="comment-count">{{ comments.length }} comentarios</span>
           </div>
-          
+
           <div v-if="loadingComments" class="loading-comments">
             <div class="spinner"></div>
             <p>Cargando comentarios...</p>
           </div>
-          
+
           <div v-else-if="comments.length === 0" class="no-comments">
             <div class="no-comments-icon">💬</div>
             <h4>No hay comentarios aún</h4>
             <p>Sé el primero en comentar sobre este ticket</p>
           </div>
-          
+
           <div v-else class="comments-list">
             <div
               v-for="comment in sortedComments"
@@ -264,11 +264,11 @@
                 <div class="comment-author">
                   <img
                     :src="getCommenterAvatar(comment)"
-                    :alt="comment.author_name"
+                    :alt="comment.author_name || comment.user_name"
                     class="comment-avatar"
                   />
                   <div class="author-info">
-                    <h5 class="author-name">{{ comment.author_name }}</h5>
+                    <h5 class="author-name">{{ comment.author_name || comment.user_name }}</h5>
                     <div class="author-meta">
                       <span class="author-role">{{ comment.is_admin ? 'Administrador' : 'Usuario' }}</span>
                       <span class="comment-time">{{ formatDateTime(comment.created_at) }}</span>
@@ -284,13 +284,13 @@
                   </button>
                 </div>
               </div>
-              
+
               <div class="comment-content">
                 <div v-if="comment.is_internal" class="internal-note-badge">
                   📝 Nota interna
                 </div>
-                <p>{{ comment.content }}</p>
-                
+                <p>{{ comment.message || comment.content }}</p>
+
                 <div v-if="comment.attachments && comment.attachments.length > 0" class="comment-attachments">
                   <div
                     v-for="(attachment, index) in comment.attachments"
@@ -304,7 +304,7 @@
                   </div>
                 </div>
               </div>
-              
+
               <div class="comment-footer">
                 <span
                   v-if="comment.edited_at && comment.edited_at !== comment.created_at"
@@ -315,7 +315,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Nuevo comentario -->
           <div class="new-comment-section">
             <div class="new-comment-header">
@@ -330,7 +330,7 @@
                 </label>
               </div>
             </div>
-            
+
             <div class="new-comment-editor">
               <textarea
                 v-model="newComment.content"
@@ -339,7 +339,7 @@
                 class="comment-textarea"
                 :disabled="loading"
               ></textarea>
-              
+
               <div class="editor-tools">
                 <div class="toolbar">
                   <button
@@ -375,7 +375,7 @@
                     😀
                   </button>
                 </div>
-                
+
                 <div v-if="showEmojiPicker" class="emoji-picker">
                   <div class="emoji-grid">
                     <span
@@ -389,7 +389,7 @@
                   </div>
                 </div>
               </div>
-              
+
               <div class="attachments-preview" v-if="newComment.attachments.length > 0">
                 <div
                   v-for="(file, index) in newComment.attachments"
@@ -408,7 +408,7 @@
                   </button>
                 </div>
               </div>
-              
+
               <div class="comment-actions">
                 <div class="file-upload">
                   <label class="btn-attach">
@@ -423,7 +423,7 @@
                   </label>
                   <span class="file-hint">Máx. 5MB por archivo</span>
                 </div>
-                
+
                 <div class="submit-actions">
                   <button
                     type="button"
@@ -475,9 +475,12 @@ interface Admin {
 
 interface Comment {
   id: number
-  content: string
-  author_name: string
-  author_id: number
+  message?: string
+  content?: string
+  author_name?: string
+  user_name?: string
+  author_id?: number
+  user_id?: number
   is_admin: boolean
   is_internal: boolean
   created_at: string
@@ -538,7 +541,9 @@ const commonEmojis = ['👍', '👎', '🎉', '😊', '😢', '😡', '🤔', '�
 
 // Computed
 const sortedComments = computed(() => {
-  return [...comments.value].sort((a, b) => 
+  // Filtrar nuevamente por si acaso
+  const validComments = comments.value.filter(comment => comment && comment.id)
+  return [...validComments].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 })
@@ -555,9 +560,19 @@ async function loadComments() {
     const response = await api.get(`/admin/tickets/${props.ticket.id}/comments`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-    comments.value = response.data.data || []
+    
+    // Obtener los comentarios
+    let loadedComments = response.data.replies || []
+    
+    // 🔥 FILTRAR: Solo mantener comentarios que tengan ID válido
+    loadedComments = loadedComments.filter(comment => comment && comment.id)
+    
+    comments.value = loadedComments
+    
+    console.log('Comentarios cargados:', comments.value) // Para debug
   } catch (error) {
     console.error('Error cargando comentarios:', error)
+    comments.value = []
   } finally {
     loadingComments.value = false
   }
@@ -595,6 +610,11 @@ function getCategoryLabel(category: string): string {
     other: 'Otro'
   }
   return labels[category] || category
+}
+
+function getImageUrl(path: string): string {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  return `${baseUrl}${path}`
 }
 
 function getUserAvatar(user?: User): string {
@@ -649,7 +669,8 @@ function formatFileSize(bytes: number): string {
 }
 
 function canEditComment(comment: Comment): boolean {
-  return comment.author_id === authStore.user?.id || authStore.user?.role === 'admin'
+  const authorId = comment.author_id || comment.user_id
+  return authorId === authStore.user?.id || authStore.user?.role === 'admin'
 }
 
 // Comment actions
@@ -660,12 +681,12 @@ function insertText(text: string) {
     const end = textarea.selectionEnd
     const selectedText = textarea.value.substring(start, end)
     const replacement = text.replace('texto', selectedText || 'texto')
-    
-    newComment.value.content = 
+
+    newComment.value.content =
       textarea.value.substring(0, start) +
       replacement +
       textarea.value.substring(end)
-    
+
     // Restaurar el foco y posición del cursor
     setTimeout(() => {
       textarea.focus()
@@ -703,17 +724,17 @@ function validateFile(file: File): boolean {
     'image/png',
     'text/plain'
   ]
-  
+
   if (file.size > maxSize) {
     alert(`El archivo ${file.name} excede el tamaño máximo de 5MB`)
     return false
   }
-  
+
   if (!allowedTypes.includes(file.type)) {
     alert(`El tipo de archivo ${file.name} no está permitido`)
     return false
   }
-  
+
   return true
 }
 
@@ -723,19 +744,19 @@ function removeAttachment(index: number) {
 
 async function submitComment() {
   if (!newComment.value.content.trim()) return
-  
+
   loading.value = true
-  
+
   try {
     const formData = new FormData()
-    formData.append('content', newComment.value.content)
+    formData.append('message', newComment.value.content)
     formData.append('is_internal', newComment.value.is_internal.toString())
-    
+
     // Agregar archivos adjuntos
     newComment.value.attachments.forEach((file, index) => {
       formData.append(`attachments[${index}]`, file)
     })
-    
+
     const response = await api.post(
       `/admin/tickets/${props.ticket.id}/comments`,
       formData,
@@ -746,10 +767,10 @@ async function submitComment() {
         }
       }
     )
-    
+
     comments.value.unshift(response.data.data)
     clearNewComment()
-    
+
   } catch (error) {
     console.error('Error publicando comentario:', error)
   } finally {
@@ -792,7 +813,7 @@ async function closeTicket() {
       {},
       { headers: { Authorization: `Bearer ${authStore.token}` } }
     )
-    
+
     emit('update', response.data.data)
   } catch (error) {
     console.error('Error cerrando ticket:', error)

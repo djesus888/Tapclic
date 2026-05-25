@@ -44,6 +44,37 @@ class PaymentMethodController {
         }
     }
 
+/**
+ * GET /api/provider/payment-methods
+ * Obtener métodos de pago personales del proveedor autenticado
+ */
+public function providerIndex(): void
+{
+    header('Content-Type: application/json');
+
+    try {
+        $user = $this->authenticate();
+        if (!$user) return;
+
+        $stmt = $this->paymentMethod->getConnection()->prepare("
+            SELECT * FROM provider_payment_methods 
+            WHERE provider_id = ? 
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$user['id']]);
+        $methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'success' => true,
+            'methods' => $methods
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+
     /**
      * GET /api/payment-methods/{value}
      * Obtener un método de pago específico

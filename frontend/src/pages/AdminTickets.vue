@@ -1581,7 +1581,7 @@ watch(
 .tickets-table-container {
   background: white;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: auto;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 

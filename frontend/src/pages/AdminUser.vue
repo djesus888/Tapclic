@@ -147,7 +147,7 @@
               >
               <div class="status-indicator" :class="{ active: user.active == 1 }"></div>
             </div>
-            
+
             <div class="user-info">
               <h3 class="user-name">{{ user?.name }}</h3>
               <p class="user-email">{{ user?.email }}</p>
@@ -203,7 +203,7 @@
           >
             ← Anterior
           </button>
-          
+
           <button
             v-for="page in visiblePages"
             :key="page"
@@ -213,7 +213,7 @@
           >
             {{ page }}
           </button>
-          
+
           <button
             class="pagination-btn"
             :disabled="currentPage === lastPage"
@@ -335,7 +335,7 @@
               <div class="avatar-upload">
                 <div class="avatar-preview">
                   <img
-                    :src="preview || avatarUrl(form.avatar_url || '')"
+                    :src="preview || getImageUrl(form.avatar_url || '')"
                     alt="Vista previa"
                     class="avatar-preview-img"
                   >
@@ -386,64 +386,73 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
-import api from '@/axios';
+import { ref, reactive, onMounted, computed } from 'vue'
+import api from '@/axios'
 
 // Mantengo TODA tu lógica original
-const users = ref([]);
-const currentPage = ref(1);
-const lastPage = ref(1);
-const total = ref(0);
-const from = ref(0);
-const to = ref(0);
-const loading = ref(true);
-const errorMsg = ref('');
+const users = ref([])
+const currentPage = ref(1)
+const lastPage = ref(1)
+const total = ref(0)
+const from = ref(0)
+const to = ref(0)
+const loading = ref(true)
+const errorMsg = ref('')
 
-const filters = reactive({ search: '', role: '', active: '' });
+const filters = reactive({ search: '', role: '', active: '' })
 
-const modalOpen = ref(false);
-const form = ref({});
-const preview = ref(null);
-const file = ref(null);
+const modalOpen = ref(false)
+const form = ref({})
+const preview = ref(null)
+const file = ref(null)
 
-// Toast notifications (nuevo)
+// Toast notifications
 const toast = ref({
   show: false,
   message: '',
   type: 'success'
-});
+})
+
+// ✅ Función para obtener URL de imágenes (corregida)
+const getImageUrl = (path) => {
+  if (!path) return 'https://via.placeholder.com/100?text=Usuario'
+  if (path.startsWith('http')) return path
+  if (path.startsWith('blob:')) return path
+  if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
+  return `${import.meta.env.VITE_API_URL || ''}/uploads/avatars/${path}`
+}
 
 // Computed properties para estadísticas
 const clientCount = computed(() => {
-  return users.value.filter(u => u.role === 'client').length;
-});
+  return users.value.filter(u => u.role === 'client').length
+})
 
 const providerCount = computed(() => {
-  return users.value.filter(u => u.role === 'provider').length;
-});
+  return users.value.filter(u => u.role === 'provider').length
+})
 
 const driverCount = computed(() => {
-  return users.value.filter(u => u.role === 'driver').length;
-});
+  return users.value.filter(u => u.role === 'driver').length
+})
 
 const visiblePages = computed(() => {
-  const totalPages = Number(lastPage.value) || 1;
-  const pages = [];
-  const maxVisible = 5;
-  
-  let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages, start + maxVisible - 1);
-  
+  const totalPages = Number(lastPage.value) || 1
+  const pages = []
+  const maxVisible = 5
+
+  let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
+  let end = Math.min(totalPages, start + maxVisible - 1)
+
   if (end - start + 1 < maxVisible) {
-    start = Math.max(1, end - maxVisible + 1);
+    start = Math.max(1, end - maxVisible + 1)
   }
-  
+
   for (let i = start; i <= end; i++) {
-    pages.push(i);
+    pages.push(i)
   }
-  
-  return pages;
-});
+
+  return pages
+})
 
 // Métodos auxiliares
 const roleLabel = (role) => {
@@ -451,153 +460,154 @@ const roleLabel = (role) => {
     client: 'Cliente',
     provider: 'Proveedor',
     driver: 'Conductor'
-  };
-  return labels[role] || role;
-};
+  }
+  return labels[role] || role
+}
 
 const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type };
+  toast.value = { show: true, message, type }
   setTimeout(() => {
-    toast.value.show = false;
-  }, 3000);
-};
+    toast.value.show = false
+  }, 3000)
+}
 
 const handleAvatarError = (event) => {
-  event.target.src = 'https://via.placeholder.com/100?text=Usuario';
-};
+  event.target.src = 'https://via.placeholder.com/100?text=Usuario'
+}
 
 const exportUsers = () => {
-  const headers = ['Nombre', 'Email', 'Teléfono', 'Rol', 'Dirección'];
+  const headers = ['Nombre', 'Email', 'Teléfono', 'Rol', 'Dirección']
   const csvData = users.value.map(user => [
     user.name,
     user.email,
     user.phone || 'N/A',
     roleLabel(user.role),
     user.address || 'N/A'
-  ]);
-  
+  ])
+
   const csvContent = [headers, ...csvData]
     .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n');
-  
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `usuarios-pagina-${currentPage.value}.csv`;
-  a.click();
-  
-  showToast('Lista exportada a CSV', 'success');
-};
+    .join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `usuarios-pagina-${currentPage.value}.csv`
+  a.click()
+
+  showToast('Lista exportada a CSV', 'success')
+}
 
 // Mantengo TODOS tus métodos originales
 const debounce = (fn, delay) => {
-  let timeout;
+  let timeout
   return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), delay);
-  };
-};
+    clearTimeout(timeout)
+    timeout = setTimeout(() => fn(...args), delay)
+  }
+}
 
 const fetchUsers = async () => {
-  loading.value = true;
-  errorMsg.value = '';
+  loading.value = true
+  errorMsg.value = ''
   try {
     const params = {
       page: currentPage.value,
       search: filters.search,
       role: filters.role,
       active: filters.active
-    };
-    const { data } = await api.get('/admin/users', { params });
-    users.value = Array.isArray(data?.data) ? data.data : [];
-    currentPage.value = data?.current_page || 1;
-    lastPage.value = data?.last_page || 1;
-    total.value = data?.total || 0;
-    from.value = data?.from || 0;
-    to.value = data?.to || 0;
-    
+    }
+    const { data } = await api.get('/admin/users', { params })
+
+    users.value = Array.isArray(data?.data) ? data.data : []
+    currentPage.value = data?.current_page || 1
+    lastPage.value = data?.last_page || 1
+    total.value = data?.total || 0
+    from.value = data?.from || 0
+    to.value = data?.to || 0
+
     if (users.value.length === 0 && (filters.search || filters.role || filters.active)) {
-      showToast('No se encontraron usuarios con esos filtros', 'info');
+      showToast('No se encontraron usuarios con esos filtros', 'info')
     }
   } catch (e) {
-    console.error('[fetchUsers] error', e);
-    errorMsg.value = 'No se pudieron cargar los usuarios.';
-    users.value = [];
-    showToast('Error al cargar usuarios', 'error');
+    console.error('[fetchUsers] error', e)
+    errorMsg.value = 'No se pudieron cargar los usuarios.'
+    users.value = []
+    showToast('Error al cargar usuarios', 'error')
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
-const debouncedSearch = debounce(fetchUsers, 300);
+const debouncedSearch = debounce(fetchUsers, 300)
 
 const resetFilters = () => {
-  Object.assign(filters, { search: '', role: '', active: '' });
-  currentPage.value = 1;
-  fetchUsers();
-  showToast('Filtros restablecidos', 'info');
-};
+  Object.assign(filters, { search: '', role: '', active: '' })
+  currentPage.value = 1
+  fetchUsers()
+  showToast('Filtros restablecidos', 'info')
+}
 
 const goToPage = page => {
-  if (page < 1 || page > lastPage.value) return;
-  currentPage.value = page;
-  fetchUsers();
-};
+  if (page < 1 || page > lastPage.value) return
+  currentPage.value = page
+  fetchUsers()
+}
 
-const openModal = user => {
-  form.value = { ...user };
-  preview.value = user?.avatar_url
-    ? getImageUrl(`/backend/public/uploads/avatars/${user.avatar_url}`)
-    : null;
-  modalOpen.value = true;
-};
+// ✅ Corregido: openModal con getImageUrl
+const openModal = (user) => {
+  form.value = { ...user }
+  preview.value = user?.avatar_url ? getImageUrl(user.avatar_url) : null
+  modalOpen.value = true
+}
 
 const onFileChange = e => {
-  file.value = e.target.files[0];
+  file.value = e.target.files[0]
   if (file.value) {
-    preview.value = URL.createObjectURL(file.value);
+    preview.value = URL.createObjectURL(file.value)
   }
-};
+}
 
 const submitModal = async () => {
   try {
-    const fd = new FormData();
-    Object.keys(form.value).forEach(k => fd.append(k, form.value[k]));
-    if (file.value) fd.append('avatar', file.value);
-    
+    const fd = new FormData()
+    Object.keys(form.value).forEach(k => fd.append(k, form.value[k]))
+    if (file.value) fd.append('avatar', file.value)
+
     await api.post(`/admin/users.php?id=${form.value.id}`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    
-    modalOpen.value = false;
-    fetchUsers();
-    showToast('Usuario actualizado exitosamente', 'success');
+    })
+
+    modalOpen.value = false
+    fetchUsers()
+    showToast('Usuario actualizado exitosamente', 'success')
   } catch (error) {
-    console.error('Error al actualizar usuario:', error);
-    showToast('Error al actualizar el usuario', 'error');
+    console.error('Error al actualizar usuario:', error)
+    showToast('Error al actualizar el usuario', 'error')
   }
-};
+}
 
 const deleteUser = async id => {
-  if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) return;
-  
+  if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) return
+
   try {
-    await api.delete(`/admin/users.php?id=${id}`);
-    fetchUsers();
-    showToast('Usuario eliminado exitosamente', 'success');
+    await api.delete(`/admin/users.php?id=${id}`)
+    fetchUsers()
+    showToast('Usuario eliminado exitosamente', 'success')
   } catch (error) {
-    console.error('Error al eliminar usuario:', error);
-    showToast('Error al eliminar el usuario', 'error');
+    console.error('Error al eliminar usuario:', error)
+    showToast('Error al eliminar el usuario', 'error')
   }
-};
+}
 
-const avatarUrl = name =>
+// ✅ Corregido: avatarUrl con getImageUrl
+const avatarUrl = (name) =>
   name
-    ? getImageUrl(`/backend/public/uploads/avatars/${name}`)
-    : 'https://via.placeholder.com/100?text=Usuario';
+    ? getImageUrl(name.startsWith('http') || name.startsWith('/') ? name : `/uploads/avatars/${name}`)
+    : 'https://via.placeholder.com/100?text=Usuario'
 
-onMounted(fetchUsers);
+onMounted(fetchUsers)
 </script>
 
 <style scoped>

@@ -320,65 +320,69 @@
             </div>
           </div>
 
-          <!-- Pago Móvil -->
-          <div class="gateway-card" v-if="mobilePaymentGateway">
-            <div class="gateway-header">
-              <div class="gateway-icon">📱</div>
-              <div class="gateway-info">
-                <h3>{{ mobilePaymentGateway.display_name }}</h3>
-                <div class="gateway-meta">
-                  <span class="gateway-status" :class="mobilePaymentGateway.is_active ? 'active' : 'inactive'">
-                    {{ mobilePaymentGateway.is_active ? '✅ ' + $t('common.active') : '⛔ ' + $t('common.inactive') }}
-                  </span>
-                  <span class="gateway-mode">
-                    {{ $t('common.mobile') }}
-                  </span>
-                </div>
-              </div>
-              <div class="gateway-stats">
-                <div class="stat-item">
-                  <span class="stat-label">{{ $t('paymentGateways.transactions') }}:</span>
-                  <span class="stat-value">{{ mobilePaymentGateway.total_transactions || 0 }}</span>
-                </div>
-              </div>
-            </div>
+<!-- Pago Móvil -->
+<div class="gateway-card" v-if="mobilePaymentGateway">
+  <div class="gateway-header">
+    <div class="gateway-icon">📱</div>
+    <div class="gateway-info">
+      <h3>{{ mobilePaymentGateway.display_name }}</h3>
+      <div class="gateway-meta">
+        <span class="gateway-status" :class="mobilePaymentGateway.is_active ? 'active' : 'inactive'">
+          {{ mobilePaymentGateway.is_active ? '✅ ' + $t('common.active') : '⛔ ' + $t('common.inactive') }}
+        </span>
+        <span class="gateway-mode">
+          {{ $t('common.mobile') }}
+        </span>
+      </div>
+    </div>
+    <div class="gateway-stats">
+      <div class="stat-item">
+        <span class="stat-label">{{ $t('paymentGateways.transactions') }}:</span>
+        <span class="stat-value">{{ mobilePaymentGateway.total_transactions || 0 }}</span>
+      </div>
+    </div>
+  </div>
 
-            <div class="gateway-details">
-              <div class="detail-item">
-                <span class="detail-label">{{ $t('paymentGateways.fields.phoneNumber') }}:</span>
-                <span class="detail-value">
-                  {{ mobilePaymentGateway.mobile_phone || $t('common.notConfigured') }}
-                </span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">{{ $t('paymentGateways.fields.operator') }}:</span>
-                <span class="detail-value">
-                  {{ mobilePaymentGateway.mobile_operator || $t('common.notSpecified') }}
-                </span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">{{ $t('paymentGateways.fields.holderId') }}:</span>
-                <span class="detail-value">
-                  {{ mobilePaymentGateway.bank_id_number || $t('common.notSpecified') }}
-                </span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">{{ $t('paymentGateways.fields.instructions') }}:</span>
-                <span class="detail-value">
-                  {{ mobilePaymentGateway.instructions || $t('paymentGateways.defaultInstructions.mobilePayment') }}
-                </span>
-              </div>
-            </div>
+  <div class="gateway-details">
+    <div class="detail-item">
+      <span class="detail-label">Banco:</span>
+      <span class="detail-value">{{ mobilePaymentGateway.bank_name || $t('common.notSpecified') }}</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">{{ $t('paymentGateways.fields.phoneNumber') }}:</span>
+      <span class="detail-value">
+        {{ mobilePaymentGateway.mobile_phone || $t('common.notConfigured') }}
+      </span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">{{ $t('paymentGateways.fields.operator') }}:</span>
+      <span class="detail-value">
+        {{ mobilePaymentGateway.mobile_operator || $t('common.notSpecified') }}
+      </span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">{{ $t('paymentGateways.fields.holderId') }}:</span>
+      <span class="detail-value">
+        {{ mobilePaymentGateway.bank_id_number || $t('common.notSpecified') }}
+      </span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">{{ $t('paymentGateways.fields.instructions') }}:</span>
+      <span class="detail-value">
+        {{ mobilePaymentGateway.instructions || $t('paymentGateways.defaultInstructions.mobilePayment') }}
+      </span>
+    </div>
+  </div>
 
-            <div class="gateway-actions">
-              <button class="btn-toggle" @click="toggleGateway(mobilePaymentGateway.id)">
-                {{ mobilePaymentGateway.is_active ? $t('common.deactivate') : $t('common.activate') }}
-              </button>
-              <button class="btn-configure" @click="configureGateway(mobilePaymentGateway)">
-                {{ $t('common.configure') }}
-              </button>
-            </div>
-          </div>
+  <div class="gateway-actions">
+    <button class="btn-toggle" @click="toggleGateway(mobilePaymentGateway.id)">
+      {{ mobilePaymentGateway.is_active ? $t('common.deactivate') : $t('common.activate') }}
+    </button>
+    <button class="btn-configure" @click="configureGateway(mobilePaymentGateway)">
+      {{ $t('common.configure') }}
+    </button>
+  </div>
+</div>
 
           <!-- Zelle -->
           <div class="gateway-card" v-if="zelleGateway">
@@ -666,6 +670,11 @@
                   </select>
                 </div>
 
+                <div class="form-group">
+  <label class="form-label required">Banco</label>
+  <input type="text" v-model="gatewayConfig.bank_name" placeholder="Ej: Banco de Venezuela" class="form-input" required>
+</div> 
+           
                 <div class="form-group">
                   <label class="form-label">
                     {{ $t('paymentGateways.fields.holderId') }}
@@ -1031,36 +1040,41 @@ async function loadPaymentStats() {
       }
     })
 
-    // Asegurar que response.data existe
     const data = response?.data || {}
+    
+    // Calcular totales desde gateway_stats
+    let totalAmount = 0
+    let totalTransactions = 0
+    let successRate = 0
+    
+    if (data.gateway_stats?.length > 0) {
+      data.gateway_stats.forEach(g => {
+        totalAmount += parseFloat(g.total_amount || 0)
+        totalTransactions += parseInt(g.total_transactions || 0)
+        successRate = Math.max(successRate, parseFloat(g.success_rate || 0))
+      })
+    }
 
     paymentStats.value = {
       today_revenue: parseFloat(data.today_revenue) || 0,
       today_transactions: parseInt(data.today_transactions) || 0,
-      success_rate: parseFloat(data.success_rate) || 0,
-      active_gateways: parseInt(data.active_gateways) || 0,
-      total_gateways: parseInt(data.total_gateways) || 0,
-      total_amount: parseFloat(data.total_amount) || 0,
-      total_transactions: parseInt(data.total_transactions) || 0
-    }
-
-    // Actualizar estadísticas desde los gateways si no vienen del backend
-    if (gateways.value?.length > 0) {
-      paymentStats.value.active_gateways = activeGatewaysCount.value
-      paymentStats.value.total_gateways = gateways.value.length
+      total_amount: totalAmount,
+      total_transactions: totalTransactions,
+      success_rate: successRate,
+      active_gateways: activeGatewaysCount.value || 0,
+      total_gateways: gateways.value?.length || 0
     }
 
   } catch (error) {
     console.error('Error cargando estadísticas:', error)
-    // Datos de ejemplo si falla
     paymentStats.value = {
-      today_revenue: 1250.75,
-      today_transactions: 42,
-      success_rate: 95.5,
+      today_revenue: 0,
+      today_transactions: 0,
+      total_amount: 0,
+      total_transactions: 0,
+      success_rate: 0,
       active_gateways: activeGatewaysCount.value || 0,
-      total_gateways: gateways.value?.length || 0,
-      total_amount: 1250.75,
-      total_transactions: 42
+      total_gateways: gateways.value?.length || 0
     }
   }
 }
@@ -1156,7 +1170,10 @@ function selectGatewayType(type) {
     mobile_phone: '',
     mobile_operator: '',
     zelle_email: '',
-    commission_rate: globalCommission.value?.rate || 10,
+    total_transactions: 0,
+    total_amount: 0,
+    success_rate: 0, 
+   commission_rate: globalCommission.value?.rate || 10,
     fixed_commission: globalCommission.value?.fixed || 1,
     instructions: '',
     icon: gatewayInfo?.icon || '💳',

@@ -13,6 +13,8 @@
     "user_created": "{user} se registró en la plataforma",
     "request_created": "{user} solicitó '{service}'",
     "payment_completed": "{user} completó el pago de '{service}'",
+    "serviceDetails": "Detalles del servicio",
+    "serviceDetailsPlaceholder": "Describe los pasos de tu servicio...",
     "review_created": "{user} dejó una reseña"
 },
   "addComments": "Agregar comentarios",

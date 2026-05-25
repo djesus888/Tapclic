@@ -17,9 +17,8 @@
           </h1>
           <p class="page-subtitle">Métricas en tiempo real de la plataforma</p>
         </div>
-        
+
         <div class="header-actions">
-          <!-- Selector de período -->
           <div class="period-selector">
             <label class="period-label">Período:</label>
             <select v-model="selectedPeriod" @change="loadAnalyticsData" class="period-select">
@@ -30,24 +29,14 @@
               <option value="year">Último año</option>
             </select>
           </div>
-          
+
           <div class="header-buttons">
-            <button 
-              class="btn-refresh" 
-              @click="loadAnalyticsData"
-              :disabled="refreshing"
-            >
+            <button class="btn-refresh" @click="loadAnalyticsData" :disabled="refreshing">
               <span v-if="refreshing" class="refresh-spinner"></span>
               <span v-else>🔄 Actualizar</span>
             </button>
-            <button class="btn-export" @click="exportAnalytics">
-              📥 Exportar
-            </button>
-            <button 
-              class="btn-realtime" 
-              :class="{ active: autoRefresh }"
-              @click="toggleAutoRefresh"
-            >
+            <button class="btn-export" @click="exportAnalytics">📥 Exportar</button>
+            <button class="btn-realtime" :class="{ active: autoRefresh }" @click="toggleAutoRefresh">
               ⏱️ {{ autoRefresh ? 'Auto ON' : 'Auto OFF' }}
             </button>
           </div>
@@ -60,13 +49,11 @@
           <span class="period-icon">📅</span>
           <div class="period-details">
             <h3>{{ getPeriodLabel(selectedPeriod) }}</h3>
-            <p v-if="analyticsData.date_range">
-              {{ formatDate(analyticsData.date_range.start) }} - {{ formatDate(analyticsData.date_range.end) }}
+            <p v-if="analyticsData.start_date">
+              {{ formatDate(analyticsData.start_date) }} - {{ formatDate(analyticsData.end_date) }}
             </p>
           </div>
         </div>
-        
-        <!-- Actualizado -->
         <div class="updated-info">
           <span class="update-icon">🕐</span>
           <span class="update-text">Actualizado: {{ lastUpdateTime }}</span>
@@ -75,11 +62,7 @@
 
       <!-- Métricas en tiempo real -->
       <div class="realtime-metrics">
-        <h2 class="section-title">
-          <span class="section-icon">⚡</span>
-          En Tiempo Real
-        </h2>
-        
+        <h2 class="section-title"><span class="section-icon">⚡</span>En Tiempo Real</h2>
         <div class="realtime-grid">
           <div class="realtime-card">
             <div class="realtime-icon online">👥</div>
@@ -89,7 +72,6 @@
               <p class="realtime-label">En los últimos 5 minutos</p>
             </div>
           </div>
-          
           <div class="realtime-card">
             <div class="realtime-icon active">📋</div>
             <div class="realtime-content">
@@ -98,7 +80,6 @@
               <p class="realtime-label">En progreso ahora</p>
             </div>
           </div>
-          
           <div class="realtime-card">
             <div class="realtime-icon available">🛠️</div>
             <div class="realtime-content">
@@ -107,7 +88,6 @@
               <p class="realtime-label">Listos para trabajar</p>
             </div>
           </div>
-          
           <div class="realtime-card">
             <div class="realtime-icon warning">📩</div>
             <div class="realtime-content">
@@ -117,14 +97,9 @@
             </div>
           </div>
         </div>
-        
         <div class="realtime-footer">
           <span class="timestamp">Última actualización: {{ formatTime(realtimeData.timestamp) }}</span>
-          <button 
-            class="btn-update-realtime" 
-            @click="loadRealtimeData"
-            :disabled="loadingRealtime"
-          >
+          <button class="btn-update-realtime" @click="loadRealtimeData" :disabled="loadingRealtime">
             {{ loadingRealtime ? 'Actualizando...' : 'Actualizar ahora' }}
           </button>
         </div>
@@ -132,126 +107,77 @@
 
       <!-- Métricas Principales -->
       <div class="main-metrics">
-        <h2 class="section-title">
-          <span class="section-icon">📈</span>
-          Métricas Principales
-        </h2>
-        
+        <h2 class="section-title"><span class="section-icon">📈</span>Métricas Principales</h2>
         <div class="metrics-grid">
-          <!-- Nuevos Usuarios -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon user">👤</div>
-              <div class="metric-trend" :class="getTrendClass('users')">
-                {{ calculateTrend('users') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('users')">{{ calculateTrend('users') }}</div>
             </div>
             <div class="metric-content">
               <h3>Nuevos Usuarios</h3>
-              <p class="metric-value">{{ analyticsData.metrics?.new_users || 0 }}</p>
+              <p class="metric-value">{{ analyticsData.new_users || 0 }}</p>
               <p class="metric-change">vs período anterior</p>
             </div>
-            <div class="metric-chart">
-              <div class="mini-chart">
-                <canvas ref="usersChart" height="40"></canvas>
-              </div>
-            </div>
+            <div class="metric-chart"><div class="mini-chart"><canvas ref="usersChart" height="40"></canvas></div></div>
           </div>
-          
-          <!-- Nuevos Servicios -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon service">🛠️</div>
-              <div class="metric-trend" :class="getTrendClass('services')">
-                {{ calculateTrend('services') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('services')">{{ calculateTrend('services') }}</div>
             </div>
             <div class="metric-content">
               <h3>Nuevos Servicios</h3>
-              <p class="metric-value">{{ analyticsData.metrics?.new_services || 0 }}</p>
+              <p class="metric-value">{{ analyticsData.new_services || 0 }}</p>
               <p class="metric-change">Servicios activos creados</p>
             </div>
-            <div class="metric-chart">
-              <div class="mini-chart">
-                <canvas ref="servicesChart" height="40"></canvas>
-              </div>
-            </div>
+            <div class="metric-chart"><div class="mini-chart"><canvas ref="servicesChart" height="40"></canvas></div></div>
           </div>
-          
-          <!-- Solicitudes -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon request">📋</div>
-              <div class="metric-trend" :class="getTrendClass('requests')">
-                {{ calculateTrend('requests') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('requests')">{{ calculateTrend('requests') }}</div>
             </div>
             <div class="metric-content">
               <h3>Solicitudes</h3>
               <div class="request-stats">
-                <div class="request-item">
-                  <span class="request-label">Nuevas:</span>
-                  <span class="request-value">{{ analyticsData.metrics?.new_requests || 0 }}</span>
-                </div>
-                <div class="request-item">
-                  <span class="request-label">Completadas:</span>
-                  <span class="request-value">{{ analyticsData.metrics?.completed_requests || 0 }}</span>
-                </div>
+                <div class="request-item"><span class="request-label">Nuevas:</span><span class="request-value">{{ analyticsData.new_requests || 0 }}</span></div>
+                <div class="request-item"><span class="request-label">Completadas:</span><span class="request-value">{{ analyticsData.completed_requests || 0 }}</span></div>
               </div>
-              <p class="metric-change">
-                Tasa de completado: {{ analyticsData.metrics?.completion_rate || 0 }}%
-              </p>
+              <p class="metric-change">Tasa de completado: {{ analyticsData.completion_rate || 0 }}%</p>
             </div>
           </div>
-          
-          <!-- Ingresos -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon revenue">💰</div>
-              <div class="metric-trend" :class="getTrendClass('revenue')">
-                {{ calculateTrend('revenue') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('revenue')">{{ calculateTrend('revenue') }}</div>
             </div>
             <div class="metric-content">
               <h3>Ingresos</h3>
-              <p class="metric-value">${{ formatCurrency(analyticsData.metrics?.revenue || 0) }}</p>
-              <p class="metric-change">
-                Promedio por solicitud: ${{ analyticsData.metrics?.avg_revenue_per_request || 0 }}
-              </p>
+              <p class="metric-value">${{ formatCurrency(analyticsData.revenue || 0) }}</p>
+              <p class="metric-change">Promedio por solicitud: ${{ formatCurrency((analyticsData.revenue / Math.max(analyticsData.new_requests || 1, 1)).toFixed(2)) }}</p>
             </div>
-            <div class="metric-chart">
-              <div class="mini-chart">
-                <canvas ref="revenueChart" height="40"></canvas>
-              </div>
-            </div>
+            <div class="metric-chart"><div class="mini-chart"><canvas ref="revenueChart" height="40"></canvas></div></div>
           </div>
-          
-          <!-- Reviews -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon review">⭐</div>
-              <div class="metric-trend" :class="getTrendClass('reviews')">
-                {{ calculateTrend('reviews') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('reviews')">{{ calculateTrend('reviews') }}</div>
             </div>
             <div class="metric-content">
               <h3>Reseñas</h3>
-              <p class="metric-value">{{ analyticsData.metrics?.new_reviews || 0 }}</p>
+              <p class="metric-value">{{ analyticsData.new_reviews || 0 }}</p>
               <p class="metric-change">Nuevas reseñas recibidas</p>
             </div>
           </div>
-          
-          <!-- Tickets de Soporte -->
           <div class="metric-card">
             <div class="metric-header">
               <div class="metric-icon ticket">📩</div>
-              <div class="metric-trend" :class="getTrendClass('tickets')">
-                {{ calculateTrend('tickets') }}
-              </div>
+              <div class="metric-trend" :class="getTrendClass('tickets')">{{ calculateTrend('tickets') }}</div>
             </div>
             <div class="metric-content">
               <h3>Tickets de Soporte</h3>
-              <p class="metric-value">{{ analyticsData.metrics?.new_tickets || 0 }}</p>
+              <p class="metric-value">{{ analyticsData.new_tickets || 0 }}</p>
               <p class="metric-change">Nuevos tickets creados</p>
             </div>
           </div>
@@ -260,94 +186,33 @@
 
       <!-- Gráficos -->
       <div class="charts-section">
-        <h2 class="section-title">
-          <span class="section-icon">📊</span>
-          Gráficos Detallados
-        </h2>
-        
+        <h2 class="section-title"><span class="section-icon">📊</span>Gráficos Detallados</h2>
         <div class="charts-grid">
-          <!-- Gráfico de Usuarios -->
           <div class="chart-card">
-            <div class="chart-header">
-              <h3>👤 Nuevos Usuarios por Día</h3>
-              <div class="chart-actions">
-                <button class="chart-action" @click="toggleChartType('users')">
-                  🔄
-                </button>
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas ref="usersDetailedChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>👤 Nuevos Usuarios por Día</h3></div>
+            <div class="chart-container"><canvas ref="usersDetailedChart" height="250"></canvas></div>
           </div>
-          
-          <!-- Gráfico de Servicios -->
           <div class="chart-card">
-            <div class="chart-header">
-              <h3>🛠️ Nuevos Servicios por Día</h3>
-              <div class="chart-actions">
-                <button class="chart-action" @click="toggleChartType('services')">
-                  🔄
-                </button>
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas ref="servicesDetailedChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>🛠️ Nuevos Servicios por Día</h3></div>
+            <div class="chart-container"><canvas ref="servicesDetailedChart" height="250"></canvas></div>
           </div>
-          
-          <!-- Gráfico de Solicitudes -->
           <div class="chart-card">
-            <div class="chart-header">
-              <h3>📋 Solicitudes por Día</h3>
-              <div class="chart-actions">
-                <button class="chart-action" @click="toggleChartType('requests')">
-                  🔄
-                </button>
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas ref="requestsDetailedChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>📋 Solicitudes por Día</h3></div>
+            <div class="chart-container"><canvas ref="requestsDetailedChart" height="250"></canvas></div>
           </div>
-          
-          <!-- Gráfico de Ingresos -->
           <div class="chart-card">
-            <div class="chart-header">
-              <h3>💰 Ingresos por Día</h3>
-              <div class="chart-actions">
-                <button class="chart-action" @click="toggleChartType('revenue')">
-                  🔄
-                </button>
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas ref="revenueDetailedChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>💰 Ingresos por Día</h3></div>
+            <div class="chart-container"><canvas ref="revenueDetailedChart" height="250"></canvas></div>
           </div>
-          
-          <!-- Categorías más Populares -->
           <div class="chart-card wide">
-            <div class="chart-header">
-              <h3>🏷️ Categorías más Populares</h3>
-            </div>
-            <div class="chart-container">
-              <canvas ref="categoriesChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>🏷️ Categorías más Populares</h3></div>
+            <div class="chart-container"><canvas ref="categoriesChart" height="250"></canvas></div>
           </div>
-          
-          <!-- Top Proveedores -->
           <div class="chart-card wide">
-            <div class="chart-header">
-              <h3>👥 Proveedores más Activos</h3>
-            </div>
+            <div class="chart-header"><h3>👥 Proveedores más Activos</h3></div>
             <div class="chart-container">
               <div class="providers-list">
-                <div 
-                  v-for="(provider, index) in chartsData.top_providers" 
-                  :key="index"
-                  class="provider-item"
-                >
+                <div v-for="(provider, index) in chartsData.charts?.top_providers" :key="index" class="provider-item">
                   <div class="provider-rank">{{ index + 1 }}</div>
                   <div class="provider-info">
                     <h4>{{ provider.name || 'Proveedor ' + (index + 1) }}</h4>
@@ -356,43 +221,23 @@
                       <span class="stat">🛠️ {{ provider.service_count || 0 }} servicios</span>
                     </div>
                   </div>
-                  <div class="provider-score">
-                    <div class="score-bar">
-                      <div 
-                        class="score-fill" 
-                        :style="{ width: calculateProviderScore(provider) + '%' }"
-                      ></div>
-                    </div>
-                    <span class="score-value">{{ calculateProviderScore(provider) }}%</span>
-                  </div>
                 </div>
-                
-                <div v-if="!chartsData.top_providers?.length" class="empty-providers">
+                <div v-if="!chartsData.charts?.top_providers?.length" class="empty-providers">
                   <p>No hay datos de proveedores para este período</p>
                 </div>
               </div>
             </div>
           </div>
-          
-          <!-- Estado de Solicitudes -->
           <div class="chart-card">
-            <div class="chart-header">
-              <h3>📊 Estado de Solicitudes</h3>
-            </div>
-            <div class="chart-container">
-              <canvas ref="requestsStatusChart" height="250"></canvas>
-            </div>
+            <div class="chart-header"><h3>📊 Estado de Solicitudes</h3></div>
+            <div class="chart-container"><canvas ref="requestsStatusChart" height="250"></canvas></div>
           </div>
         </div>
       </div>
 
-      <!-- Comparativas y Tendencias -->
+      <!-- Comparativas -->
       <div class="comparison-section">
-        <h2 class="section-title">
-          <span class="section-icon">📉</span>
-          Comparativas y Tendencias
-        </h2>
-        
+        <h2 class="section-title"><span class="section-icon">📉</span>Comparativas y Tendencias</h2>
         <div class="comparison-grid">
           <div class="comparison-card">
             <h3>Tendencia Diaria</h3>
@@ -400,11 +245,8 @@
               <span class="trend-icon">{{ getTrendIcon() }}</span>
               <span class="trend-text">{{ getOverallTrendText() }}</span>
             </div>
-            <p class="trend-description">
-              {{ getTrendDescription() }}
-            </p>
+            <p class="trend-description">{{ getTrendDescription() }}</p>
           </div>
-          
           <div class="comparison-card">
             <h3>Día más Activo</h3>
             <div v-if="peakDay" class="peak-info">
@@ -417,13 +259,10 @@
             </div>
             <p v-else class="no-data">No hay datos suficientes</p>
           </div>
-          
           <div class="comparison-card">
             <h3>Proyección Mensual</h3>
             <div class="projection">
-              <div class="projection-value">
-                ${{ formatCurrency(calculateMonthlyProjection()) }}
-              </div>
+              <div class="projection-value">${{ formatCurrency(calculateMonthlyProjection()) }}</div>
               <p class="projection-label">Ingresos proyectados</p>
             </div>
             <p class="projection-note">Basado en el período actual</p>
@@ -431,33 +270,12 @@
         </div>
       </div>
 
-      <!-- Exportar y Compartir -->
+      <!-- Exportar -->
       <div class="export-section">
-        <h2 class="section-title">
-          <span class="section-icon">📥</span>
-          Exportar Reporte
-        </h2>
-        
+        <h2 class="section-title"><span class="section-icon">📥</span>Exportar Reporte</h2>
         <div class="export-options">
-          <button class="export-option" @click="exportToPDF">
-            <span class="export-icon">📄</span>
-            <span class="export-text">Exportar a PDF</span>
-          </button>
-          
-          <button class="export-option" @click="exportToExcel">
-            <span class="export-icon">📊</span>
-            <span class="export-text">Exportar a Excel</span>
-          </button>
-          
-          <button class="export-option" @click="shareReport">
-            <span class="export-icon">🔗</span>
-            <span class="export-text">Compartir Reporte</span>
-          </button>
-          
-          <button class="export-option" @click="scheduleReport">
-            <span class="export-icon">⏰</span>
-            <span class="export-text">Programar Reporte</span>
-          </button>
+          <button class="export-option" @click="exportToPDF"><span class="export-icon">📄</span><span class="export-text">PDF</span></button>
+          <button class="export-option" @click="exportToExcel"><span class="export-icon">📊</span><span class="export-text">Excel</span></button>
         </div>
       </div>
     </template>
@@ -472,7 +290,6 @@ import Chart from 'chart.js/auto'
 
 const authStore = useAuthStore()
 
-// Estados
 const loading = ref(true)
 const refreshing = ref(false)
 const loadingRealtime = ref(false)
@@ -480,13 +297,12 @@ const autoRefresh = ref(false)
 const selectedPeriod = ref('week')
 const lastUpdateTime = ref('')
 
-// Datos
+// ✅ CORREGIDO: estructura plana como viene del backend
 const analyticsData = ref({})
 const chartsData = ref({})
 const realtimeData = ref({})
-const previousData = ref({}) // Para calcular tendencias
+const previousData = ref({})
 
-// Referencias de gráficos
 const usersChart = ref(null)
 const servicesChart = ref(null)
 const revenueChart = ref(null)
@@ -497,7 +313,6 @@ const revenueDetailedChart = ref(null)
 const categoriesChart = ref(null)
 const requestsStatusChart = ref(null)
 
-// Instancias de Chart.js
 let usersChartInstance = null
 let servicesChartInstance = null
 let revenueChartInstance = null
@@ -508,16 +323,11 @@ let revenueDetailedChartInstance = null
 let categoriesChartInstance = null
 let requestsStatusChartInstance = null
 
-// Auto-refresh interval
 let refreshInterval = null
 let realtimeInterval = null
 
-// Lifecycle
 onMounted(async () => {
-  await Promise.all([
-    loadAnalyticsData(),
-    loadRealtimeData()
-  ])
+  await Promise.all([loadAnalyticsData(), loadRealtimeData()])
   startAutoRefresh()
 })
 
@@ -526,37 +336,27 @@ onBeforeUnmount(() => {
   destroyCharts()
 })
 
-// Cargar datos
 async function loadAnalyticsData() {
   try {
     refreshing.value = true
-    
     const [overviewRes, chartsRes] = await Promise.all([
-      api.get(`/admin/analytics/overview?period=${selectedPeriod.value}`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      }),
-      api.get(`/admin/analytics/charts?period=${selectedPeriod.value}`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
+      api.get(`/admin/analytics/overview?period=${selectedPeriod.value}`, { headers: { Authorization: `Bearer ${authStore.token}` } }),
+      api.get(`/admin/analytics/charts?period=${selectedPeriod.value}`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     ])
-    
-    // Guardar datos anteriores para comparar
-    if (analyticsData.value.metrics) {
-      previousData.value = { ...analyticsData.value.metrics }
+
+    // ✅ CORREGIDO: el backend devuelve {success:true, data:{...}}
+    const newData = overviewRes.data?.data || overviewRes.data
+
+    // Guardar anteriores
+    if (analyticsData.value && Object.keys(analyticsData.value).length) {
+      previousData.value = { ...analyticsData.value }
     }
-    
-    analyticsData.value = overviewRes.data
+
+    analyticsData.value = newData
     chartsData.value = chartsRes.data
-    
-    // Actualizar tiempo
-    lastUpdateTime.value = new Date().toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-    
-    // Renderizar gráficos
+
+    lastUpdateTime.value = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
     renderCharts()
-    
   } catch (error) {
     console.error('Error cargando analytics:', error)
   } finally {
@@ -568,13 +368,8 @@ async function loadAnalyticsData() {
 async function loadRealtimeData() {
   try {
     loadingRealtime.value = true
-    
-    const response = await api.get('/admin/analytics/realtime', {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
-    
+    const response = await api.get('/admin/analytics/realtime', { headers: { Authorization: `Bearer ${authStore.token}` } })
     realtimeData.value = response.data
-    
   } catch (error) {
     console.error('Error cargando datos en tiempo real:', error)
   } finally {
@@ -582,24 +377,10 @@ async function loadRealtimeData() {
   }
 }
 
-// Auto-refresh
 function startAutoRefresh() {
-  if (refreshInterval) clearInterval(refreshInterval)
-  if (realtimeInterval) clearInterval(realtimeInterval)
-  
-  // Actualizar datos principales cada 5 minutos
-  refreshInterval = setInterval(() => {
-    if (autoRefresh.value) {
-      loadAnalyticsData()
-    }
-  }, 5 * 60 * 1000)
-  
-  // Actualizar datos en tiempo real cada 30 segundos
-  realtimeInterval = setInterval(() => {
-    if (autoRefresh.value) {
-      loadRealtimeData()
-    }
-  }, 30 * 1000)
+  stopAutoRefresh()
+  refreshInterval = setInterval(() => { if (autoRefresh.value) loadAnalyticsData() }, 300000)
+  realtimeInterval = setInterval(() => { if (autoRefresh.value) loadRealtimeData() }, 30000)
 }
 
 function stopAutoRefresh() {
@@ -609,520 +390,142 @@ function stopAutoRefresh() {
 
 function toggleAutoRefresh() {
   autoRefresh.value = !autoRefresh.value
-  if (autoRefresh.value) {
-    startAutoRefresh()
-  } else {
-    stopAutoRefresh()
-  }
+  autoRefresh.value ? startAutoRefresh() : stopAutoRefresh()
 }
 
-// Renderizar gráficos
 function renderCharts() {
   destroyCharts()
-  
-  // Mini gráficos
   renderMiniCharts()
-  
-  // Gráficos detallados
   renderDetailedCharts()
-  
-  // Gráfico de categorías
   renderCategoriesChart()
-  
-  // Gráfico de estado de solicitudes
   renderRequestsStatusChart()
 }
 
 function renderMiniCharts() {
-  // Datos de ejemplo para mini gráficos
-  const miniData = Array.from({ length: 7 }, (_, i) => Math.random() * 100)
-  
-  const miniOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { display: false },
-      y: { display: false }
-    },
-    elements: {
-      line: {
-        tension: 0.4,
-        borderWidth: 2
-      },
-      point: {
-        radius: 0
-      }
-    }
-  }
-  
-  // Usuarios
+  const miniData = [30, 50, 40, 60, 45, 70, 55]
+  const miniOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } }, elements: { line: { tension: 0.4, borderWidth: 2 }, point: { radius: 0 } } }
+
   if (usersChart.value) {
-    usersChartInstance = new Chart(usersChart.value, {
-      type: 'line',
-      data: {
-        labels: ['', '', '', '', '', '', ''],
-        datasets: [{
-          data: miniData,
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          fill: true
-        }]
-      },
-      options: miniOptions
-    })
+    usersChartInstance = new Chart(usersChart.value, { type: 'line', data: { labels: ['','','','','','',''], datasets: [{ data: miniData, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', fill: true }] }, options: miniOptions })
   }
-  
-  // Servicios
   if (servicesChart.value) {
-    servicesChartInstance = new Chart(servicesChart.value, {
-      type: 'line',
-      data: {
-        labels: ['', '', '', '', '', '', ''],
-        datasets: [{
-          data: miniData,
-          borderColor: '#00b894',
-          backgroundColor: 'rgba(0, 184, 148, 0.1)',
-          fill: true
-        }]
-      },
-      options: miniOptions
-    })
+    servicesChartInstance = new Chart(servicesChart.value, { type: 'line', data: { labels: ['','','','','','',''], datasets: [{ data: miniData, borderColor: '#00b894', backgroundColor: 'rgba(0,184,148,0.1)', fill: true }] }, options: miniOptions })
   }
-  
-  // Ingresos
   if (revenueChart.value) {
-    revenueChartInstance = new Chart(revenueChart.value, {
-      type: 'line',
-      data: {
-        labels: ['', '', '', '', '', '', ''],
-        datasets: [{
-          data: miniData,
-          borderColor: '#fdcb6e',
-          backgroundColor: 'rgba(253, 203, 110, 0.1)',
-          fill: true
-        }]
-      },
-      options: miniOptions
-    })
+    revenueChartInstance = new Chart(revenueChart.value, { type: 'line', data: { labels: ['','','','','','',''], datasets: [{ data: miniData, borderColor: '#fdcb6e', backgroundColor: 'rgba(253,203,110,0.1)', fill: true }] }, options: miniOptions })
   }
 }
 
 function renderDetailedCharts() {
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false
-        }
-      },
-      y: {
-        beginAtZero: true,
-        grid: {
-          borderDash: [2, 2]
-        }
-      }
-    }
+  const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { borderDash: [2,2] } } } }
+  const charts = chartsData.value.charts || {}
+
+  if (usersDetailedChart.value && charts.users_by_day?.length) {
+    const data = charts.users_by_day
+    usersDetailedChartInstance = new Chart(usersDetailedChart.value, { type: 'line', data: { labels: data.map(d => formatChartDate(d.date)), datasets: [{ label: 'Usuarios', data: data.map(d => d.count), borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', fill: true, tension: 0.4 }] }, options: chartOptions })
   }
-  
-  // Usuarios detallado
-  if (usersDetailedChart.value && chartsData.value.charts?.users_by_day) {
-    const data = chartsData.value.charts.users_by_day
-    usersDetailedChartInstance = new Chart(usersDetailedChart.value, {
-      type: 'line',
-      data: {
-        labels: data.map(item => formatChartDate(item.date)),
-        datasets: [{
-          label: 'Usuarios',
-          data: data.map(item => item.count),
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: chartOptions
-    })
+  if (servicesDetailedChart.value && charts.services_by_day?.length) {
+    const data = charts.services_by_day
+    servicesDetailedChartInstance = new Chart(servicesDetailedChart.value, { type: 'bar', data: { labels: data.map(d => formatChartDate(d.date)), datasets: [{ label: 'Servicios', data: data.map(d => d.count), backgroundColor: '#00b894' }] }, options: chartOptions })
   }
-  
-  // Servicios detallado
-  if (servicesDetailedChart.value && chartsData.value.charts?.services_by_day) {
-    const data = chartsData.value.charts.services_by_day
-    servicesDetailedChartInstance = new Chart(servicesDetailedChart.value, {
-      type: 'bar',
-      data: {
-        labels: data.map(item => formatChartDate(item.date)),
-        datasets: [{
-          label: 'Servicios',
-          data: data.map(item => item.count),
-          backgroundColor: '#00b894',
-          borderColor: '#00a085',
-          borderWidth: 1
-        }]
-      },
-      options: chartOptions
-    })
+  if (requestsDetailedChart.value && charts.requests_by_day?.length) {
+    const data = charts.requests_by_day
+    requestsDetailedChartInstance = new Chart(requestsDetailedChart.value, { type: 'line', data: { labels: data.map(d => formatChartDate(d.date)), datasets: [{ label: 'Solicitudes', data: data.map(d => d.count), borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', fill: true, tension: 0.4 }] }, options: chartOptions })
   }
-  
-  // Solicitudes detallado
-  if (requestsDetailedChart.value && chartsData.value.charts?.requests_by_day) {
-    const data = chartsData.value.charts.requests_by_day
-    requestsDetailedChartInstance = new Chart(requestsDetailedChart.value, {
-      type: 'line',
-      data: {
-        labels: data.map(item => formatChartDate(item.date)),
-        datasets: [{
-          label: 'Solicitudes',
-          data: data.map(item => item.count),
-          borderColor: '#ff6b6b',
-          backgroundColor: 'rgba(255, 107, 107, 0.1)',
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: chartOptions
-    })
-  }
-  
-  // Ingresos detallado
-  if (revenueDetailedChart.value && chartsData.value.charts?.revenue_by_day) {
-    const data = chartsData.value.charts.revenue_by_day
-    revenueDetailedChartInstance = new Chart(revenueDetailedChart.value, {
-      type: 'line',
-      data: {
-        labels: data.map(item => formatChartDate(item.date)),
-        datasets: [{
-          label: 'Ingresos ($)',
-          data: data.map(item => item.amount),
-          borderColor: '#fdcb6e',
-          backgroundColor: 'rgba(253, 203, 110, 0.1)',
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: chartOptions
-    })
+  if (revenueDetailedChart.value && charts.revenue_by_day?.length) {
+    const data = charts.revenue_by_day
+    revenueDetailedChartInstance = new Chart(revenueDetailedChart.value, { type: 'line', data: { labels: data.map(d => formatChartDate(d.date)), datasets: [{ label: 'Ingresos ($)', data: data.map(d => d.amount), borderColor: '#fdcb6e', backgroundColor: 'rgba(253,203,110,0.1)', fill: true, tension: 0.4 }] }, options: chartOptions })
   }
 }
 
 function renderCategoriesChart() {
-  if (categoriesChart.value && chartsData.value.charts?.top_categories) {
-    const data = chartsData.value.charts.top_categories
-    
-    categoriesChartInstance = new Chart(categoriesChart.value, {
-      type: 'doughnut',
-      data: {
-        labels: data.map(item => item.name),
-        datasets: [{
-          data: data.map(item => item.service_count),
-          backgroundColor: [
-            '#667eea', '#764ba2', '#f093fb', '#f5576c',
-            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
-            '#fa709a', '#fee140'
-          ],
-          borderWidth: 2,
-          borderColor: '#ffffff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right',
-          }
-        }
-      }
-    })
+  const data = chartsData.value.charts?.top_categories
+  if (categoriesChart.value && data?.length) {
+    categoriesChartInstance = new Chart(categoriesChart.value, { type: 'doughnut', data: { labels: data.map(d => d.name), datasets: [{ data: data.map(d => d.service_count), backgroundColor: ['#667eea','#764ba2','#f093fb','#f5576c','#4facfe','#00f2fe','#43e97b','#38f9d7','#fa709a','#fee140'], borderWidth: 2, borderColor: '#fff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } })
   }
 }
 
 function renderRequestsStatusChart() {
-  if (requestsStatusChart.value && chartsData.value.charts?.requests_status) {
-    const data = chartsData.value.charts.requests_status
-    
-    requestsStatusChartInstance = new Chart(requestsStatusChart.value, {
-      type: 'pie',
-      data: {
-        labels: data.map(item => getStatusLabel(item.status)),
-        datasets: [{
-          data: data.map(item => item.count),
-          backgroundColor: [
-            '#667eea', // pending
-            '#00b894', // completed
-            '#fdcb6e', // in_progress
-            '#ff6b6b', // cancelled
-            '#a8edea'  // others
-          ],
-          borderWidth: 2,
-          borderColor: '#ffffff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right',
-          }
-        }
-      }
-    })
+  const data = chartsData.value.charts?.requests_status
+  if (requestsStatusChart.value && data?.length) {
+    requestsStatusChartInstance = new Chart(requestsStatusChart.value, { type: 'pie', data: { labels: data.map(d => getStatusLabel(d.status)), datasets: [{ data: data.map(d => d.count), backgroundColor: ['#667eea','#00b894','#fdcb6e','#ff6b6b','#a8edea'], borderWidth: 2, borderColor: '#fff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } })
   }
 }
 
 function destroyCharts() {
-  const charts = [
-    usersChartInstance, servicesChartInstance, revenueChartInstance,
-    usersDetailedChartInstance, servicesDetailedChartInstance,
-    requestsDetailedChartInstance, revenueDetailedChartInstance,
-    categoriesChartInstance, requestsStatusChartInstance
-  ]
-  
-  charts.forEach(chart => {
-    if (chart) {
-      chart.destroy()
-    }
-  })
+  [usersChartInstance, servicesChartInstance, revenueChartInstance, usersDetailedChartInstance, servicesDetailedChartInstance, requestsDetailedChartInstance, revenueDetailedChartInstance, categoriesChartInstance, requestsStatusChartInstance].forEach(c => { if (c) c.destroy() })
 }
 
-// Utilidades
-function getPeriodLabel(period) {
-  const labels = {
-    'day': 'Hoy',
-    'week': 'Última Semana',
-    'month': 'Último Mes',
-    'quarter': 'Último Trimestre',
-    'year': 'Último Año'
-  }
-  return labels[period] || 'Período'
-}
+function getPeriodLabel(p) { return { day: 'Hoy', week: 'Última Semana', month: 'Último Mes', quarter: 'Último Trimestre', year: 'Último Año' }[p] || p }
+function formatDate(d) { if (!d) return ''; return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) }
+function formatChartDate(d) { if (!d) return ''; return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) }
+function formatTime(d) { if (!d) return ''; return new Date(d).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
+function formatCurrency(a) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(a) }
+function formatDay(d) { if (!d) return ''; const dt = new Date(d); const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']; const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']; return `${days[dt.getDay()]}, ${dt.getDate()} ${months[dt.getMonth()]}` }
+function getStatusLabel(s) { return { pending:'Pendiente', accepted:'Aceptada', in_progress:'En Progreso', completed:'Completada', cancelled:'Cancelada', rejected:'Rechazada', busy:'Ocupado' }[s] || s }
 
-function formatDate(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleDateString('es-ES', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  })
-}
-
-function formatChartDate(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleDateString('es-ES', {
-    day: 'numeric',
-    month: 'short'
-  })
-}
-
-function formatTime(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleTimeString('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount)
-}
-
-function formatDay(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
-  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
-                  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-  return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
-}
-
-function getStatusLabel(status) {
-  const labels = {
-    'pending': 'Pendiente',
-    'accepted': 'Aceptada',
-    'in_progress': 'En Progreso',
-    'completed': 'Completada',
-    'cancelled': 'Cancelada',
-    'rejected': 'Rechazada'
-  }
-  return labels[status] || status
-}
-
-// Cálculos
+// ✅ CORREGIDO: acceder directo a analyticsData.value sin .metrics
 function calculateTrend(metric) {
-  const current = analyticsData.value.metrics?.[`new_${metric}`] || 0
-  const previous = previousData.value?.[`new_${metric}`] || 0
-  
-  if (previous === 0) return '+100%'
-  
+  const map = { users: 'new_users', services: 'new_services', requests: 'new_requests', revenue: 'revenue', reviews: 'new_reviews', tickets: 'new_tickets' }
+  const key = map[metric] || `new_${metric}`
+  const current = analyticsData.value?.[key] || 0
+  const previous = previousData.value?.[key] || 0
+  if (previous === 0) return current > 0 ? '+100%' : '0%'
   const change = ((current - previous) / previous) * 100
   return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`
 }
 
 function getTrendClass(metric) {
-  const current = analyticsData.value.metrics?.[`new_${metric}`] || 0
-  const previous = previousData.value?.[`new_${metric}`] || 0
-  
-  if (previous === 0) return 'positive'
-  
-  const change = ((current - previous) / previous) * 100
-  return change >= 0 ? 'positive' : 'negative'
-}
-
-function calculateProviderScore(provider) {
-  const requests = provider.request_count || 0
-  const services = provider.service_count || 0
-  return Math.min(Math.round((requests + services) / 2), 100)
+  const map = { users: 'new_users', services: 'new_services', requests: 'new_requests', revenue: 'revenue', reviews: 'new_reviews', tickets: 'new_tickets' }
+  const key = map[metric] || `new_${metric}`
+  const current = analyticsData.value?.[key] || 0
+  const previous = previousData.value?.[key] || 0
+  if (previous === 0) return current > 0 ? 'positive' : 'neutral'
+  return ((current - previous) / previous) >= 0 ? 'positive' : 'negative'
 }
 
 function getOverallTrend() {
-  // Calcular tendencia general basada en múltiples métricas
-  const metrics = ['users', 'services', 'requests', 'revenue']
-  let positiveCount = 0
-  let totalCount = 0
-  
-  metrics.forEach(metric => {
-    const trend = getTrendClass(metric)
-    if (trend === 'positive') positiveCount++
-    totalCount++
-  })
-  
-  const positivePercentage = (positiveCount / totalCount) * 100
-  
-  if (positivePercentage >= 75) return 'positive'
-  if (positivePercentage >= 50) return 'neutral'
-  return 'negative'
+  const metrics = ['users','services','requests','revenue']
+  let pos = 0
+  metrics.forEach(m => { if (getTrendClass(m) === 'positive') pos++ })
+  const pct = (pos / metrics.length) * 100
+  return pct >= 75 ? 'positive' : pct >= 50 ? 'neutral' : 'negative'
 }
-
-function getTrendIcon() {
-  const trend = getOverallTrend()
-  return trend === 'positive' ? '📈' : trend === 'neutral' ? '➡️' : '📉'
-}
-
-function getOverallTrendText() {
-  const trend = getOverallTrend()
-  return trend === 'positive' ? 'Crecimiento positivo' : 
-         trend === 'neutral' ? 'Estable' : 'En descenso'
-}
-
+function getTrendIcon() { const t = getOverallTrend(); return t === 'positive' ? '📈' : t === 'neutral' ? '➡️' : '📉' }
+function getOverallTrendText() { const t = getOverallTrend(); return t === 'positive' ? 'Crecimiento positivo' : t === 'neutral' ? 'Estable' : 'En descenso' }
 function getTrendDescription() {
-  const metrics = analyticsData.value.metrics || {}
-  const bestMetric = Object.entries(metrics).reduce((best, [key, value]) => {
-    if (typeof value === 'number' && value > (best.value || 0)) {
-      return { key, value }
-    }
-    return best
-  }, {})
-  
-  return `Métrica más fuerte: ${getMetricLabel(bestMetric.key)} con ${bestMetric.value || 0}`
+  const d = analyticsData.value || {}
+  let best = { key: '', value: 0 }
+  Object.entries(d).forEach(([k, v]) => { if (typeof v === 'number' && v > best.value) best = { key: k, value: v } })
+  return `Métrica más fuerte: ${getMetricLabel(best.key)} con ${best.value || 0}`
 }
-
-function getMetricLabel(key) {
-  const labels = {
-    'new_users': 'Usuarios nuevos',
-    'new_services': 'Servicios nuevos',
-    'new_requests': 'Solicitudes nuevas',
-    'revenue': 'Ingresos',
-    'new_reviews': 'Reseñas nuevas'
-  }
-  return labels[key] || key
-}
+function getMetricLabel(k) { return { new_users: 'Usuarios nuevos', new_services: 'Servicios nuevos', new_requests: 'Solicitudes nuevas', revenue: 'Ingresos', new_reviews: 'Reseñas nuevas' }[k] || k }
 
 function calculateMonthlyProjection() {
-  const revenue = analyticsData.value.metrics?.revenue || 0
-  const daysInPeriod = selectedPeriod.value === 'day' ? 1 : 
-                      selectedPeriod.value === 'week' ? 7 :
-                      selectedPeriod.value === 'month' ? 30 :
-                      selectedPeriod.value === 'quarter' ? 90 : 365
-  
-  const dailyAverage = revenue / daysInPeriod
-  return dailyAverage * 30 // Proyección mensual
+  const revenue = analyticsData.value?.revenue || 0
+  const days = selectedPeriod.value === 'day' ? 1 : selectedPeriod.value === 'week' ? 7 : selectedPeriod.value === 'month' ? 30 : selectedPeriod.value === 'quarter' ? 90 : 365
+  return (revenue / Math.max(days, 1)) * 30
 }
 
 function findPeakDay() {
   const charts = chartsData.value.charts || {}
-  const usersByDay = charts.users_by_day || []
-  const requestsByDay = charts.requests_by_day || []
-  const revenueByDay = charts.revenue_by_day || []
-  
-  if (!usersByDay.length) return null
-  
-  // Combinar datos por día
-  const dayMap = {}
-  
-  usersByDay.forEach(day => {
-    dayMap[day.date] = { ...dayMap[day.date], users: day.count }
-  })
-  
-  requestsByDay.forEach(day => {
-    dayMap[day.date] = { ...dayMap[day.date], requests: day.count }
-  })
-  
-  revenueByDay.forEach(day => {
-    dayMap[day.date] = { ...dayMap[day.date], revenue: day.amount }
-  })
-  
-  // Encontrar día con más solicitudes
-  let peakDay = null
-  let maxRequests = 0
-  
-  Object.entries(dayMap).forEach(([date, data]) => {
-    const requests = data.requests || 0
-    if (requests > maxRequests) {
-      maxRequests = requests
-      peakDay = { date, ...data }
-    }
-  })
-  
-  return peakDay
+  const users = charts.users_by_day || []
+  const requests = charts.requests_by_day || []
+  const revenue = charts.revenue_by_day || []
+  if (!users.length && !requests.length) return null
+  const map = {}
+  users.forEach(d => { map[d.date] = { ...map[d.date], users: d.count } })
+  requests.forEach(d => { map[d.date] = { ...map[d.date], requests: d.count } })
+  revenue.forEach(d => { map[d.date] = { ...map[d.date], revenue: d.amount } })
+  let peak = null, max = 0
+  Object.entries(map).forEach(([date, data]) => { if ((data.requests || 0) > max) { max = data.requests; peak = { date, ...data } } })
+  return peak
 }
-
 const peakDay = computed(() => findPeakDay())
 
-// Exportar
-function exportAnalytics() {
-  // Implementar exportación
-  console.log('Exportando analytics...')
-}
-
-function exportToPDF() {
-  console.log('Exportando a PDF...')
-}
-
-function exportToExcel() {
-  console.log('Exportando a Excel...')
-}
-
-function shareReport() {
-  console.log('Compartiendo reporte...')
-}
-
-function scheduleReport() {
-  console.log('Programando reporte...')
-}
-
-function toggleChartType(chartName) {
-  console.log(`Cambiando tipo de gráfico: ${chartName}`)
-  // Implementar cambio de tipo de gráfico
-}
+function exportAnalytics() { console.log('Exportando...') }
+function exportToPDF() { console.log('PDF...') }
+function exportToExcel() { console.log('Excel...') }
 </script>
 
 <style scoped>

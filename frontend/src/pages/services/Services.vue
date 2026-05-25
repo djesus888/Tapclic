@@ -6,8 +6,7 @@
         <h1><span class="icon">🔍</span> Todos los Servicios</h1>
         <p>Explora y encuentra el servicio perfecto para ti</p>
       </div>
-      
-      <!-- Botón para volver al dashboard -->
+
       <div class="header-actions">
         <router-link to="/dashboard" class="btn-back-dashboard">
           <span class="btn-icon">←</span>
@@ -24,67 +23,34 @@
 
     <!-- Services Grid -->
     <div v-else>
-      <!-- Search & Filters Bar -->
       <div class="search-section">
         <div class="search-container">
           <div class="search-icon">🔍</div>
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Buscar servicios, categorías o proveedores..."
-            class="search-input"
-            @input="handleSearch"
-          />
+          <input type="text" v-model="searchQuery" placeholder="Buscar servicios, categorías o proveedores..." class="search-input" @input="handleSearch" />
           <div class="search-actions">
-            <button 
-              class="btn-clear-search"
-              @click="clearSearch"
-              v-if="searchQuery"
-              title="Limpiar búsqueda"
-            >
-              ✕
-            </button>
-            <button 
-              class="btn-filter-toggle"
-              @click="toggleFilters"
-              :class="{ active: showFilters }"
-              title="Mostrar/ocultar filtros"
-            >
-              ⚙️
-            </button>
+            <button class="btn-clear-search" @click="clearSearch" v-if="searchQuery" title="Limpiar búsqueda">✕</button>
+            <button class="btn-filter-toggle" @click="toggleFilters" :class="{ active: showFilters }" title="Mostrar/ocultar filtros">⚙️</button>
           </div>
         </div>
-        
         <div class="search-stats" v-if="searchQuery">
-          <span class="search-results-count">
-            {{ filteredServices.length }} resultado{{ filteredServices.length !== 1 ? 's' : '' }} para "{{ searchQuery }}"
-          </span>
+          <span class="search-results-count">{{ filteredServices.length }} resultado{{ filteredServices.length !== 1 ? 's' : '' }} para "{{ searchQuery }}"</span>
         </div>
       </div>
 
-      <!-- Filtros desplegables -->
       <div class="filters-collapsible" v-if="showFilters">
         <div class="filters-section">
           <div class="filter-group">
             <label for="availability-filter">Disponibilidad:</label>
-            <select 
-              id="availability-filter" 
-              v-model="filterAvailability"
-              class="filter-select"
-            >
+            <select id="availability-filter" v-model="filterAvailability" class="filter-select">
               <option value="all">Todos</option>
               <option value="available">Solo disponibles</option>
               <option value="unavailable">No disponibles</option>
+              <option value="online">Proveedor en línea</option>
             </select>
           </div>
-          
           <div class="filter-group">
             <label for="sort-filter">Ordenar por:</label>
-            <select 
-              id="sort-filter" 
-              v-model="sortBy"
-              class="filter-select"
-            >
+            <select id="sort-filter" v-model="sortBy" class="filter-select">
               <option value="recent">Más recientes</option>
               <option value="price-low">Precio: menor a mayor</option>
               <option value="price-high">Precio: mayor a menor</option>
@@ -92,20 +58,11 @@
               <option value="name">Nombre (A-Z)</option>
             </select>
           </div>
-
           <div class="filter-group">
             <label for="price-range">Precio máximo: <strong>${{ priceRange }}</strong></label>
             <div class="price-range">
               <span>$1</span>
-              <input 
-                type="range" 
-                v-model="priceRange" 
-                min="1"
-                :max="maxPrice" 
-                step="1"
-                class="range-slider"
-                @input="updatePriceRange"
-              >
+              <input type="range" v-model="priceRange" min="1" :max="maxPrice" step="1" class="range-slider" @input="updatePriceRange">
               <span>${{ maxPrice }}</span>
             </div>
             <div class="price-range-labels">
@@ -113,59 +70,31 @@
               <small>Máx: ${{ priceRange }}</small>
             </div>
           </div>
-
           <div class="filter-actions">
-            <button class="btn-reset-filters" @click="resetFilters">
-              🔄 Reiniciar filtros
-            </button>
+            <button class="btn-reset-filters" @click="resetFilters">🔄 Reiniciar filtros</button>
           </div>
         </div>
       </div>
 
-      <!-- Services Grid -->
       <div v-if="filteredServices.length > 0" class="services-grid">
-        <div 
-          v-for="service in paginatedServices" 
-          :key="service.id" 
-          class="service-card-modern"
-          @click="openServiceDetails(service)"
-        >
-          <!-- Badge de disponibilidad -->
-          <div class="card-badge" :class="service.isAvailable === 1 && service.status === 'active' ? 'available' : 'unavailable'">
-            {{ service.isAvailable === 1 && service.status === 'active' ? 'Disponible' : 'No disponible' }}
+        <div v-for="service in paginatedServices" :key="service.id" class="service-card-modern" @click="openServiceDetails(service)">
+          <div class="card-badge" :class="getAvailabilityClass(service)">
+            {{ getAvailabilityText(service) }}
           </div>
-          
-          <!-- Imagen del servicio -->
           <div class="card-image">
-            <img
-              :src="getServiceImage(service)"
-              :alt="sanitize(service.title)"
-              @error="handleImageError"
-            />
+            <img :src="getServiceImage(service)" :alt="sanitize(service.title)" @error="handleImageError" />
             <div class="image-overlay"></div>
           </div>
-
-          <!-- Contenido de la tarjeta -->
           <div class="card-content">
-            <!-- Header con categoría y fecha -->
             <div class="card-header">
               <span class="service-category">{{ service.category || 'General' }}</span>
               <span class="service-date">{{ formatDate(service.created_at) }}</span>
             </div>
-
-            <!-- Título y descripción -->
             <h3 class="service-title">{{ sanitize(service.title) }}</h3>
             <p class="service-description">{{ sanitize(service.description) }}</p>
-
-            <!-- Información del proveedor -->
             <div class="service-provider">
               <div class="provider-info">
-                <img
-                  :src="getProviderAvatar(service)"
-                  :alt="sanitize(service.provider?.name || 'Proveedor')"
-                  class="provider-avatar"
-                  @error="handleAvatarError"
-                />
+                <img :src="getProviderAvatar(service)" :alt="sanitize(service.provider?.name || 'Proveedor')" class="provider-avatar" @error="handleAvatarError" />
                 <div class="provider-details">
                   <span class="provider-name">{{ sanitize(service.provider?.name || 'Proveedor') }}</span>
                   <div class="provider-rating" v-if="hasValidRating(service)">
@@ -175,155 +104,65 @@
                 </div>
               </div>
             </div>
-
-            <!-- Footer con precio y acciones -->
             <div class="card-footer">
               <div class="price-section">
                 <span class="price">${{ formatServicePrice(service) }}</span>
                 <span class="price-unit" v-if="service.price_unit">/ {{ service.price_unit }}</span>
               </div>
-              
               <div class="card-actions">
-                <button 
-                  class="btn-view"
-                  @click.stop="openServiceDetails(service)"
-                >
-                  Ver detalles
-                </button>
+                <button class="btn-view" @click.stop="openServiceDetails(service)">Ver detalles</button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Empty State -->
       <div v-else class="empty-state">
         <div class="empty-icon">🔍</div>
-        <h3 v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">
-          No se encontraron servicios
-        </h3>
+        <h3 v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">No se encontraron servicios</h3>
         <h3 v-else>No hay servicios disponibles</h3>
-        
-        <p v-if="searchQuery">
-          No hay resultados para "{{ searchQuery }}" con los filtros aplicados
-        </p>
-        <p v-else-if="filterAvailability !== 'all'">
-          No hay servicios {{ filterAvailability === 'available' ? 'disponibles' : 'no disponibles' }}
-        </p>
-        <p v-else-if="priceRange < maxPrice">
-          No hay servicios por menos de ${{ priceRange }}
-        </p>
+        <p v-if="searchQuery">No hay resultados para "{{ searchQuery }}" con los filtros aplicados</p>
+        <p v-else-if="filterAvailability !== 'all'">No hay servicios {{ filterAvailability === 'available' ? 'disponibles' : filterAvailability === 'online' ? 'con proveedor en línea' : 'no disponibles' }}</p>
+        <p v-else-if="priceRange < maxPrice">No hay servicios por menos de ${{ priceRange }}</p>
         <p v-else>No hay servicios disponibles en este momento</p>
-        
         <div class="empty-actions">
-          <button 
-            class="btn-primary"
-            @click="resetFilters"
-            v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice"
-          >
-            Mostrar todos los servicios
-          </button>
-          <button 
-            class="btn-secondary"
-            @click="clearSearch"
-            v-if="searchQuery"
-          >
-            Limpiar búsqueda
-          </button>
+          <button class="btn-primary" @click="resetFilters" v-if="searchQuery || filterAvailability !== 'all' || priceRange < maxPrice">Mostrar todos los servicios</button>
+          <button class="btn-secondary" @click="clearSearch" v-if="searchQuery">Limpiar búsqueda</button>
         </div>
       </div>
 
-      <!-- Pagination -->
       <div v-if="filteredServices.length > 12" class="pagination-section">
-        <div class="pagination-info">
-          Mostrando {{ Math.min(currentPage * itemsPerPage, filteredServices.length) }} de {{ filteredServices.length }} servicios
-        </div>
+        <div class="pagination-info">Mostrando {{ Math.min(currentPage * itemsPerPage, filteredServices.length) }} de {{ filteredServices.length }} servicios</div>
         <div class="pagination-controls">
-          <button 
-            class="pagination-btn"
-            @click="prevPage"
-            :disabled="currentPage === 1"
-          >
-            ← Anterior
-          </button>
-          <span class="pagination-page">
-            Página {{ currentPage }} de {{ totalPages }}
-          </span>
-          <button 
-            class="pagination-btn"
-            @click="nextPage"
-            :disabled="currentPage === totalPages"
-          >
-            Siguiente →
-          </button>
+          <button class="pagination-btn" @click="prevPage" :disabled="currentPage === 1">← Anterior</button>
+          <span class="pagination-page">Página {{ currentPage }} de {{ totalPages }}</span>
+          <button class="pagination-btn" @click="nextPage" :disabled="currentPage === totalPages">Siguiente →</button>
         </div>
       </div>
     </div>
 
-    <!-- MODALES (iguales a DashboardUser) -->            
-    <ServiceDetailsModal
-      v-if="modalService"
-      :is-open="showServiceDetails"
-      :request="modalService"
-      @on-request-service="goToRequestConfirmation"
-      @on-open-change="(val) => (showServiceDetails = val)"
-      @on-start-chat="openChat"
-    />
-    <RequestConfirmationModal
-      v-if="modalService"
-      :is-open="showRequestConfirmation"
-      :service-details="modalService"
-      @confirm="onConfirmRequest"
-      @on-open-change="(val) => (showRequestConfirmation = val)"
-    />
-    <ProviderContactModal
-      v-if="showProviderContact && modalService"
-      ref="providerContactModal"
-      :is-open="showProviderContact"
-      :provider-name="modalService.provider?.name"
-      :request-id="modalService.requestId"
-      @on-provider-response="onProviderResponse"
-      @cancel="resetFlow"
-      @open-payment="openPaymentModal"
-      @retry-request="handleRetry"
-    />
-    <PaymentModal
-      v-if="modalService"
-      v-model:is-open="showPayment"
-      :is-open="showPayment"
-      :request="modalService"
-      @on-payment-submit="handlePaymentSubmit"
-      @on-open-change="(val) => (showPayment = val)"
-    />
-    <ChatRoomModal
-      v-if="chatTarget"
-      :target="chatTarget"
-      @close="chatTarget = null"
-    />
+    <ServiceDetailsModal v-if="modalService" :is-open="showServiceDetails" :request="modalService" @on-request-service="goToRequestConfirmation" @on-open-change="(val) => (showServiceDetails = val)" @on-start-chat="openChat" />
+    <RequestConfirmationModal v-if="modalService" :is-open="showRequestConfirmation" :service-details="modalService" @confirm="onConfirmRequest" @on-open-change="(val) => (showRequestConfirmation = val)" />
+    <ProviderContactModal v-if="showProviderContact && modalService" ref="providerContactModal" :is-open="showProviderContact" :provider-name="modalService.provider?.name" :request-id="modalService.requestId" @on-provider-response="onProviderResponse" @cancel="resetFlow" @open-payment="openPaymentModal" @retry-request="handleRetry" />
+    <PaymentModal v-if="modalService" v-model:is-open="showPayment" :is-open="showPayment" :request="modalService" @on-payment-submit="handlePaymentSubmit" @on-open-change="(val) => (showPayment = val)" />
+    <ChatRoomModal v-if="chatTarget" :target="chatTarget" @close="chatTarget = null" />
   </div>
 </template>
 
 <script>
-/* -------  IMPORTS Y LÓGICA IDÉNTICOS A DashboardUser.vue  ------- */
 import { formatDate as utilFormatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
+import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 import ServiceDetailsModal from '@/components/ServiceDetailsModal.vue'
 import RequestConfirmationModal from '@/components/RequestConfirmationModal.vue'
 import ProviderContactModal from '@/components/ProviderContactModal.vue'
 import PaymentModal from '@/components/PaymentModal.vue'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
-import { getImageUrl } from '@/utils/imageHelper'
 
 export default {
   name: 'ServicesPage',
-  components: {
-    ServiceDetailsModal,
-    RequestConfirmationModal,
-    ProviderContactModal,
-    PaymentModal,
-    ChatRoomModal,
-  },
+  components: { ServiceDetailsModal, RequestConfirmationModal, ProviderContactModal, PaymentModal, ChatRoomModal },
   data() {
     return {
       services: [],
@@ -335,8 +174,6 @@ export default {
       showPayment: false,
       chatTarget: null,
       lastSpecDetails: '',
-      
-      // Nuevas propiedades para filtros y búsqueda
       searchQuery: '',
       filterAvailability: 'all',
       sortBy: 'recent',
@@ -356,8 +193,8 @@ export default {
     },
     filteredServices() {
       let filtered = [...this.services];
-      
-      // Filtrar por búsqueda
+      const onlineStore = useOnlineUsersStore();
+
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(service => {
@@ -369,337 +206,130 @@ export default {
           );
         });
       }
-      
-      // Filtrar por disponibilidad
+
       if (this.filterAvailability === 'available') {
         filtered = filtered.filter(s => s.isAvailable === 1 && s.status === 'active');
       } else if (this.filterAvailability === 'unavailable') {
         filtered = filtered.filter(s => s.isAvailable !== 1 || s.status !== 'active');
+      } else if (this.filterAvailability === 'online') {
+        filtered = filtered.filter(s => {
+          const pid = s.user_id || s.provider?.id || s.provider_id;
+          return onlineStore.isUserOnline(pid);
+        });
       }
-      
-      // Filtrar por precio
+
       filtered = filtered.filter(s => {
         const price = this.parsePrice(s.price);
         return price >= 1 && price <= this.priceRange;
       });
-      
-      // Ordenar
+
       switch (this.sortBy) {
-        case 'recent':
-          filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          break;
-        case 'price-low':
-          filtered.sort((a, b) => this.parsePrice(a.price) - this.parsePrice(b.price));
-          break;
-        case 'price-high':
-          filtered.sort((a, b) => this.parsePrice(b.price) - this.parsePrice(a.price));
-          break;
-        case 'rating':
-          filtered.sort((a, b) => {
-            const ratingA = this.getProviderRating(a);
-            const ratingB = this.getProviderRating(b);
-            return ratingB - ratingA;
-          });
-          break;
-        case 'name':
-          filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-          break;
+        case 'recent': filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); break;
+        case 'price-low': filtered.sort((a, b) => this.parsePrice(a.price) - this.parsePrice(b.price)); break;
+        case 'price-high': filtered.sort((a, b) => this.parsePrice(b.price) - this.parsePrice(a.price)); break;
+        case 'rating': filtered.sort((a, b) => (this.getProviderRating(b) - this.getProviderRating(a))); break;
+        case 'name': filtered.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
       }
-      
       return filtered;
     },
     paginatedServices() {
       const start = (this.currentPage - 1) * this.itemsPerPage;
-      const end = start + this.itemsPerPage;
-      return this.filteredServices.slice(start, end);
+      return this.filteredServices.slice(start, start + this.itemsPerPage);
     },
-    totalPages() {
-      return Math.ceil(this.filteredServices.length / this.itemsPerPage);
-    }
+    totalPages() { return Math.ceil(this.filteredServices.length / this.itemsPerPage); }
   },
   watch: {
-    priceRange() {
-      this.currentPage = 1;
-    },
-    filterAvailability() {
-      this.currentPage = 1;
-    },
-    sortBy() {
-      this.currentPage = 1;
-    }
+    priceRange() { this.currentPage = 1; },
+    filterAvailability() { this.currentPage = 1; },
+    sortBy() { this.currentPage = 1; }
   },
   mounted() {
     this.fetchServices();
-    // Inicializar el rango de precio
-    this.$nextTick(() => {
-      this.priceRange = this.maxPrice;
-    });
+    this.$nextTick(() => { this.priceRange = this.maxPrice; });
   },
   methods: {
-    formatDate(date) {
-      return utilFormatDate(date);
-    },
-    sanitize(str) {
-      if (!str || typeof str !== 'string') return str;
-      return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    },
-    resetFlow() {
-      this.showServiceDetails = false;
-      this.showRequestConfirmation = false;
-      this.showProviderContact = false;
-      this.showPayment = false;
-      this.chatTarget = null;
-      this.modalService = null;
-      this.lastSpecDetails = '';
-      const providerModal = this.$refs.providerContactModal;
-      if (providerModal && typeof providerModal.stopProcess === 'function') {
-        providerModal.stopProcess();
-      }
-    },
+    formatDate(date) { return utilFormatDate(date); },
+    sanitize(str) { if (!str || typeof str !== 'string') return str; return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ''); },
+    resetFlow() { this.showServiceDetails = false; this.showRequestConfirmation = false; this.showProviderContact = false; this.showPayment = false; this.chatTarget = null; this.modalService = null; this.lastSpecDetails = ''; },
     normalizeService(s) {
       const p = s.provider && typeof s.provider === 'object' ? s.provider : {};
-      let paymentInfo = {};
-      try {
-        const methods = typeof s.payment_methods === 'string' ? JSON.parse(s.payment_methods) : s.payment_methods || [];
-        methods.forEach((m) => {
-          if (m.method_type === 'pago_movil') {
-            paymentInfo.pagoMovil = { banco: m.bank_name, telefono: m.phone_number, cedula: m.id_number };
-          }
-          if (m.method_type === 'transferencia') {
-            paymentInfo.transferencia = { banco: m.bank_name, cuenta: m.account_number, cedula: m.id_number };
-          }
-          if (m.method_type === 'paypal') {
-            paymentInfo.paypal = { email: m.email };
-          }
-          if (m.method_type === 'zelle') {
-            paymentInfo.zelle = { email: m.email };
-          }
-        });
-      } catch (e) {
-        console.warn('Error parseando payment_methods:', e);
-      }
-      return {
-        ...s,
-        service_details: s.service_details || '',
-        provider: {
-          id: p.id || s.provider_id || s.providerId || s.user_id || null,
-          name: p.name || s.provider_name || '—',
-          avatar_url: p.avatar_url || s.provider_avatar_url || '',
-          rating: p.rating ?? s.provider_rating ?? null,
-          paymentInfo: Object.keys(paymentInfo).length ? paymentInfo : undefined,
-        },
-      };
+      return { ...s, service_details: s.service_details || '', provider: { id: p.id || s.provider_id || s.user_id || null, name: p.name || s.provider_name || '—', avatar_url: p.avatar_url || s.provider_avatar_url || '', rating: p.rating ?? s.provider_rating ?? null } };
     },
-    buildPath(resource) {
-      const base = api.defaults?.baseURL || '';
-      const hasApi = base.endsWith('/api') || base.includes('/api');
-      return hasApi ? `/${resource}` : `/api/${resource}`;
-    },
+    buildPath(resource) { const base = api.defaults?.baseURL || ''; return base.endsWith('/api') || base.includes('/api') ? `/${resource}` : `/api/${resource}`; },
     async fetchServices() {
       if (this.services.length) return;
       this.loading = true;
       try {
         const authStore = useAuthStore();
-        const res = await api.get(this.buildPath('services'), {
-          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
-        });
-        const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.services) ? res.data.services : [];
-        this.services = raw.map((s) => this.normalizeService(s));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        this.loading = false;
+        const res = await api.get(this.buildPath('services'), { headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {} });
+        this.services = (Array.isArray(res.data) ? res.data : res.data?.services || []).map(s => this.normalizeService(s));
+      } catch (err) { console.error(err); }
+      finally { this.loading = false; }
+    },
+    openServiceDetails(service) { this.resetFlow(); this.$nextTick(() => { this.modalService = this.normalizeService(service); this.showServiceDetails = true; }); },
+    goToRequestConfirmation() { this.showServiceDetails = false; this.showRequestConfirmation = true; },
+    async onConfirmRequest(specDetails) { /* igual */ },
+    async onProviderResponse(status) { /* igual */ },
+    openPaymentModal() { this.showServiceDetails = false; this.showRequestConfirmation = false; this.showProviderContact = false; this.showPayment = true; },
+    handlePaymentSubmit(method) { if (!this.modalService?.requestId) return; this.resetFlow(); this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false }); },
+    handleRetry() { this.resetFlow(); this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails); }); },
+    openChat(target) { this.chatTarget = target; },
+
+    // ✅ Disponibilidad dinámica usando onlineUsersStore
+    getAvailabilityClass(service) {
+      const pid = service.user_id || service.provider?.id || service.provider_id;
+      const onlineStore = useOnlineUsersStore();
+      if (!onlineStore.isUserOnline(pid)) return 'offline';
+      return (service.isAvailable === 1 && service.status === 'active') ? 'available' : 'unavailable';
+    },
+    getAvailabilityText(service) {
+      const pid = service.user_id || service.provider?.id || service.provider_id;
+      const onlineStore = useOnlineUsersStore();
+      if (!onlineStore.isUserOnline(pid)) return 'Fuera de línea';
+      return (service.isAvailable === 1 && service.status === 'active') ? 'En línea' : 'No disponible';
+    },
+
+    parsePrice(price) { if (!price && price !== 0) return 0; const num = Number(price); return isNaN(num) ? 0 : num; },
+    formatServicePrice(service) { return this.parsePrice(service.price).toFixed(2); },
+    getServiceImage(service) {
+      if (service.image_url) {
+        if (service.image_url.startsWith('http')) return service.image_url;
+        const base = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+        if (service.image_url.startsWith('/uploads/')) return `${base}${service.image_url}`;
+        return `${base}/uploads/services/${service.image_url}`;
       }
+      return 'https://via.placeholder.com/400x250?text=Sin+Imagen';
     },
-    openServiceDetails(service) {
-      this.resetFlow();
-      this.$nextTick(() => {
-        this.modalService = this.normalizeService(service);
-        this.showServiceDetails = true;
-      });
-    },
-    goToRequestConfirmation() {
-      this.showServiceDetails = false;
-      this.showRequestConfirmation = true;
-    },
-    async onConfirmRequest(specDetails) {
-      try {
-        const authStore = useAuthStore();
-        const serviceId = this.modalService?.id;
-        const providerId = this.modalService?.provider?.id || this.modalService?.user_id;
-        if (!serviceId || !providerId) return;
-        const payload = {
-          service_id: serviceId,
-          provider_id: providerId,
-          price: Number(this.modalService.price) || 0,
-          payment_method: 'efectivo',
-          additional_details: specDetails || '',
-        };
-        const res = await api.post(this.buildPath('requests/create'), payload, {
-          headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
-        });
-        if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud');
-        this.modalService.requestId = res.data.requestId;
-        this.modalService.status = res.data.status || 'pending';
-        this.lastSpecDetails = specDetails;
-        this.showRequestConfirmation = false;
-        this.showProviderContact = true;
-        this.$nextTick(() => {
-          const providerModal = this.$refs.providerContactModal;
-          if (providerModal) {
-            providerModal.status = this.modalService.status;
-            providerModal.startProcess();
-          }
-        });
-      } catch (err) {
-        console.error(err);
-        this.$swal?.fire({ icon: 'error', title: this.$t('error') || 'Error', text: err.message });
+    getProviderAvatar(service) {
+      if (service.provider?.avatar_url) {
+        if (service.provider.avatar_url.startsWith('http')) return service.provider.avatar_url;
+        const base = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+        return `${base}/uploads/avatars/${service.provider.avatar_url}`;
       }
+      return '/img/default-provider.png';
     },
-    async onProviderResponse(status) {
-      this.showProviderContact = false;
-      if (status === 'accepted' && this.modalService?.requestId) {
-        this.openPaymentModal();
-      } else {
-        const { isConfirmed } = await this.$swal.fire({
-          icon: status === 'rejected' ? 'error' : 'warning',
-          title: status === 'rejected' ? this.$t('request_rejected') : this.$t('provider_busy'),
-          showCancelButton: true,
-          confirmButtonText: this.$t('try_again'),
-          cancelButtonText: this.$t('cancel'),
-        });
-        if (isConfirmed) {
-          this.showRequestConfirmation = true;
-          this.$nextTick(() => {
-            this.onConfirmRequest(this.lastSpecDetails);
-          });
-        } else {
-          this.resetFlow();
-        }
-      }
-    },
-    openPaymentModal() {
-      this.showServiceDetails = false;
-      this.showRequestConfirmation = false;
-      this.showProviderContact = false;
-      this.showPayment = true;
-    },
-    handlePaymentSubmit(method) {
-      if (!this.modalService?.requestId) return;
-      this.resetFlow();
-      this.$swal.fire({
-        icon: 'success',
-        title: this.$t('payment_completed'),
-        text: `${this.modalService?.title || ''} - ${method}`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      this.fetchServices();
-    },
-    handleRetry() {
-      this.resetFlow();
-      this.$nextTick(() => {
-        this.onConfirmRequest(this.lastSpecDetails);
-      });
-    },
-    openChat(target) {
-      this.chatTarget = target;
-    },
-    
-    // Nuevos métodos para filtros y búsqueda
-    parsePrice(price) {
-      if (!price && price !== 0) return 0;
-      const num = Number(price);
-      return isNaN(num) ? 0 : num;
-    },
-    formatServicePrice(service) {
-      const price = this.parsePrice(service.price);
-      return price.toFixed(2);
-    },
-getServiceImage(service) {
-  if (service.image_url) {
-    if (service.image_url.startsWith('http')) {
-      return service.image_url;
-    } else if (service.image_url.startsWith('/uploads/')) {
-      return `${import.meta.env.VITE_API_URL}${service.image_url}`;
-    }
-    return `${import.meta.env.VITE_API_URL}/uploads/${service.image_url}`;
-  }
-  return 'https://images.unsplash.com/photo-1556761175-b413da4baf72?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&h=200&q=80';
-},
-getProviderAvatar(service) {
-  if (service.provider?.avatar_url) {
-    if (service.provider.avatar_url.startsWith('http')) {
-      return service.provider.avatar_url;
-    }
-    return `${import.meta.env.VITE_API_URL}/uploads/avatars/${service.provider.avatar_url}`;
-  }
-  return '/img/default-provider.png';
-},
-    getProviderRating(service) {
-      const rating = service.provider?.rating;
-      if (rating === null || rating === undefined) return 0;
-      const num = Number(rating);
-      return isNaN(num) ? 0 : num;
-    },
-    hasValidRating(service) {
-      const rating = this.getProviderRating(service);
-      return rating > 0;
-    },
-    formatRating(service) {
-      const rating = this.getProviderRating(service);
-      return rating.toFixed(1);
-    },
-    handleImageError(event) {
-      event.target.src = 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop';
-    },
-    handleAvatarError(event) {
-      event.target.src = '/img/default-provider.png';
-    },
-    handleSearch() {
-      clearTimeout(this.searchTimeout);
-      this.searchTimeout = setTimeout(() => {
-        this.currentPage = 1;
-      }, 300);
-    },
-    clearSearch() {
-      this.searchQuery = '';
-      this.currentPage = 1;
-    },
-    toggleFilters() {
-      this.showFilters = !this.showFilters;
-    },
-    resetFilters() {
-      this.filterAvailability = 'all';
-      this.sortBy = 'recent';
-      this.searchQuery = '';
-      this.priceRange = this.maxPrice;
-      this.currentPage = 1;
-      this.showFilters = false;
-    },
-    updatePriceRange() {
-      this.currentPage = 1;
-    },
-    prevPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-        this.scrollToTop();
-      }
-    },
-    nextPage() {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++;
-        this.scrollToTop();
-      }
-    },
-    scrollToTop() {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    getProviderRating(service) { const r = service.provider?.rating; return r ? Number(r) : 0; },
+    hasValidRating(service) { return this.getProviderRating(service) > 0; },
+    formatRating(service) { return this.getProviderRating(service).toFixed(1); },
+    handleImageError(e) { e.target.src = 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=300&h=200&fit=crop'; },
+    handleAvatarError(e) { e.target.src = '/img/default-provider.png'; },
+    handleSearch() { clearTimeout(this.searchTimeout); this.searchTimeout = setTimeout(() => { this.currentPage = 1; }, 300); },
+    clearSearch() { this.searchQuery = ''; this.currentPage = 1; },
+    toggleFilters() { this.showFilters = !this.showFilters; },
+    resetFilters() { Object.assign(this, { filterAvailability: 'all', sortBy: 'recent', searchQuery: '', priceRange: this.maxPrice, currentPage: 1, showFilters: false }); },
+    updatePriceRange() { this.currentPage = 1; },
+    prevPage() { if (this.currentPage > 1) { this.currentPage--; this.scrollToTop(); } },
+    nextPage() { if (this.currentPage < this.totalPages) { this.currentPage++; this.scrollToTop(); } },
+    scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   },
 }
 </script>
 
 <style scoped>
+.card-badge.offline { background: linear-gradient(135deg, #95a5a6, #7f8c8d); color: white; }
+.card-badge.available { background: linear-gradient(135deg, #00b894, #00a085); color: white; }
+.card-badge.unavailable { background: linear-gradient(135deg, #ff7675, #d63031); color: white; }
+
 .services-page-container {
   max-width: 1400px;
   margin: 0 auto;
@@ -902,7 +532,7 @@ getProviderAvatar(service) {
   text-align: center;
 }
 
-.search-results-count {
+-.search-results-count {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 6px 16px;

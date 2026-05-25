@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
+require_once __DIR__ . '/../utils/AuditLogger.php';
 
 use services\WebSocketService;
 
@@ -102,7 +103,6 @@ class RequestController
                 ['request_id' => (int)$requestId, 'status' => $newStatus]
             );
 
-            // ✅ Emitir evento request_updated al usuario para tiempo real
             WebSocketService::emitToUser(
                 'user',
                 $request['user_id'],
@@ -116,7 +116,6 @@ class RequestController
                 ]
             );
 
-            // ✅ También emitir al provider para sincronizar su dashboard
             if ($request['provider_id']) {
                 WebSocketService::emitToUser(
                     'provider',
@@ -178,10 +177,12 @@ class RequestController
             return;
         }
 
+        // ✅ LOG
+        AuditLogger::log($auth->id, 'request_created', 'Solicitud creada', "ID: {$newId} - Servicio: {$serviceId} - Proveedor: {$providerId}");
+
         $serviceData = null;
         try {
             $serviceData = $this->model->getServiceDetailsForRequest($serviceId);
-            error_log("DEBUG: Service details for ID $serviceId: " . json_encode($serviceData));
         } catch (Exception $e) {
             error_log("⚠️ No se pudo obtener datos del servicio para WebSocket: " . $e->getMessage());
         }
@@ -204,9 +205,7 @@ class RequestController
         ];
 
         try {
-            error_log("DEBUG: Emitiendo evento 'new_request_created' a provider_$providerId");
-            $success = WebSocketService::emitToUser('provider', $providerId, 'new_request_created', $wsPayload);
-            error_log("DEBUG: Resultado de emitToUser: " . ($success ? "✅ Éxito" : "❌ Falló"));
+            WebSocketService::emitToUser('provider', $providerId, 'new_request_created', $wsPayload);
         } catch (Exception $e) {
             error_log("⚠️ Excepción en emitToUser: " . $e->getMessage());
         }
@@ -278,6 +277,9 @@ class RequestController
         $request = $this->model->getById($requestId);
 
         if ($updated && $request) {
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'request_busy', 'Proveedor ocupado', "Solicitud ID: {$requestId}");
+
             $this->model->saveNotification([
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
@@ -291,38 +293,9 @@ class RequestController
                 ])
             ]);
 
-            WebSocketService::sendNotification(
-                'user',
-                $request['user_id'],
-                'Proveedor ocupado',
-                'El proveedor está ocupado temporalmente'
-            );
-
-            WebSocketService::emitToUser(
-                'user',
-                $request['user_id'],
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'busy',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
-
-            WebSocketService::emitToUser(
-                'provider',
-                $auth->id,
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'busy',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
+            WebSocketService::sendNotification('user', $request['user_id'], 'Proveedor ocupado', 'El proveedor está ocupado temporalmente');
+            WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'busy', 'updated_at' => date('Y-m-d H:i:s')]]);
+            WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'busy', 'updated_at' => date('Y-m-d H:i:s')]]);
         }
 
         echo json_encode(["success" => $updated]);
@@ -341,14 +314,13 @@ class RequestController
         $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
 
         if ($ok) {
-            $activeRequests = $this->model->getActiveByProvider($auth->id);
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'request_accepted', 'Solicitud aceptada', "Solicitud ID: {$requestId}");
 
+            $activeRequests = $this->model->getActiveByProvider($auth->id);
             $request = null;
             foreach ($activeRequests as $r) {
-                if ((int)$r['id'] === (int)$requestId) {
-                    $request = $r;
-                    break;
-                }
+                if ((int)$r['id'] === (int)$requestId) { $request = $r; break; }
             }
 
             if ($request) {
@@ -358,59 +330,17 @@ class RequestController
                     'receiver_role' => 'user',
                     'title' => 'Solicitud aceptada',
                     'message' => 'Tu solicitud fue aceptada por el proveedor',
-                    'data_json' => json_encode([
-                        'url' => '/service/' . $request['service_id'],
-                        'action' => 'view_service',
-                        'notification_type' => 'service_update',
-                        'service_id' => $request['service_id']
-                    ])
+                    'data_json' => json_encode(['url' => '/service/' . $request['service_id'], 'action' => 'view_service', 'notification_type' => 'service_update', 'service_id' => $request['service_id']])
                 ]);
 
-                WebSocketService::emitToUser(
-                    'user',
-                    $request['user_id'],
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'accepted',
-                            'updated_at' => date('Y-m-d H:i:s'),
-                            'service_id' => $request['service_id']
-                        ]
-                    ]
-                );
-
-                WebSocketService::emitToUser(
-                    'provider',
-                    $auth->id,
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'accepted',
-                            'updated_at' => date('Y-m-d H:i:s'),
-                            'service_id' => $request['service_id'],
-                            'service_title' => $request['service_title'] ?? 'Servicio',
-                            'service_description' => $request['service_description'] ?? '',
-                            'service_price' => $request['service_price'] ?? 0,
-                            'service_image_url' => $request['service_image_url'] ?? null,
-                            'service_location' => $request['service_location'] ?? 'Ubicación no especificada',
-                            'user_id' => $request['user_id'],
-                            'user_name' => $request['user_name'] ?? 'Usuario',
-                            'user_phone' => $request['user_phone'] ?? null,
-                            'payment_status' => $request['payment_status'] ?? 'pending',
-                            'additional_details' => $request['additional_details'] ?? '',
-                            'created_at' => $request['created_at'] ?? date('Y-m-d H:i:s')
-                        ]
-                    ]
-                );
+                WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'accepted', 'updated_at' => date('Y-m-d H:i:s'), 'service_id' => $request['service_id']]]);
+                WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'accepted', 'updated_at' => date('Y-m-d H:i:s'), 'service_id' => $request['service_id']]]);
             }
         }
 
         echo json_encode(["success" => $ok]);
     }
 
-    // ✅ CORREGIDO: finalized() ahora guarda notificación en BD para el usuario
     private function finalized($auth)
     {
         try {
@@ -428,13 +358,9 @@ class RequestController
                 return;
             }
 
-            // Validación de pago
             if (($request['payment_status'] ?? 'pending') !== 'paid') {
                 http_response_code(403);
-                echo json_encode([
-                    "success" => false,
-                    "message" => "No se puede finalizar el servicio sin pago confirmado"
-                ]);
+                echo json_encode(["success" => false, "message" => "No se puede finalizar el servicio sin pago confirmado"]);
                 return;
             }
 
@@ -444,83 +370,24 @@ class RequestController
                 return;
             }
 
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'request_completed', 'Servicio finalizado', "Solicitud ID: {$requestId}");
+
             $request = $this->model->getById($requestId);
             if ($request) {
-                // ✅ CORREGIDO: Guardar notificación en BD para el usuario
                 $this->model->saveNotification([
                     'sender_id' => $auth->id,
                     'receiver_id' => $request['user_id'],
                     'receiver_role' => 'user',
                     'title' => 'Servicio finalizado - ¡Califica tu experiencia!',
-                    'message' => 'El proveedor marcó el servicio como finalizado. Deja una reseña sobre tu experiencia.',
-                    'data_json' => json_encode([
-                        'type' => 'rating',
-                        'notification_type' => 'open_rating',
-                        'url' => '/orders/' . $requestId,
-                        'action' => 'open_rating_modal',
-                        'request_id' => (int)$requestId,
-                        'provider_id' => $auth->id,
-                        'from_role' => $auth->role
-                    ])
+                    'message' => 'El proveedor marcó el servicio como finalizado.',
+                    'data_json' => json_encode(['type' => 'rating', 'notification_type' => 'open_rating', 'url' => '/orders/' . $requestId, 'action' => 'open_rating_modal', 'request_id' => (int)$requestId, 'provider_id' => $auth->id, 'from_role' => $auth->role])
                 ]);
 
-                // Notificación WebSocket al usuario
-                WebSocketService::sendNotification(
-                    'user',
-                    $request['user_id'],
-                    'Servicio finalizado - ¡Califica tu experiencia!',
-                    'El proveedor marcó el servicio como finalizado. Deja una reseña sobre tu experiencia.',
-                    [
-                        'event' => 'open_rating_modal',
-                        'notification_type' => 'open_rating',
-                        'url' => '/orders/' . $requestId,
-                        'action' => 'open_rating_modal',
-                        'request_id' => (int)$requestId,
-                        'provider_id' => $auth->id,
-                        'from_role' => $auth->role
-                    ]
-                );
-
-                // Emitir request_updated al usuario
-                WebSocketService::emitToUser(
-                    'user',
-                    $request['user_id'],
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'completed',
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ]
-                    ]
-                );
-
-                // Evento para abrir modal de calificación
-                WebSocketService::emitToUser(
-                    'user',
-                    $request['user_id'],
-                    'open_rating_modal',
-                    [
-                        'request_id' => (int)$requestId,
-                        'from_id' => $auth->id,
-                        'from_role' => $auth->role,
-                        'message' => 'Solicitar calificación'
-                    ]
-                );
-
-                // Emitir al provider para sincronizar su dashboard
-                WebSocketService::emitToUser(
-                    'provider',
-                    $auth->id,
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'completed',
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ]
-                    ]
-                );
+                WebSocketService::sendNotification('user', $request['user_id'], 'Servicio finalizado', 'El proveedor marcó el servicio como finalizado.', ['event' => 'open_rating_modal', 'notification_type' => 'open_rating', 'url' => '/orders/' . $requestId, 'action' => 'open_rating_modal', 'request_id' => (int)$requestId]);
+                WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
+                WebSocketService::emitToUser('user', $request['user_id'], 'open_rating_modal', ['request_id' => (int)$requestId, 'from_id' => $auth->id, 'from_role' => $auth->role, 'message' => 'Solicitar calificación']);
+                WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
             }
 
             $this->archiveAndClean((int)$requestId, 'completed');
@@ -534,50 +401,16 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
-            return;
-        }
+        if (!$requestId) { echo json_encode(["success" => false, "message" => "Falta el ID"]); return; }
 
         $updated = $this->model->updateStatus($requestId, $auth->id, 'in_progress');
         $request = $this->model->getById($requestId);
 
         if ($updated && $request) {
-            WebSocketService::sendNotification(
-                'user',
-                $request['user_id'],
-                'Servicio en progreso',
-                'El proveedor ha comenzado el servicio'
-            );
-
-            WebSocketService::emitToUser(
-                'user',
-                $request['user_id'],
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'in_progress',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
-
-            WebSocketService::emitToUser(
-                'provider',
-                $auth->id,
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'in_progress',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
+            WebSocketService::sendNotification('user', $request['user_id'], 'Servicio en progreso', 'El proveedor ha comenzado el servicio');
+            WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'in_progress', 'updated_at' => date('Y-m-d H:i:s')]]);
+            WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'in_progress', 'updated_at' => date('Y-m-d H:i:s')]]);
         }
-
         echo json_encode(["success" => $updated]);
     }
 
@@ -585,50 +418,16 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
-            return;
-        }
+        if (!$requestId) { echo json_encode(["success" => false, "message" => "Falta el ID"]); return; }
 
         $updated = $this->model->updateStatus($requestId, $auth->id, 'on_the_way');
         $request = $this->model->getById($requestId);
 
         if ($updated && $request) {
-            WebSocketService::sendNotification(
-                'user',
-                $request['user_id'],
-                'Proveedor en camino',
-                'El proveedor está en camino a tu ubicación'
-            );
-
-            WebSocketService::emitToUser(
-                'user',
-                $request['user_id'],
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'on_the_way',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
-
-            WebSocketService::emitToUser(
-                'provider',
-                $auth->id,
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'on_the_way',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
+            WebSocketService::sendNotification('user', $request['user_id'], 'Proveedor en camino', 'El proveedor está en camino');
+            WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'on_the_way', 'updated_at' => date('Y-m-d H:i:s')]]);
+            WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'on_the_way', 'updated_at' => date('Y-m-d H:i:s')]]);
         }
-
         echo json_encode(["success" => $updated]);
     }
 
@@ -636,50 +435,16 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID de la solicitud"]);
-            return;
-        }
+        if (!$requestId) { echo json_encode(["success" => false, "message" => "Falta el ID"]); return; }
 
         $updated = $this->model->updateStatus($requestId, $auth->id, 'arrived');
         $request = $this->model->getById($requestId);
 
         if ($updated && $request) {
-            WebSocketService::sendNotification(
-                'user',
-                $request['user_id'],
-                'Proveedor llegó',
-                'El proveedor ha llegado a tu ubicación'
-            );
-
-            WebSocketService::emitToUser(
-                'user',
-                $request['user_id'],
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'arrived',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
-
-            WebSocketService::emitToUser(
-                'provider',
-                $auth->id,
-                'request_updated',
-                [
-                    'request' => [
-                        'id' => (int)$requestId,
-                        'status' => 'arrived',
-                        'updated_at' => date('Y-m-d H:i:s')
-                    ]
-                ]
-            );
+            WebSocketService::sendNotification('user', $request['user_id'], 'Proveedor llegó', 'El proveedor ha llegado');
+            WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'arrived', 'updated_at' => date('Y-m-d H:i:s')]]);
+            WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'arrived', 'updated_at' => date('Y-m-d H:i:s')]]);
         }
-
         echo json_encode(["success" => $updated]);
     }
 
@@ -687,62 +452,22 @@ class RequestController
     {
         $data = json_decode(file_get_contents("php://input"), true);
         $requestId = $data['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
+        if (!$requestId) { echo json_encode(["success" => false, "message" => "Falta el ID"]); return; }
 
         try {
             $ok = $this->model->updateStatus($requestId, $auth->id, 'rejected');
+            if (!$ok) { echo json_encode(["success" => false, "message" => "No se pudo rechazar"]); return; }
 
-            if (!$ok) {
-                echo json_encode(["success" => false, "message" => "No se pudo rechazar"]);
-                return;
-            }
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'request_rejected', 'Solicitud rechazada', "Solicitud ID: {$requestId}");
 
             $request = $this->model->getById($requestId);
             if ($request) {
-                WebSocketService::sendNotification(
-                    'user',
-                    $request['user_id'],
-                    'Solicitud rechazada',
-                    'Tu solicitud fue rechazada por el proveedor'
-                );
-
-                WebSocketService::emitToUser(
-                    'user',
-                    $request['user_id'],
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'rejected',
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ]
-                    ]
-                );
-
-                WebSocketService::emitToUser(
-                    'provider',
-                    $auth->id,
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'rejected',
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ]
-                    ]
-                );
+                WebSocketService::sendNotification('user', $request['user_id'], 'Solicitud rechazada', 'Tu solicitud fue rechazada');
+                WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
+                WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
             }
-
-            try {
-                $this->archiveAndClean((int)$requestId, 'rejected');
-            } catch (Exception $e) {
-                error_log("⚠️ archiveAndClean falló en reject (no crítico): " . $e->getMessage());
-            }
-
+            $this->archiveAndClean((int)$requestId, 'rejected');
             echo json_encode(["success" => true, "message" => "Solicitud rechazada"]);
         } catch (Exception $e) {
             echo json_encode(["success" => false, "message" => $e->getMessage()]);
@@ -753,63 +478,25 @@ class RequestController
     {
         $input = json_decode(file_get_contents("php://input"), true);
         $requestId = $input['id'] ?? null;
-
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
+        if (!$requestId) { echo json_encode(["success" => false, "message" => "Falta el ID"]); return; }
 
         $actorRole = ($auth->role === 'provider') ? 'provider' : 'user';
 
         try {
             $cancelled = $this->model->cancel((int)$requestId, $auth->id, $actorRole);
+            if (!$cancelled) { echo json_encode(["success" => false, "message" => "No se pudo cancelar"]); return; }
 
-            if (!$cancelled) {
-                echo json_encode(["success" => false, "message" => "No se pudo cancelar"]);
-                return;
-            }
+            // ✅ LOG
+            AuditLogger::log($auth->id, 'request_cancelled', 'Solicitud cancelada', "Solicitud ID: {$requestId} - Por: {$actorRole}");
 
             $request = $this->model->getById($requestId);
             if ($request) {
                 $otherRole = ($actorRole === 'provider') ? 'user' : 'provider';
                 $otherId = ($actorRole === 'provider') ? $request['user_id'] : $request['provider_id'];
-
-                WebSocketService::sendNotification(
-                    $otherRole,
-                    $otherId,
-                    'Solicitud cancelada',
-                    "La solicitud fue cancelada por el {$actorRole}"
-                );
-
-                WebSocketService::emitToUser(
-                    $otherRole,
-                    $otherId,
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'cancelled',
-                            'updated_at' => date('Y-m-d H:i:s'),
-                            'cancelled_by' => $actorRole
-                        ]
-                    ]
-                );
-
-                WebSocketService::emitToUser(
-                    $actorRole,
-                    $auth->id,
-                    'request_updated',
-                    [
-                        'request' => [
-                            'id' => (int)$requestId,
-                            'status' => 'cancelled',
-                            'updated_at' => date('Y-m-d H:i:s'),
-                            'cancelled_by' => $actorRole
-                        ]
-                    ]
-                );
+                WebSocketService::sendNotification($otherRole, $otherId, 'Solicitud cancelada', "Cancelada por el {$actorRole}");
+                WebSocketService::emitToUser($otherRole, $otherId, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s'), 'cancelled_by' => $actorRole]]);
+                WebSocketService::emitToUser($actorRole, $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s'), 'cancelled_by' => $actorRole]]);
             }
-
             $this->archiveAndClean((int)$requestId, 'cancelled');
             echo json_encode(["success" => true]);
         } catch (Exception $e) {
@@ -820,26 +507,14 @@ class RequestController
     private function getStatus($auth)
     {
         if (!preg_match('/\/api\/requests\/status\/(\d+)/', $_SERVER['REQUEST_URI'], $matches)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID de solicitud inválido']);
-            return;
+            http_response_code(400); echo json_encode(['error' => 'ID de solicitud inválido']); return;
         }
-
         $requestId = $matches[1];
         $request = $this->model->getById($requestId);
-
-        if (!$request) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Solicitud no encontrada']);
-            return;
-        }
-
+        if (!$request) { http_response_code(404); echo json_encode(['error' => 'Solicitud no encontrada']); return; }
         if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id) {
-            http_response_code(403);
-            echo json_encode(['error' => 'No autorizado']);
-            return;
+            http_response_code(403); echo json_encode(['error' => 'No autorizado']); return;
         }
-
         echo json_encode(['status' => $request['status']]);
     }
 

@@ -17,8 +17,13 @@ require_once __DIR__ . '/../controllers/ContentController.php';
 require_once __DIR__ . '/../controllers/WalletController.php';
 require_once __DIR__ . '/../controllers/PaymentMethodController.php';
 require_once __DIR__ . '/../controllers/UserPresenceController.php';
+require_once __DIR__ . '/../controllers/BillingController.php';
+require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/../controllers/MonetizationController.php';
 
-$request = $_SERVER['REQUEST_URI'];
+
+//$request = $_SERVER['REQUEST_URI'];
+$request = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method  = $_SERVER['REQUEST_METHOD'];
 
 // --- RUTAS AUTENTICACIÓN ---
@@ -47,6 +52,12 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/services/(\d+)$~', $request, $m) && $method === 'GET') {
     $id = (int)$m[1];
     (new ServiceController())->getById($id);
+
+// --- RUTA PUBLICAR SERVICIO (PAGO) ---
+} elseif (preg_match('~/api/services/(\d+)/publish-external~', $request, $m) && $method === 'POST') {
+    (new MonetizationController())->payToPublishExternal((int)$m[1]);
+} elseif (preg_match('~/api/services/(\d+)/publish~', $request, $m) && $method === 'POST') {
+    (new MonetizationController())->payToPublish((int)$m[1]);
 
 // --- RUTAS SERVICIOS ---
 } elseif (
@@ -154,6 +165,8 @@ if (preg_match('~/api/login~', $request)) {
     (new UserController())->updateProviderData();
 } elseif (preg_match('~/api/provider/(\d+)$~', $request, $m) && $method === 'GET') {
     (new UserController())->getProvider((int)$m[1]);
+} elseif ($request === '/api/provider/payment-methods' && $method === 'GET') {
+    (new PaymentMethodController())->providerIndex();
 
 // --- RUTAS MÉTODOS DE PAGO ---
 } elseif ($request === '/api/payment-methods' && $method === 'GET') {
@@ -176,7 +189,7 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
     (new AdminController())->stats();
-} elseif (preg_match('~/api/admin/users$~', $request)) {
+} elseif (preg_match('~/api/admin/users~', $request)) {
     (new AdminController())->users();
 } elseif (preg_match('~/api/admin/users/admins~', $request) && $method === 'GET') {
     (new AdminController())->getAdmins();
@@ -202,6 +215,10 @@ if (preg_match('~/api/login~', $request)) {
 // --- RUTAS ADMIN (CONTENIDO) ---
 } elseif (preg_match('~/api/admin/content~', $request)) {
     (new ContentController())->handle($method);
+} elseif (preg_match('~/api/admin/tickets/(\d+)/comments~', $request, $m) && $method === 'GET') {
+    (new AdminController())->getTicketReplies((int)$m[1]);
+} elseif (preg_match('~/api/admin/tickets/(\d+)/comments~', $request, $m) && $method === 'POST') {
+    (new AdminController())->addTicketReply((int)$m[1]);
 
 // --- RUTAS ADMIN (PAGOS) ---
 } elseif (preg_match('~/api/admin/payment-gateways/(\d+)$~', $request, $m)) {
@@ -217,6 +234,21 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->getPaymentStats();
 } elseif (preg_match('~/api/admin/payment-settings$~', $request) && $method === 'PUT') {
     (new AdminController())->updatePaymentSettings();
+} elseif (preg_match('~/api/payments/admin-methods~', $request) && $method === 'GET') {
+    (new AdminController())->getAdminPaymentMethods();
+
+// --- RUTAS ADMIN (BACKUPS) ---
+} elseif (preg_match('~/api/admin/backups/list~', $request) && $method === 'GET') {
+    (new AdminController())->listBackups();
+} elseif (preg_match('~/api/admin/backups/create~', $request) && $method === 'POST') {
+    (new AdminController())->createBackup();
+} elseif (preg_match('~/api/admin/backups/download~', $request) && $method === 'GET') {
+    (new AdminController())->downloadBackup();
+} elseif (preg_match('~/api/admin/backups/restore~', $request) && $method === 'POST') {
+    (new AdminController())->restoreBackup();
+} elseif (preg_match('~/api/admin/backups/delete~', $request) && $method === 'POST') {
+    (new AdminController())->deleteBackup();
+
 
 // --- RUTAS ADMIN (SEGURIDAD) ---
 } elseif (preg_match('~/api/admin/security/sessions~', $request) && $method === 'GET') {
@@ -249,6 +281,23 @@ if (preg_match('~/api/login~', $request)) {
         (new AdminController())->updateSystemConfig();
     }
 
+// --- RUTAS ADMIN (ACTUALIZACIÓN) ---
+} elseif (preg_match('~/api/admin/update/upload~', $request) && $method === 'POST') {
+    (new AdminController())->uploadUpdate();
+
+// --- RUTAS FACTURACIÓN (BILLING) ---
+} elseif (preg_match('~/api/admin/billing/generate~', $request) && $method === 'POST') {
+    (new BillingController())->generateBilling();
+} elseif (preg_match('~/api/admin/billing$~', $request) && $method === 'GET') {
+    (new BillingController())->getAllBilling();
+} elseif (preg_match('~/api/admin/billing/(\d+)/verify~', $request, $m) && $method === 'POST') {
+    (new BillingController())->verifyPayment((int)$m[1]);
+} elseif (preg_match('~/api/admin/billing/block/(\d+)~', $request, $m) && $method === 'POST') {
+    (new BillingController())->toggleBlock((int)$m[1]);
+} elseif (preg_match('~/api/provider/billing$~', $request) && $method === 'GET') {
+    (new BillingController())->getMyBilling();
+} elseif (preg_match('~/api/provider/billing/(\d+)/pay~', $request, $m) && $method === 'POST') {
+    (new BillingController())->payBill((int)$m[1]);
 
 // --- RUTAS DEL SISTEMA ---
 } elseif (preg_match('~/api/system$~', $request)) {
@@ -301,6 +350,24 @@ if (preg_match('~/api/login~', $request)) {
     (new WalletController())->adminRejectRequest((int)$m[1]);
 } elseif ($request === '/api/admin/wallet/stats' && $method === 'GET') {
     (new WalletController())->adminGetStats();
+
+
+// --- RUTAS VERIFICACIÓN DE PAGOS DE SERVICIOS ---
+} elseif (preg_match('~/api/admin/service-payments~', $request) && $method === 'GET') {
+    (new AdminController())->getServicePayments();
+} elseif (preg_match('~/api/admin/service-payments/(\d+)/verify~', $request, $m) && $method === 'POST') {
+    (new AdminController())->verifyServicePayment((int)$m[1]);
+
+
+// --- RUTAS MONETIZACIÓN ---
+} elseif (preg_match('~/api/admin/monetization/config~', $request) && $method === 'GET') {
+    (new MonetizationController())->getConfig();
+} elseif (preg_match('~/api/admin/monetization/config~', $request) && $method === 'PUT') {
+    (new MonetizationController())->updateConfig();
+} elseif (preg_match('~/api/admin/monetization/earnings~', $request) && $method === 'GET') {
+    (new MonetizationController())->getEarnings();
+} elseif (preg_match('~/api/monetization/publish-cost~', $request) && $method === 'GET') {
+    (new MonetizationController())->getPublishCost();
 
 // ========== RUTAS DE MENSAJERÍA Y CONVERSACIONES ==========
 // --- RUTAS MENSAJES / CHAT ---

@@ -153,4 +153,11 @@ class PaymentMethod {
         $stmt = $this->conn->prepare($query);
         return $stmt->execute([':id' => $id]);
     }
+
+public function getConnection(): PDO
+{
+    return $this->conn;
+}
+
+
 }

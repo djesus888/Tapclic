@@ -908,7 +908,7 @@ public function getAnalyticsOverview(): void
             AND u.active = 1
             AND (s.created_at BETWEEN ? AND ? OR r.created_at BETWEEN ? AND ?)
             GROUP BY u.id
-/            ORDER BY request_count DESC
+            ORDER BY request_count DESC
             LIMIT 10
         ");
         $providersStmt->execute([
@@ -2392,7 +2392,654 @@ public function getAnalyticsOverview(): void
         echo json_encode(['message' => 'Estado actualizado']);
     }
 
-    /* ----------  ESTADÍSTICAS (todas reales)  ---------- */
+
+/* ---------- BACKUPS ---------- */
+
+/**
+ * Listar archivos de backup disponibles
+ */
+public function listBackups(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $backupDir = __DIR__ . '/../backups';
+    if (!is_dir($backupDir)) {
+        mkdir($backupDir, 0755, true);
+    }
+
+    $files = glob($backupDir . '/*.sql');
+    $backups = [];
+
+    foreach ($files as $file) {
+        $backups[] = [
+            'name' => basename($file),
+            'size' => filesize($file),
+            'size_human' => $this->formatBytes(filesize($file)),
+            'date' => date('Y-m-d H:i:s', filemtime($file)),
+            'timestamp' => filemtime($file)
+        ];
+    }
+
+    // Ordenar por fecha descendente
+    usort($backups, fn($a, $b) => $b['timestamp'] - $a['timestamp']);
+
+    echo json_encode([
+        'success' => true,
+        'backups' => $backups,
+        'total' => count($backups)
+    ]);
+}
+
+/**
+ * Crear nuevo backup
+ */
+public function createBackup(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    try {
+        $db = $this->conn;
+        $backupDir = __DIR__ . '/../backups';
+        if (!is_dir($backupDir)) {
+            mkdir($backupDir, 0755, true);
+        }
+
+        $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+        $filepath = $backupDir . '/' . $filename;
+
+        // Obtener todas las tablas
+        $tables = [];
+        $stmt = $db->query("SHOW TABLES");
+        while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+            $tables[] = $row[0];
+        }
+
+        $output = "-- Backup generado el " . date('Y-m-d H:i:s') . "\n";
+        $output .= "-- Base de datos: " . $db->query("SELECT DATABASE()")->fetchColumn() . "\n\n";
+
+        foreach ($tables as $table) {
+            // Estructura de la tabla
+            $stmt = $db->query("SHOW CREATE TABLE `$table`");
+            $row = $stmt->fetch(PDO::FETCH_NUM);
+            $output .= "DROP TABLE IF EXISTS `$table`;\n";
+            $output .= $row[1] . ";\n\n";
+
+            // Datos de la tabla
+            $stmt = $db->query("SELECT * FROM `$table`");
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $values = array_map(function($val) use ($db) {
+                    if ($val === null) return 'NULL';
+                    return $db->quote($val);
+                }, array_values($row));
+                $output .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
+            }
+            $output .= "\n";
+        }
+
+        file_put_contents($filepath, $output);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Backup creado exitosamente',
+            'filename' => $filename,
+            'size' => filesize($filepath),
+            'size_human' => $this->formatBytes(filesize($filepath))
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al crear backup: ' . $e->getMessage()]);
+    }
+}
+
+/**
+ * Descargar backup
+ */
+public function downloadBackup(): void
+{
+    $this->requireAdmin();
+
+    $filename = $_GET['file'] ?? '';
+    if (empty($filename)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nombre de archivo requerido']);
+        return;
+    }
+
+    // Sanitizar nombre de archivo
+    $filename = basename($filename);
+    $filepath = __DIR__ . '/../backups/' . $filename;
+
+    if (!file_exists($filepath)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Archivo no encontrado']);
+        return;
+    }
+
+    header('Content-Type: application/sql');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . filesize($filepath));
+    readfile($filepath);
+    exit;
+}
+
+/**
+ * Restaurar backup
+ */
+public function restoreBackup(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $filename = $_POST['file'] ?? $_GET['file'] ?? '';
+    if (empty($filename)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nombre de archivo requerido']);
+        return;
+    }
+
+    $filename = basename($filename);
+    $filepath = __DIR__ . '/../backups/' . $filename;
+
+    if (!file_exists($filepath)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Archivo no encontrado']);
+        return;
+    }
+
+    try {
+        $db = $this->conn;
+        $sql = file_get_contents($filepath);
+
+        // Ejecutar consulta por consulta
+        $statements = array_filter(array_map('trim', explode(";\n", $sql)));
+        foreach ($statements as $stmt) {
+            if (!empty($stmt)) {
+                $db->exec($stmt);
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Backup restaurado exitosamente'
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al restaurar: ' . $e->getMessage()]);
+    }
+}
+
+/**
+ * Eliminar backup
+ */
+public function deleteBackup(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $filename = $_POST['file'] ?? $_GET['file'] ?? '';
+    if (empty($filename)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nombre de archivo requerido']);
+        return;
+    }
+
+    $filename = basename($filename);
+    $filepath = __DIR__ . '/../backups/' . $filename;
+
+    if (!file_exists($filepath)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Archivo no encontrado']);
+        return;
+    }
+
+    unlink($filepath);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Backup eliminado exitosamente'
+    ]);
+}
+
+private function formatBytes($bytes): string
+{
+    if ($bytes === 0) return '0 Bytes';
+    $k = 1024;
+    $sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    $i = floor(log($bytes) / log($k));
+    return round($bytes / pow($k, $i), 2) . ' ' . $sizes[$i];
+}
+
+
+
+/* ---------- ACTUALIZACIÓN DEL SISTEMA ---------- */
+
+/**
+ * Subir y aplicar actualización
+ */
+public function uploadUpdate(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    if (!isset($_FILES['update_file']) || $_FILES['update_file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No se recibió el archivo de actualización']);
+        return;
+    }
+
+    $file = $_FILES['update_file'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    if ($ext !== 'zip') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Solo se permiten archivos ZIP']);
+        return;
+    }
+
+    if ($file['size'] > 50 * 1024 * 1024) {
+        http_response_code(400);
+        echo json_encode(['error' => 'El archivo no debe superar 50MB']);
+        return;
+    }
+
+    $uploadDir = __DIR__ . '/../updates';
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+    $zipPath = $uploadDir . '/update_' . time() . '.zip';
+    $extractPath = $uploadDir . '/extract_' . time();
+
+    if (!move_uploaded_file($file['tmp_name'], $zipPath)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al guardar el archivo']);
+        return;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        unlink($zipPath);
+        http_response_code(400);
+        echo json_encode(['error' => 'No se pudo abrir el archivo ZIP']);
+        return;
+    }
+
+    if (!is_dir($extractPath)) mkdir($extractPath, 0755, true);
+    $zip->extractTo($extractPath);
+    $zip->close();
+
+    $results = [
+        'files_updated' => 0,
+        'sql_executed' => false,
+        'errors' => []
+    ];
+
+    // 1. Copiar archivos al proyecto
+    $projectRoot = __DIR__ . '/..';
+    $filesCopied = $this->copyUpdateFiles($extractPath, $projectRoot);
+    $results['files_updated'] = $filesCopied;
+
+    // 2. Ejecutar migrate.sql si existe
+    $sqlFile = $extractPath . '/migrate.sql';
+    if (file_exists($sqlFile)) {
+        try {
+            $this->executeSQLFile($sqlFile);
+            $results['sql_executed'] = true;
+        } catch (Exception $e) {
+            $results['errors'][] = 'Error SQL: ' . $e->getMessage();
+        }
+    }
+
+    // 3. Limpiar caché (eliminar archivos temporales)
+    $this->clearCache();
+
+    // 4. Limpiar archivos temporales de actualización
+    $this->deleteDirectory($extractPath);
+    unlink($zipPath);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Actualización aplicada correctamente',
+        'details' => $results
+    ]);
+}
+
+/**
+ * Copiar archivos de actualización al proyecto
+ */
+private function copyUpdateFiles(string $source, string $dest): int
+{
+    $count = 0;
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $target = $dest . '/' . $iterator->getSubPathName();
+
+        // Saltar migrate.sql (se ejecuta aparte)
+        if ($item->getFilename() === 'migrate.sql') continue;
+
+        if ($item->isDir()) {
+            if (!is_dir($target)) mkdir($target, 0755, true);
+        } else {
+            $targetDir = dirname($target);
+            if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
+
+            // Hacer backup del archivo original
+            if (file_exists($target)) {
+                $backup = $target . '.bak_' . date('Ymd_His');
+                copy($target, $backup);
+            }
+
+            copy($item->getPathname(), $target);
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
+/**
+ * Ejecutar archivo SQL
+ */
+private function executeSQLFile(string $filePath): void
+{
+    $sql = file_get_contents($filePath);
+    $statements = array_filter(array_map('trim', explode(";\n", $sql)));
+
+    foreach ($statements as $stmt) {
+        if (!empty($stmt)) {
+            $this->conn->exec($stmt);
+        }
+    }
+}
+
+/**
+ * Limpiar caché del sistema
+ */
+private function clearCache(): void
+{
+    $cacheDirs = [
+        __DIR__ . '/../cache',
+        __DIR__ . '/../tmp'
+    ];
+
+    foreach ($cacheDirs as $dir) {
+        if (is_dir($dir)) {
+            $files = glob($dir . '/*');
+            foreach ($files as $file) {
+                if (is_file($file) && !str_ends_with($file, '.gitkeep')) {
+                    unlink($file);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Eliminar directorio recursivamente
+ */
+private function deleteDirectory(string $dir): void
+{
+    if (!is_dir($dir)) return;
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($items as $item) {
+        $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    }
+    rmdir($dir);
+}
+
+
+// GET /api/payments/admin-methods - Métodos de pago del sistema (admin)
+public function getAdminPaymentMethods(): void
+{
+    header('Content-Type: application/json');
+
+    $stmt = $this->conn->query("
+        SELECT * FROM payment_gateways 
+        WHERE is_active = 1 
+        ORDER BY sort_order, id
+    ");
+    $gateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $methods = [];
+    foreach ($gateways as $g) {
+        $methods[] = [
+            'type' => $g['name'] ?? 'transferencia',
+            'icon' => $g['name'] === 'paypal' ? '🅿️' : ($g['name'] === 'zelle' ? '💸' : '🏦'),
+            'label' => $g['display_name'] ?? $g['name'],
+            'description' => $g['description'] ?? '',
+            'bank' => $g['bank_name'] ?? null,
+            'account' => $g['bank_account'] ?? null,
+            'phone' => $g['mobile_phone'] ?? null,
+            'email' => $g['paypal_email'] ?? $g['zelle_email'] ?? null,
+            'holder' => $g['bank_holder'] ?? null,
+            'idNumber' => $g['bank_id_number'] ?? null,
+            'instructions' => $g['instructions'] ?? null
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'methods' => $methods
+    ]);
+}
+
+
+// GET /api/admin/service-payments - Ver comprobantes de publicación
+public function getServicePayments(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $status = $_GET['status'] ?? 'pending';
+
+    $stmt = $this->conn->prepare("
+        SELECT spp.*, s.title as service_title, s.price as service_price,
+               u.name as provider_name, u.email as provider_email
+        FROM service_payment_proofs spp
+        JOIN services s ON s.id = spp.service_id
+        JOIN users u ON u.id = spp.provider_id
+        WHERE spp.status = ?
+        ORDER BY spp.created_at DESC
+    ");
+    $stmt->execute([$status]);
+    $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'payments' => $payments]);
+}
+
+// POST /api/admin/service-payments/{id}/verify - Aprobar/Rechazar comprobante
+public function verifyServicePayment(int $id): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $action = $input['action'] ?? 'approve';
+
+    $stmt = $this->conn->prepare("
+        SELECT spp.*, s.title
+        FROM service_payment_proofs spp
+        JOIN services s ON s.id = spp.service_id
+        WHERE spp.id = ? AND spp.status = 'pending'
+    ");
+    $stmt->execute([$id]);
+    $payment = $stmt->fetch();
+
+    if (!$payment) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Comprobante no encontrado']);
+        return;
+    }
+
+    if ($action === 'approve') {
+        // Aprobar comprobante
+        $stmt = $this->conn->prepare("UPDATE service_payment_proofs SET status = 'approved', reviewed_by = ?, reviewed_at = NOW() WHERE id = ?");
+        $auth = Auth::verify();
+        $stmt->execute([$auth->id, $id]);
+
+        // Activar servicio
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
+        $stmt = $this->conn->prepare("UPDATE services SET status = 'active', isAvailable = 1, published_at = NOW(), expires_at = ? WHERE id = ?");
+        $stmt->execute([$expiresAt, $payment['service_id']]);
+
+        // Notificar al proveedor
+// Notificar al proveedor
+$stmt = $this->conn->prepare("
+    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+    VALUES (?, 'provider', ?, ?, ?, NOW())
+");
+$stmt->execute([
+    $payment['provider_id'],
+    '✅ Pago aprobado',
+    "Tu comprobante para '{$payment['title']}' fue aprobado. El servicio ya está activo.",
+    json_encode(['url' => '/myservices', 'action' => 'view_services'])
+]);
+
+// ✅ Registrar ganancia de la plataforma
+$stmt = $this->conn->prepare("
+    INSERT INTO platform_earnings (type, amount, reference_id, user_id, created_at)
+    VALUES ('service_publish', ?, ?, ?, NOW())
+");
+$stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
+
+echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
+
+        echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
+    } else {
+        // Rechazar comprobante
+        $stmt = $this->conn->prepare("UPDATE service_payment_proofs SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW() WHERE id = ?");
+        $auth = Auth::verify();
+        $stmt->execute([$auth->id, $id]);
+
+        // Devolver servicio a pending
+        $stmt = $this->conn->prepare("UPDATE services SET status = 'pending' WHERE id = ?");
+        $stmt->execute([$payment['service_id']]);
+
+        // Notificar al proveedor
+$stmt = $this->conn->prepare("
+    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+    VALUES (?, 'provider', ?, ?, ?, NOW())
+");
+$stmt->execute([
+    $payment['provider_id'],
+    '❌ Comprobante rechazado',
+    "Tu comprobante para '{$payment['title']}' fue rechazado. Sube uno nuevo.",
+    json_encode(['url' => '/myservices', 'action' => 'view_services'])
+]);
+        echo json_encode(['success' => true, 'message' => 'Comprobante rechazado. El proveedor puede subir otro.']);
+    }
+}
+
+// GET /api/admin/tickets/{id}/replies
+public function getTicketReplies(int $id): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $stmt = $this->conn->prepare("
+        SELECT tr.*, u.name as user_name, u.avatar_url
+        FROM ticket_replies tr
+        LEFT JOIN users u ON u.id = tr.user_id
+        WHERE tr.ticket_id = ?
+        ORDER BY tr.created_at ASC
+    ");
+    $stmt->execute([$id]);
+    $replies = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'replies' => $replies]);
+}
+
+// POST /api/admin/tickets/{id}/comments
+// POST /api/admin/tickets/{id}/comments
+public function addTicketReply(int $id): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+
+    $auth = Auth::verify();
+    $adminId = $auth->id;
+
+    // ✅ Aceptar tanto FormData (POST) como JSON
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (strpos($contentType, 'multipart/form-data') !== false) {
+        $message = $_POST['content'] ?? $_POST['message'] ?? '';
+        $isInternal = ($_POST['is_internal'] ?? '') === 'true';
+    } else {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $message = $input['content'] ?? $input['message'] ?? '';
+        $isInternal = $input['is_internal'] ?? false;
+    }
+
+    if (empty($message)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'El mensaje es requerido']);
+        return;
+    }
+
+    // Verificar ticket
+    $stmt = $this->conn->prepare("SELECT * FROM support_tickets WHERE id = ?");
+    $stmt->execute([$id]);
+    $ticket = $stmt->fetch();
+
+    if (!$ticket) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Ticket no encontrado']);
+        return;
+    }
+
+    // Procesar archivos adjuntos
+    $attachmentUrls = [];
+    if (!empty($_FILES)) {
+        $uploadDir = __DIR__ . '/../public/uploads/tickets/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+        foreach ($_FILES as $file) {
+            if ($file['error'] === UPLOAD_ERR_OK) {
+                $name = uniqid('ticket_') . '.' . pathinfo($file['name'], PATHINFO_EXTENSION);
+                move_uploaded_file($file['tmp_name'], $uploadDir . $name);
+                $attachmentUrls[] = '/uploads/tickets/' . $name;
+            }
+        }
+    }
+
+    // Guardar mensaje con metadata
+    $metadata = json_encode([
+        'is_internal' => $isInternal,
+        'attachments' => $attachmentUrls
+    ]);
+
+    // Insertar respuesta
+    $stmt = $this->conn->prepare("
+        INSERT INTO ticket_replies (ticket_id, user_id, user_type, message, created_at)
+        VALUES (?, ?, 'admin', ?, NOW())
+    ");
+    $stmt->execute([$id, $adminId, $message]);
+
+    // Actualizar ticket
+    $newStatus = $isInternal ? $ticket['status'] : 'in_progress';
+    $stmt = $this->conn->prepare("
+        UPDATE support_tickets 
+        SET response_count = response_count + 1, 
+            last_response_at = NOW(),
+            status = ?
+        WHERE id = ?
+    ");
+    $stmt->execute([$newStatus, $id]);
+
+    echo json_encode([
+        'success' => true, 
+        'message' => 'Respuesta enviada',
+        'attachments' => $attachmentUrls
+    ]);
+}
+
+   /* ----------  ESTADÍSTICAS (todas reales)  ---------- */
     public function stats(): void
     {
         header('Content-Type: application/json');

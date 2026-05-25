@@ -6,20 +6,22 @@
         <h1><span class="icon">✨</span> {{ $t('services.createTitle') }}</h1>
         <p>Crea un nuevo servicio para ofrecer a la comunidad</p>
       </div>
-      
-      <!-- Progress Steps -->
+
+      <!-- ✅ Progress Steps DINÁMICO -->
       <div class="progress-steps">
-        <div class="step" :class="{ active: true, completed: true }">
-          <div class="step-number">1</div>
+        <div class="step" :class="{ active: currentStep === 1, completed: currentStep > 1 }" @click="currentStep = 1">
+          <div class="step-number">{{ currentStep > 1 ? '✅' : '1' }}</div>
           <div class="step-label">Información básica</div>
         </div>
-        <div class="step" :class="{ active: false, completed: false }">
-          <div class="step-number">2</div>
-          <div class="step-label">Detalles del servicio</div>
+        <div class="step-connector" :class="{ filled: currentStep > 1 }"></div>
+        <div class="step" :class="{ active: currentStep === 2, completed: currentStep > 2 }" @click="currentStep = canGoToStep2 ? 2 : currentStep">
+          <div class="step-number">{{ currentStep > 2 ? '✅' : '2' }}</div>
+          <div class="step-label">Detalles</div>
         </div>
-        <div class="step" :class="{ active: false, completed: false }">
+        <div class="step-connector" :class="{ filled: currentStep > 2 }"></div>
+        <div class="step" :class="{ active: currentStep === 3, completed: currentStep > 3 }" @click="currentStep = canGoToStep3 ? 3 : currentStep">
           <div class="step-number">3</div>
-          <div class="step-label">Publicar</div>
+          <div class="step-label">Imagen y publicar</div>
         </div>
       </div>
     </div>
@@ -27,129 +29,59 @@
     <!-- Form Container -->
     <div class="form-container">
       <form @submit.prevent="createService" class="service-form">
-        <!-- Left Column -->
-        <div class="form-left">
-          <!-- Title Card -->
+        <!-- ✅ STEP 1: Información básica -->
+        <div v-show="currentStep === 1" class="step-content">
           <div class="form-card">
             <div class="card-header">
               <h3><span class="card-icon">📝</span> {{ $t('services.title') }}</h3>
-              <div class="character-counter">
-                {{ form.title.length }}/50
-              </div>
+              <div class="character-counter">{{ form.title.length }}/50</div>
             </div>
-            <input
-              v-model="form.title"
-              type="text"
-              required
-              maxlength="50"
-              :placeholder="$t('services.titlePlaceholder')"
-              class="form-input"
-            />
+            <input v-model="form.title" type="text" required maxlength="50" :placeholder="$t('services.titlePlaceholder')" class="form-input" />
             <div class="form-hint">Un título claro y atractivo llama más la atención</div>
           </div>
 
-          <!-- Description Card -->
           <div class="form-card">
             <div class="card-header">
               <h3><span class="card-icon">📄</span> {{ $t('services.description') }}</h3>
-              <div class="character-counter">
-                {{ form.description.length }}/250
-              </div>
+              <div class="character-counter">{{ form.description.length }}/250</div>
             </div>
-            <textarea
-              v-model="form.description"
-              rows="4"
-              required
-              maxlength="250"
-              :placeholder="$t('services.descriptionPlaceholder')"
-              class="form-textarea"
-            />
+            <textarea v-model="form.description" rows="4" required maxlength="250" :placeholder="$t('services.descriptionPlaceholder')" class="form-textarea" />
             <div class="form-hint">Describe brevemente tu servicio (máximo 250 caracteres)</div>
           </div>
 
-          <!-- Price Card -->
           <div class="form-card">
             <div class="card-header">
               <h3><span class="card-icon">💰</span> {{ $t('services.price') }}</h3>
-              <div class="price-badge" v-if="form.price">
-                ${{ form.price }}
-              </div>
+              <div class="price-badge" v-if="form.price">${{ form.price }}</div>
             </div>
             <div class="price-input-container">
               <span class="price-prefix">$</span>
-              <input
-                v-model.number="form.price"
-                type="number"
-                step="1"
-                min="0"
-                required
-                :placeholder="$t('services.pricePlaceholder')"
-                class="price-input"
-              />
-            </div>
-            <div class="price-slider" v-if="form.price !== null">
-              <input
-                type="range"
-                v-model.number="form.price"
-                min="0"
-                max="1000"
-                step="10"
-                class="range-slider"
-              />
-              <div class="price-range-labels">
-                <span>$0</span>
-                <span>$500</span>
-                <span>$1000+</span>
-              </div>
+              <input v-model.number="form.price" type="number" step="1" min="0" required :placeholder="$t('services.pricePlaceholder')" class="price-input" />
             </div>
             <div class="form-hint">{{ $t('services.priceHint') }}</div>
           </div>
         </div>
 
-        <!-- Right Column -->
-        <div class="form-right">
-          <!-- Service Details Card -->
+        <!-- ✅ STEP 2: Detalles -->
+        <div v-show="currentStep === 2" class="step-content">
           <div class="form-card">
             <div class="card-header">
               <h3><span class="card-icon">🔧</span> {{ $t('services.serviceDetails') }}</h3>
-              <div class="character-counter">
-                {{ form.service_details?.length || 0 }}/1000
-              </div>
+              <div class="character-counter">{{ form.service_details?.length || 0 }}/1000</div>
             </div>
-            <textarea
-              v-model="form.service_details"
-              rows="6"
-              maxlength="1000"
-              :placeholder="$t('services.serviceDetailsPlaceholder')"
-              class="form-textarea details-textarea"
-            />
+            <textarea v-model="form.service_details" rows="6" maxlength="1000" :placeholder="$t('services.serviceDetailsPlaceholder')" class="form-textarea details-textarea" />
             <div class="form-hint">Detalles específicos, requisitos, materiales, tiempo estimado, etc.</div>
           </div>
 
-          <!-- Category & Location Card -->
           <div class="form-card">
             <div class="card-header">
               <h3><span class="card-icon">🏷️</span> Categoría y Ubicación</h3>
             </div>
-            
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">📂</span>
-                  {{ $t('services.category') }}
-                  <span class="required">*</span>
-                </label>
-                <div class="character-counter-small">
-                  {{ form.category.length }}/30
-                </div>
-                <input
-                  v-model="form.category"
-                  type="text"
-                  required
-                  maxlength="30"
-                  :placeholder="$t('services.categoryPlaceholder')"
-                  class="form-input"
-                />
+                <label class="form-label"><span class="label-icon">📂</span>{{ $t('services.category') }}<span class="required">*</span></label>
+                <div class="character-counter-small">{{ form.category.length }}/30</div>
+                <input v-model="form.category" type="text" required maxlength="30" :placeholder="$t('services.categoryPlaceholder')" class="form-input" />
                 <div class="suggestions">
                   <span class="suggestion-label">Sugerencias:</span>
                   <div class="suggestion-tags">
@@ -160,140 +92,60 @@
                   </div>
                 </div>
               </div>
-
               <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">📍</span>
-                  {{ $t('services.location') }}
-                  <span class="required">*</span>
-                </label>
-                <div class="character-counter-small">
-                  {{ form.location.length }}/50
-                </div>
-                <input
-                  v-model="form.location"
-                  type="text"
-                  required
-                  maxlength="50"
-                  :placeholder="$t('services.locationPlaceholder')"
-                  class="form-input"
-                />
-                <div class="location-hint">
-                  <span class="hint-icon">ℹ️</span>
-                  Esta ubicación será visible para los clientes
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Image Upload Card -->
-          <div class="form-card">
-            <div class="card-header">
-              <h3><span class="card-icon">🖼️</span> {{ $t('services.image') }}</h3>
-              <div class="image-requirements">
-                <span class="req-icon">📏</span>
-                Máx. 5MB
-              </div>
-            </div>
-
-            <!-- Image Preview -->
-            <div v-if="previewUrl" class="image-preview-container">
-              <img
-                :src="previewUrl"
-                alt="Vista previa del servicio"
-                class="image-preview"
-              />
-              <button
-                type="button"
-                class="btn-remove-image"
-                @click="removeImage"
-              >
-                <span class="remove-icon">🗑️</span>
-                Eliminar
-              </button>
-            </div>
-
-            <!-- Upload Area -->
-            <div v-else class="upload-area" @click="triggerFileInput">
-              <div class="upload-icon">📁</div>
-              <div class="upload-text">
-                <h4>{{ $t('services.selectImage') }}</h4>
-                <p>Arrastra una imagen o haz clic para seleccionar</p>
-              </div>
-              <div class="upload-formats">
-                <span class="format">JPG</span>
-                <span class="format">PNG</span>
-                <span class="format">WEBP</span>
-              </div>
-            </div>
-
-            <!-- Hidden File Input -->
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="onImageChange"
-            />
-
-            <!-- Current File Info -->
-            <div v-if="imageFile" class="file-info">
-              <div class="file-details">
-                <span class="file-icon">📄</span>
-                <div class="file-text">
-                  <span class="file-name">{{ imageFile.name }}</span>
-                  <span class="file-size">{{ formatFileSize(imageFile.size) }}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="btn-change-image"
-                @click="triggerFileInput"
-              >
-                <span class="change-icon">🔄</span>
-                Cambiar
-              </button>
-            </div>
-
-            <div class="image-tips">
-              <div class="tip">
-                <span class="tip-icon">💡</span>
-                Usa imágenes de alta calidad que muestren claramente tu servicio
+                <label class="form-label"><span class="label-icon">📍</span>{{ $t('services.location') }}<span class="required">*</span></label>
+                <div class="character-counter-small">{{ form.location.length }}/50</div>
+                <input v-model="form.location" type="text" required maxlength="50" :placeholder="$t('services.locationPlaceholder')" class="form-input" />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Form Actions -->
-        <div class="form-actions">
-          <div class="form-validation">
-            <div class="validation-status" :class="{ valid: canSubmit }">
-              <span class="status-icon">{{ canSubmit ? '✅' : '⚠️' }}</span>
-              <span class="status-text">
-                {{ canSubmit ? 'Formulario completo' : 'Formulario incompleto' }}
-              </span>
+        <!-- ✅ STEP 3: Imagen y Publicar -->
+        <div v-show="currentStep === 3" class="step-content">
+          <div class="form-card">
+            <div class="card-header">
+              <h3><span class="card-icon">🖼️</span> {{ $t('services.image') }}</h3>
             </div>
-            <div v-if="!canSubmit && !loading" class="validation-hint">
-              {{ $t('services.formIncomplete') }}
+            <div v-if="previewUrl" class="image-preview-container">
+              <img :src="previewUrl" alt="Vista previa" class="image-preview" />
+              <button type="button" class="btn-remove-image" @click="removeImage">🗑️ Eliminar</button>
+            </div>
+            <div v-else class="upload-area" @click="triggerFileInput">
+              <div class="upload-icon">📁</div>
+              <div class="upload-text">
+                <h4>{{ $t('services.selectImage') }}</h4>
+                <p>Arrastra una imagen o haz clic</p>
+              </div>
+            </div>
+            <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onImageChange" />
+            <div v-if="imageFile" class="file-info">
+              <span class="file-icon">📄</span>
+              <span class="file-name">{{ imageFile.name }}</span>
+              <span class="file-size">{{ formatFileSize(imageFile.size) }}</span>
             </div>
           </div>
 
-          <div class="action-buttons">
-            <router-link to="/services" class="btn-cancel">
-              <span class="btn-icon">←</span>
-              Cancelar
-            </router-link>
-            <button
-              type="submit"
-              :disabled="!canSubmit || loading"
-              class="btn-submit"
-              :class="{ 'btn-loading': loading }"
-            >
-              <span v-if="loading" class="loading-spinner"></span>
-              <span v-else class="btn-icon">🚀</span>
-              <span>{{ loading ? $t('services.creating') : $t('services.create') }}</span>
-            </button>
+          <!-- ✅ Resumen del servicio -->
+          <div class="form-card summary-card">
+            <h3>📋 Resumen del servicio</h3>
+            <p><strong>Título:</strong> {{ form.title }}</p>
+            <p><strong>Precio:</strong> ${{ form.price }}</p>
+            <p><strong>Categoría:</strong> {{ form.category }}</p>
+            <p><strong>Ubicación:</strong> {{ form.location }}</p>
+            <p v-if="form.description"><strong>Descripción:</strong> {{ form.description }}</p>
           </div>
+        </div>
+
+        <!-- ✅ Navigation Buttons -->
+        <div class="step-navigation">
+          <button v-if="currentStep > 1" type="button" class="btn-prev" @click="currentStep--">← Anterior</button>
+          <div class="nav-spacer"></div>
+          <button v-if="currentStep < 3" type="button" class="btn-next" @click="nextStep" :disabled="!canGoNext">Siguiente →</button>
+          <button v-if="currentStep === 3" type="submit" :disabled="!canSubmit || loading" class="btn-submit" :class="{ 'btn-loading': loading }">
+            <span v-if="loading" class="loading-spinner"></span>
+            <span v-else>🚀 {{ $t('services.create') }}</span>
+          </button>
         </div>
       </form>
     </div>
@@ -316,141 +168,95 @@ export default {
     const router = useRouter()
     const fileInput = ref(null)
 
+    const currentStep = ref(1)
+
     const form = ref({
-      title: '',
-      description: '',
-      service_details: '',
-      price: null,
-      category: '',
-      location: '',
+      title: '', description: '', service_details: '',
+      price: null, category: '', location: ''
     })
 
     const imageFile = ref(null)
     const previewUrl = ref(null)
     const loading = ref(false)
 
-    const canSubmit = computed(() =>
-      form.value.title.trim() &&
-      form.value.description.trim() &&
-      Number.isInteger(form.value.price) &&
-      form.value.price >= 0 &&
-      form.value.category.trim() &&
-      form.value.location.trim()
+    // ✅ Computed para cada paso
+    const isStep1Complete = computed(() =>
+      form.value.title.trim() && form.value.description.trim() &&
+      Number.isInteger(form.value.price) && form.value.price >= 0
+    )
+    const isStep2Complete = computed(() =>
+      form.value.category.trim() && form.value.location.trim()
     )
 
-    const triggerFileInput = () => {
-      fileInput.value?.click()
+    const canGoToStep2 = computed(() => isStep1Complete.value)
+    const canGoToStep3 = computed(() => isStep1Complete.value && isStep2Complete.value)
+    const canGoNext = computed(() => {
+      if (currentStep.value === 1) return isStep1Complete.value
+      if (currentStep.value === 2) return isStep2Complete.value
+      return true
+    })
+
+    const canSubmit = computed(() => isStep1Complete.value && isStep2Complete.value)
+
+    function nextStep() {
+      if (canGoNext.value && currentStep.value < 3) currentStep.value++
     }
 
+    const triggerFileInput = () => fileInput.value?.click()
     const onImageChange = (e) => {
       const file = e.target.files[0]
-      if (file) {
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-          Swal.fire('Error', 'Por favor, selecciona una imagen válida', 'error')
-          return
-        }
-        
-        // Validate file size (5MB max)
-        if (file.size > 5 * 1024 * 1024) {
-          Swal.fire('Error', 'La imagen no debe superar los 5MB', 'error')
-          return
-        }
-        
-        imageFile.value = file
-        previewUrl.value = URL.createObjectURL(file)
-      }
+      if (!file) return
+      if (!file.type.startsWith('image/')) { Swal.fire('Error', 'Imagen válida requerida', 'error'); return }
+      if (file.size > 5 * 1024 * 1024) { Swal.fire('Error', 'Máximo 5MB', 'error'); return }
+      imageFile.value = file
+      previewUrl.value = URL.createObjectURL(file)
     }
-
     const removeImage = () => {
-      imageFile.value = null
-      previewUrl.value = null
-      if (fileInput.value) {
-        fileInput.value.value = ''
-      }
+      imageFile.value = null; previewUrl.value = null
+      if (fileInput.value) fileInput.value.value = ''
     }
-
     const formatFileSize = (bytes) => {
-      if (bytes === 0) return '0 Bytes'
-      const k = 1024
-      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      if (!bytes) return '0 Bytes'
+      const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB']
       const i = Math.floor(Math.log(bytes) / Math.log(k))
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
     }
 
     const createService = async () => {
       loading.value = true
-      
       try {
         const formData = new FormData()
         formData.append('title', form.value.title.trim())
         formData.append('description', form.value.description.trim())
-        formData.append('service_details', form.value.service_details.trim())
+        formData.append('service_details', form.value.service_details?.trim() || '')
         formData.append('price', form.value.price)
         formData.append('category', form.value.category.trim())
         formData.append('location', form.value.location.trim())
-        
-        if (imageFile.value) {
-          formData.append('image', imageFile.value)
-        }
+        if (imageFile.value) formData.append('image', imageFile.value)
 
-        console.log('Token:', authStore.token)
-        for (let pair of formData.entries()) {
-          console.log(pair[0], pair[1])
-        }
-
-        await api.post('/services', formData, {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-            'Content-Type': 'multipart/form-data',
-          },
+        const response = await api.post('/services', formData, {
+          headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'multipart/form-data' }
         })
 
-        Swal.fire({
-          icon: 'success',
-          title: t('services.successTitle'),
-          text: t('services.successMessage'),
-          timer: 2000,
-          showConfirmButton: false,
-          position: 'top-end',
-          toast: true
-        })
-        
-        router.push('/services')
+        Swal.fire({ icon: 'success', title: t('services.successTitle'), text: t('services.successMessage'), timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
+
+        // ✅ Redirigir al pago
+        const serviceId = response.data?.service_id || response.data?.id
+        if (serviceId) { router.push(`/service/${serviceId}/publish`) }
+        else { router.push('/services') }
       } catch (err) {
-        const message = err.response?.data?.error || t('services.createFailed')
-        
-        Swal.fire({
-          icon: 'error',
-          title: t('services.error'),
-          text: message,
-          confirmButtonText: 'Entendido'
-        })
-      } finally {
-        loading.value = false
-      }
+        Swal.fire({ icon: 'error', title: t('services.error'), text: err.response?.data?.error || t('services.createFailed'), confirmButtonText: 'Entendido' })
+      } finally { loading.value = false }
     }
 
-    // Initialize form with some placeholder suggestions
-    onMounted(() => {
-      form.value.category = 'Limpieza'
-      form.value.location = 'Ciudad, Zona'
-    })
+    onMounted(() => { form.value.category = 'Limpieza'; form.value.location = 'Ciudad, Zona' })
 
     return {
-      form,
-      imageFile,
-      previewUrl,
-      fileInput,
-      loading,
-      canSubmit,
-      triggerFileInput,
-      onImageChange,
-      removeImage,
-      createService,
-      formatFileSize
+      form, imageFile, previewUrl, fileInput, loading,
+      currentStep, canGoNext, canSubmit, canGoToStep2, canGoToStep3,
+      triggerFileInput, onImageChange, removeImage, createService, formatFileSize, nextStep
     }
-  },
+  }
 }
 </script>
 
@@ -1186,4 +992,38 @@ export default {
     justify-content: center;
   }
 }
+/* Agrega estos estilos para los steps */
+.step-connector {
+  flex: 1;
+  height: 3px;
+  background: #e0e0e0;
+  margin: 0 8px;
+  align-self: center;
+  transition: background 0.3s;
+}
+.step-connector.filled { background: #667eea; }
+.step { cursor: pointer; }
+.step-navigation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 0 20px;
+}
+.nav-spacer { flex: 1; }
+.btn-prev, .btn-next {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  font-weight: 500;
+}
+.btn-next { background: #667eea; color: white; border: none; }
+.btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+.summary-card {
+  background: #f8f9ff;
+  border: 1px solid #e8ecff;
+}
+.summary-card p { margin: 6px 0; font-size: 0.95rem; }
 </style>

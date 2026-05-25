@@ -82,10 +82,16 @@ const getMethodTypeIcon = (type: MethodType) => {
 /* ---------- CRUD ---------- */
 async function fetchMethods() {
   try {
-    const { data } = await api.get('/provider/payment-methods', {
-      headers: { Authorization: `Bearer ${authStore.token}` }
+    const { data } = await api.get('/payments/public', {
+      params: { provider_id: authStore.user?.id }
     })
-    methods.value = (data.methods || []).filter((m: any) => m?.method_type)
+    const info = data?.paymentInfo || {}
+    const arr = []
+    if (info.pagoMovil) arr.push({ ...info.pagoMovil, method_type: 'pago_movil' })
+    if (info.transferencia) arr.push({ ...info.transferencia, method_type: 'transferencia' })
+    if (info.zelle) arr.push({ ...info.zelle, method_type: 'zelle' })
+    if (info.paypal) arr.push({ ...info.paypal, method_type: 'paypal' })
+    methods.value = arr
   } catch {
     methods.value = []
   }

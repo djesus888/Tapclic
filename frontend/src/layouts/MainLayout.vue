@@ -538,6 +538,7 @@ const providerMenuItems = [
   { to: '/myservices', label: 'myServices', icon: '📦' },
   { to: '/services/new', label: 'addService', icon: '➕' },
   { to: '/payment', label: 'payment_method', icon: '💳' },
+  { to: '/provider/billing', label: 'billing', icon: '💳' },
   { to: '/earnings', label: 'myEarnings', icon: '📈' },
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '🛡️' },
@@ -551,6 +552,7 @@ const adminMenuItems = [
   { to: '/admin/users', label: 'manageUsers', icon: '👥' },
   { to: '/provider', label: 'manageProviders', icon: '🛡️' },
   { to: '/admin/services', label: 'manageServices', icon: '📦' },
+  { to: '/admin/service-payments', label: 'servicePayments', icon: '💳' },
   { to: '/admin/reports', label: 'reports', icon: '📊' },
   { to: '/admin/system', label: 'systemSettings', icon: '⚙️' },
   { to: '/admin/content', label: 'contentManager', icon: '📝' },
@@ -561,6 +563,9 @@ const adminMenuItems = [
   { to: '/admin/analytics', label: 'analytics', icon: '📈', feature: 'analytics' },
   { to: '/admin/adminwallet', label: 'Admin Wallet', icon: '💰', feature: 'wallet' },
   { to: '/admin/system-config', label: 'serverConfig', icon: '🌐' },
+  { to: '/admin/monetization', label: 'monetization', icon: '💰' },
+  { to: '/admin/billing', label: 'billing', icon: '💳' },
+  { to: '/admin/update', label: 'update', icon: '🔄' },
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '👤' },
   { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
@@ -644,27 +649,19 @@ const markAllAsRead = async () => {
       return
     }
 
+    // ✅ Marcar en BD
     await api.post('/notifications/read-all', {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    notificationStore.markAllAsRead()
-    await nextTick()
-
-    try {
-      if (socketStore.markAllAsRead) {
-        socketStore.markAllAsRead()
-      }
-    } catch (e) {
-      // Ignorar
-    }
+    // ✅ Recargar de la API en vez de mutar 137 elementos
+    await notificationStore.loadNotificationsFromAPI()
 
     console.log('✅ Todas las notificaciones marcadas como leídas')
 
   } catch (error) {
     console.error('❌ Error al marcar todas como leídas:', error)
   } finally {
-    await nextTick()
     markingAllAsRead.value = false
   }
 }

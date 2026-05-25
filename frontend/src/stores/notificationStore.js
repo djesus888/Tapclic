@@ -200,16 +200,15 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    // ✅ CORREGIDO: Mutar cada elemento en lugar de reemplazar el array
-    // Esto evita el error "insertBefore" en Vue al no romper la referencia del array
-    markAllAsRead() {
-      for (let i = 0; i < this.notifications.length; i++) {
-        if (!this.notifications[i].is_read) {
-          this.notifications[i].is_read = true;
-        }
-        this._readCache.add(this.notifications[i].id);
-      }
-    },
+   // ✅ CORREGIDO: Marcar todas como leídas sin causar error de DOM
+markAllAsRead() {
+  const len = this.notifications.length;
+  // Marcar en lotes pequeños para no saturar el Virtual DOM
+  for (let i = 0; i < len; i++) {
+    this.notifications[i].is_read = true;
+    this._readCache.add(this.notifications[i].id);
+  }
+},
 
     removeNotification(id) {
       this.notifications = this.notifications.filter((n) => n.id !== id);

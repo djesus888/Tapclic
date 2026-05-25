@@ -2,7 +2,8 @@
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../utils/jwt.php';
-require_once __DIR__ . '/UserController.php'; // Añadimos esta línea
+require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/UserController.php';
 
 class AuthController
 {
@@ -57,6 +58,9 @@ class AuthController
         // --- NUEVO: Registrar el dispositivo ---
         $userController = new UserController();
         $userController->registerDevice($user['id'], $token);
+
+        // ✅ LOG: Inicio de sesión exitoso
+        AuditLogger::log($user['id'], 'login', 'Inicio de sesión', "Usuario: {$user['name']} ({$user['email']}) - Rol: {$user['role']}");
 
         echo json_encode([
             "success" => true,
@@ -133,6 +137,9 @@ class AuthController
         // --- NUEVO: Registrar el dispositivo después del registro ---
         $userController = new UserController();
         $userController->registerDevice($userId, $token);
+
+        // ✅ LOG: Registro exitoso
+        AuditLogger::log($userId, 'register', 'Nuevo registro', "Usuario: {$user['name']} ({$user['email']}) - Rol: {$user['role']}");
 
         echo json_encode([
             "success" => true,
@@ -355,12 +362,9 @@ class AuthController
 
         if ($decoded && isset($decoded->id)) {
             $userId = $decoded->id;
-            
+
             // Actualizar última actividad antes de cerrar sesión
             $this->userModel->updateLastSeen($userId);
-            
-            // Opcional: Revocar el token/dispositivo si tienes esa funcionalidad
-            // $this->userModel->revokeDevice($userId, $token);
         }
 
         http_response_code(200);
@@ -369,8 +373,4 @@ class AuthController
             "message" => "Sesión cerrada correctamente"
         ]);
     }
-
-
-
 }
-
