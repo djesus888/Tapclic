@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore'
 import MainLayout from '@/layouts/MainLayout.vue'
 
 const routes = [
+  { path: '/page/:slug', component: () => import('@/pages/StaticPage.vue') },
   { path: '/login',   component: () => import('@/pages/Login.vue') },
   { path: '/register',component: () => import('@/pages/Register.vue') },
   { path: '/forgot-password', component: () => import('@/pages/ForgotPassword.vue') },

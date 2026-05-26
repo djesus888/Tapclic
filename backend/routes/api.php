@@ -455,6 +455,10 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/admin/tickets/(\d+)/reopen~', $request, $m) && $method === 'POST') {
     (new AdminController())->reopenTicket((int)$m[1]);
 
+// --- RUTA PÁGINAS ESTÁTICAS (PÚBLICO) ---
+} elseif (preg_match("~/api/page\/([a-z0-9_-]+)$~", $request, $m) && $method === "GET") {
+    (new ContentController())->getPageBySlug($m[1]);
+
 // --- RUTA POR DEFECTO ---
 } else {
     http_response_code(404);

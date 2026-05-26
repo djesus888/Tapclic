@@ -832,4 +832,22 @@ class ContentController
             echo json_encode(['error' => 'Error al actualizar orden: ' . $e->getMessage()]);
         }
     }
+
+    public function getPageBySlug(string $slug): void {
+        header("Content-Type: application/json; charset=UTF-8");
+        try {
+            $stmt = $this->conn->prepare("SELECT * FROM static_pages WHERE slug = :slug AND is_active = 1 LIMIT 1");
+            $stmt->execute([":slug" => $slug]);
+            $page = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($page) {
+                echo json_encode($page);
+            } else {
+                http_response_code(404);
+                echo json_encode(["error" => "Página no encontrada"]);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al obtener la página"]);
+        }
+    }
 }
