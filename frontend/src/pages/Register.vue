@@ -216,6 +216,15 @@
       {{ toast.message }}
     </div>
   </div>
+
+  <!-- Footer legal -->
+  <footer class="login-footer">
+    <div class="footer-links">
+      <a href="/page/terms" class="footer-link">Términos y Condiciones</a>
+      <span class="footer-sep">·</span>
+      <a href="/page/privacy" class="footer-link">Política de Privacidad</a>
+    </div>
+  </footer>
 </template>
 
 <script>
@@ -767,6 +776,37 @@ export default {
   .form-select {
     padding: 14px 14px 14px 45px;
   }
+
+.login-footer {
+  text-align: center;
+  padding: 16px 24px;
+  margin-top: 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-link {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 12px;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: #667eea;
+  text-decoration: underline;
+}
+
+.footer-sep {
+  color: #cbd5e1;
+  font-size: 12px;
+}
   
   .input-icon {
     left: 14px;

@@ -251,29 +251,20 @@ router.beforeEach((to, from, next) => {
                    to.path.startsWith('/reset-password') || 
                    to.path.startsWith('/page/')
 
-  // Páginas estáticas: accesibles siempre (con o sin sesión)
-  if (to.path.startsWith('/page/')) {
-    return next()
-  }
-
-  // Rutas protegidas sin token → login
   if (!isPublic && !authStore.token) {
-    return next('/login')
-  }
-
-  // Login/Register con sesión activa → dashboard
-  if (isPublic && authStore.token) {
+    next('/login')
+  } else if (isPublic && authStore.token) {
     const role = authStore.user?.role
     if (role === 'admin') {
-      return next('/dashboard/admin')
+      next('/dashboard/admin')
     } else if (role === 'provider') {
-      return next('/dashboard/provider')
+      next('/dashboard/provider')
     } else {
-      return next('/dashboard/user')
+      next('/dashboard/user')
     }
+  } else {
+    next()
   }
-
-  next()
 })
 
 // ============================================================

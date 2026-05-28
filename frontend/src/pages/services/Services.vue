@@ -83,6 +83,16 @@
           </div>
           <div class="card-image">
             <img :src="getServiceImage(service)" :alt="sanitize(service.title)" @error="handleImageError" />
+
+<button 
+  class="favorite-btn" 
+  :class="{ 'is-favorite': isFavorite(service.id) }"
+  @click.stop="toggleFavorite(service)"
+  :title="isFavorite(service.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'"
+>
+  {{ isFavorite(service.id) ? '⭐' : '☆' }}
+</button>
+
             <div class="image-overlay"></div>
           </div>
           <div class="card-content">
@@ -159,6 +169,8 @@ import RequestConfirmationModal from '@/components/RequestConfirmationModal.vue'
 import ProviderContactModal from '@/components/ProviderContactModal.vue'
 import PaymentModal from '@/components/PaymentModal.vue'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
+import { useFavoritesStore } from '@/stores/favoritesStore'
+
 
 export default {
   name: 'ServicesPage',
@@ -180,6 +192,8 @@ export default {
       priceRange: 100,
       currentPage: 1,
       itemsPerPage: 12,
+      favoritesStore: useFavoritesStore(),
+      favoriteIds: [],
       searchTimeout: null,
       showFilters: false
     }
@@ -243,8 +257,10 @@ export default {
     filterAvailability() { this.currentPage = 1; },
     sortBy() { this.currentPage = 1; }
   },
-  mounted() {
+  async mounted() {
     this.fetchServices();
+    const favs = await this.favoritesStore.fetchFavorites().catch(() => []);
+this.favoriteIds = favs.map(f => f.service_id || f.serviceId);
     this.$nextTick(() => { this.priceRange = this.maxPrice; });
   },
   methods: {
@@ -256,7 +272,23 @@ export default {
       return { ...s, service_details: s.service_details || '', provider: { id: p.id || s.provider_id || s.user_id || null, name: p.name || s.provider_name || '—', avatar_url: p.avatar_url || s.provider_avatar_url || '', rating: p.rating ?? s.provider_rating ?? null } };
     },
     buildPath(resource) { const base = api.defaults?.baseURL || ''; return base.endsWith('/api') || base.includes('/api') ? `/${resource}` : `/api/${resource}`; },
-    async fetchServices() {
+async toggleFavorite(service) {
+  try {
+    if (this.isFavorite(service.id)) {
+      await this.favoritesStore.removeFromFavorites(service.id);
+      this.favoriteIds = this.favoriteIds.filter(id => id !== service.id);
+    } else {
+      await this.favoritesStore.addToFavorites(service.id);
+      this.favoriteIds.push(service.id);
+    }
+  } catch (e) {
+    console.error('Error con favoritos:', e);
+  }
+},
+isFavorite(serviceId) {
+  return this.favoriteIds.includes(serviceId);
+},
+  async fetchServices() {
       if (this.services.length) return;
       this.loading = true;
       try {
@@ -329,6 +361,32 @@ export default {
 .card-badge.offline { background: linear-gradient(135deg, #95a5a6, #7f8c8d); color: white; }
 .card-badge.available { background: linear-gradient(135deg, #00b894, #00a085); color: white; }
 .card-badge.unavailable { background: linear-gradient(135deg, #ff7675, #d63031); color: white; }
+
+.favorite-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255,255,255,0.9);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.favorite-btn:hover {
+  transform: scale(1.15);
+}
+.favorite-btn.is-favorite {
+  background: #fbbf24;
+  color: #fff;
+}
 
 .services-page-container {
   max-width: 1400px;

@@ -173,10 +173,16 @@
             <span>💫</span>
           </div>
           <p class="footer-text">Acceso seguro garantizado</p>
+          <div class="footer-legal-links">
+            <a href="/page/terms" class="legal-link">Términos y Condiciones</a>
+            <span class="legal-sep">·</span>
+            <a href="/page/privacy" class="legal-link">Política de Privacidad</a>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
 </template>
 
 <script>
@@ -795,5 +801,30 @@ export default {
   .form-input {
     padding: 14px 48px 14px 48px;
   }
+}
+
+.footer-legal-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.legal-link {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 11px;
+  transition: color 0.2s;
+}
+
+.legal-link:hover {
+  color: #667eea;
+  text-decoration: underline;
+}
+
+.legal-sep {
+  color: #cbd5e1;
+  font-size: 11px;
 }
 </style>

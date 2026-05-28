@@ -20,6 +20,7 @@ require_once __DIR__ . '/../controllers/UserPresenceController.php';
 require_once __DIR__ . '/../controllers/BillingController.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
 require_once __DIR__ . '/../controllers/MonetizationController.php';
+require_once __DIR__ . "/../controllers/FavoritesController.php";
 
 
 //$request = $_SERVER['REQUEST_URI'];
@@ -454,6 +455,18 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->getTicketReplies((int)$m[1]);
 } elseif (preg_match('~/api/admin/tickets/(\d+)/reopen~', $request, $m) && $method === 'POST') {
     (new AdminController())->reopenTicket((int)$m[1]);
+
+// --- RUTAS FAVORITOS ---
+} elseif ($request === "/api/favorites" && $method === "GET") {
+    (new FavoritesController())->index();
+} elseif ($request === "/api/favorites" && $method === "POST") {
+    (new FavoritesController())->store();
+} elseif ($request === "/api/favorites" && $method === "DELETE") {
+    (new FavoritesController())->clearAll();
+} elseif (preg_match("~/api/favorites/(\d+)$~", $request, $m) && $method === "DELETE") {
+    (new FavoritesController())->destroy((int)$m[1]);
+} elseif (preg_match("~/api/favorites/check/(d+)$~", $request, $m) && $method === "GET") {
+    (new FavoritesController())->check((int)$m[1]);
 
 // --- RUTA PÁGINAS ESTÁTICAS (PÚBLICO) ---
 } elseif (preg_match("~/api/page\/([a-z0-9_-]+)$~", $request, $m) && $method === "GET") {

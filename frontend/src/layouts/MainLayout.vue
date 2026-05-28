@@ -462,6 +462,24 @@
     <main class="main-content">
       <div class="content-wrapper">
         <RouterView />
+
+    <!-- ========== FOOTER CON PÁGINAS LEGALES ========== -->
+    <footer class="app-footer">
+      <div class="footer-content">
+        <div class="footer-links">
+          <RouterLink to="/page/terms" class="footer-link">Términos y Condiciones</RouterLink>
+          <span class="footer-separator">·</span>
+          <RouterLink to="/page/privacy" class="footer-link">Política de Privacidad</RouterLink>
+          <span class="footer-separator">·</span>
+          <RouterLink to="/page/about" class="footer-link">Acerca de</RouterLink>
+          <span class="footer-separator">·</span>
+          <RouterLink to="/page/help" class="footer-link">Ayuda</RouterLink>
+          <span class="footer-separator">·</span>
+          <RouterLink to="/page/contact" class="footer-link">Contacto</RouterLink>
+        </div>
+        <p class="footer-copy">© {{ new Date().getFullYear() }} TapClic. Todos los derechos reservados.</p>
+      </div>
+    </footer>
       </div>
     </main>
 
@@ -1799,6 +1817,61 @@ onBeforeUnmount(() => {
     width: 40px;
     height: 40px;
     font-size: 16px;
+  }
+}
+
+/* ========== FOOTER ========== */
+.app-footer {
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  padding: 20px 24px;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.footer-link {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: #667eea;
+  text-decoration: underline;
+}
+
+.footer-separator {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.footer-copy {
+  color: #94a3b8;
+  font-size: 12px;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
   }
 }
 </style>

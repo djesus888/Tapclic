@@ -5,9 +5,9 @@
         <h1><span class="star-icon">⭐</span> Mis Favoritos</h1>
         <p>Servicios que has guardado para ver más tarde</p>
       </div>
-      
+
       <div class="actions" v-if="favoriteServices.length > 0">
-        <button 
+        <button
           class="btn-clear-all"
           @click="showClearConfirm = true"
           :disabled="loading"
@@ -34,9 +34,6 @@
           <router-link to="/services" class="btn-primary">
             Explorar servicios
           </router-link>
-          <button class="btn-secondary" @click="loadSampleData">
-            Ver datos de ejemplo
-          </button>
         </div>
       </div>
 
@@ -71,8 +68,8 @@
         <div class="filters-section">
           <div class="filter-group">
             <label for="category-filter">Filtrar por categoría:</label>
-            <select 
-              id="category-filter" 
+            <select
+              id="category-filter"
               v-model="selectedCategory"
               class="filter-select"
             >
@@ -85,8 +82,8 @@
 
           <div class="filter-group">
             <label for="sort-filter">Ordenar por:</label>
-            <select 
-              id="sort-filter" 
+            <select
+              id="sort-filter"
               v-model="sortBy"
               class="filter-select"
             >
@@ -101,11 +98,11 @@
             <label for="price-range">Rango de precio:</label>
             <div class="price-range">
               <span>${{ minPrice }}</span>
-              <input 
-                type="range" 
-                v-model="priceRange" 
-                :min="minPrice" 
-                :max="maxPrice" 
+              <input
+                type="range"
+                v-model="priceRange"
+                :min="minPrice"
+                :max="maxPrice"
                 step="10"
                 class="range-slider"
               >
@@ -116,20 +113,20 @@
 
         <!-- Favorites Grid -->
         <div class="favorites-grid">
-          <div 
-            v-for="service in filteredFavorites" 
-            :key="service.id" 
+          <div
+            v-for="service in filteredFavorites"
+            :key="service.id"
             class="favorite-card"
           >
             <div class="card-badge">⭐ Favorito</div>
-            
+
             <div class="card-image">
-              <img 
-                :src="service.image || 'https://via.placeholder.com/300x200?text=Servicio'" 
+              <img
+                :src="service.image || 'https://via.placeholder.com/300x200?text=Servicio'"
                 :alt="service.name"
                 @error="handleImageError"
               >
-              <button 
+              <button
                 class="remove-favorite"
                 @click="removeFromFavorites(service.id)"
                 :title="`Quitar ${service.name} de favoritos`"
@@ -161,15 +158,15 @@
                     / {{ service.priceUnit }}
                   </span>
                 </div>
-                
+
                 <div class="card-actions">
-                  <button 
+                  <button
                     class="btn-view"
                     @click="viewService(service.id)"
                   >
                     Ver detalles
                   </button>
-                  <button 
+                  <button
                     class="btn-contact"
                     @click="contactProvider(service.providerId)"
                   >
@@ -243,64 +240,8 @@ const showClearConfirm = ref(false)
 const toast = ref({
   show: false,
   message: '',
-  type: 'success' // 'success' | 'error' | 'info'
+  type: 'success'
 })
-
-// Datos de ejemplo (reemplazar con API real)
-const sampleData = [
-  {
-    id: 1,
-    name: 'Diseño de Logotipo Profesional',
-    description: 'Creación de identidad visual para tu marca',
-    category: 'Diseño Gráfico',
-    price: 299,
-    priceUnit: 'proyecto',
-    providerName: 'Creative Designs Co.',
-    providerId: 101,
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1634942537034-2531766767d1?w=300&h=200&fit=crop',
-    addedAt: new Date().toISOString()
-  },
-  {
-    id: 2,
-    name: 'Clases de Yoga Personalizadas',
-    description: 'Sesiones de yoga adaptadas a tus necesidades',
-    category: 'Bienestar',
-    price: 35,
-    priceUnit: 'sesión',
-    providerName: 'Yoga Harmony Studio',
-    providerId: 102,
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1545389336-cf573b442d45?w=300&h=200&fit=crop',
-    addedAt: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: 3,
-    name: 'Reparación de Computadoras a Domicilio',
-    description: 'Solución rápida para problemas técnicos',
-    category: 'Tecnología',
-    price: 50,
-    priceUnit: 'hora',
-    providerName: 'TechFix Solutions',
-    providerId: 103,
-    rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w-300&h=200&fit=crop',
-    addedAt: new Date(Date.now() - 172800000).toISOString()
-  },
-  {
-    id: 4,
-    name: 'Catering para Eventos Empresariales',
-    description: 'Servicio gastronómico premium para empresas',
-    category: 'Gastronomía',
-    price: 1500,
-    priceUnit: 'evento',
-    providerName: 'Elite Catering Services',
-    providerId: 104,
-    rating: 4.6,
-    image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300&h=200&fit=crop',
-    addedAt: new Date(Date.now() - 259200000).toISOString()
-  }
-]
 
 // Computed properties
 const favoriteServices = ref([])
@@ -328,16 +269,13 @@ const totalValue = computed(() => {
 
 const filteredFavorites = computed(() => {
   let services = [...favoriteServices.value]
-  
-  // Filtrar por categoría
+
   if (selectedCategory.value) {
     services = services.filter(s => s.category === selectedCategory.value)
   }
-  
-  // Filtrar por precio
+
   services = services.filter(s => s.price <= priceRange.value)
-  
-  // Ordenar
+
   switch (sortBy.value) {
     case 'recent':
       services.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))
@@ -352,7 +290,7 @@ const filteredFavorites = computed(() => {
       services.sort((a, b) => a.name.localeCompare(b.name))
       break
   }
-  
+
   return services
 })
 
@@ -366,13 +304,8 @@ async function loadFavorites() {
   loading.value = true
   try {
     if (authStore.user) {
-      // Llamada real a la API
-      // favoriteServices.value = await favoritesStore.fetchFavorites()
-      
-      // Por ahora usamos datos de ejemplo
-      favoriteServices.value = sampleData
-      
-      // Configurar rango de precio inicial
+      favoriteServices.value = await favoritesStore.fetchFavorites()
+
       if (favoriteServices.value.length > 0) {
         priceRange.value = maxPrice.value
       }
@@ -383,11 +316,6 @@ async function loadFavorites() {
   } finally {
     loading.value = false
   }
-}
-
-function loadSampleData() {
-  favoriteServices.value = sampleData
-  showToast('Datos de ejemplo cargados', 'info')
 }
 
 function formatPrice(price) {
@@ -402,20 +330,22 @@ function viewService(serviceId) {
 }
 
 function contactProvider(providerId) {
-  // Implementar lógica de contacto
   showToast('Función de contacto próximamente', 'info')
 }
 
-function removeFromFavorites(serviceId) {
-  const service = favoriteServices.value.find(s => s.id === serviceId)
-  favoriteServices.value = favoriteServices.value.filter(s => s.id !== serviceId)
-  
-  showToast(`"${service.name}" eliminado de favoritos`, 'success')
+async function removeFromFavorites(serviceId) {
+  try {
+    await favoritesStore.removeFromFavorites(serviceId)
+    favoriteServices.value = favoriteServices.value.filter(s => s.id !== serviceId)
+    showToast('Eliminado de favoritos', 'success')
+  } catch (error) {
+    showToast('Error al eliminar favorito', 'error')
+  }
 }
 
 async function clearAllFavorites() {
   try {
-    // await favoritesStore.clearAllFavorites()
+    await favoritesStore.clearAllFavorites()
     favoriteServices.value = []
     showClearConfirm.value = false
     showToast('Todos los favoritos han sido eliminados', 'success')
@@ -426,7 +356,6 @@ async function clearAllFavorites() {
 
 function exportToPDF() {
   showToast('Exportando a PDF...', 'info')
-  // Implementar exportación a PDF
 }
 
 function exportToCSV() {
@@ -437,18 +366,18 @@ function exportToCSV() {
     s.price,
     s.providerName
   ])
-  
+
   const csvContent = [headers, ...csvData]
     .map(row => row.join(','))
     .join('\n')
-  
+
   const blob = new Blob([csvContent], { type: 'text/csv' })
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = 'mis-favoritos.csv'
   a.click()
-  
+
   showToast('Lista exportada a CSV', 'success')
 }
 
