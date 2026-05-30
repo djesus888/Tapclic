@@ -240,7 +240,27 @@
       :target="chatTarget"
       @close="chatTarget = null"
     />
-
+<!-- HISTORY DETAIL MODAL -->
+<div v-if="historyModal" class="modal-overlay" @click.self="closeHistoryModal">
+  <div class="modern-modal">
+    <div class="modal-header">
+      <h2 class="modal-title">{{ selectedHistory.service_title || selectedHistory.title || 'Detalles' }}</h2>
+      <button class="modal-close" @click="closeHistoryModal">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">Cliente:</span><span class="info-value">{{ selectedHistory.user_name || '-' }}</span></div>
+        <div class="info-item"><span class="info-label">Estado:</span><span class="info-badge" :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span></div>
+        <div class="info-item"><span class="info-label">Precio:</span><span class="price-value">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span></div>
+        <div class="info-item"><span class="info-label">Pago:</span><span class="info-value">{{ selectedHistory.payment_status || '-' }}</span></div>
+        <div class="info-item"><span class="info-label">Fecha:</span><span class="info-value">{{ formatDate(selectedHistory.completed_at || selectedHistory.finished_at || selectedHistory.created_at) }}</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" @click="closeHistoryModal">Cerrar</button>
+    </div>
+  </div>
+</div>
     <!-- TOAST NOTIFICATIONS -->
     <div
       v-if="pulling"
@@ -798,7 +818,7 @@ export default {
       this.chatTarget = {
         id: ticket.id,
         name: `Ticket #${ticket.id}`,
-        role: 'support',
+        role: 'admin',
         context: ticket
       };
     },
@@ -843,7 +863,7 @@ export default {
       this.chatTarget = {
         id: ticket.id,
         name: `Soporte - Ticket #${ticket.id}`,
-        role: 'support',
+        role: 'admin',
         context: {
           ticket_id: ticket.id,
           subject: ticket.subject,
@@ -860,7 +880,17 @@ export default {
     closeHistoryModal() {
       this.historyModal = false;
       this.selectedHistory = {};
-    },
+},
+
+statusLabel(status) {
+  const map = { completed: 'Completado', completado: 'Completado', cancelled: 'Cancelado', cancelado: 'Cancelado', pending: 'Pendiente', pendiente: 'Pendiente' };
+  return map[status] || status;
+},
+statusColor(status) {
+  const map = { completed: 'status-completed', completado: 'status-completed', cancelled: 'status-cancelled', cancelado: 'status-cancelled', pending: 'status-pending', pendiente: 'status-pending' };
+  return map[status] || 'status-default';
+},
+
 
     openProofModal(requestId) {
       this.proofModalRequestId = requestId;
@@ -1534,4 +1564,30 @@ export default {
     font-size: 1rem;
   }
 }
+
+/* HISTORY DETAIL MODAL */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modern-modal {
+  background: white; border-radius: 20px; padding: 32px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.modal-title { font-size: 1.3rem; font-weight: 700; color: #2d3436; margin: 0; }
+.modal-close { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; color: #64748b; }
+.modal-close:hover { background: #e2e8f0; }
+.info-grid { display: flex; flex-direction: column; gap: 12px; }
+.info-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+.info-label { color: #64748b; font-size: 0.9rem; }
+.info-value { font-weight: 600; color: #2d3436; }
+.price-value { font-weight: 700; color: #059669; font-size: 1.1rem; }
+.info-badge { padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+.status-completed { background: #d1fae5; color: #047857; }
+.status-cancelled { background: #fee2e2; color: #dc2626; }
+.status-pending { background: #fef3c7; color: #b45309; }
+.status-default { background: #f1f5f9; color: #64748b; }
+.modal-footer { margin-top: 24px; display: flex; justify-content: flex-end; }
+.btn-secondary { padding: 10px 24px; background: #f1f5f9; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; color: #4a5568; }
+.btn-secondary:hover { background: #e2e8f0; }
 </style>

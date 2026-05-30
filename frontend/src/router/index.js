@@ -60,6 +60,7 @@ const routes = [
       { path: 'admin/logs', component: () => import('@/pages/AdminLogs.vue'), meta: { role: 'admin' } },
       { path: 'admin/adminwallet', component: () => import('@/pages/AdminWallet.vue'), meta: { requiresAuth: true, role: 'admin', permission: 'manage_wallet' }},
       { path: 'admin/system-config', component: () => import('@/pages/admin/SystemConfig.vue'), meta: { role: 'admin' } },
+      { path: 'earnings', component: () => import('@/pages/Earnings.vue') },
       { path: 'provider/billing', component: () => import('@/pages/ProviderBilling.vue'), meta: { role: 'provider' } },
       { path: 'reviews', component: () => import('@/pages/Reviews.vue') },
       { path: 'requests', component: () => import('@/pages/Requests.vue') },

@@ -540,6 +540,7 @@ const availableLanguages = {
 
 const userMenuItems = [
   { to: '/', label: 'home', icon: '🏠' },
+  { to: '/routes', label: 'myRoutes', icon: '🛣️' },
   { to: '/requests', label: 'requests', icon: '📨' },
   { to: '/orders', label: 'myOrders', icon: '📦' },
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
@@ -567,6 +568,7 @@ const providerMenuItems = [
 
 const adminMenuItems = [
   { to: '/dashboard', label: 'adminDashboard', icon: '🔑' },
+  { to: '/routes', label: 'myRoutes', icon: '🛣️' },
   { to: '/admin/users', label: 'manageUsers', icon: '👥' },
   { to: '/provider', label: 'manageProviders', icon: '🛡️' },
   { to: '/admin/services', label: 'manageServices', icon: '📦' },

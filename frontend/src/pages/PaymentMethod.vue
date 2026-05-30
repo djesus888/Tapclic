@@ -82,16 +82,8 @@ const getMethodTypeIcon = (type: MethodType) => {
 /* ---------- CRUD ---------- */
 async function fetchMethods() {
   try {
-    const { data } = await api.get('/payments/public', {
-      params: { provider_id: authStore.user?.id }
-    })
-    const info = data?.paymentInfo || {}
-    const arr = []
-    if (info.pagoMovil) arr.push({ ...info.pagoMovil, method_type: 'pago_movil' })
-    if (info.transferencia) arr.push({ ...info.transferencia, method_type: 'transferencia' })
-    if (info.zelle) arr.push({ ...info.zelle, method_type: 'zelle' })
-    if (info.paypal) arr.push({ ...info.paypal, method_type: 'paypal' })
-    methods.value = arr
+    const { data } = await api.get('/provider/payment-methods')
+    methods.value = Array.isArray(data) ? data : (data?.methods || [])
   } catch {
     methods.value = []
   }
@@ -101,7 +93,7 @@ async function saveMethod() {
   if (!isFormValid.value) return
   loading.value = true
   try {
-    const payload = { ...form }
+    const payload = { ...form, is_active: form.is_active ? 1 : 0 }
     if (editingId.value) {
       await api.put(`/provider/payment-methods/${editingId.value}`, payload, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -134,7 +126,7 @@ async function deleteMethod(id: number) {
 
 async function toggleStatus(m: PaymentMethod) {
   try {
-    await api.put(`/provider/payment-methods/${m.id}`, { ...m, is_active: !m.is_active }, {
+    await api.put(`/provider/payment-methods/${m.id}`, { ...m, is_active: m.is_active ? 0 : 1 }, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
     await fetchMethods()

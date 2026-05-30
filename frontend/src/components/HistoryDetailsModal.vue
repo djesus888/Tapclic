@@ -29,7 +29,7 @@
             <div class="flex justify-between items-center text-sm">
               <span>{{ $t('status') }}</span>
               <span
-                :class="statusColor(item.status)"
+                :class="statusColor()"
                 class="font-semibold"
               >{{ $t(item.status) }}</span>
             </div>
