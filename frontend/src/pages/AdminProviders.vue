@@ -156,7 +156,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getImageUrl } from '@/utils/imageHelper'
+import { getImageUrl as getImageUrlHelper } from '@/utils/imageHelper'
 import api from '@/axios'
 
 const router = useRouter()
@@ -194,7 +194,7 @@ const getImageUrl = (path) => {
   if (!path) return 'https://via.placeholder.com/100?text=P'
   if (path.startsWith('http') || path.startsWith('blob:')) return path
   if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
-  return getImageUrlFromHelper(path, 'avatars')
+  return getImageUrlHelper(path, 'avatars')
 }
 const avatarUrl = (name) => name ? getImageUrl(name.startsWith('http') || name.startsWith('/') ? name : `/uploads/avatars/${name}`) : 'https://via.placeholder.com/100?text=P'
 
