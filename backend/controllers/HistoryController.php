@@ -2,6 +2,7 @@
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/History.php';
 require_once __DIR__ . '/../utils/jwt.php';
+require_once __DIR__ . '/../utils/Uploader.php';
 
 class HistoryController
 {
@@ -29,10 +30,22 @@ class HistoryController
             ($method === 'GET'  && preg_match('~/api/reviews/my/?$~', $path)) ||
             ($method === 'GET'  && preg_match('~/api/history/by-request/(\d+)/?$~', $path)) ||
             ($method === 'PUT'  && preg_match('~/api/reviews/\d+/?$~', $path)) ||
-            ($method === 'PUT'  && preg_match('~/api/reviews/\d+/reply/?$~', $path))
+            ($method === 'PUT'  && preg_match('~/api/reviews/\d+/reply/?$~', $path)) ||
+            ($method === 'POST' && preg_match('~/api/reviews/image/?$~', $path)) ||
+            ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $path)) ||
+            ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $path)) ||
+            ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $path))
         ) {
             // Procesamiento de rutas (ordenado de más específico a menos específico)
-            if ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $path, $m)) {
+            if ($method === 'POST' && preg_match('~/api/reviews/image/?$~', $path)) {
+                $this->uploadReviewImage();
+            } elseif ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $path)) {
+                $this->markHelpful();
+            } elseif ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $path)) {
+                $this->report();
+            } elseif ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $path)) {
+                $this->reportContent();
+            } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $path, $m)) {
                 $this->reply((int)$m[1]);
             } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/?$~', $path, $m)) {
                 $this->updateReview((int)$m[1]);
@@ -57,6 +70,145 @@ class HistoryController
             http_response_code(404);
             echo json_encode(['error' => 'Ruta no válida']);
         }
+    }
+
+    // ✅ NUEVO: Subir imagen de reseña
+    public function uploadReviewImage(): void
+    {
+        $userId = $this->checkAuth();
+
+        if (empty($_FILES['file'])) {
+            $this->send(400, ['message' => 'No se recibió archivo']);
+        }
+
+        $file = $_FILES['file'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $this->send(400, ['message' => 'Error al subir archivo']);
+        }
+
+        $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mime, $allowed)) {
+            $this->send(400, ['message' => 'Formato no permitido. Usa JPG, PNG o WEBP']);
+        }
+
+        if ($file['size'] > 5 * 1024 * 1024) {
+            $this->send(400, ['message' => 'La imagen no debe superar 5MB']);
+        }
+
+$basePath = __DIR__ . '/../public/uploads';
+$baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+$uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+try {
+    $url = $uploader->saveFile($file, \Utils\Uploader::CAT_REVIEWS . '/temp');
+} catch (\RuntimeException $e) {
+    $this->send(500, ['message' => 'Error al guardar imagen: ' . $e->getMessage()]);
+}
+        $this->send(200, ['success' => true, 'url' => $url]);
+    }
+
+    // ✅ NUEVO: Marcar como útil
+    public function markHelpful(): void
+    {
+        $userId = $this->checkAuth();
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        $reviewId = $input['review_id'] ?? null;
+        $reviewType = $input['review_type'] ?? 'service';
+
+        if (!$reviewId) {
+            $this->send(400, ['message' => 'Falta review_id']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id FROM review_helpful WHERE review_id = :rid AND review_type = :rtype AND user_id = :uid"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        if ($stmt->fetch()) {
+            $this->send(409, ['message' => 'Ya votaste como útil']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO review_helpful (review_id, review_type, user_id) VALUES (:rid, :rtype, :uid)"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        $stmt = $this->conn->prepare(
+            "SELECT COUNT(*) FROM review_helpful WHERE review_id = :rid AND review_type = :rtype"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType]);
+        $count = (int)$stmt->fetchColumn();
+
+        $this->send(200, ['success' => true, 'helpful_count' => $count]);
+    }
+
+    // ✅ NUEVO: Reportar reseña (simple)
+    public function report(): void
+    {
+        $userId = $this->checkAuth();
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        $reviewId = $input['review_id'] ?? null;
+        $reviewType = $input['review_type'] ?? 'service';
+
+        if (!$reviewId) {
+            $this->send(400, ['message' => 'Falta review_id']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id FROM review_reports WHERE review_id = :rid AND review_type = :rtype AND user_id = :uid"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        if ($stmt->fetch()) {
+            $this->send(409, ['message' => 'Ya reportaste esta reseña']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO review_reports (review_id, review_type, user_id) VALUES (:rid, :rtype, :uid)"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        $this->send(200, ['success' => true, 'message' => 'Reseña reportada']);
+    }
+
+    // ✅ NUEVO: Reportar contenido con motivo
+    public function reportContent(): void
+    {
+        $userId = $this->checkAuth();
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        $reviewId = $input['review_id'] ?? null;
+        $reviewType = $input['review_type'] ?? 'service';
+        $reason = $input['reason'] ?? 'No especificado';
+
+        if (!$reviewId) {
+            $this->send(400, ['message' => 'Falta review_id']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT id FROM review_reports WHERE review_id = :rid AND review_type = :rtype AND user_id = :uid"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        if ($stmt->fetch()) {
+            $this->send(409, ['message' => 'Ya reportaste esta reseña']);
+        }
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO review_reports (review_id, review_type, user_id, created_at) VALUES (:rid, :rtype, :uid, NOW())"
+        );
+        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        // Guardar motivo en notification o log para admin
+        error_log("Reporte de contenido: review_id=$reviewId, type=$reviewType, reason=$reason, user=$userId");
+
+        $this->send(200, ['success' => true, 'message' => 'Contenido denunciado']);
     }
 
     // ✅ NUEVO: Método para obtener historial por ID de request
@@ -97,40 +249,50 @@ class HistoryController
         $this->send(200, ['success' => true, 'history' => $history]);
     }
 
+    // ✅ CORREGIDO: updateReview ahora soporta user_reviews
     public function updateReview(int $reviewId): void
     {
         $userId = $this->checkAuth();
         $input = json_decode(file_get_contents('php://input'), true);
+        $reviewType = $input['review_type'] ?? 'service';
 
-        // Verificar que el review pertenezca al usuario
-        $stmt = $this->conn->prepare("SELECT id FROM service_reviews WHERE id = :rid AND user_id = :uid");
+        if ($reviewType === 'user') {
+            $stmt = $this->conn->prepare("SELECT id FROM user_reviews WHERE id = :rid AND provider_id = :uid");
+        } else {
+            $stmt = $this->conn->prepare("SELECT id FROM service_reviews WHERE id = :rid AND user_id = :uid");
+        }
         $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
+
         if (!$stmt->fetch()) {
             $this->send(403, ['message' => 'No autorizado']);
         }
 
-        // Actualizar solo comentario y tags
-        $stmt = $this->conn->prepare("UPDATE service_reviews SET comment = :c, tags = :t WHERE id = :id");
+        if ($reviewType === 'user') {
+            $stmt = $this->conn->prepare("UPDATE user_reviews SET comment = :c, tags = :t WHERE id = :id");
+        } else {
+            $stmt = $this->conn->prepare("UPDATE service_reviews SET comment = :c, tags = :t WHERE id = :id");
+        }
         $stmt->execute([
             ':c' => $input['comment'] ?? '',
             ':t' => json_encode($input['tags'] ?? []),
             ':id' => $reviewId
         ]);
+
         $this->send(200, ['success' => true]);
     }
 
-    /* ==================== MÉTODO PARA CREAR RESPUESTA (NUEVO) ==================== */
+    /* ==================== MÉTODO PARA CREAR RESPUESTA (CORREGIDO) ==================== */
     public function createReply(int $reviewId): void
     {
         $userId = $this->checkAuth();
         $input = json_decode(file_get_contents('php://input'), true);
         $message = trim($input['message'] ?? '');
+        $reviewType = $input['review_type'] ?? 'service';
 
         if (!$message) {
             $this->send(400, ['message' => 'Mensaje vacío']);
         }
 
-        // Determinar tipo de reseña y validar permisos
         $stmtRole = $this->conn->prepare("SELECT role FROM users WHERE id = :uid");
         $stmtRole->execute([':uid' => $userId]);
         $role = $stmtRole->fetchColumn();
@@ -139,48 +301,46 @@ class HistoryController
             $this->send(403, ['message' => 'Usuario no encontrado']);
         }
 
-        // Verificar que la reseña existe y el usuario es el destinatario
-        if ($role === 'provider') {
+        if ($reviewType === 'service') {
             $stmt = $this->conn->prepare("
-                SELECT id, user_id
-                FROM service_reviews
-                WHERE id = :rid AND provider_id = :pid
+                SELECT id, user_id FROM service_reviews
+                WHERE id = :rid AND (provider_id = :pid OR :role = 'admin')
             ");
-            $stmt->execute([':rid' => $reviewId, ':pid' => $userId]);
+            $stmt->execute([':rid' => $reviewId, ':pid' => $userId, ':role' => $role]);
             $review = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$review) {
                 $this->send(403, ['message' => 'No autorizado para responder esta reseña']);
             }
 
-            $senderType = 'provider';
+            $senderType = ($role === 'admin') ? 'admin' : 'provider';
             $receiverId = (int)$review['user_id'];
             $receiverRole = 'user';
         } else {
             $stmt = $this->conn->prepare("
-                SELECT id, provider_id
-                FROM user_reviews
-                WHERE id = :rid AND user_id = :uid
+                SELECT id, provider_id FROM user_reviews
+                WHERE id = :rid AND (user_id = :uid OR :role = 'admin')
             ");
-            $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
+            $stmt->execute([':rid' => $reviewId, ':uid' => $userId, ':role' => $role]);
             $review = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$review) {
                 $this->send(403, ['message' => 'No autorizado para responder esta reseña']);
             }
 
-            $senderType = 'user';
+            $senderType = ($role === 'admin') ? 'admin' : 'user';
             $receiverId = (int)$review['provider_id'];
             $receiverRole = 'provider';
         }
 
-        // Verificar si ya existe una respuesta (para evitar duplicados)
+        // Verificar si ya existe una respuesta
         $stmt = $this->conn->prepare("
             SELECT id FROM review_messages
-            WHERE review_id = :rid AND sender_type = :stype AND sender_id = :sid
+            WHERE review_id = :rid AND review_type = :rtype AND sender_type = :stype AND sender_id = :sid
         ");
         $stmt->execute([
             ':rid' => $reviewId,
+            ':rtype' => $reviewType,
             ':stype' => $senderType,
             ':sid' => $userId
         ]);
@@ -191,13 +351,12 @@ class HistoryController
 
         // Insertar nueva respuesta
         $stmt = $this->conn->prepare("
-            INSERT INTO review_messages
-                (review_id, sender_type, sender_id, message, created_at)
-            VALUES
-                (:rid, :stype, :sid, :msg, NOW())
+            INSERT INTO review_messages (review_id, review_type, sender_type, sender_id, message, created_at)
+            VALUES (:rid, :rtype, :stype, :sid, :msg, NOW())
         ");
         $stmt->execute([
             ':rid' => $reviewId,
+            ':rtype' => $reviewType,
             ':stype' => $senderType,
             ':sid' => $userId,
             ':msg' => $message
@@ -206,10 +365,8 @@ class HistoryController
         // Notificar al receptor
         if ($receiverId > 0) {
             $notif = $this->conn->prepare("
-                INSERT INTO notifications
-                    (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
-                VALUES
-                    (:sender, :receiver, :rrole, :title, :message, :data, 0, NOW())
+                INSERT INTO notifications (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
+                VALUES (:sender, :receiver, :rrole, :title, :message, :data, 0, NOW())
             ");
             $notif->execute([
                 ':sender' => $userId,
@@ -221,7 +378,7 @@ class HistoryController
             ]);
         }
 
-        $this->send(200, ['success' => true, 'message' => 'Respuesta guardada', 'reply' => ['review_id' => $reviewId, 'sender_type' => $senderType, 'sender_id' => $userId, 'message' => $message, 'created_at' => date('Y-m-d H:i:s')]]);
+        $this->send(200, ['success' => true, 'message' => 'Respuesta guardada', 'reply' => ['review_id' => $reviewId, 'review_type' => $reviewType, 'sender_type' => $senderType, 'sender_id' => $userId, 'message' => $message, 'created_at' => date('Y-m-d H:i:s')]]);
     }
 
     /* ==================== MÉTODO PARA ACTUALIZAR RESPUESTA (CORREGIDO) ==================== */
@@ -230,12 +387,12 @@ class HistoryController
         $userId = $this->checkAuth();
         $input = json_decode(file_get_contents('php://input'), true);
         $message = trim($input['message'] ?? '');
+        $reviewType = $input['review_type'] ?? 'service';
 
         if (!$message) {
             $this->send(400, ['message' => 'Mensaje vacío']);
         }
 
-        // Determinar rol
         $stmtRole = $this->conn->prepare("SELECT role FROM users WHERE id = :uid");
         $stmtRole->execute([':uid' => $userId]);
         $role = $stmtRole->fetchColumn();
@@ -244,37 +401,34 @@ class HistoryController
             $this->send(403, ['message' => 'Usuario no encontrado']);
         }
 
-        // Verificar que la reseña existe y pertenece al usuario
-        if ($role === 'provider') {
+        if ($reviewType === 'service') {
             $stmt = $this->conn->prepare("
-                SELECT id, user_id
-                FROM service_reviews
-                WHERE id = :rid AND provider_id = :pid
+                SELECT id, user_id FROM service_reviews
+                WHERE id = :rid AND (provider_id = :pid OR :role = 'admin')
             ");
-            $stmt->execute([':rid' => $reviewId, ':pid' => $userId]);
+            $stmt->execute([':rid' => $reviewId, ':pid' => $userId, ':role' => $role]);
             $review = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$review) {
                 $this->send(403, ['message' => 'No autorizado']);
             }
 
-            $senderType = 'provider';
+            $senderType = ($role === 'admin') ? 'admin' : 'provider';
             $receiverId = (int)$review['user_id'];
             $receiverRole = 'user';
         } else {
             $stmt = $this->conn->prepare("
-                SELECT id, provider_id
-                FROM user_reviews
-                WHERE id = :rid AND user_id = :uid
+                SELECT id, provider_id FROM user_reviews
+                WHERE id = :rid AND (user_id = :uid OR :role = 'admin')
             ");
-            $stmt->execute([':rid' => $reviewId, ':uid' => $userId]);
+            $stmt->execute([':rid' => $reviewId, ':uid' => $userId, ':role' => $role]);
             $review = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$review) {
                 $this->send(403, ['message' => 'No autorizado']);
             }
 
-            $senderType = 'user';
+            $senderType = ($role === 'admin') ? 'admin' : 'user';
             $receiverId = (int)$review['provider_id'];
             $receiverRole = 'provider';
         }
@@ -283,27 +437,24 @@ class HistoryController
         $stmt = $this->conn->prepare("
             UPDATE review_messages
             SET message = :msg, created_at = NOW()
-            WHERE review_id = :rid AND sender_type = :stype AND sender_id = :sid
+            WHERE review_id = :rid AND review_type = :rtype AND sender_type = :stype AND sender_id = :sid
         ");
         $stmt->execute([
             ':msg' => $message,
             ':rid' => $reviewId,
+            ':rtype' => $reviewType,
             ':stype' => $senderType,
             ':sid' => $userId
         ]);
 
-        // Si no se actualizó nada, significa que no existía la respuesta
         if ($stmt->rowCount() === 0) {
             $this->send(404, ['message' => 'No existe una respuesta para actualizar']);
         }
 
-        // Notificar al receptor de la actualización
         if ($receiverId > 0) {
             $notif = $this->conn->prepare("
-                INSERT INTO notifications
-                    (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
-                VALUES
-                    (:sender, :receiver, :rrole, :title, :message, :data, 0, NOW())
+                INSERT INTO notifications (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
+                VALUES (:sender, :receiver, :rrole, :title, :message, :data, 0, NOW())
             ");
             $notif->execute([
                 ':sender' => $userId,
@@ -315,7 +466,7 @@ class HistoryController
             ]);
         }
 
-        $this->send(200, ['success' => true, 'message' => 'Respuesta actualizada', 'reply' => ['review_id' => $reviewId, 'sender_type' => $senderType, 'sender_id' => $userId, 'message' => $message, 'created_at' => date('Y-m-d H:i:s')]]);
+        $this->send(200, ['success' => true, 'message' => 'Respuesta actualizada', 'reply' => ['review_id' => $reviewId, 'review_type' => $reviewType, 'sender_type' => $senderType, 'sender_id' => $userId, 'message' => $message, 'created_at' => date('Y-m-d H:i:s')]]);
     }
 
     /* ================== HELPERS ================== */
@@ -347,42 +498,38 @@ class HistoryController
     }
 
     /* ---------- helper interno para subir imágenes ---------- */
-    private function saveUploadedImages(int $historyId): array
-    {
-        $saved = [];
-        if (empty($_FILES['images']['name'][0])) {
-            return $saved;
-        }
-
-        $uploadDir = __DIR__ . '/../uploads/reviews/' . $historyId;
-        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
-            return $saved;
-        }
-
-        $total = count($_FILES['images']['name']);
-        for ($i = 0; $i < $total; $i++) {
-            $error = $_FILES['images']['error'][$i];
-            $tmp   = $_FILES['images']['tmp_name'][$i];
-            if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
-                continue;
-            }
-
-            $ext   = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
-            $name  = bin2hex(random_bytes(8)) . '.' . $ext;
-            $dest  = $uploadDir . '/' . $name;
-
-            if (move_uploaded_file($tmp, $dest)) {
-                $baseUrl = getenv('API_BASE_URL');
-                if (!$baseUrl) {
-                    throw new Exception("API_BASE_URL environment variable is not set");
-                }
-                $url = rtrim($baseUrl, '/') . "/uploads/reviews/{$historyId}/{$name}";
-                $saved[] = $url;
-            }
-        }
+private function saveUploadedImages(int $historyId): array
+{
+    $saved = [];
+    if (empty($_FILES['images']['name'][0])) {
         return $saved;
     }
 
+    $basePath = __DIR__ . '/../public/uploads';
+    $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+    $total = count($_FILES['images']['name']);
+    for ($i = 0; $i < $total; $i++) {
+        $error = $_FILES['images']['error'][$i];
+        $tmp   = $_FILES['images']['tmp_name'][$i];
+        if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
+            continue;
+        }
+
+        try {
+            $url = $uploader->saveFile([
+                'tmp_name' => $tmp,
+                'name' => $_FILES['images']['name'][$i],
+                'error' => $error
+            ], \Utils\Uploader::CAT_REVIEWS . '/' . $historyId);
+            $saved[] = $url;
+        } catch (\RuntimeException $e) {
+            continue;
+        }
+    }
+    return $saved;
+}
     public function rate(): void
     {
         $headers = getallheaders();
@@ -413,7 +560,7 @@ class HistoryController
         }
 
         $historyId = $input['service_history_id'] ?? $input['id'] ?? null;
-        $stars = $input['rating'] ?? null;
+        $stars = $input['rating'] ?? $input['stars'] ?? null;
         $comment = trim($input['comment'] ?? '');
 
         if (!$historyId || !$stars || $stars < 1 || $stars > 5) {
@@ -422,14 +569,13 @@ class HistoryController
             return;
         }
 
-        error_log("rate: historyId=$historyId, userId=$decoded->id, role=$decoded->role");
+        error_log("rate: historyId=$historyId, userId=$decoded->id, role=$decoded->role, photos=" . ($input['photos'] ?? 'sin fotos'));
 
-        // ✅ CORREGIDO: Permitir user_id, provider_id O admin
         if ($decoded->role === 'admin') {
             $stmt = $this->conn->prepare("SELECT * FROM service_history WHERE id = :hid");
             $stmt->execute([':hid' => $historyId]);
         } else {
-            $stmt = $this->conn->prepare("SELECT * FROM service_history WHERE id = :hid AND (user_id = :uid OR provider_id = :uid)");
+            $stmt = $this->conn->prepare("SELECT * FROM service_history WHERE id = :hid AND user_id = :uid");
             $stmt->execute([':hid' => $historyId, ':uid' => $decoded->id]);
         }
         $history = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -449,17 +595,28 @@ class HistoryController
             return;
         }
 
-        $tags = json_encode(array_filter(explode(',', $input['tags'] ?? ''))) ?: '[]';
-        $jsonPhotos = array_filter(explode(',', $input['photos'] ?? ''));
+        $photosInput = $input['photos'] ?? $input['images'] ?? '';
+
+        if (is_array($photosInput)) {
+            $photosInput = implode(',', $photosInput);
+        }
+        if (str_starts_with($photosInput, '[')) {
+            $decodedPhotos = json_decode($photosInput, true);
+            $photosInput = is_array($decodedPhotos) ? implode(',', $decodedPhotos) : '';
+        }
+
+        $jsonPhotos = array_filter(explode(',', $photosInput));
         $uploadedPhotos = $this->saveUploadedImages((int)$historyId);
         $allPhotos = array_merge($jsonPhotos, $uploadedPhotos);
-        $photos = json_encode($allPhotos) ?: '[]';
+        $photos = json_encode(array_values($allPhotos)) ?: '[]';
+
+        $tags = json_encode(array_filter(explode(',', $input['tags'] ?? ''))) ?: '[]';
+
+        error_log("rate: guardando photos=$photos, tags=$tags");
 
         $stmt = $this->conn->prepare("
-            INSERT INTO service_reviews
-                (service_history_id, user_id, provider_id, rating, comment, tags, photos)
-            VALUES
-                (:hid, :uid, :pid, :rating, :comment, :tags, :photos)
+            INSERT INTO service_reviews (service_history_id, user_id, provider_id, rating, comment, tags, photos)
+            VALUES (:hid, :uid, :pid, :rating, :comment, :tags, :photos)
         ");
         $stmt->execute([
             ':hid' => $historyId,
@@ -473,24 +630,20 @@ class HistoryController
         $this->updateProviderAverage((int)$history['provider_id']);
         $this->notifyProviderEvaluated((int)$history['provider_id'], (int)$stars, (int)$decoded->id);
 
-        echo json_encode(['success' => true, 'message' => 'Reseña guardada']);
+        echo json_encode(['success' => true, 'message' => 'Reseña guardada', 'photos_saved' => count($allPhotos)]);
     }
 
     private function updateProviderAverage(int $providerId): void
     {
         $stmt = $this->conn->prepare("
-            UPDATE users
-            SET average_rating = (
-                SELECT ROUND(AVG(rating), 1)
-                FROM service_reviews
-                WHERE provider_id = :pid
+            UPDATE users SET average_rating = (
+                SELECT ROUND(AVG(rating), 1) FROM service_reviews WHERE provider_id = :pid
             )
             WHERE id = :pid
         ");
         $stmt->execute([':pid' => $providerId]);
     }
 
-    // ✅ CORREGIDO: Añadido el parámetro $userId que se estaba pasando pero no se recibía
     private function notifyProviderEvaluated(int $providerId, int $stars, int $userId): void
     {
         $message = "Un cliente te calificó con {$stars} estrella" . ($stars === 1 ? '' : 's') . ".";
@@ -502,7 +655,6 @@ class HistoryController
             'action' => 'view_reviews'
         ]);
 
-        // ✅ CORREGIDO: Guardar en BD con sender_id correcto
         $stmt = $this->conn->prepare("
             INSERT INTO notifications (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
             VALUES (:sender, :receiver, 'provider', :title, :message, :data, 0, NOW())
@@ -515,7 +667,6 @@ class HistoryController
             ':data'     => $dataJson
         ]);
 
-        // ✅ NUEVO: Enviar notificación por WebSocket
         try {
             require_once __DIR__ . '/../services/WebSocketService.php';
             \Services\WebSocketService::sendNotification(
@@ -536,6 +687,7 @@ class HistoryController
         }
     }
 
+    // ✅ CORREGIDO: receivedReviews ahora soporta admin
     public function receivedReviews(): void
     {
         $headers = getallheaders();
@@ -548,38 +700,37 @@ class HistoryController
 
         $token = str_replace('Bearer ', '', $auth);
         $decoded = JwtHandler::decode($token);
-        if (!$decoded || !isset($decoded->id) || !in_array($decoded->role, ['provider', 'user'])) {
+        if (!$decoded || !isset($decoded->id) || !in_array($decoded->role, ['provider', 'user', 'admin'])) {
             http_response_code(403);
             echo json_encode(['message' => 'No autorizado']);
             return;
         }
 
+        $reviews = [];
+        $average = 0;
+        $total = 0;
+
         if ($decoded->role === 'provider') {
             $stmt = $this->conn->prepare("
                 SELECT
-                    sr.id,
-                    sr.rating,
-                    sr.comment,
-                    sr.created_at,
-                    sr.tags,
-                    sr.photos,
-                    u.name        AS user_name,
-                    u.avatar_url  AS user_avatar,
+                    sr.id, sr.rating, sr.comment, sr.created_at, sr.tags, sr.photos,
+                    sr.service_history_id, sr.user_id, sr.provider_id,
+                    u.name AS user_name, u.avatar_url AS user_avatar,
                     sh.service_title,
                     COALESCE(hc.cnt, 0) AS helpful_count,
-                    pm.message    AS provider_reply_message,
-                    pm.created_at AS provider_reply_createdAt
+                    pm.message AS provider_reply_message,
+                    pm.created_at AS provider_reply_createdAt,
+                    'service' AS review_type
                 FROM service_reviews sr
                 JOIN users u ON u.id = sr.user_id
                 JOIN service_history sh ON sh.id = sr.service_history_id
                 LEFT JOIN (
-                    SELECT review_id, COUNT(*) AS cnt
-                    FROM review_helpful
-                    GROUP BY review_id
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'service' GROUP BY review_id
                 ) hc ON hc.review_id = sr.id
                 LEFT JOIN review_messages pm
-                       ON pm.review_id = sr.id
-                      AND pm.sender_type = 'provider'
+                       ON pm.review_id = sr.id AND pm.review_type = 'service'
+                      AND pm.sender_type IN ('provider', 'admin')
                 WHERE sr.provider_id = :id
                 ORDER BY sr.created_at DESC
             ");
@@ -598,42 +749,31 @@ class HistoryController
                 unset($r['provider_reply_message'], $r['provider_reply_createdAt']);
             }
 
-            $avg = $this->conn->prepare("SELECT AVG(rating) AS avg FROM service_reviews WHERE provider_id = :id");
+            $avg = $this->conn->prepare("SELECT AVG(rating) FROM service_reviews WHERE provider_id = :id");
             $avg->execute([':id' => $decoded->id]);
-            $average = (float) ($avg->fetchColumn() ?: 0);
-
-            echo json_encode([
-                'success' => true,
-                'average' => round($average, 1),
-                'total'   => count($reviews),
-                'reviews' => $reviews
-            ]);
+            $average = round((float)($avg->fetchColumn() ?: 0), 1);
+            $total = count($reviews);
         } elseif ($decoded->role === 'user') {
             $stmt = $this->conn->prepare("
                 SELECT
-                    ur.id,
-                    ur.rating,
-                    ur.comment,
-                    ur.created_at,
-                    ur.photos,
-                    ur.tags,
-                    p.name       AS provider_name,
-                    p.avatar_url AS provider_avatar,
+                    ur.id, ur.rating, ur.comment, ur.created_at, ur.photos, ur.tags,
+                    ur.service_history_id, ur.user_id, ur.provider_id,
+                    p.name AS provider_name, p.avatar_url AS provider_avatar,
                     sh.service_title,
                     COALESCE(hc.cnt, 0) AS helpful_count,
-                    pm.message    AS user_reply_message,
-                    pm.created_at AS user_reply_createdAt
+                    pm.message AS user_reply_message,
+                    pm.created_at AS user_reply_createdAt,
+                    'user' AS review_type
                 FROM user_reviews ur
                 JOIN users p ON p.id = ur.provider_id
                 JOIN service_history sh ON sh.id = ur.service_history_id
                 LEFT JOIN (
-                    SELECT review_id, COUNT(*) AS cnt
-                    FROM review_helpful
-                    GROUP BY review_id
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'user' GROUP BY review_id
                 ) hc ON hc.review_id = ur.id
                 LEFT JOIN review_messages pm
-                       ON pm.review_id = ur.id
-                      AND pm.sender_type = 'user'
+                       ON pm.review_id = ur.id AND pm.review_type = 'user'
+                      AND pm.sender_type IN ('user', 'admin')
                 WHERE ur.user_id = :id
                 ORDER BY ur.created_at DESC
             ");
@@ -652,17 +792,103 @@ class HistoryController
                 unset($r['user_reply_message'], $r['user_reply_createdAt']);
             }
 
-            $avg = $this->conn->prepare("SELECT AVG(rating) AS avg FROM user_reviews WHERE user_id = :id");
+            $avg = $this->conn->prepare("SELECT AVG(rating) FROM user_reviews WHERE user_id = :id");
             $avg->execute([':id' => $decoded->id]);
-            $average = (float) ($avg->fetchColumn() ?: 0);
+            $average = round((float)($avg->fetchColumn() ?: 0), 1);
+            $total = count($reviews);
+        } elseif ($decoded->role === 'admin') {
+            // Como proveedor
+            $stmt1 = $this->conn->prepare("
+                SELECT
+                    sr.id, sr.rating, sr.comment, sr.created_at, sr.tags, sr.photos,
+                    sr.service_history_id, sr.user_id, sr.provider_id,
+                    u.name AS user_name, u.avatar_url AS user_avatar,
+                    sh.service_title,
+                    COALESCE(hc.cnt, 0) AS helpful_count,
+                    pm.message AS provider_reply_message,
+                    pm.created_at AS provider_reply_createdAt,
+                    'service' AS review_type
+                FROM service_reviews sr
+                JOIN users u ON u.id = sr.user_id
+                JOIN service_history sh ON sh.id = sr.service_history_id
+                LEFT JOIN (
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'service' GROUP BY review_id
+                ) hc ON hc.review_id = sr.id
+                LEFT JOIN review_messages pm
+                       ON pm.review_id = sr.id AND pm.review_type = 'service'
+                      AND pm.sender_type IN ('provider', 'admin')
+                WHERE sr.provider_id = :id
+                ORDER BY sr.created_at DESC
+            ");
+            $stmt1->execute([':id' => $decoded->id]);
+            $serviceReviews = $stmt1->fetchAll(PDO::FETCH_ASSOC);
 
-            echo json_encode([
-                'success' => true,
-                'average' => round($average, 1),
-                'total'   => count($reviews),
-                'reviews' => $reviews
-            ]);
+            // Como usuario
+            $stmt2 = $this->conn->prepare("
+                SELECT
+                    ur.id, ur.rating, ur.comment, ur.created_at, ur.photos, ur.tags,
+                    ur.service_history_id, ur.user_id, ur.provider_id,
+                    p.name AS provider_name, p.avatar_url AS provider_avatar,
+                    sh.service_title,
+                    COALESCE(hc.cnt, 0) AS helpful_count,
+                    pm.message AS user_reply_message,
+                    pm.created_at AS user_reply_createdAt,
+                    'user' AS review_type
+                FROM user_reviews ur
+                JOIN users p ON p.id = ur.provider_id
+                JOIN service_history sh ON sh.id = ur.service_history_id
+                LEFT JOIN (
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'user' GROUP BY review_id
+                ) hc ON hc.review_id = ur.id
+                LEFT JOIN review_messages pm
+                       ON pm.review_id = ur.id AND pm.review_type = 'user'
+                      AND pm.sender_type IN ('user', 'admin')
+                WHERE ur.user_id = :id
+                ORDER BY ur.created_at DESC
+            ");
+            $stmt2->execute([':id' => $decoded->id]);
+            $userReviews = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($serviceReviews as &$r) {
+                if ($r['provider_reply_message']) {
+                    $r['provider_reply'] = ['message' => $r['provider_reply_message'], 'created_at' => $r['provider_reply_createdAt']];
+                } else {
+                    $r['provider_reply'] = null;
+                }
+                unset($r['provider_reply_message'], $r['provider_reply_createdAt']);
+            }
+            foreach ($userReviews as &$r) {
+                if ($r['user_reply_message']) {
+                    $r['user_reply'] = ['message' => $r['user_reply_message'], 'created_at' => $r['user_reply_createdAt']];
+                } else {
+                    $r['user_reply'] = null;
+                }
+                unset($r['user_reply_message'], $r['user_reply_createdAt']);
+            }
+
+            $reviews = array_merge($serviceReviews, $userReviews);
+            usort($reviews, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+
+            $avg1 = $this->conn->prepare("SELECT AVG(rating) FROM service_reviews WHERE provider_id = :id");
+            $avg1->execute([':id' => $decoded->id]);
+            $avgService = (float)($avg1->fetchColumn() ?: 0);
+
+            $avg2 = $this->conn->prepare("SELECT AVG(rating) FROM user_reviews WHERE user_id = :id");
+            $avg2->execute([':id' => $decoded->id]);
+            $avgUser = (float)($avg2->fetchColumn() ?: 0);
+
+            $average = round(($avgService + $avgUser) / max(($avgService > 0 ? 1 : 0) + ($avgUser > 0 ? 1 : 0), 1), 1);
+            $total = count($reviews);
         }
+
+        echo json_encode([
+            'success' => true,
+            'average' => $average,
+            'total'   => $total,
+            'reviews' => $reviews
+        ]);
     }
 
     public function myUserReviews(): void
@@ -671,12 +897,8 @@ class HistoryController
 
         $stmt = $this->conn->prepare("
             SELECT
-                ur.id,
-                ur.rating,
-                ur.comment,
-                ur.created_at,
-                p.name AS provider_name,
-                p.avatar_url AS provider_avatar,
+                ur.id, ur.rating, ur.comment, ur.created_at, ur.photos, ur.tags,
+                p.name AS provider_name, p.avatar_url AS provider_avatar,
                 sh.service_title
             FROM user_reviews ur
             JOIN users p ON p.id = ur.provider_id
@@ -694,45 +916,49 @@ class HistoryController
     }
 
     /* ---------- helper interno para subir imágenes (rateUser) ---------- */
-    private function saveUploadedImagesUser(int $historyId): array
-    {
-        $saved = [];
-        if (empty($_FILES['images']['name'][0])) {
-            return $saved;
-        }
-
-        $uploadDir = __DIR__ . '/../uploads/user-reviews/' . $historyId;
-        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
-            return $saved;
-        }
-
-        $total = count($_FILES['images']['name']);
-        for ($i = 0; $i < $total; $i++) {
-            $error = $_FILES['images']['error'][$i];
-            $tmp   = $_FILES['images']['tmp_name'][$i];
-            if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
-                continue;
-            }
-
-            $ext   = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
-            $name  = bin2hex(random_bytes(8)) . '.' . $ext;
-            $dest  = $uploadDir . '/' . $name;
-
-            if (move_uploaded_file($tmp, $dest)) {
-                $baseUrl = getenv('API_BASE_URL');
-                if (!$baseUrl) {
-                    throw new Exception("API_BASE_URL environment variable is not set");
-                }
-                $url = rtrim($baseUrl, '/') . "/uploads/user-reviews/{$historyId}/{$name}";
-                $saved[] = $url;
-            }
-        }
+ private function saveUploadedImagesUser(int $historyId): array
+{
+    $saved = [];
+    if (empty($_FILES['images']['name'][0])) {
         return $saved;
     }
 
+    $basePath = __DIR__ . '/../public/uploads';
+    $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+    $total = count($_FILES['images']['name']);
+    for ($i = 0; $i < $total; $i++) {
+        $error = $_FILES['images']['error'][$i];
+        $tmp   = $_FILES['images']['tmp_name'][$i];
+        if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
+            continue;
+        }
+
+        try {
+            $url = $uploader->saveFile([
+                'tmp_name' => $tmp,
+                'name' => $_FILES['images']['name'][$i],
+                'error' => $error
+            ], \Utils\Uploader::CAT_REVIEWS . '/user/' . $historyId);
+            $saved[] = $url;
+        } catch (\RuntimeException $e) {
+            continue;
+        }
+    }
+    return $saved;
+}
+    // ✅ CORREGIDO: rateUser ahora permite admin
     public function rateUser(): void
     {
-        $providerId = $this->checkAuth();
+        $reviewerId = $this->checkAuth();
+        $stmtRole = $this->conn->prepare("SELECT role FROM users WHERE id = :uid");
+        $stmtRole->execute([':uid' => $reviewerId]);
+        $reviewerRole = $stmtRole->fetchColumn();
+
+        if (!in_array($reviewerRole, ['provider', 'admin'])) {
+            $this->send(403, ['message' => 'Solo proveedores y administradores pueden calificar usuarios']);
+        }
 
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         if (str_contains($contentType, 'application/json')) {
@@ -753,12 +979,13 @@ class HistoryController
             $this->send(400, ['message' => 'Datos incompletos o rating inválido']);
         }
 
-        $stmt = $this->conn->prepare("
-            SELECT user_id
-            FROM service_history
-            WHERE id = :hid AND provider_id = :pid
-        ");
-        $stmt->execute([':hid' => $historyId, ':pid' => $providerId]);
+        if ($reviewerRole === 'admin') {
+            $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid");
+            $stmt->execute([':hid' => $historyId]);
+        } else {
+            $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid AND provider_id = :pid");
+            $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
+        }
         $history = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$history) {
@@ -767,11 +994,7 @@ class HistoryController
 
         $userId = (int)$history['user_id'];
 
-        $stmt = $this->conn->prepare("
-            SELECT id
-            FROM user_reviews
-            WHERE service_history_id = :hid
-        ");
+        $stmt = $this->conn->prepare("SELECT id FROM user_reviews WHERE service_history_id = :hid");
         $stmt->execute([':hid' => $historyId]);
         if ($stmt->fetch()) {
             $this->send(409, ['message' => 'Ya evaluaste a este usuario']);
@@ -784,14 +1007,12 @@ class HistoryController
         $tags            = json_encode(array_filter(explode(',', $input['tags'] ?? ''))) ?: '[]';
 
         $stmt = $this->conn->prepare("
-            INSERT INTO user_reviews
-                (service_history_id, provider_id, user_id, rating, comment, tags, photos)
-            VALUES
-                (:hid, :pid, :uid, :rating, :comment, :tags, :photos)
+            INSERT INTO user_reviews (service_history_id, provider_id, user_id, rating, comment, tags, photos)
+            VALUES (:hid, :pid, :uid, :rating, :comment, :tags, :photos)
         ");
         $stmt->execute([
             ':hid'     => $historyId,
-            ':pid'     => $providerId,
+            ':pid'     => $reviewerId,
             ':uid'     => $userId,
             ':rating'  => $stars,
             ':comment' => $comment,
@@ -799,11 +1020,10 @@ class HistoryController
             ':photos'  => $photos
         ]);
 
-        $this->notifyUserEvaluated($userId, $stars, $providerId);
+        $this->notifyUserEvaluated($userId, $stars, $reviewerId);
         $this->send(200, ['success' => true, 'message' => 'Evaluación guardada']);
     }
 
-    // ✅ CORREGIDO: Añadido el parámetro $providerId que se estaba pasando pero no se recibía
     private function notifyUserEvaluated(int $userId, int $stars, int $providerId): void
     {
         $message = "Un proveedor te calificó con {$stars} estrella" . ($stars === 1 ? '' : 's') . ".";
@@ -847,56 +1067,97 @@ class HistoryController
         }
     }
 
+    // ✅ CORREGIDO: myReviews ahora incluye user_reviews
     public function myReviews(): void
     {
         $userId = $this->checkAuth();
+        $stmtRole = $this->conn->prepare("SELECT role FROM users WHERE id = :uid");
+        $stmtRole->execute([':uid' => $userId]);
+        $role = $stmtRole->fetchColumn();
 
-        $stmt = $this->conn->prepare("
-            SELECT
-                sr.id,
-                sr.rating,
-                sr.comment,
-                sr.created_at,
-                sr.tags,
-                sr.photos,
-                p.name       AS provider_name,
-                p.avatar_url AS provider_avatar,
-                sh.service_title,
-                COALESCE(hc.cnt, 0) AS helpful_count,
-                pm.message    AS provider_reply_message,
-                pm.created_at AS provider_reply_createdAt
-            FROM service_reviews sr
-            JOIN users p ON p.id = sr.provider_id
-            JOIN service_history sh ON sh.id = sr.service_history_id
-            LEFT JOIN (
-                SELECT review_id, COUNT(*) AS cnt
-                FROM review_helpful
-                GROUP BY review_id
-            ) hc ON hc.review_id = sr.id
-            LEFT JOIN review_messages pm
-                   ON pm.review_id = sr.id
-                  AND pm.sender_type = 'provider'
-            WHERE sr.user_id = :uid
-            ORDER BY sr.created_at DESC
-        ");
-        $stmt->execute([':uid' => $userId]);
-        $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $allReviews = [];
 
-        foreach ($reviews as &$r) {
-            if ($r['provider_reply_message']) {
-                $r['provider_reply'] = [
-                    'message' => $r['provider_reply_message'],
-                    'created_at' => $r['provider_reply_createdAt']
-                ];
-            } else {
-                $r['provider_reply'] = null;
+        // Reseñas a proveedores (service_reviews) - como user o admin
+        if (in_array($role, ['user', 'admin'])) {
+            $stmt = $this->conn->prepare("
+                SELECT sr.id, sr.rating, sr.comment, sr.created_at, sr.tags, sr.photos,
+                       sr.service_history_id, sr.user_id, sr.provider_id,
+                       p.name AS provider_name, p.avatar_url AS provider_avatar,
+                       sh.service_title,
+                       COALESCE(hc.cnt, 0) AS helpful_count,
+                       pm.message AS provider_reply_message,
+                       pm.created_at AS provider_reply_createdAt,
+                       'service' AS review_type
+                FROM service_reviews sr
+                JOIN users p ON p.id = sr.provider_id
+                JOIN service_history sh ON sh.id = sr.service_history_id
+                LEFT JOIN (
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'service' GROUP BY review_id
+                ) hc ON hc.review_id = sr.id
+                LEFT JOIN review_messages pm
+                       ON pm.review_id = sr.id AND pm.review_type = 'service'
+                      AND pm.sender_type IN ('provider', 'admin')
+                WHERE sr.user_id = :uid
+                ORDER BY sr.created_at DESC
+            ");
+            $stmt->execute([':uid' => $userId]);
+            $serviceReviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($serviceReviews as &$r) {
+                if ($r['provider_reply_message']) {
+                    $r['provider_reply'] = ['message' => $r['provider_reply_message'], 'created_at' => $r['provider_reply_createdAt']];
+                } else {
+                    $r['provider_reply'] = null;
+                }
+                unset($r['provider_reply_message'], $r['provider_reply_createdAt']);
             }
-            unset($r['provider_reply_message'], $r['provider_reply_createdAt']);
+            $allReviews = array_merge($allReviews, $serviceReviews);
         }
+
+        // Reseñas a usuarios (user_reviews) - como provider o admin
+        if (in_array($role, ['provider', 'admin'])) {
+            $stmt = $this->conn->prepare("
+                SELECT ur.id, ur.rating, ur.comment, ur.created_at, ur.photos, ur.tags,
+                       ur.service_history_id, ur.user_id, ur.provider_id,
+                       u.name AS user_name, u.avatar_url AS user_avatar,
+                       sh.service_title,
+                       COALESCE(hc.cnt, 0) AS helpful_count,
+                       pm.message AS user_reply_message,
+                       pm.created_at AS user_reply_createdAt,
+                       'user' AS review_type
+                FROM user_reviews ur
+                JOIN users u ON u.id = ur.user_id
+                JOIN service_history sh ON sh.id = ur.service_history_id
+                LEFT JOIN (
+                    SELECT review_id, COUNT(*) AS cnt FROM review_helpful
+                    WHERE review_type = 'user' GROUP BY review_id
+                ) hc ON hc.review_id = ur.id
+                LEFT JOIN review_messages pm
+                       ON pm.review_id = ur.id AND pm.review_type = 'user'
+                      AND pm.sender_type IN ('user', 'admin')
+                WHERE ur.provider_id = :uid
+                ORDER BY ur.created_at DESC
+            ");
+            $stmt->execute([':uid' => $userId]);
+            $userReviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($userReviews as &$r) {
+                if ($r['user_reply_message']) {
+                    $r['user_reply'] = ['message' => $r['user_reply_message'], 'created_at' => $r['user_reply_createdAt']];
+                } else {
+                    $r['user_reply'] = null;
+                }
+                unset($r['user_reply_message'], $r['user_reply_createdAt']);
+            }
+            $allReviews = array_merge($allReviews, $userReviews);
+        }
+
+        usort($allReviews, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
         echo json_encode([
             'success' => true,
-            'reviews' => $reviews
+            'reviews' => $allReviews
         ]);
     }
 
@@ -909,6 +1170,7 @@ class HistoryController
             echo json_encode(['message' => 'Token no proporcionado']);
             return;
         }
+
         $token = str_replace('Bearer ', '', $auth);
         $decoded = JwtHandler::decode($token);
         if (!$decoded || !isset($decoded->id)) {
@@ -919,17 +1181,9 @@ class HistoryController
 
         $sql = "
             SELECT
-                h.id,
-                h.service_title,
-                h.service_description,
-                h.service_price,
-                h.user_name,
-                h.user_avatar,
-                h.finished_at,
-                h.status,
-                h.cancelled_by,
-                h.payment_status,
-                h.payment_method
+                h.id, h.service_title, h.service_description, h.service_price,
+                h.user_name, h.user_avatar, h.finished_at, h.status,
+                h.cancelled_by, h.payment_status, h.payment_method
             FROM service_history h
             WHERE h.user_id = :userId OR h.provider_id = :providerId
             ORDER BY h.finished_at DESC

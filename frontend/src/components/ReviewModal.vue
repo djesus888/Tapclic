@@ -18,8 +18,7 @@
             aria-label="Cerrar modal"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M6 18L18 6M6 6l12 12" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -87,7 +86,7 @@
           <div class="flex gap-2 mb-2">
             <div v-for="(img, i) in photos" :key="i" class="relative">
               <img
-                :src="resolveSrc(img)"
+                :src="img.preview || img.url"
                 class="w-20 h-20 object-cover rounded border"
               />
               <button
@@ -147,9 +146,10 @@ export interface Review {
 }
 
 const props = defineProps<{
-  modelValue: Review | null;
+  modelValue?: Review | null;
   mode?: 'new' | 'reply' | 'edit';
   targetRole?: 'user' | 'provider';
+  reviewType?: 'service' | 'user';
   authToken?: string;
   serviceHistoryId?: number | string;
   divId?: string;
@@ -168,13 +168,28 @@ const headerText = computed(() => {
 const rating = ref(0)
 const comment = ref('')
 const tags = ref<string[]>([])
-type Photo = File | string
+
+type Photo = {
+  id: string
+  file?: File
+  url?: string
+  preview?: string
+}
+
 const photos = ref<Photo[]>([])
 const sending = ref(false)
 
 const quickTags = ['Puntual', 'Profesional', 'Calidad', 'Limpio', 'Buen precio', 'Amable']
 const fileInput = ref<HTMLInputElement>()
 const blobUrls = new Set<string>()
+
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2)
+}
+
+function getReviewType(): string {
+  return props.reviewType || 'service'
+}
 
 // Inicializar desde modelValue
 function initializeFromProps() {
@@ -190,19 +205,22 @@ function initializeFromProps() {
 
   photos.value = props.modelValue?.photos
     ? (Array.isArray(props.modelValue.photos)
-        ? props.modelValue.photos
-        : [props.modelValue.photos])
+        ? props.modelValue.photos.map((url: string) => ({
+            id: generateId(),
+            url
+          }))
+        : [{
+            id: generateId(),
+            url: props.modelValue.photos as string
+          }])
     : []
 }
 
 // Watch para reinicializar cuando modelValue cambie
 watch(() => props.modelValue, initializeFromProps, { immediate: true })
 
-function resolveSrc(img: Photo) {
-  if (typeof img === 'string') return img
-  const url = URL.createObjectURL(img)
-  blobUrls.add(url)
-  return url
+function resolveSrc(img: any) {
+  return img.preview || img.url || ''
 }
 
 // Limpiar URLs de blobs al desmontar
@@ -232,21 +250,32 @@ function openFilePicker() {
 }
 
 function removePhoto(i: number) {
+  // Limpiar blob URL si existe preview
+  const img = photos.value[i]
+  if (img.preview) {
+    blobUrls.delete(img.preview)
+    URL.revokeObjectURL(img.preview)
+  }
   photos.value.splice(i, 1)
 }
 
-function handleFile(e: Event) {
+async function handleFile(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (file && photos.value.length < 3) {
-    // Validar tamaño (5MB máximo)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no debe superar 5MB')
-      input.value = ''
-      return
-    }
-    photos.value.push(file)
+
+  if (!file || photos.value.length >= 3) {
+    input.value = ''
+    return
   }
+
+  const preview = URL.createObjectURL(file)
+
+  photos.value.push({
+    id: generateId(),
+    file,
+    preview
+  })
+
   input.value = ''
 }
 
@@ -259,56 +288,74 @@ function resetForm() {
 }
 
 async function submit() {
-  if (!props.serviceHistoryId) {
+  if (!props.serviceHistoryId && !isEdit.value) {
     alert('Error: ID de servicio no proporcionado')
     return
   }
 
-  if (rating.value === 0) {
+  if (rating.value === 0 && !isEdit.value) {
     alert('Debes seleccionar una calificación')
     return
   }
 
   sending.value = true
+  const token = props.authToken || localStorage.getItem('token')
+  const headers = { Authorization: `Bearer ${token}` }
+
   try {
-    const form = new FormData()
-
-    // El backend espera 'id' no 'service_history_id' en rate()
-    form.append('id', String(props.serviceHistoryId))
-    form.append('rating', String(rating.value))
-    form.append('comment', comment.value)
-    form.append('tags', tags.value.join(','))
-
-    // Enviar fotos existentes cuando esté en modo edición
     if (isEdit.value) {
-      const existingPhotos = photos.value.filter(p => typeof p === 'string')
-      if (existingPhotos.length > 0) {
-        form.append('existing_photos', JSON.stringify(existingPhotos))
+      // Editar reseña existente
+      await api.put(
+        `/reviews/${props.modelValue?.id}`,
+        {
+          rating: rating.value,
+          comment: comment.value,
+          tags: tags.value,
+          photos: photos.value.filter(p => p.url).map(p => p.url),
+          review_type: getReviewType()
+        },
+        { headers }
+      )
+    } else {
+      // Nueva reseña: subir imágenes primero
+      const uploadPromises = photos.value.map(async (p) => {
+        if (p.url) return p.url
+
+        const fd = new FormData()
+        fd.append('file', p.file!)
+
+        const { data } = await api.post('/reviews/image', fd, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        return data.url
+      })
+
+      const uploadedPhotos = await Promise.all(uploadPromises)
+
+      // Nueva reseña: decidir endpoint según quién califica
+      // targetRole = a quién va dirigida la calificación
+      // Si targetRole es 'provider' → el usuario califica al proveedor → /history/rate
+      // Si targetRole es 'user' → el proveedor/admin califica al usuario → /history/rate-user
+      const endpoint = props.targetRole === 'user'
+        ? '/history/rate-user'
+        : '/history/rate'
+
+      console.log('🚀 ReviewModal endpoint:', endpoint, 'targetRole:', props.targetRole)
+
+      const payload: any = {
+        id: props.serviceHistoryId,
+        service_history_id: props.serviceHistoryId,
+        rating: rating.value,
+        comment: comment.value,
+        tags: tags.value.join(','),
+        photos: uploadedPhotos.join(',')
       }
+
+      await api.post(endpoint, payload, { headers })
     }
-
-    // Enviar solo archivos nuevos
-    photos.value.forEach(p => {
-      if (p instanceof File) form.append('images[]', p)
-    })
-
-    const endpoint = props.targetRole === 'provider'
-      ? '/history/rate-user'
-      : '/history/rate'
-
-    // Obtener el token del localStorage si no viene como prop
-    const token = props.authToken || localStorage.getItem('token')
-
-    await api.post(
-      endpoint,
-      form,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        // 'Content-Type': 'multipart/form-data'
-        }
-      }
-    )
 
     emit('save', {
       rating: rating.value,

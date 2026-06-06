@@ -303,6 +303,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { getImageUrl } from '@/utils/imageHelper'
 import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import Swal from 'sweetalert2'
@@ -333,15 +334,7 @@ const toast = ref({
   type: 'success'
 })
 
-/* ----------  Utils  ---------- */
-const getImageUrl = (path) => {
-  if (!path) return ''
-  if (path.startsWith('http')) return path
-  // Quitar /api del final de VITE_API_URL si existe
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')
-  return `${base}${path}`
-}
-
+/* ----------  Utils  ----------*/
 const getStatusLabel = (status) => {
   const labels = {
     'pending': 'Pendiente',

@@ -171,7 +171,7 @@ window.addEventListener('show-notification-toast', (e) => {
 // ✅ CORREGIDO: Modal de rating - ahora busca history_id correctamente
 window.addEventListener('open-rating-modal', async (e) => {
   try {
-    const { request_id } = e.detail
+    const { request_id, targetRole: eventTargetRole, from_role } = e.detail
     if (!authStore.token) return
 
     // ✅ CORREGIDO: Obtener el history_id desde la respuesta correcta
@@ -205,9 +205,14 @@ window.addEventListener('open-rating-modal', async (e) => {
     const { default: ReviewComp } = await import('@/components/ReviewModal.vue')
     const { createApp } = await import('vue')
 
+    // ✅ Determinar targetRole según quién califica
+    const targetRole = eventTargetRole || (from_role === 'provider' ? 'user' : 'provider')
+
     const appModal = createApp(ReviewComp, {
       serviceHistoryId: historyId,
       authToken: authStore.token,
+      targetRole: targetRole,
+      mode: 'new',
       onClose: () => {
         appModal.unmount()
         const el = document.getElementById(div.id)
@@ -247,8 +252,8 @@ window.addEventListener('payment-updated', (e) => {
 // ============================================================
 router.beforeEach((to, from, next) => {
   const publicRoutes = ['/login', '/register', '/', '/forgot-password']
-  const isPublic = publicRoutes.includes(to.path) || 
-                   to.path.startsWith('/reset-password') || 
+  const isPublic = publicRoutes.includes(to.path) ||
+                   to.path.startsWith('/reset-password') ||
                    to.path.startsWith('/page/')
 
   // Páginas estáticas: accesibles siempre (con o sin sesión)

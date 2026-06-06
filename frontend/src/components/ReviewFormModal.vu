@@ -184,10 +184,6 @@ const tags = ref<string[]>(
 )
 
 // Inicializar photos correctamente
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2)
-}
-
 function initializePhotos(): Photo[] {
   const raw = props.modelValue?.photos
   if (!raw) return []
@@ -196,7 +192,7 @@ function initializePhotos(): Photo[] {
     // Si son strings (URLs), crear objetos Photo
     if (raw.length > 0 && typeof raw[0] === 'string') {
       return raw.map((url: string) => ({
-        id: generateId(),
+        id: crypto.randomUUID(),
         url
       }))
     }
@@ -207,7 +203,7 @@ function initializePhotos(): Photo[] {
   // Si es un string con comas
   if (typeof raw === 'string' && raw.trim()) {
     return raw.split(',').map((url: string) => ({
-      id: generateId(),
+      id: crypto.randomUUID(),
       url: url.trim()
     }))
   }
@@ -282,7 +278,7 @@ async function handleFile(e: Event) {
   const preview = URL.createObjectURL(file)
 
   const photo = {
-    id: generateId(),
+    id: crypto.randomUUID(),
     file,
     preview
   }

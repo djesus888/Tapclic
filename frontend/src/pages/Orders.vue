@@ -516,45 +516,60 @@ function openFilePicker () {
 
 async function handleFile (e) {
   const file = e.target.files?.[0]
-  if (!file) return
-  if (reviewModal.photos.length >= 3) return
+  if (!file || reviewModal.photos.length >= 3) {
+    e.target.value = ''
+    return
+  }
 
-  reviewModal.photos.push(file)
+  // Validar tamaño
+  if (file.size > 5 * 1024 * 1024) {
+    Swal.fire('Error', 'La imagen no debe superar 5MB', 'warning')
+    e.target.value = ''
+    return
+  }
+
+  try {
+    // Subir imagen al servidor
+    const fd = new FormData()
+    fd.append('file', file)
+    const { data } = await api.post('/reviews/image', fd, {
+      headers: { 
+        Authorization: `Bearer ${authStore.token}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    // Guardar URL devuelta por el servidor
+    reviewModal.photos.push(data.url)
+  } catch (err) {
+    console.error('Error subiendo imagen:', err)
+    Swal.fire('Error', 'No se pudo subir la imagen', 'error')
+  }
+  
   e.target.value = ''
 }
 
 async function sendReview () {
   if (reviewModal.stars === 0) return
+  
+  const isProvider = authStore.user?.role === 'provider'
+  const endpoint = isProvider ? '/history/rate-user' : '/history/rate'
+  
   try {
     const payload = {
       id: Number(reviewModal.order.id),
-      stars: Number(reviewModal.stars),
+      service_history_id: Number(reviewModal.order.id),
+      rating: Number(reviewModal.stars),
       comment: reviewModal.comment,
       tags: reviewModal.tags.join(','),
-      photos: reviewModal.photos.filter(p => !(p instanceof File)).join(',')
+      photos: reviewModal.photos.join(',')
     }
 
-    const headers = {
-      Authorization: `Bearer ${authStore.token}`,
-      'Content-Type': 'application/json'
-    }
-
-    const hasFilePhotos = reviewModal.photos.some(p => p instanceof File)
-
-    if (hasFilePhotos) {
-      const form = new FormData()
-      Object.keys(payload).forEach(k => form.append(k, payload[k]))
-      reviewModal.photos.forEach((file, idx) => {
-        if (file instanceof File) {
-          form.append('images[]', file)
-        }
-      })
-      await api.post('/history/rate', form, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      })
-    } else {
-      await api.post('/history/rate', payload, { headers })
-    }
+    await api.post(endpoint, payload, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+        'Content-Type': 'application/json'
+      }
+    })
 
     reviewModal.open = false
     Swal.fire(t('orders.reviewSent'), '', 'success')

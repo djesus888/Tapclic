@@ -1,4 +1,5 @@
 <?php
+
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/Auth.php';
 require_once __DIR__ . '/../utils/Uploader.php';
@@ -18,7 +19,7 @@ class WalletController
         $this->user = $auth;
 
         // Configurar Uploader con URLs dinámicas
-        $basePath = __DIR__ . '/../public/uploads/payments/';
+        $basePath = __DIR__ . '/../public/uploads';
         $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
         $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
         $this->uploader = new Uploader($basePath, $baseUrl);
@@ -125,7 +126,7 @@ class WalletController
             }
 
             $stmt = $this->conn->prepare("
-                SELECT
+                SELECT 
                     COUNT(*) as total_transactions,
                     COALESCE(SUM(CASE WHEN type = 'credit' AND status = 'completed' THEN amount END), 0) as total_recharged,
                     COALESCE(SUM(CASE WHEN type = 'debit' AND status = 'completed' THEN amount END), 0) as total_spent
@@ -210,7 +211,7 @@ class WalletController
             $reference = 'RECH-' . date('Ymd') . '-' . str_pad(random_int(1, 99999), 5, '0', STR_PAD_LEFT);
             $stmt = $this->conn->prepare("
                 INSERT INTO wallet_transactions
-                (user_id, type, amount, description, reference, status, created_at)
+                    (user_id, type, amount, description, reference, status, created_at)
                 VALUES (?, 'credit', ?, ?, ?, 'completed', NOW())
             ");
             $stmt->execute([
@@ -271,7 +272,7 @@ class WalletController
             $reference = 'WDR-' . date('Ymd') . '-' . str_pad(random_int(1, 99999), 5, '0', STR_PAD_LEFT);
             $stmt = $this->conn->prepare("
                 INSERT INTO wallet_transactions
-                (user_id, type, amount, description, reference, status, created_at)
+                    (user_id, type, amount, description, reference, status, created_at)
                 VALUES (?, 'debit', ?, ?, ?, 'completed', NOW())
             ");
             $stmt->execute([
@@ -338,7 +339,7 @@ class WalletController
                 try {
                     $proofUrl = $this->uploader->saveFile(
                         $_FILES['payment_proof'],
-                        'payments/' . date('Y/m')
+                        Uploader::CAT_PAYMENTS . '/' . date('Y/m')
                     );
                 } catch (\RuntimeException $e) {
                     error_log("Error subiendo comprobante: " . $e->getMessage());
@@ -349,7 +350,7 @@ class WalletController
 
             $stmt = $this->conn->prepare("
                 INSERT INTO wallet_transactions
-                (user_id, type, amount, description, reference, payment_proof, payment_method, status, created_at)
+                    (user_id, type, amount, description, reference, payment_proof, payment_method, status, created_at)
                 VALUES (?, 'credit', ?, ?, ?, ?, ?, 'pending', NOW())
             ");
 
@@ -435,7 +436,7 @@ class WalletController
 
             $proofUrl = $this->uploader->saveFile(
                 $_FILES['payment_proof'],
-                'payments/' . date('Y/m')
+                Uploader::CAT_PAYMENTS . '/' . date('Y/m')
             );
 
             $stmt = $this->conn->prepare("
@@ -499,10 +500,10 @@ class WalletController
             $status = $_GET['status'] ?? 'pending';
 
             $stmt = $this->conn->prepare("
-                SELECT wt.*,
-                       u.name as user_name,
-                       u.email,
-                       u.phone
+                SELECT wt.*, 
+                    u.name as user_name,
+                    u.email,
+                    u.phone
                 FROM wallet_transactions wt
                 JOIN users u ON wt.user_id = u.id
                 WHERE wt.type = 'credit'
@@ -650,7 +651,7 @@ class WalletController
 
         try {
             $stmt = $this->conn->prepare("
-                SELECT
+                SELECT 
                     COUNT(*) as total_wallets,
                     COALESCE(SUM(balance), 0) as total_balance,
                     COALESCE(AVG(balance), 0) as avg_balance
@@ -660,7 +661,7 @@ class WalletController
             $walletStats = $stmt->fetch();
 
             $stmt = $this->conn->prepare("
-                SELECT
+                SELECT 
                     COUNT(*) as pending_requests,
                     COALESCE(SUM(amount), 0) as pending_amount
                 FROM wallet_transactions
@@ -670,7 +671,7 @@ class WalletController
             $pendingStats = $stmt->fetch();
 
             $stmt = $this->conn->prepare("
-                SELECT
+                SELECT 
                     COALESCE(SUM(CASE WHEN type = 'credit' AND status = 'completed' THEN amount END), 0) as total_recharged_month,
                     COALESCE(SUM(CASE WHEN type = 'debit' AND status = 'completed' THEN amount END), 0) as total_spent_month
                 FROM wallet_transactions

@@ -1,13 +1,12 @@
 <?php
 require_once __DIR__ . "/../middleware/Auth.php";
-// controllers/AdminController.php
-
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Admin.php';
 require_once __DIR__ . '/../models/UserAdmin.php';
 require_once __DIR__ . '/../models/ServiceAdmin.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../models/System.php';
+require_once __DIR__ . '/../utils/Uploader.php';
 
 class AdminController
 {
@@ -1852,6 +1851,21 @@ public function getAnalyticsOverview(): void
         echo json_encode(['message' => 'Configuración actualizada']);
     }
 
+private function saveUpload(array $file, string $prefix): string
+{
+    $basePath = __DIR__ . '/../public/uploads';
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+    try {
+        return $uploader->saveFile($file, \Utils\Uploader::CAT_SYSTEM . '/logos');
+    } catch (\RuntimeException $e) {
+        error_log("Error guardando $prefix: " . $e->getMessage());
+        return '';
+    }
+}
+
     public function uploadLogo(): void
     {
         $this->requireAdmin();
@@ -1864,15 +1878,6 @@ public function getAnalyticsOverview(): void
         $this->requireAdmin();
         $url = $this->saveUpload($_FILES['file'], 'favicon');
         echo json_encode(['url' => $url]);
-    }
-
-    private function saveUpload(array $file, string $prefix): string
-    {
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $name = $prefix . '_' . time() . '.' . $ext;
-        $dest = __DIR__ . '/../public/uploads/logos' . $name;
-        move_uploaded_file($file['tmp_name'], $dest);
-        return '/logos/' . $name;
     }
 
     /* ---------- GESTIÓN DE CATEGORÍAS ---------- */
@@ -2644,11 +2649,11 @@ public function uploadUpdate(): void
         return;
     }
 
-    $uploadDir = __DIR__ . '/../updates';
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+     $uploadDir = __DIR__ . '/../public/uploads/' . \Utils\Uploader::CAT_UPDATES;
+if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
-    $zipPath = $uploadDir . '/update_' . time() . '.zip';
-    $extractPath = $uploadDir . '/extract_' . time();
+$zipPath = $uploadDir . '/update_' . time() . '.zip';
+$extractPath = $uploadDir . '/extract_' . time();
 
     if (!move_uploaded_file($file['tmp_name'], $zipPath)) {
         http_response_code(500);
@@ -2995,20 +3000,26 @@ public function addTicketReply(int $id): void
     }
 
     // Procesar archivos adjuntos
-    $attachmentUrls = [];
-    if (!empty($_FILES)) {
-        $uploadDir = __DIR__ . '/../public/uploads/tickets/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        foreach ($_FILES as $file) {
-            if ($file['error'] === UPLOAD_ERR_OK) {
-                $name = uniqid('ticket_') . '.' . pathinfo($file['name'], PATHINFO_EXTENSION);
-                move_uploaded_file($file['tmp_name'], $uploadDir . $name);
-                $attachmentUrls[] = '/uploads/tickets/' . $name;
+$attachmentUrls = [];
+if (!empty($_FILES)) {
+    $basePath = __DIR__ . '/../public/uploads';
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+    foreach ($_FILES as $file) {
+        if ($file['error'] === UPLOAD_ERR_OK) {
+            try {
+                $attachmentUrls[] = $uploader->saveFile($file, \Utils\Uploader::CAT_TICKETS);
+            } catch (\RuntimeException $e) {
+                error_log("Error adjuntando archivo ticket: " . $e->getMessage());
             }
         }
     }
+}
 
-    // Guardar mensaje con metadata
+ 
+   // Guardar mensaje con metadata
     $metadata = json_encode([
         'is_internal' => $isInternal,
         'attachments' => $attachmentUrls

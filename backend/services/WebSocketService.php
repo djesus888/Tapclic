@@ -28,13 +28,13 @@ class WebSocketService
             $wsUrl = self::getWebSocketUrlFromDatabase();
         }
 
-        // 3. Si no existe, construir desde API_URL
+        // 3. Si no existe, construir desde API_BASE_URL
         if (empty($wsUrl)) {
-            $apiUrl = getenv('API_URL');
+            $apiUrl = getenv('API_BASE_URL');
             if (!empty($apiUrl)) {
                 // Convertir http:// a ws://, https:// a wss://
                 $wsUrl = preg_replace('/^http(s?):\/\//', 'ws$1://', $apiUrl);
-                error_log("🔧 WebSocket URL construida desde API_URL: $wsUrl");
+                error_log("🔧 WebSocket URL construida desde API_BASE_URL: $wsUrl");
             }
         }
 

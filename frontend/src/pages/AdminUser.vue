@@ -387,6 +387,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { getImageUrl as getImageUrlHelper } from '@/utils/imageHelper'
 import api from '@/axios'
 
 // Mantengo TODA tu lógica original
@@ -416,10 +417,9 @@ const toast = ref({
 // ✅ Función para obtener URL de imágenes (corregida)
 const getImageUrl = (path) => {
   if (!path) return 'https://via.placeholder.com/100?text=Usuario'
-  if (path.startsWith('http')) return path
-  if (path.startsWith('blob:')) return path
+  if (path.startsWith('http') || path.startsWith('blob:')) return path
   if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
-  return `${import.meta.env.VITE_API_URL || ''}/uploads/avatars/${path}`
+  return getImageUrlHelper(path, 'avatars')
 }
 
 // Computed properties para estadísticas

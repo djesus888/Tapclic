@@ -101,35 +101,74 @@
 </div>
 
 
-            <!-- Historial del Ticket -->
-            <div class="soporte-history-section" v-if="history.length > 0">
-              <h3 class="soporte-section-title-small">
-                <span class="soporte-section-icon">📋</span>
-                Historial del Ticket
-              </h3>
-              <div class="soporte-history-timeline">
-                <div 
-                  v-for="(event, index) in history" 
-                  :key="index" 
-                  class="soporte-timeline-item"
-                >
-                  <div class="soporte-timeline-dot"></div>
-                  <div class="soporte-timeline-content">
-                    <div class="soporte-timeline-header">
-                      <span class="soporte-timeline-event">{{ event.event }}</span>
-                      <span class="soporte-timeline-date">{{ formatShortDate(event.date) }}</span>
-                    </div>
-                    <p class="soporte-timeline-description" v-if="event.description">
-                      {{ event.description }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+<!-- Historial del Ticket -->
+<div class="soporte-history-section" v-if="history.length > 0">
+  <h3 class="soporte-section-title-small">
+    <span class="soporte-section-icon">📋</span>
+    Respuestas ({{ history.length }})
+  </h3>
+  <div class="soporte-history-timeline">
+    <div
+      v-for="(reply, index) in history"
+      :key="reply.id || index"
+      class="soporte-timeline-item"
+      :class="{ 'is-admin': reply.user_type === 'admin' || reply.is_admin }"
+    >
+      <div class="soporte-timeline-dot"></div>
+      <div class="soporte-timeline-content">
+        <div class="soporte-timeline-header">
+          <span class="soporte-timeline-author">{{ reply.user_name || 'Usuario' }}</span>
+          <span class="soporte-timeline-badge" v-if="reply.user_type === 'admin' || reply.is_admin">Admin</span>
+          <span class="soporte-timeline-date">{{ formatDate(reply.created_at) }}</span>
+        </div>
+        <p class="soporte-timeline-message">{{ reply.message }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="soporte-history-section" v-else>
+  <p class="soporte-empty-text">No hay respuestas aún</p>
+</div>
+           
+
 
             <!-- Acciones del Ticket -->
             <div class="soporte-actions-section">
-              <h3 class="soporte-section-title-small">
+            
+<!-- Campo de respuesta (se muestra al hacer clic en Responder) -->
+<div class="soporte-reply-section" v-if="showReplyInput">
+  <h3 class="soporte-section-title-small">
+    <span class="soporte-section-icon">✍️</span>
+    Escribe tu respuesta
+  </h3>
+  <textarea
+    v-model="replyMessage"
+    class="soporte-reply-textarea"
+    placeholder="Escribe tu mensaje aquí..."
+    rows="4"
+    :disabled="sendingReply"
+  ></textarea>
+  <div class="soporte-reply-actions">
+    <button
+      class="soporte-btn-secondary"
+      @click="showReplyInput = false"
+      :disabled="sendingReply"
+    >
+      Cancelar
+    </button>
+    <button
+      class="soporte-btn-primary"
+      @click="sendReply"
+      :disabled="sendingReply || !replyMessage.trim()"
+    >
+      <span v-if="sendingReply" class="soporte-spinner-small"></span>
+      <span v-else>📨</span>
+      Enviar respuesta
+    </button>
+  </div>
+</div>
+
+  <h3 class="soporte-section-title-small">
                 <span class="soporte-section-icon">⚡</span>
                 Acciones
               </h3>
@@ -223,6 +262,7 @@ export default {
   emits: [
     'update:modelValue',
     'reply',
+    'send-reply',
     'close-ticket',
     'copy-id',
     'open-chat'
@@ -230,12 +270,19 @@ export default {
   setup(props, { emit }) {
     const modalRef = ref(null)
     const closeButtonRef = ref(null)
+    const replyMessage = ref('')
+    const showReplyInput = ref(false)
+    const sendingReply = ref(false)
     const { success, error } = useToast()
 
     // Manejar foco cuando se abre/cierra el modal
     watch(() => props.modelValue, async (newVal) => {
       if (newVal) {
         document.body.style.overflow = 'hidden'
+        // Resetear al abrir
+        replyMessage.value = ''
+        showReplyInput.value = false
+        sendingReply.value = false
         await nextTick()
         closeButtonRef.value?.focus()
       } else {
@@ -311,8 +358,42 @@ export default {
       }
     }
 
+    // ✅ CORREGIDO: Muestra/oculta el campo de texto para responder
     const replyToTicket = () => {
-      emit('reply', props.ticket)
+      showReplyInput.value = !showReplyInput.value
+      if (showReplyInput.value) {
+        // Scroll al campo de texto
+        setTimeout(() => {
+          const textarea = document.querySelector('.soporte-reply-textarea')
+          if (textarea) {
+            textarea.focus()
+            textarea.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+      }
+    }
+
+    // ✅ NUEVO: Enviar la respuesta al backend
+    const sendReply = () => {
+      const message = replyMessage.value.trim()
+      if (!message) {
+        error('Escribe un mensaje para responder')
+        return
+      }
+
+      sendingReply.value = true
+      emit('send-reply', {
+        ticket: props.ticket,
+        message: message
+      })
+
+      // Limpiar después de enviar
+      setTimeout(() => {
+        replyMessage.value = ''
+        showReplyInput.value = false
+        sendingReply.value = false
+        success('Respuesta enviada correctamente')
+      }, 500)
     }
 
     const closeTicket = () => {
@@ -337,6 +418,9 @@ export default {
     return {
       modalRef,
       closeButtonRef,
+      replyMessage,
+      showReplyInput,
+      sendingReply,
       closeModal,
       handleOverlayClick,
       statusColorClass,
@@ -345,6 +429,7 @@ export default {
       formatDate,
       formatShortDate,
       replyToTicket,
+      sendReply,
       closeTicket,
       copyTicketId,
       openChat
@@ -354,6 +439,51 @@ export default {
 </script>
 
 <style scoped>
+/* Campo de respuesta */
+.soporte-reply-section {
+  background: #f0f7ff;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #d0e3ff;
+}
+
+.soporte-reply-textarea {
+  width: 100%;
+  border: 1px solid #d0d7de;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.soporte-reply-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.soporte-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.soporte-spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
 .soporte-modal-overlay {
   position: fixed;
   top: 0;

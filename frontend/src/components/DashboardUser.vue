@@ -106,20 +106,23 @@
 
         <!-- SOPORTE - AHORA CON TODOS LOS EVENTOS -->
         <Soporte
-          v-if="selectedTab === 'support'"
-          :tickets="tickets"
-          :faq-items="faqItems"
-          :loading-tickets="supportLoading"
-          :loading-faq="faqLoading"
-          :show-new-ticket="showNewTicket"
-          class="content-section"
-          @open-support-chat="openSupportChat"
-          @show-new-ticket="showNewTicket = true"
-          @reply-ticket="handleReplyTicket"
-          @close-ticket="handleCloseTicket"
-          @copy-ticket-id="handleCopyTicketId"
-          @open-chat-with-ticket="handleChatWithTicket"
-        />
+  v-if="selectedTab === 'support'"
+  :tickets="tickets"
+  :faq-items="faqItems"
+  :loading-tickets="supportLoading"
+  :loading-faq="faqLoading"
+  :show-new-ticket="showNewTicket"
+  :ticket-history-data="ticketHistoryData"
+  class="content-section"
+  @open-support-chat="openSupportChat"
+  @open-ticket="handleOpenTicket"
+  @show-new-ticket="showNewTicket = true"
+  @reply-ticket="handleReplyTicket"
+  @send-reply="handleSendReply"
+  @close-ticket="handleCloseTicket"
+  @copy-ticket-id="handleCopyTicketId"
+  @open-chat-with-ticket="handleChatWithTicket"
+/>
 
         <Historial
           v-if="selectedTab === 'history'"
@@ -353,7 +356,8 @@ export default {
       socketHandlers: [],
       showReviewModal: false,
       reviewData: { rating: 0, comment: '', tags: [], photos: [] },
-      reviewServiceHistoryId: null
+      reviewServiceHistoryId: null,
+      ticketHistoryData: {}
     };
   },
   computed: {
@@ -419,11 +423,65 @@ export default {
       this.openChat({ id: 1, name: 'Soporte', role: 'admin', avatarUrl: '/img/support-avatar.png' });
     },
 
-    handleReplyTicket(ticket) {
-      console.log('👤 Usuario responde al ticket:', ticket.id);
-      this.openSupportChat();
+    // ✅ CORREGIDO: Cargar historial de replies al abrir un ticket
+    async handleOpenTicket(ticket) {
+      try {
+        const authStore = useAuthStore();
+        const { data } = await api.get(`/support/tickets/${ticket.id}/replies`, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        });
+        this.ticketHistoryData = {
+          ...this.ticketHistoryData,
+          [ticket.id]: data.replies || []
+        };
+      } catch (e) {
+        console.error("Error cargando replies:", e);
+      }
     },
 
+    // ✅ CORREGIDO: "Responder" ya no abre chat, lo maneja el modal
+    handleReplyTicket(ticket) {
+      console.log('👤 Usuario quiere responder al ticket:', ticket.id);
+      // El modal ya muestra el campo de texto, no se necesita abrir chat
+    },
+
+    // ✅ CORREGIDO: Enviar respuesta al backend
+    async handleSendReply(payload) {
+      console.log('Enviando respuesta al ticket:', payload.ticket.id);
+      try {
+        const authStore = useAuthStore();
+        const response = await api.post('/support/tickets/reply', {
+          ticket_id: payload.ticket.id,
+          message: payload.message
+        }, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        });
+
+        if (response.data.success) {
+          this.ticketHistoryData = {
+            ...this.ticketHistoryData,
+            [payload.ticket.id]: []
+          };
+          await this.handleOpenTicket(payload.ticket);
+          this.$swal?.fire({
+            icon: 'success',
+            title: 'Respuesta enviada',
+            text: 'Tu mensaje ha sido enviado correctamente',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }
+      } catch (error) {
+        console.error('Error enviando respuesta:', error);
+        this.$swal?.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.response?.data?.message || 'Error al enviar la respuesta'
+        });
+      }
+    },
+
+    // ✅ CORREGIDO: PUT en vez de POST, y usa buildPath para consistencia
     async handleCloseTicket(ticket) {
       console.log('👤 Usuario cierra ticket:', ticket.id);
       const result = await this.$swal?.fire({
@@ -438,7 +496,7 @@ export default {
       if (result?.isConfirmed) {
         try {
           const authStore = useAuthStore();
-          const response = await api.post('/support/tickets/close', {
+          const response = await api.put(this.buildPath('support/tickets/close'), {
             ticket_id: ticket.id
           }, {
             headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {}
@@ -470,9 +528,19 @@ export default {
       console.log('👤 Usuario copia ID del ticket:', ticket.id);
     },
 
+    // ✅ CORREGIDO: Abrir chat con el contexto del ticket
     handleChatWithTicket(ticket) {
       console.log('👤 Usuario abre chat con ticket:', ticket.id);
-      this.openSupportChat();
+      this.chatTarget = {
+        id: -ticket.id,
+        name: `Soporte - Ticket #${ticket.id}`,
+        role: 'support',
+        context: {
+          ticket_id: ticket.id,
+          subject: ticket.subject,
+          last_message: ticket.last_message
+        }
+      };
     },
 
     resetFlow() {
@@ -644,7 +712,6 @@ export default {
       this.showServiceDetails = false;
       this.showRequestConfirmation = true;
     },
-
     async onConfirmRequest(payload) {
       try {
         const { details, contractAccepted } = payload;
@@ -708,7 +775,6 @@ export default {
         }
       }
     },
-
     openPaymentModal(order = null) {
       if (order) this.modalService = this.normalizeService(order);
       if (!this.modalService) {
@@ -737,7 +803,6 @@ export default {
       this.fetchActiveRequests();
       this.fetchHistory();
     },
-
     handleRetry() {
       this.resetFlow();
       this.$nextTick(() => {
@@ -783,38 +848,31 @@ export default {
       if (this.showPayment && this.modalService?.requestId === requestId) this.modalService.payment_status = paymentStatus;
     },
 
-    // ✅ Manejar el evento open_rating_modal desde el backend
-handleOpenRatingModal(data) {
-  console.log('⭐ Evento open_rating_modal recibido:', data);
-  // Disparar el evento global que main.js ya escucha y maneja con Swal.fire
-  window.dispatchEvent(new CustomEvent('open-rating-modal', {
-    detail: {
-      request_id: data.request_id,
-      from_role: 'provider',
-      targetRole: 'provider',
-      message: '¿Quieres calificar al proveedor por este servicio?'
-    }
-  }));
-},
+    handleOpenRatingModal(data) {
+      console.log('⭐ Evento open_rating_modal recibido:', data);
+      window.dispatchEvent(new CustomEvent('open-rating-modal', {
+        detail: {
+          request_id: data.request_id,
+          from_role: 'provider',
+          targetRole: 'provider',
+          message: '¿Quieres calificar al proveedor por este servicio?'
+        }
+      }));
+    },
 
-    // ✅ Obtener history_id a partir del request.id
-async fetchHistoryIdByRequest(requestId) {
-  try {
-    const authStore = useAuthStore();
-    const res = await api.get(`/history/by-request/${requestId}`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    });
-    // ✅ CORREGIDO: la API devuelve { success: true, history: { id: 68, ... } }
-    return res.data?.history?.id || res.data?.history_id || null;
-  } catch (err) {
-    console.error('Error obteniendo history_id:', err);
-    return null;
-  }
-},
+    async fetchHistoryIdByRequest(requestId) {
+      try {
+        const authStore = useAuthStore();
+        const res = await api.get(`/history/by-request/${requestId}`, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        });
+        return res.data?.history?.id || res.data?.history_id || null;
+      } catch (err) {
+        console.error('Error obteniendo history_id:', err);
+        return null;
+      }
+    },
 
-
-
-    // ✅ Callback cuando se guarda la reseña
     onReviewSaved() {
       console.log('✅ Reseña guardada correctamente');
       this.showReviewModal = false;
@@ -861,7 +919,6 @@ async fetchHistoryIdByRequest(requestId) {
             this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); break;
         }
       };
-      // ✅ Handler para abrir modal de calificación
       const openRatingModalHandler = (data) => {
         this.handleOpenRatingModal(data);
       };
@@ -870,7 +927,6 @@ async fetchHistoryIdByRequest(requestId) {
       socketStore.on('payment_updated', paymentUpdatedHandler);
       socketStore.on('new-notification', newNotificationHandler);
       socketStore.on('open_rating_modal', openRatingModalHandler);
-
       this.socketHandlers = [
         { event: 'request_updated', handler: requestUpdatedHandler },
         { event: 'payment_updated', handler: paymentUpdatedHandler },

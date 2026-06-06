@@ -326,7 +326,7 @@ const loadProviderReviews = async () => {
   reviewsError.value = null
   
  try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reviews/received`, {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/reviews/received`, {
       headers: {
         'Authorization': `Bearer ${authStore.token}`,
         'Accept': 'application/json'

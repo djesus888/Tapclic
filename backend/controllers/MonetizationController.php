@@ -3,17 +3,26 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/Auth.php';
 require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../models/ServiceRequest.php';
+require_once __DIR__ . '/../utils/Uploader.php';
+
+use Utils\Uploader;
 
 class MonetizationController
 {
     private \PDO $conn;
     private $user;
+    private Uploader $uploader;
 
     public function __construct()
     {
         $this->conn = (new Database())->getConnection();
         $auth = Auth::verify();
         $this->user = $auth;
+
+        $basePath = __DIR__ . '/../public/uploads';
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+        $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+        $this->uploader = new Uploader($basePath, $baseUrl);
     }
 
     private function requireAuth(): void
@@ -106,18 +115,11 @@ public function getPublishCost(): void
 
     /* ========== PAGO POR PUBLICAR ========== */
 
-    // POST /api/services/{id}/publish - Pagar para publicar servicio
-    public function payToPublish(int $serviceId): void
+    // POST /api/services/{id}/publish-external - Pago con comprobante externo
+    public function payToPublishExternal(int $serviceId): void
     {
         $this->requireAuth();
-        $config = $this->getSystemConfig();
 
-        if ($config['service_publish_cost'] <= 0) {
-            echo json_encode(['success' => true, 'message' => 'Publicación gratuita']);
-            return;
-        }
-
-        // Verificar que el servicio pertenece al usuario
         $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ? AND user_id = ?");
         $stmt->execute([$serviceId, $this->user->id]);
         $service = $stmt->fetch();
@@ -128,69 +130,57 @@ public function getPublishCost(): void
             return;
         }
 
-        // Verificar wallet
-        $stmt = $this->conn->prepare("SELECT balance FROM wallets WHERE user_id = ? FOR UPDATE");
+        $config = $this->getSystemConfig();
+        $amount = (float)$config['service_publish_cost'];
+
+        $method = $_POST['payment_method'] ?? 'transferencia';
+        $reference = $_POST['reference'] ?? '';
+        $proofUrl = null;
+
+        if (isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $proofUrl = $this->uploader->saveFile(
+                    $_FILES['payment_proof'],
+                    Uploader::CAT_PAYMENTS
+                );
+            } catch (\RuntimeException $e) {
+                error_log("Error subiendo comprobante publicación: " . $e->getMessage());
+            }
+        }
+
+        // Guardar comprobante
+        $stmt = $this->conn->prepare("
+            INSERT INTO service_payment_proofs (service_id, provider_id, amount, payment_method, reference, proof_url, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        ");
+        $stmt->execute([$serviceId, $this->user->id, $amount, $method, $reference, $proofUrl]);
+
+        // Actualizar estado del servicio
+        $stmt = $this->conn->prepare("UPDATE services SET status = 'pending' WHERE id = ?");
+        $stmt->execute([$serviceId]);
+
+        // Notificar al admin
+        $stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
         $stmt->execute([$this->user->id]);
-        $wallet = $stmt->fetch();
+        $provider = $stmt->fetch();
 
-        $cost = (float)$config['service_publish_cost'];
+        $stmt = $this->conn->prepare("
+            INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+            SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin' LIMIT 1
+        ");
+        $stmt->execute([
+            '📎 Nuevo comprobante de publicación',
+            "{$provider['name']} subió comprobante para '{$service['title']}' - \${$amount}",
+            json_encode(['url' => '/admin/service-payments', 'action' => 'review_payment', 'service_id' => $serviceId])
+        ]);
 
-        if (!$wallet || $wallet['balance'] < $cost) {
-            http_response_code(402);
-            echo json_encode([
-                'error' => 'Saldo insuficiente',
-                'required' => $cost,
-                'balance' => $wallet ? (float)$wallet['balance'] : 0
-            ]);
-            return;
-        }
-
-        $this->conn->beginTransaction();
-
-        try {
-            // Descontar del wallet
-            $newBalance = $wallet['balance'] - $cost;
-            $stmt = $this->conn->prepare("UPDATE wallets SET balance = ?, updated_at = NOW() WHERE user_id = ?");
-            $stmt->execute([$newBalance, $this->user->id]);
-
-            // Registrar transacción
-            $stmt = $this->conn->prepare("
-                INSERT INTO wallet_transactions (user_id, type, amount, description, reference, status, created_at)
-                VALUES (?, 'debit', ?, ?, ?, 'completed', NOW())
-            ");
-            $stmt->execute([
-                $this->user->id,
-                $cost,
-                "Publicación de servicio #{$serviceId}",
-                'PUB-' . date('Ymd') . '-' . $serviceId
-            ]);
-
-            // Activar servicio por X días
-            $expiresAt = date('Y-m-d H:i:s', strtotime("+{$config['service_publish_duration']} days"));
-            $stmt = $this->conn->prepare("
-                UPDATE services SET status = 'active', published_at = NOW(), expires_at = ?, isAvailable = 1 WHERE id = ?
-            ");
-            $stmt->execute([$expiresAt, $serviceId]);
-
-            // Registrar ganancia de la plataforma
-            $this->recordPlatformEarning('service_publish', $cost, $serviceId, $this->user->id);
-
-            $this->conn->commit();
-
-            echo json_encode([
-                'success' => true,
-                'message' => 'Servicio publicado exitosamente',
-                'cost' => $cost,
-                'new_balance' => $newBalance,
-                'expires_at' => $expiresAt
-            ]);
-
-        } catch (\Exception $e) {
-            $this->conn->rollBack();
-            http_response_code(500);
-            echo json_encode(['error' => 'Error al procesar pago']);
-        }
+        echo json_encode([
+            'success' => true,
+            'message' => 'Comprobante enviado. El administrador verificará tu pago.',
+            'proof_url' => $proofUrl
+        ]);
     }
+
 
 /* ========== COMISIÓN POR TRANSACCIÓN ========== */
 
@@ -379,77 +369,6 @@ require_once __DIR__ . '/../services/WebSocketService.php';
     }
 
 
-// POST /api/services/{id}/publish-external - Pago con comprobante externo
-public function payToPublishExternal(int $serviceId): void
-{
-    $this->requireAuth();
-
-    $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ? AND user_id = ?");
-    $stmt->execute([$serviceId, $this->user->id]);
-    $service = $stmt->fetch();
-
-    if (!$service) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Servicio no encontrado']);
-        return;
-    }
-
-    $config = $this->getSystemConfig();
-    $amount = (float)$config['service_publish_cost'];
-
-    $method = $_POST['payment_method'] ?? 'transferencia';
-    $reference = $_POST['reference'] ?? '';
-    $proofUrl = null;
-
-    if (isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === UPLOAD_ERR_OK) {
-        $file = $_FILES['payment_proof'];
-        $uploadDir = __DIR__ . '/../public/uploads/payments/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $name = 'service_pay_' . $serviceId . '_' . time() . '.' . $ext;
-        move_uploaded_file($file['tmp_name'], $uploadDir . $name);
-        $proofUrl = '/uploads/payments/' . $name;
-    }
-
-    // Guardar comprobante
-    $stmt = $this->conn->prepare("
-        INSERT INTO service_payment_proofs (service_id, provider_id, amount, payment_method, reference, proof_url, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending')
-    ");
-    $stmt->execute([$serviceId, $this->user->id, $amount, $method, $reference, $proofUrl]);
-
-    // Actualizar estado del servicio
-    $stmt = $this->conn->prepare("UPDATE services SET status = 'pending' WHERE id = ?");
-    $stmt->execute([$serviceId]);
-
-    // Notificar al admin
-    $stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
-    $stmt->execute([$this->user->id]);
-    $provider = $stmt->fetch();
-
-    $stmt = $this->conn->prepare("
-        INSERT INTO notifications (receiver_id, title, message, type, is_admin, created_at)
-        SELECT id, ?, ?, 'service_payment', 1, NOW() FROM users WHERE role = 'admin'
-    ");
-    $stmt = $this->conn->prepare("
-    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
-    SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin' LIMIT 1
-");
-$stmt->execute([
-    '📎 Nuevo comprobante de publicación',
-    "{$provider['name']} subió comprobante para '{$service['title']}' - \${$amount}",
-    json_encode(['url' => '/admin/service-payments', 'action' => 'review_payment', 'service_id' => $serviceId])
-]);
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Comprobante enviado. El administrador verificará tu pago.',
-        'proof_url' => $proofUrl
-    ]);
-}
-
-
-    // GET /api/admin/monetization/earnings
     public function getEarnings(): void
     {
         $this->requireAdmin();

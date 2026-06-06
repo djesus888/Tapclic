@@ -130,10 +130,14 @@ if (preg_match('~/api/login~', $request)) {
     (new NotificationController())->handle($method);
 
 // --- RUTAS ÚTILES / REPORTES / RESPUESTA ---
+} elseif ($method === 'POST' && preg_match('~/api/reviews/image/?$~', $request)) {
+    (new HistoryController())->uploadReviewImage();
 } elseif ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $request)) {
-    (new HistoryController())->markHelpful();
+    (new HistoryController())->handle($method);
 } elseif ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $request)) {
-    (new HistoryController())->report();
+    (new HistoryController())->handle($method);
+} elseif ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $request)) {
+    (new HistoryController())->handle($method);
 } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
     (new HistoryController())->reply((int)$m[1]);
 } elseif ($method === 'POST' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
@@ -383,6 +387,8 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('#/api/messages/(\d+)/([a-z]+)$#', $request, $m) && $method === 'GET') {
     $data = ['target_id' => (int)$m[1], 'target_role' => $m[2]];
     (new MessageController())->getMessages($data);
+} elseif (preg_match('~/api/messages/conversation/(\d+)/delivered$~', $request, $m) && $method === 'POST') {
+    (new MessageController())->markConversationAsDelivered((int)$m[1]);
 } elseif (preg_match('~/api/messages/conversation~', $request)) {
     $data = json_decode(file_get_contents("php://input"), true) ?? $_GET;
     (new MessageController())->getMessages($data);
@@ -393,18 +399,7 @@ if (preg_match('~/api/login~', $request)) {
     $data = json_decode(file_get_contents("php://input"), true) ?? $_POST;
     (new MessageController())->markAsRead($data);
 } elseif (preg_match('~/api/messages/(\d+)$~', $request, $m) && $method === 'DELETE') {
-    (new MessageController())->deleteMessage((int)$m[1]);
-
-// =====================================================
-// ✅ NUEVA RUTA: Marcar conversación como entregada
-// =====================================================
-} elseif (preg_match('~/api/messages/conversation/(\d+)/delivered$~', $request, $m) && $method === 'POST') {
-    (new MessageController())->markConversationAsDelivered((int)$m[1]);
-
-// --- RUTAS CONVERSACIONES ---
-} elseif (preg_match('~/api/conversations/(\d+)/for-me$~', $request, $m) && $method === 'DELETE') {
-    (new MessageController())->deleteConversationForUser((int)$m[1]);
-} elseif (preg_match('~/api/conversations/find/(\d+)/([a-z]+)$~', $request, $m) && $method === 'GET') {
+} elseif (preg_match('~/api/conversations/find/(-?\d+)/([a-z]+)$~', $request, $m) && $method === 'GET') {
     (new ConversationController())->findByParticipants((int)$m[1], $m[2]);
 } elseif (preg_match('~/api/conversations/create$~', $request) && $method === 'POST') {
     (new ConversationController())->create();
@@ -424,6 +419,7 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/support/tickets/create~', $request) ||
     preg_match('~/api/support/tickets/close~', $request) ||
     preg_match('~/api/support/tickets/update~', $request) ||
+    preg_match('~/api/support/tickets/(\d+)/replies$~', $request, $m) && $method === 'GET' ||
     preg_match('~/api/support/tickets/reply~', $request)
 ) {
     (new SupportController())->handle($method);

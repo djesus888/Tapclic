@@ -492,6 +492,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/axios'
+import { getImageUrl } from '@/utils/imageHelper'
 
 const authStore = useAuthStore()
 
@@ -638,12 +639,6 @@ async function saveAllSettings() {
   } finally { saving.value = false }
 }
 
-function getImageUrl(path) {
-  if (!path) return ''
-  if (path.startsWith('http') || path.startsWith('blob:')) return path
-  if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
-  return `${import.meta.env.VITE_API_URL}/logos/${path}`
-}
 function getFileName(path) { return path ? path.split('/').pop() || path : '' }
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes'

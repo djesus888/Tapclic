@@ -5,6 +5,7 @@ require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/../utils/Uploader.php';
 
 class UserController {
     private $userModel;
@@ -42,26 +43,23 @@ class UserController {
         } else if (strpos($contentType, 'multipart/form-data') !== false) {
             $data = $_POST;
 
-            if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = __DIR__ . '/../public/uploads/avatars/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
+if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+    $basePath = __DIR__ . '/../public/uploads';
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
 
-                $tmpName = $_FILES['avatar']['tmp_name'];
-                $originalName = $_FILES['avatar']['name'];
-                $ext = pathinfo($originalName, PATHINFO_EXTENSION);
-                $fileName = 'avatar_' . time() . '.' . $ext;
-                $destination = $uploadDir . $fileName;
+    try {
+        $avatarUrl = $uploader->saveFile($_FILES['avatar'], \Utils\Uploader::CAT_AVATARS);
+        $avatarFileName = basename($avatarUrl);
+    } catch (\RuntimeException $e) {
+        error_log("Error subiendo avatar: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(["error" => "Error al guardar archivo avatar"]);
+        return;
+    }
+}
 
-                if (move_uploaded_file($tmpName, $destination)) {
-                    $avatarFileName = $fileName;
-                } else {
-                    http_response_code(500);
-                    echo json_encode(["error" => "Error al guardar archivo avatar"]);
-                    return;
-                }
-            }
         } else {
             http_response_code(400);
             echo json_encode(["error" => "Tipo de contenido no soportado"]);
@@ -911,5 +909,61 @@ private function getLocationFromIp($ip) {
 
         header('Content-Type: application/json');
         echo json_encode(['provider' => $user]);
+    }
+
+
+    public function getMyEarnings(): void {
+        header("Content-Type: application/json; charset=UTF-8");
+        try {
+            $auth = Auth::verify();
+            if (!$auth) {
+                http_response_code(401);
+                echo json_encode(["error" => "No autorizado"]);
+                return;
+            }
+            $userId = $auth->id;
+            
+$stmt = $this->db->prepare("
+    SELECT 
+        COALESCE(SUM(sh.service_price), 0) as total_earned,
+        COALESCE(SUM(CASE WHEN sh.payment_status = 'paid' THEN sh.service_price ELSE 0 END), 0) as total_paid,
+        COALESCE(SUM(CASE WHEN sh.payment_status IN ('pending','verifying') THEN sh.service_price ELSE 0 END), 0) as total_pending,
+        COUNT(sh.id) as total_services
+    FROM service_history sh
+    WHERE sh.provider_id = :uid AND sh.status = 'completed'
+");
+$stmt->execute(['uid' => $userId]);
+$summary = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 20;
+$offset = ($page - 1) * $limit;
+
+$stmt2 = $this->db->prepare("
+    SELECT sh.id, sh.service_id, sh.service_title as service_name, 
+           sh.service_price as amount, sh.payment_status as status, sh.finished_at as created_at
+    FROM service_history sh
+    WHERE sh.provider_id = :uid AND sh.status = 'completed'
+    ORDER BY sh.finished_at DESC
+    LIMIT :limit OFFSET :offset
+");
+$stmt2->bindValue(':uid', $userId, PDO::PARAM_INT);
+$stmt2->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmt2->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt2->execute();
+$transactions = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+echo json_encode([
+    'success' => true,
+    'summary' => $summary,
+    'transactions' => $transactions,
+    'page' => $page,
+    'limit' => $limit,
+    'total' => (int)$summary['total_services']
+]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
     }
 }

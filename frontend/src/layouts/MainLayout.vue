@@ -732,8 +732,8 @@ const openConversation = (conv) => {
 
 const avatarUrl = (src) => {
   if (!src) return '/img/default-avatar.png'
-  const baseUrl = import.meta.env.VITE_API_BASE_URL
-  return src.startsWith('/') ? src : `${baseUrl}/uploads/avatars/${src}`
+  const baseUrl = import.meta.env.VITE_API_URL
+  return src.startsWith('/') ? src : `${baseUrl.replace('/api','')}/uploads/avatars/${src}`
 }
 
 const handleImageError = (event) => {

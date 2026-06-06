@@ -175,13 +175,17 @@
       :order="trackingRequest"
       @close="trackingRequest = null"
     />
-    <ReviewFormModal
-      v-if="reviewRequest"
-      v-model:is-open="showReview"
-      :request="reviewRequest"
-      @close="reviewRequest = null"
-      @review-sent="fetchRequests"
-    />
+   <ReviewFormModal
+  v-if="reviewRequest"
+  :modelValue="{ rating: 0, comment: '', tags: [], photos: [] }"
+  mode="new"
+  :targetRole="authStore.user?.role === 'provider' ? 'user' : 'provider'"
+  :reviewType="authStore.user?.role === 'provider' ? 'user' : 'service'"
+  :serviceHistoryId="reviewRequest.id"
+  :authToken="authStore.token"
+  @close="reviewRequest = null"
+  @save="onReviewSaved"
+/>
     <ChatRoomModal
       v-if="chatTarget"
       :target="chatTarget"
@@ -340,6 +344,11 @@ function openChatFromModal(target) {
 function openReview(r) {
   reviewRequest.value = r
   showReview.value = true
+}
+
+function onReviewSaved() {
+  reviewRequest.value = null
+  fetchRequests()
 }
 
 async function cancel(r) {

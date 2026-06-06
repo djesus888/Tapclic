@@ -80,15 +80,16 @@
 
     <!-- Ticket Modal -->
     <SoporteTicketModal
-      v-model="showModal"
-      :ticket="selectedTicket"
-      :history="ticketHistory"
-      :loading="modalLoading"
-      @reply="handleReplyTicket"
-      @close-ticket="handleCloseTicket"
-      @copy-id="handleCopyId"
-      @open-chat="openChatWithTicket"
-    />
+  v-model="showModal"
+  :ticket="selectedTicket"
+  :history="ticketHistory"
+  :loading="modalLoading"
+  @reply="handleReplyTicket"
+  @send-reply="handleSendReply"
+  @close-ticket="handleCloseTicket"
+  @copy-id="handleCopyId"
+  @open-chat="openChatWithTicket"
+/>
   </div>
 </template>
 
@@ -142,6 +143,7 @@ export default {
     'show-new-ticket',
     'open-ticket',
     'reply-ticket',
+    'send-reply',
     'close-ticket',
     'copy-ticket-id',
     'open-chat-with-ticket'
@@ -153,18 +155,15 @@ export default {
     const modalLoading = ref(false)
     const { success, error, info } = useToast()
 
-    // Obtener historial del ticket seleccionado
     const ticketHistory = computed(() => {
       if (!selectedTicket.value) return []
       return props.ticketHistoryData[selectedTicket.value.id] || []
     })
 
-    // Limpiar scroll al desmontar
     onBeforeUnmount(() => {
       document.body.style.overflow = 'auto'
     })
 
-    // Watcher para cuando se cierra el modal
     watch(showModal, (newVal) => {
       if (!newVal) {
         selectedTicket.value = null
@@ -190,10 +189,7 @@ export default {
       showModal.value = true
 
       try {
-        // Emitir evento para cargar datos del ticket
         emit('open-ticket', ticket)
-        // Simular carga (en producción, esperar respuesta)
-        await new Promise(resolve => setTimeout(resolve, 500))
       } catch (err) {
         error('Error al cargar los detalles del ticket')
         console.error('Error loading ticket:', err)
@@ -202,52 +198,32 @@ export default {
       }
     }
 
-    // ===========================================
-    // PARTE CORREGIDA - AHORA SÍ FUNCIONAN
-    // ===========================================
-
+    // ✅ CORREGIDO: "Responder" ya no abre chat, solo muestra el campo de texto
     const handleReplyTicket = (ticket) => {
-      console.log('🔵 Respondiendo al ticket:', ticket.id)
-      
-      // 1. Mostrar notificación de que se está procesando
-      info('Preparando respuesta...')
-      
-      // 2. Emitir al componente padre
-      emit('reply-ticket', ticket)
-      
-      // 3. Feedback visual: deshabilitar botones temporalmente
-      modalLoading.value = true
-      
-      // 4. Simular respuesta exitosa (en producción, esperar confirmación del padre)
-      setTimeout(() => {
-        success('Respuesta enviada correctamente')
-        modalLoading.value = false
-        // Opcional: cerrar modal después de responder
-        // showModal.value = false
-      }, 1500)
+      console.log('🔵 Mostrando campo de respuesta para ticket:', ticket.id)
+      // El campo de texto se maneja dentro del modal (showReplyInput)
+      // No es necesario hacer nada aquí, el modal ya tiene la lógica
+    }
+
+    // ✅ NUEVO: Enviar la respuesta al backend vía DashboardProvider
+    const handleSendReply = (payload) => {
+      console.log('🔵 Enviando respuesta al ticket:', payload.ticket.id)
+      emit('send-reply', payload)
     }
 
     const handleCloseTicket = async (ticket) => {
       console.log('🔵 Cerrando ticket:', ticket.id)
-      
+
       if (confirm('¿Estás seguro de que deseas cerrar este ticket?')) {
         try {
           modalLoading.value = true
-          
-          // Emitir al padre
           emit('close-ticket', ticket)
-          
-          // Simular cierre exitoso
           await new Promise(resolve => setTimeout(resolve, 1000))
-          
           success('Ticket cerrado exitosamente')
-          
-          // Cerrar modal después de un pequeño delay
           setTimeout(() => {
             showModal.value = false
             modalLoading.value = false
           }, 500)
-          
         } catch (err) {
           error('Error al cerrar el ticket')
           console.error('Error closing ticket:', err)
@@ -258,25 +234,14 @@ export default {
 
     const handleCopyId = (ticket) => {
       console.log('🔵 Copiando ID del ticket:', ticket.id)
-      
-      // El toast ya se muestra desde el modal, pero emitimos al padre
       emit('copy-ticket-id', ticket)
-      
-      // Notificación adicional (opcional)
       success('ID copiado al portapapeles')
     }
 
     const openChatWithTicket = (ticket) => {
-      console.log('🔵 Abriendo chat para ticket:', ticket.id)
-      
-      // 1. Emitir AMBOS eventos para máxima compatibilidad
+      console.log('🔵 Abriendo chat en vivo para ticket:', ticket.id)
       emit('open-chat-with-ticket', ticket)
-      emit('open-support-chat')
-      
-      // 2. Mostrar notificación
-      info('Abriendo chat con el contexto del ticket...')
-      
-      // 3. Cerrar modal
+      info('Abriendo conversación en vivo con soporte...')
       setTimeout(() => {
         showModal.value = false
       }, 500)
@@ -293,6 +258,7 @@ export default {
       createNewTicket,
       openTicketModal,
       handleReplyTicket,
+      handleSendReply,
       handleCloseTicket,
       handleCopyId,
       openChatWithTicket

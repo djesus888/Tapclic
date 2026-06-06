@@ -455,6 +455,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
+import { getImageUrl } from '@/utils/imageHelper'
 import api from '@/axios'
 
 interface User {
@@ -610,11 +611,6 @@ function getCategoryLabel(category: string): string {
     other: 'Otro'
   }
   return labels[category] || category
-}
-
-function getImageUrl(path: string): string {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-  return `${baseUrl}${path}`
 }
 
 function getUserAvatar(user?: User): string {

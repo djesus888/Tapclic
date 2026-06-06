@@ -221,46 +221,46 @@ class MessageController
         echo json_encode(["success" => true, "messages" => $messages], JSON_UNESCAPED_UNICODE);
     }
 
-    public function uploadMessageImage(): void
-    {
-        $this->authUser();
-        if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-            $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
-            $this->jsonError(400, 'Error al subir la imagen: código ' . $code);
-        }
-        $file = $_FILES['image'];
-        $maxSize = 5 * 1024 * 1024;
-        if ($file['size'] > $maxSize) {
-            $this->jsonError(413, 'La imagen es demasiado grande (máx 5MB)');
-        }
+// ========== REEMPLAZAR el método uploadMessageImage() completo ==========
 
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime = $finfo->file($file['tmp_name']);
-        if (!in_array($mime, $allowedTypes, true)) {
-            $this->jsonError(415, 'Tipo de archivo no permitido. Solo imágenes JPG, PNG, GIF o WEBP');
-        }
+public function uploadMessageImage(): void
+{
+    $this->authUser();
 
-        $uploadDir = __DIR__ . '/../public/uploads/messages/';
-        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
-            $this->jsonError(500, 'No se pudo crear el directorio de uploads');
-        }
-
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $ext = preg_replace('/[^a-z0-9]/', '', $ext);
-        $filename = 'msg_' . bin2hex(random_bytes(8)) . '.' . $ext;
-        $targetPath = $uploadDir . $filename;
-
-        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
-            $this->jsonError(500, 'Error al guardar el archivo');
-        }
-        $baseUrl = $this->getBaseUrl();
-        $imageUrl = $baseUrl . '/uploads/messages/' . $filename;
-
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['image_url' => $imageUrl], JSON_UNESCAPED_UNICODE);
-        exit;
+    if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+        $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
+        $this->jsonError(400, 'Error al subir la imagen: código ' . $code);
     }
+
+    $file = $_FILES['image'];
+    $maxSize = 5 * 1024 * 1024;
+    if ($file['size'] > $maxSize) {
+        $this->jsonError(413, 'La imagen es demasiado grande (máx 5MB)');
+    }
+
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    if (!in_array($mime, $allowedTypes, true)) {
+        $this->jsonError(415, 'Tipo de archivo no permitido. Solo imágenes JPG, PNG, GIF o WEBP');
+    }
+
+    require_once __DIR__ . '/../utils/Uploader.php';
+    
+    $basePath = __DIR__ . '/../public/uploads';
+    $baseUrl = $this->getBaseUrl() . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+    try {
+        $imageUrl = $uploader->saveFile($file, \Utils\Uploader::CAT_MESSAGES);
+    } catch (\RuntimeException $e) {
+        $this->jsonError(500, 'Error al guardar el archivo: ' . $e->getMessage());
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['image_url' => $imageUrl], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
     // ✅ CORREGIDO: markAsRead - AHORA EMITE UN SOLO EVENTO CON TODOS LOS IDs
     public function markAsRead($data)
@@ -480,7 +480,7 @@ class MessageController
                 $this->db->rollBack();
                 error_log("❌ Excepción en insertMessage: " . $e->getMessage());
                 http_response_code(500);
-                echo json_encode(["message" => "Error al guardar el mensaje"]);
+                echo json_encode(["message" => $e->getMessage()]);
                 exit;
             }
         } catch (Exception $e) {

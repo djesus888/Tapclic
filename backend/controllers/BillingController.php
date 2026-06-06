@@ -2,19 +2,27 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/Auth.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
+require_once __DIR__ . '/../utils/Uploader.php';
 
 use services\WebSocketService;
+use Utils\Uploader;
 
 class BillingController
 {
     private \PDO $conn;
     private $user;
+    private Uploader $uploader;
 
     public function __construct()
     {
         $this->conn = (new Database())->getConnection();
         $auth = Auth::verify();
         $this->user = $auth;
+
+        $basePath = __DIR__ . '/../public/uploads';
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+        $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+        $this->uploader = new Uploader($basePath, $baseUrl);
     }
 
     private function requireAuth(): void
@@ -168,7 +176,7 @@ class BillingController
     /* ========== REPORTAR PAGO (PROVEEDOR) ========== */
 
     // POST /api/provider/billing/{id}/pay
-    public function payBill(int $billId): void
+   public function payBill(int $billId): void
     {
         $this->requireAuth();
 
@@ -195,13 +203,14 @@ class BillingController
         $proofUrl = null;
 
         if (isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === UPLOAD_ERR_OK) {
-            $file = $_FILES['payment_proof'];
-            $uploadDir = __DIR__ . '/../public/uploads/billing/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $name = 'bill_' . $billId . '_' . time() . '.' . $ext;
-            move_uploaded_file($file['tmp_name'], $uploadDir . $name);
-            $proofUrl = '/uploads/billing/' . $name;
+            try {
+                $proofUrl = $this->uploader->saveFile(
+                    $_FILES['payment_proof'],
+                    Uploader::CAT_BILLING
+                );
+            } catch (\RuntimeException $e) {
+                error_log("Error subiendo comprobante billing: " . $e->getMessage());
+            }
         }
 
         $stmt = $this->conn->prepare("

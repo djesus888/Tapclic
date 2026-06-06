@@ -500,6 +500,8 @@ import TicketDetailModal from '@/components/admin/TicketDetailModal.vue'
 import AssignModal from '@/components/admin/AssignModal.vue'
 import ConfirmModal from '@/components/admin/ConfirmModal.vue'
 import { debounce } from 'lodash'
+import { getImageUrl } from '@/utils/imageHelper'
+
 
 interface User {
   id: number

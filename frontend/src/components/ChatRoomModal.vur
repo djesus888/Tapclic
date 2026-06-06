@@ -9,7 +9,7 @@
         <div class="header-left">
           <div class="user-avatar">
             <img
-              :src="target.avatarUrl || '/img/support-avatar.png'"
+              <img :src="target.avatarUrl || '/img/support-avatar.png'" @error="handleImageError" ... />
               :alt="target.name"
               class="avatar-image"
               @error="handleImageError"

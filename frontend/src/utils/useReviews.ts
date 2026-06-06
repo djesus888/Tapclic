@@ -2,17 +2,26 @@
 import { ref, computed, type Ref } from 'vue'
 
 export interface Review {
-  id: string
+  id: string | number
   user_avatar?: string
-  user_name: string
+  user_name?: string
+  provider_name?: string
+  provider_avatar?: string
   service_title: string
   rating: number
   comment?: string
   created_at: string
   is_verified?: boolean
-  photos?: string[]
+  photos?: string[] | string
+  tags?: string[] | string
   helpful_count?: number
-  provider_reply?: { message: string; createdAt: string }
+  provider_reply?: { message: string; createdAt: string } | null
+  user_reply?: { message: string; createdAt: string } | null
+  review_type?: 'service' | 'user'
+  type?: string
+  user_id?: number
+  provider_id?: number
+  service_history_id?: number
 }
 
 export function useReviews(raw: Ref<Review[]>) {
@@ -41,7 +50,20 @@ export function useReviews(raw: Ref<Review[]>) {
 
     // 3) Solo con foto
     if (filters.value.withPhoto) {
-      list = list.filter(r => (r.photos?.length || 0) > 0)
+      list = list.filter(r => {
+        const photos = r.photos
+        if (!photos) return false
+        if (Array.isArray(photos)) return photos.length > 0
+        if (typeof photos === 'string') {
+          try {
+            const parsed = JSON.parse(photos)
+            return Array.isArray(parsed) && parsed.length > 0
+          } catch {
+            return photos.length > 0
+          }
+        }
+        return false
+      })
     }
 
     // 4) Orden

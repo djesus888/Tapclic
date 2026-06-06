@@ -20,27 +20,21 @@
         class="header-stats"
       >
         <div class="stat-card">
-          <div class="stat-icon">
-            📋
-          </div>
+          <div class="stat-icon">📋</div>
           <div class="stat-info">
             <h3>{{ availableRequests.length }}</h3>
             <p>Solicitudes Pendientes</p>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">
-            ⚡
-          </div>
+          <div class="stat-icon">⚡</div>
           <div class="stat-info">
             <h3>{{ inProgressRequests.length }}</h3>
             <p>Activos en progreso</p>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">
-            📅
-          </div>
+          <div class="stat-icon">📅</div>
           <div class="stat-info">
             <h3>{{ historyRequests.length }}</h3>
             <p>En historial</p>
@@ -50,10 +44,7 @@
     </div>
 
     <!-- PULL-TO-REFRESH INDICATOR -->
-    <div
-      v-if="pulling"
-      class="pull-refresh-indicator"
-    >
+    <div v-if="pulling" class="pull-refresh-indicator">
       <div class="spinner" />
       <p>{{ $t('release_to_refresh') }}</p>
     </div>
@@ -62,15 +53,9 @@
     <div class="tabs-container">
       <div class="tabs-header">
         <h2>Gestión de Servicios</h2>
-        <p class="tabs-subtitle">
-          Selecciona una categoría para gestionar
-        </p>
+        <p class="tabs-subtitle">Selecciona una categoría para gestionar</p>
       </div>
-      <nav
-        class="tabs-navigation"
-        role="tablist"
-        :aria-label="$t('tabs')"
-      >
+      <nav class="tabs-navigation" role="tablist" :aria-label="$t('tabs')">
         <button
           v-for="tab in tabs"
           :key="`${tab.value}-${$i18n.locale}`"
@@ -80,15 +65,9 @@
           :class="['tab-button', { 'tab-button-active': activeTab === tab.value }]"
           @click="activeTab = tab.value"
         >
-          <span
-            class="tab-icon"
-            v-html="getTabIcon(tab.value)"
-          />
+          <span class="tab-icon" v-html="getTabIcon(tab.value)" />
           <span class="tab-label">{{ tab.label }}</span>
-          <span
-            v-if="getTabCount(tab.value) > 0"
-            class="tab-badge"
-          >
+          <span v-if="getTabCount(tab.value) > 0" class="tab-badge">
             {{ getTabCount(tab.value) }}
           </span>
         </button>
@@ -98,17 +77,11 @@
     <!-- CONTENIDO PRINCIPAL -->
     <div class="dashboard-content">
       <!-- SOLICITUDES PENDIENTES -->
-      <div
-        v-if="activeTab === 'available'"
-        class="tab-content"
-      >
+      <div v-if="activeTab === 'available'" class="tab-content">
         <div class="tab-header">
           <h3>📋 Solicitudes Pendientes</h3>
-          <p class="tab-description">
-            Acepta nuevas solicitudes de clientes
-          </p>
+          <p class="tab-description">Acepta nuevas solicitudes de clientes</p>
         </div>
-
         <SolicitudesDisponibles
           :requests="availableRequests"
           :loading="loading.available"
@@ -116,31 +89,19 @@
           @reject="rejectRequest"
           @busy="busyRequest"
         />
-
-        <div
-          v-if="!loading.available && availableRequests.length === 0"
-          class="empty-state"
-        >
-          <div class="empty-icon">
-            📭
-          </div>
+        <div v-if="!loading.available && availableRequests.length === 0" class="empty-state">
+          <div class="empty-icon">📭</div>
           <h4>No hay solicitudes disponibles</h4>
           <p>Las nuevas solicitudes aparecerán aquí automáticamente</p>
         </div>
       </div>
 
       <!-- SOLICITUDES ACTIVAS -->
-      <div
-        v-if="activeTab === 'in-progress'"
-        class="tab-content"
-      >
+      <div v-if="activeTab === 'in-progress'" class="tab-content">
         <div class="tab-header">
           <h3>⚡ Solicitudes Activas</h3>
-          <p class="tab-description">
-            Gestiona los servicios en progreso
-          </p>
+          <p class="tab-description">Gestiona los servicios en progreso</p>
         </div>
-
         <SolicitudesActivas
           :requests="inProgressRequests"
           :loading="loading.inProgress"
@@ -150,71 +111,50 @@
           @open-proof="openProofModal"
           @toggle-dropdown="toggleDropdown"
         />
-
-        <div
-          v-if="!loading.inProgress && inProgressRequests.length === 0"
-          class="empty-state"
-        >
-          <div class="empty-icon">
-            🚀
-          </div>
+        <div v-if="!loading.inProgress && inProgressRequests.length === 0" class="empty-state">
+          <div class="empty-icon">🚀</div>
           <h4>No hay servicios activos</h4>
           <p>Acepta solicitudes para comenzar a trabajar</p>
         </div>
       </div>
 
       <!-- SOPORTE -->
-      <div
-        v-if="activeTab === 'support'"
-        class="tab-content"
-      >
+      <div v-if="activeTab === 'support'" class="tab-content">
         <div class="tab-header">
           <h3>🛠️ Centro de Soporte</h3>
-          <p class="tab-description">
-            Obtén ayuda y resuelve dudas
-          </p>
+          <p class="tab-description">Obtén ayuda y resuelve dudas</p>
         </div>
-
         <Soporte
           :tickets="tickets"
           :faq-items="faqItems"
           :loading-tickets="loading.support"
+          :ticket-history-data="ticketHistoryData"
           :loading-faq="loading.faq"
           :show-new-ticket="showNewTicket"
           @open-support-chat="openSupportChat"
+          @open-ticket="handleOpenTicket"
           @show-new-ticket="showNewTicket = true"
           @reply-ticket="handleReplyTicket"
           @close-ticket="handleCloseTicket"
+          @send-reply="handleSendReply"
           @copy-ticket-id="handleCopyTicketId"
           @open-chat-with-ticket="handleChatWithTicket"
         />
       </div>
 
       <!-- HISTORIAL -->
-      <div
-        v-if="activeTab === 'history'"
-        class="tab-content"
-      >
+      <div v-if="activeTab === 'history'" class="tab-content">
         <div class="tab-header">
           <h3>📅 Historial de Servicios</h3>
-          <p class="tab-description">
-            Revisa tus servicios completados
-          </p>
+          <p class="tab-description">Revisa tus servicios completados</p>
         </div>
-
         <Historial
           :requests="historyRequests"
           :loading="loading.history"
           @open-history="openHistoryModal"
         />
-
-        <div
-          v-if="!loading.history && historyRequests.length === 0"
-          class="empty-state"
-        >
-          <div class="empty-icon">
-            📖
-          </div>
+        <div v-if="!loading.history && historyRequests.length === 0" class="empty-state">
+          <div class="empty-icon">📖</div>
           <h4>Historial vacío</h4>
           <p>Los servicios completados aparecerán aquí</p>
         </div>
@@ -227,47 +167,42 @@
       :request-id="proofModalRequestId"
       @close="onProofModalClose"
     />
-
     <NewTicketModal
       v-if="showNewTicket"
       :is-open="showNewTicket"
       @close="showNewTicket = false"
       @ticket-created="onTicketCreated"
     />
-
     <ChatRoomModal
       v-if="chatTarget"
       :target="chatTarget"
       @close="chatTarget = null"
     />
-<!-- HISTORY DETAIL MODAL -->
-<div v-if="historyModal" class="modal-overlay" @click.self="closeHistoryModal">
-  <div class="modern-modal">
-    <div class="modal-header">
-      <h2 class="modal-title">{{ selectedHistory.service_title || selectedHistory.title || 'Detalles' }}</h2>
-      <button class="modal-close" @click="closeHistoryModal">✕</button>
-    </div>
-    <div class="modal-content">
-      <div class="info-grid">
-        <div class="info-item"><span class="info-label">Cliente:</span><span class="info-value">{{ selectedHistory.user_name || '-' }}</span></div>
-        <div class="info-item"><span class="info-label">Estado:</span><span class="info-badge" :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span></div>
-        <div class="info-item"><span class="info-label">Precio:</span><span class="price-value">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span></div>
-        <div class="info-item"><span class="info-label">Pago:</span><span class="info-value">{{ selectedHistory.payment_status || '-' }}</span></div>
-        <div class="info-item"><span class="info-label">Fecha:</span><span class="info-value">{{ formatDate(selectedHistory.completed_at || selectedHistory.finished_at || selectedHistory.created_at) }}</span></div>
+
+    <!-- HISTORY DETAIL MODAL -->
+    <div v-if="historyModal" class="modal-overlay" @click.self="closeHistoryModal">
+      <div class="modern-modal">
+        <div class="modal-header">
+          <h2 class="modal-title">{{ selectedHistory.service_title || selectedHistory.title || 'Detalles' }}</h2>
+          <button class="modal-close" @click="closeHistoryModal">✕</button>
+        </div>
+        <div class="modal-content">
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Cliente:</span><span class="info-value">{{ selectedHistory.user_name || '-' }}</span></div>
+            <div class="info-item"><span class="info-label">Estado:</span><span class="info-badge" :class="statusColor(selectedHistory.status)">{{ statusLabel(selectedHistory.status) }}</span></div>
+            <div class="info-item"><span class="info-label">Precio:</span><span class="price-value">${{ Number(selectedHistory.service_price || selectedHistory.price || 0).toFixed(2) }}</span></div>
+            <div class="info-item"><span class="info-label">Pago:</span><span class="info-value">{{ selectedHistory.payment_status || '-' }}</span></div>
+            <div class="info-item"><span class="info-label">Fecha:</span><span class="info-value">{{ formatDate(selectedHistory.completed_at || selectedHistory.finished_at || selectedHistory.created_at) }}</span></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="closeHistoryModal">Cerrar</button>
+        </div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" @click="closeHistoryModal">Cerrar</button>
-    </div>
-  </div>
-</div>
+
     <!-- TOAST NOTIFICATIONS -->
-    <div
-      v-if="pulling"
-      class="toast toast-info"
-    >
-      ⏳ Soltando para actualizar...
-    </div>
+    <div v-if="pulling" class="toast toast-info">⏳ Soltando para actualizar...</div>
   </div>
 </template>
 
@@ -298,21 +233,13 @@ const STATUS_FLOW = {
   rejected: []
 };
 const STATUS_EMOJIS = {
-  pending: '⏳',
-  accepted: '👍',
-  rejected: '👎',
-  in_progress: '📦',
-  on_the_way: '🚚',
-  arrived: '📍',
-  finalized: '✅',
-  completed: '✅',
-  cancelled: '❌'
+  pending: '⏳', accepted: '👍', rejected: '👎',
+  in_progress: '📦', on_the_way: '🚚', arrived: '📍',
+  finalized: '✅', completed: '✅', cancelled: '❌'
 };
 const STATUS_COLORS = {
-  completed: 'text-green-600',
-  cancelled: 'text-red-600',
-  rejected: 'text-orange-600',
-  finalized: 'text-green-700'
+  completed: 'text-green-600', cancelled: 'text-red-600',
+  rejected: 'text-orange-600', finalized: 'text-green-700'
 };
 
 export default {
@@ -352,7 +279,9 @@ export default {
       proofModalRequestId: null,
       showProofModal: false,
       selectedHistory: {},
+      ticketHistoryData: {},
       historyModal: false,
+      authStore: useAuthStore(),
       lastPullRefresh_: 0,
       pullRefreshCooldown_: 5000,
       socketHandlers_: [],
@@ -366,7 +295,6 @@ export default {
     };
   },
 
-  // ✅ AGREGADO: Watcher para activeTab que refresca datos automáticamente
   watch: {
     activeTab(newTab, oldTab) {
       if (newTab !== oldTab) {
@@ -452,9 +380,119 @@ export default {
       }
     },
 
+    // =============================================
+    // HANDLERS DE SOPORTE
+    // =============================================
+
+    async handleOpenTicket(ticket) {
+      try {
+        const auth = useAuthStore();
+        const { data } = await api.get(`/support/tickets/${ticket.id}/replies`, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
+        this.ticketHistoryData = {
+          ...this.ticketHistoryData,
+          [ticket.id]: data.replies || []
+        };
+      } catch (e) {
+        console.error("Error cargando replies:", e);
+      }
+    },
+
+    handleReplyTicket(ticket) {
+      console.log('🔵 Proveedor quiere responder al ticket:', ticket.id);
+    },
+
+    async handleSendReply(payload) {
+      console.log('Enviando respuesta al ticket:', payload.ticket.id);
+      try {
+        const auth = useAuthStore();
+        const response = await api.post('/support/tickets/reply', {
+          ticket_id: payload.ticket.id,
+          message: payload.message
+        }, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
+
+        if (response.data.success) {
+          this.ticketHistoryData = {
+            ...this.ticketHistoryData,
+            [payload.ticket.id]: []
+          };
+          await this.handleOpenTicket(payload.ticket);
+          this.$swal?.fire({
+            icon: 'success',
+            title: 'Respuesta enviada',
+            text: 'Tu mensaje ha sido enviado correctamente',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }
+      } catch (error) {
+        console.error('Error enviando respuesta:', error);
+        this.$swal?.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.response?.data?.message || 'Error al enviar la respuesta'
+        });
+      }
+    },
+
+    async handleCloseTicket(ticket) {
+      console.log('Cerrando ticket:', ticket.id);
+      try {
+        const auth = useAuthStore();
+        const response = await api.put('/support/tickets/close', {
+          ticket_id: ticket.id
+        }, {
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
+
+        if (response.data.success) {
+          this.lastFetch_.support = 0;
+          await this.fetchTickets();
+          this.$swal?.fire({
+            icon: 'success',
+            title: 'Ticket cerrado',
+            text: 'El ticket se ha cerrado correctamente',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }
+      } catch (error) {
+        console.error('Error cerrando ticket:', error);
+        this.$swal?.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.response?.data?.message || 'Error al cerrar el ticket'
+        });
+      }
+    },
+
+    handleCopyTicketId(ticket) {
+      console.log('ID del ticket copiado:', ticket.id);
+    },
+
+    handleChatWithTicket(ticket) {
+      console.log('Abriendo chat con ticket:', ticket.id);
+      this.chatTarget = {
+        id: -ticket.id,
+        name: `Soporte - Ticket #${ticket.id}`,
+        role: 'support',
+        context: {
+          ticket_id: ticket.id,
+          subject: ticket.subject,
+          last_message: ticket.last_message
+        }
+      };
+    },
+
+    // =============================================
+    // FIN HANDLERS DE SOPORTE
+    // =============================================
+
     setupSocketHandlers(socketStore) {
       this.cleanupSocketHandlers();
-
       const throttle = (func, limit) => {
         let inThrottle;
         return function(...args) {
@@ -468,17 +506,11 @@ export default {
 
       const onRequestUpdated = throttle((payload) => {
         console.log('🔔 Provider: Evento request_updated recibido:', payload);
-        
-        // ✅ CORREGIDO: Extraer datos tanto de payload directo como de payload.request
         const requestData = payload.request || payload;
-        
         if (requestData && requestData.request_id) {
-          // Si el estado ya no es pending, quitar de disponibles
           if (requestData.status !== 'pending') {
             this.availableRequests = this.availableRequests.filter(r => r.id !== requestData.request_id);
           }
-          
-          // Actualizar en activos si corresponde
           if (ACTIVE_STATUSES.includes(requestData.status)) {
             const activeIndex = this.inProgressRequests.findIndex(r => r.id === requestData.request_id);
             const normalizedRequest = this.normalizeRequest({
@@ -487,28 +519,19 @@ export default {
               updated_at: requestData.updated_at || new Date().toISOString(),
               ...requestData
             });
-            
             if (activeIndex >= 0) {
               this.inProgressRequests.splice(activeIndex, 1, normalizedRequest);
             } else {
               this.inProgressRequests.unshift(normalizedRequest);
             }
           }
-          
-          // Si está completado/cancelado/rechazado, mover a historial
           if (['completed', 'cancelled', 'rejected'].includes(requestData.status)) {
             this.inProgressRequests = this.inProgressRequests.filter(r => r.id !== requestData.request_id);
-            this.updateHistory({
-              id: requestData.request_id,
-              status: requestData.status,
-              ...requestData
-            });
+            this.updateHistory({ id: requestData.request_id, status: requestData.status, ...requestData });
           }
         } else {
-          // Fallback: refrescar todo
           this.syncRequests();
         }
-        
         socketStore.playNotificationSound();
       }, 1000);
 
@@ -521,8 +544,7 @@ export default {
 
       const onNewNotification = throttle((notification) => {
         console.log('🔔 Provider: Notificación recibida:', notification);
-        // ✅ CORREGIDO: Verificar si la notificación es de tipo request y refrescar
-        if (notification.notification_type === 'new_request' || 
+        if (notification.notification_type === 'new_request' ||
             notification.action === 'view_request' ||
             notification.event === 'status_changed') {
           this.syncRequests();
@@ -532,13 +554,11 @@ export default {
       const onNewRequest = throttle((payload) => {
         console.log('🔔 Provider: Evento new_request_created recibido:', JSON.stringify(payload, null, 2));
         try {
-          // ✅ CORREGIDO: Evitar duplicados verificando si ya existe
           const existingIndex = this.availableRequests.findIndex(r => r.id === payload.request_id);
           if (existingIndex >= 0) {
             console.log('⚠️ Solicitud ya existe en la lista, omitiendo duplicado');
             return;
           }
-          
           const normalizedRequest = this.normalizeRequest({
             id: payload.request_id,
             service_id: payload.service_id,
@@ -556,11 +576,8 @@ export default {
             created_at: payload.created_at || new Date().toISOString(),
             ...payload
           });
-          
           this.availableRequests = [normalizedRequest, ...this.availableRequests];
           socketStore.playNotificationSound();
-          
-          // ✅ Toast informativo
           this.$swal?.fire({
             icon: 'info',
             title: 'Nueva Solicitud',
@@ -570,7 +587,6 @@ export default {
             position: 'top-end',
             toast: true
           });
-          
           console.log('✅ Solicitud normalizada y añadida. Total disponibles:', this.availableRequests.length);
         } catch (error) {
           console.error('❌ Error en onNewRequest:', error);
@@ -742,15 +758,10 @@ export default {
       if (!d) return '';
       const locale = this.$i18n.locale.value || 'es';
       const opts = onlyTime ? {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
       } : {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       };
       try {
         return new Date(d).toLocaleString(locale, opts);
@@ -762,8 +773,7 @@ export default {
     formatCurrency(amount) {
       const locale = this.$i18n.locale.value || 'es';
       return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: 'USD'
+        style: 'currency', currency: 'USD'
       }).format(amount || 0);
     },
 
@@ -775,13 +785,21 @@ export default {
     },
 
     statusLabel(status) {
-      const key = 'status.' + status;
-      const translated = this.$t(key);
-      return translated === key ? status : translated;
+      const map = {
+        completed: 'Completado', completado: 'Completado',
+        cancelled: 'Cancelado', cancelado: 'Cancelado',
+        pending: 'Pendiente', pendiente: 'Pendiente'
+      };
+      return map[status] || status;
     },
 
     statusColor(status) {
-      return STATUS_COLORS[status] || 'text-gray-500';
+      const map = {
+        completed: 'status-completed', completado: 'status-completed',
+        cancelled: 'status-cancelled', cancelado: 'status-cancelled',
+        pending: 'status-pending', pendiente: 'status-pending'
+      };
+      return map[status] || 'status-default';
     },
 
     emoji(status) {
@@ -801,7 +819,8 @@ export default {
       this.chatTarget = {
         id: userId,
         name: request?.user_name || this.$t('user'),
-        role
+        role,
+        avatarUrl: request?.user_avatar_url || null
       };
     },
 
@@ -809,66 +828,8 @@ export default {
       this.chatTarget = {
         id: 1,
         name: this.$t('support'),
-        role: 'admin'
-      };
-    },
-
-    handleReplyTicket(ticket) {
-      console.log('Respondiendo al ticket:', ticket.id);
-      this.chatTarget = {
-        id: ticket.id,
-        name: `Ticket #${ticket.id}`,
-        role: 'admin',
-        context: ticket
-      };
-    },
-
-    async handleCloseTicket(ticket) {
-      console.log('Cerrando ticket:', ticket.id);
-      try {
-        const auth = useAuthStore();
-        const response = await api.post('/support/tickets/close', {
-          ticket_id: ticket.id
-        }, {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        });
-
-        if (response.data.success) {
-          this.lastFetch_.support = 0;
-          await this.fetchTickets();
-          this.$swal?.fire({
-            icon: 'success',
-            title: 'Ticket cerrado',
-            text: 'El ticket se ha cerrado correctamente',
-            timer: 2000,
-            showConfirmButton: false
-          });
-        }
-      } catch (error) {
-        console.error('Error cerrando ticket:', error);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: error.response?.data?.message || 'Error al cerrar el ticket'
-        });
-      }
-    },
-
-    handleCopyTicketId(ticket) {
-      console.log('ID del ticket copiado:', ticket.id);
-    },
-
-    handleChatWithTicket(ticket) {
-      console.log('Abriendo chat con ticket:', ticket.id);
-      this.chatTarget = {
-        id: ticket.id,
-        name: `Soporte - Ticket #${ticket.id}`,
-        role: 'admin',
-        context: {
-          ticket_id: ticket.id,
-          subject: ticket.subject,
-          last_message: ticket.last_message
-        }
+        role: 'support',
+        avatarUrl: '/img/support-avatar.png'
       };
     },
 
@@ -880,17 +841,7 @@ export default {
     closeHistoryModal() {
       this.historyModal = false;
       this.selectedHistory = {};
-},
-
-statusLabel(status) {
-  const map = { completed: 'Completado', completado: 'Completado', cancelled: 'Cancelado', cancelado: 'Cancelado', pending: 'Pendiente', pendiente: 'Pendiente' };
-  return map[status] || status;
-},
-statusColor(status) {
-  const map = { completed: 'status-completed', completado: 'status-completed', cancelled: 'status-cancelled', cancelado: 'status-cancelled', pending: 'status-pending', pendiente: 'status-pending' };
-  return map[status] || 'status-default';
-},
-
+    },
 
     openProofModal(requestId) {
       this.proofModalRequestId = requestId;
@@ -938,11 +889,7 @@ statusColor(status) {
         this.availableRequests = Array.isArray(res.data?.data) ? res.data.data : [];
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
         this.loading.available = false;
       }
@@ -962,11 +909,7 @@ statusColor(status) {
         this.inProgressRequests = Array.isArray(res.data?.data) ? res.data.data : [];
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
         this.loading.inProgress = false;
       }
@@ -990,11 +933,7 @@ statusColor(status) {
         this.lastFetch_.history = now;
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
         this.loading.history = false;
       }
@@ -1013,21 +952,15 @@ statusColor(status) {
         const res = await api.get('/support/tickets', {
           headers: { Authorization: `Bearer ${auth.token}` }
         });
-
         this.tickets = (Array.isArray(res.data?.tickets) ? res.data.tickets : res.data || []).map(ticket => ({
           ...ticket,
           last_message: ticket.description || ticket.message || 'Sin mensaje',
           description: ticket.description
         }));
-
         this.lastFetch_.support = now;
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
         this.loading.support = false;
       }
@@ -1043,11 +976,7 @@ statusColor(status) {
         this.lastFetch_.faq = now;
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       } finally {
         this.loading.faq = false;
       }
@@ -1064,20 +993,12 @@ statusColor(status) {
           const socketStore = useSocketStore();
           socketStore.playNotificationSound();
           if (successMessage) {
-            this.$swal?.fire({
-              icon: 'success',
-              title: 'Éxito',
-              text: successMessage
-            });
+            this.$swal?.fire({ icon: 'success', title: 'Éxito', text: successMessage });
           }
         }
       } catch (e) {
         console.error(e);
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: e.message
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: e.message });
       }
     },
 
@@ -1104,13 +1025,14 @@ statusColor(status) {
           if (newStatus === 'finalized') {
             const req = this.inProgressRequests.find(r => r.id === requestId);
             if (req) {
+              // El proveedor finaliza: main.js se encarga de mostrar confirmación y abrir el modal
               window.dispatchEvent(new CustomEvent('open-rating-modal', {
                 detail: {
                   request_id: req.id,
                   from_id: this.providerId,
-                  from_role: 'user',
-                  targetRole: 'provider',
-                  message: 'Quieres calificar a este cliente'
+                  from_role: 'provider',
+                  targetRole: 'user',
+                  message: '¿Quieres calificar a este cliente?'
                 }
               }));
             }
@@ -1119,19 +1041,11 @@ statusColor(status) {
           const socketStore = useSocketStore();
           socketStore.playNotificationSound();
         } else {
-          this.$swal?.fire({
-            icon: 'error',
-            title: 'Error',
-            text: res.data.message
-          });
+          this.$swal?.fire({ icon: 'error', title: 'Error', text: res.data.message });
         }
       } catch (e) {
         const errorMsg = e.response?.data?.message || e.message;
-        this.$swal?.fire({
-          icon: 'error',
-          title: 'Error',
-          text: errorMsg
-        });
+        this.$swal?.fire({ icon: 'error', title: 'Error', text: errorMsg });
       }
     },
 

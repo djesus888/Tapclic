@@ -1,33 +1,41 @@
 <?php
+
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Payments.php';
 require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
-require_once __DIR__ . '/../services/WebSocketService.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/../utils/Uploader.php';
+require_once __DIR__ . '/../services/WebSocketService.php';
 
 use services\WebSocketService;
+use Utils\Uploader;
 
 class PaymentController
 {
     private $conn;
-    private $table = 'payments';
+    private string $table = 'payments';
+    private Uploader $uploader;
 
     public function __construct()
     {
         $this->conn = (new Database())->getConnection();
+
+        $basePath = __DIR__ . '/../public/uploads';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $baseUrl  = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/uploads';
+        $this->uploader = new Uploader($basePath, $baseUrl);
     }
 
     private function saveProof(int $requestId, array $file): ?string
     {
-        $uploadDir = __DIR__ . '/../public/uploads/payments/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $name = "payment_{$requestId}_" . time() . ".$ext";
-        $target = $uploadDir . $name;
-
-        return move_uploaded_file($file['tmp_name'], $target) ? "/uploads/payments/$name" : null;
+        try {
+            return $this->uploader->saveFile($file, Uploader::CAT_PAYMENTS);
+        } catch (\RuntimeException $e) {
+            error_log('Error guardando comprobante: ' . $e->getMessage());
+            return null;
+        }
     }
 
     private function unauthorized(): void

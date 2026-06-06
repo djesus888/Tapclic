@@ -160,6 +160,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useSystemStore } from '@/stores/systemStore'
+import { getImageUrl } from '@/utils/imageHelper'
 import api from '@/axios'
 
 const route = useRoute()
@@ -193,11 +194,6 @@ const canPay = computed(() => {
   return false
 })
 
-const getImageUrl = (path) => {
-  if (!path) return ''
-  if (path.startsWith('http')) return path
-  return `${import.meta.env.VITE_API_URL || ''}${path}`
-}
 
 const showToast = (msg, type = 'success') => {
   toast.value = { show: true, message: msg, type }

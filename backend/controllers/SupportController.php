@@ -2,7 +2,6 @@
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/SupportModel.php';
 require_once __DIR__ . '/../models/FaqModel.php';
-require_once __DIR__ . '/../utils/jwt.php';
 
 class SupportController {
     private $supportModel;
@@ -30,12 +29,15 @@ class SupportController {
                 $this->getTickets();
                 break;
 
+            case $method === 'GET' && preg_match('/\/api\/support\/tickets\/(\d+)\/replies$/', $uri, $m):
+                $this->getReplies((int)$m[1]);
+                break;
+
             case $method === 'POST' && preg_match('/\/api\/support\/tickets\/create$/', $uri):
                 $this->createTicket();
                 break;
 
-            // ------------ NUEVAS FUNCIONES ------------
-            case $method === 'POST' && preg_match('/\/api\/support\/tickets\/close$/', $uri):
+            case $method === 'PUT' && preg_match('/\/api\/support\/tickets\/close$/', $uri):
                 $this->closeTicket();
                 break;
 
@@ -77,7 +79,6 @@ class SupportController {
         if (!$user) return;
 
         $data = json_decode(file_get_contents("php://input"), true);
-
         $subject = trim($data['subject'] ?? '');
         $description = trim($data['description'] ?? '');
         $category = trim($data['category'] ?? 'other');
@@ -103,12 +104,34 @@ class SupportController {
     }
 
     /* -----------------------------------------------------------
-     *  NUEVAS FUNCIONES
+     *  RESPUESTAS (REPLIES)
      * ----------------------------------------------------------- */
+    private function getReplies(int $ticketId) {
+        $user = $this->getAuthenticatedUser();
+        if (!$user) return;
 
-    /**
-     * Cerrar un ticket
-     */
+        // Verificar que el ticket existe
+        $ticket = $this->supportModel->getTicketById($ticketId);
+        if (!$ticket) {
+            http_response_code(404);
+            echo json_encode(["message" => "Ticket no encontrado"]);
+            return;
+        }
+
+        // Verificar que el ticket pertenece al usuario
+        if ($ticket['user_id'] != $user['id']) {
+            http_response_code(403);
+            echo json_encode(["message" => "No autorizado para ver estas respuestas"]);
+            return;
+        }
+
+        $replies = $this->supportModel->getRepliesByTicket($ticketId);
+        echo json_encode(["success" => true, "replies" => $replies]);
+    }
+
+    /* -----------------------------------------------------------
+     *  CERRAR TICKET
+     * ----------------------------------------------------------- */
     private function closeTicket() {
         $user = $this->getAuthenticatedUser();
         if (!$user) return;
@@ -122,7 +145,6 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket existe
         $ticket = $this->supportModel->getTicketById($ticket_id);
         if (!$ticket) {
             http_response_code(404);
@@ -130,14 +152,12 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket pertenece al usuario
         if ($ticket['user_id'] != $user['id']) {
             http_response_code(403);
             echo json_encode(["message" => "No autorizado para cerrar este ticket"]);
             return;
         }
 
-        // Verificar que el ticket no esté ya cerrado
         if ($ticket['status'] === 'closed' || $ticket['status'] === 'cancelled') {
             echo json_encode([
                 "success" => true,
@@ -146,7 +166,6 @@ class SupportController {
             return;
         }
 
-        // Usar la función updateStatus que YA EXISTE en el modelo
         $success = $this->supportModel->updateStatus($ticket_id, 'closed');
 
         echo json_encode([
@@ -155,9 +174,9 @@ class SupportController {
         ]);
     }
 
-    /**
-     * Actualizar un ticket (subject, description, category)
-     */
+    /* -----------------------------------------------------------
+     *  ACTUALIZAR TICKET
+     * ----------------------------------------------------------- */
     private function updateTicket() {
         $user = $this->getAuthenticatedUser();
         if (!$user) return;
@@ -174,7 +193,6 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket existe
         $ticket = $this->supportModel->getTicketById($ticket_id);
         if (!$ticket) {
             http_response_code(404);
@@ -182,21 +200,18 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket pertenece al usuario
         if ($ticket['user_id'] != $user['id']) {
             http_response_code(403);
             echo json_encode(["message" => "No autorizado para actualizar este ticket"]);
             return;
         }
 
-        // Verificar que el ticket no esté cerrado
         if ($ticket['status'] === 'closed' || $ticket['status'] === 'cancelled') {
             http_response_code(400);
             echo json_encode(["message" => "No se puede actualizar un ticket cerrado"]);
             return;
         }
 
-        // Construir array de actualización solo con campos proporcionados
         $updateData = [];
         if (!empty($subject)) $updateData['subject'] = $subject;
         if (!empty($description)) $updateData['description'] = $description;
@@ -216,9 +231,9 @@ class SupportController {
         ]);
     }
 
-    /**
-     * Responder a un ticket (agregar mensaje)
-     */
+    /* -----------------------------------------------------------
+     *  RESPONDER TICKET
+     * ----------------------------------------------------------- */
     private function replyTicket() {
         $user = $this->getAuthenticatedUser();
         if (!$user) return;
@@ -239,7 +254,6 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket existe
         $ticket = $this->supportModel->getTicketById($ticket_id);
         if (!$ticket) {
             http_response_code(404);
@@ -247,24 +261,19 @@ class SupportController {
             return;
         }
 
-        // Verificar que el ticket pertenece al usuario
         if ($ticket['user_id'] != $user['id']) {
             http_response_code(403);
             echo json_encode(["message" => "No autorizado para responder este ticket"]);
             return;
         }
 
-        // Verificar que el ticket no esté cerrado
         if ($ticket['status'] === 'closed' || $ticket['status'] === 'cancelled') {
             http_response_code(400);
             echo json_encode(["message" => "No se puede responder a un ticket cerrado"]);
             return;
         }
 
-        // Agregar la respuesta (necesitarás crear esta función en el modelo)
         $replyId = $this->supportModel->addReply($ticket_id, $user['id'], $message);
-
-        // Actualizar el updated_at del ticket
         $this->supportModel->updateTimestamp($ticket_id);
 
         echo json_encode([
@@ -275,22 +284,13 @@ class SupportController {
     }
 
     /* -----------------------------------------------------------
-     *  AUTENTICACIÓN RÁPIDA
+     *  AUTENTICACIÓN (unificada)
      * ----------------------------------------------------------- */
     private function getAuthenticatedUser(): ?array {
-        $headers = getallheaders();
-        $auth = $headers['Authorization'] ?? '';
-        if (!str_starts_with($auth, "Bearer ")) {
-            http_response_code(401);
-            echo json_encode(["message" => "Token no proporcionado"]);
-            return null;
-        }
-
-        $token = str_replace("Bearer ", "", $auth);
-        $decoded = JwtHandler::decode($token);
+        $decoded = Auth::verify();
         if (!$decoded || !isset($decoded->id)) {
             http_response_code(401);
-            echo json_encode(["message" => "Token inválido o expirado"]);
+            echo json_encode(["message" => "Token no proporcionado o inválido"]);
             return null;
         }
 

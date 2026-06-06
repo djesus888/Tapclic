@@ -6,6 +6,7 @@ require_once __DIR__ . '/../models/Service.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/../utils/Uploader.php';
 
 use services\WebSocketService;
 
@@ -15,7 +16,7 @@ class ServiceController
     private const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
     private const MAX_WIDTH      = 2000;
     private const MAX_HEIGHT     = 2000;
-    private const UPLOAD_DIR     = __DIR__ . '/../public/uploads/services/';
+   
 
     public function __construct()
     {
@@ -292,28 +293,30 @@ class ServiceController
         ];
     }
 
-    private function handleImageUpload(): ?string
-    {
-        if (empty($_FILES['image']['name'])) return null;
+private function handleImageUpload(): ?string
+{
+    if (empty($_FILES['image']['name'])) return null;
 
-        $file = $_FILES['image'];
-        if ($file['error'] !== UPLOAD_ERR_OK) return null;
-        if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
+    $file = $_FILES['image'];
+    if ($file['error'] !== UPLOAD_ERR_OK) return null;
+    if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
 
-        [$width, $height] = getimagesize($file['tmp_name']);
-        if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
+    [$width, $height] = getimagesize($file['tmp_name']);
+    if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
 
-        $allowed = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!in_array($file['type'], $allowed, true)) return null;
+    $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!in_array($file['type'], $allowed, true)) return null;
 
-        if (!is_dir(self::UPLOAD_DIR)) mkdir(self::UPLOAD_DIR, 0755, true);
+    $basePath = __DIR__ . '/../public/uploads';
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+    $uploader = new \Utils\Uploader($basePath, $baseUrl);
 
-        $ext      = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = uniqid('service_', true) . '.' . $ext;
-        $target   = self::UPLOAD_DIR . $filename;
-
-        return move_uploaded_file($file['tmp_name'], $target)
-            ? '/uploads/services/' . $filename
-            : null;
+    try {
+        return $uploader->saveFile($file, \Utils\Uploader::CAT_SERVICES);
+    } catch (\RuntimeException $e) {
+        error_log("Error subiendo imagen de servicio: " . $e->getMessage());
+        return null;
     }
+}
 }

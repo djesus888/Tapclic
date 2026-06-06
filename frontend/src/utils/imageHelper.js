@@ -12,12 +12,16 @@ export function getImageUrl(path, type = 'uploads') {
 
   const basePaths = {
     uploads: `${baseUrl}/uploads/`,
-    avatar: `${baseUrl}/uploads/avatars/`,
-    logo: `${baseUrl}/logos/`,
-    service: `${baseUrl}/uploads/services/`,
+    avatars: `${baseUrl}/uploads/avatars/`,
+    services: `${baseUrl}/uploads/services/`,
     payments: `${baseUrl}/uploads/payments/`,
+    billing: `${baseUrl}/uploads/billing/`,
     reviews: `${baseUrl}/uploads/reviews/`,
-    'user-reviews': `${baseUrl}/uploads/user-reviews/`
+    messages: `${baseUrl}/uploads/messages/`,
+    tickets: `${baseUrl}/uploads/tickets/`,
+    system: `${baseUrl}/uploads/system/`,
+    logos: `${baseUrl}/uploads/system/logos/`,
+    updates: `${baseUrl}/uploads/updates/`
   };
 
   return (basePaths[type] || basePaths.uploads) + path;

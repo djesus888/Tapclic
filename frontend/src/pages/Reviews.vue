@@ -26,8 +26,8 @@
 
     <div v-else class="space-y-4">
       <div v-for="r in filtered" :key="r.id" class="p-4 border rounded-lg shadow-sm relative">
-        <!-- Menú derecha-arriba solo visible al dueño (quien escribió la reseña) -->
-        <div v-if="isOwner(r)" class="absolute top-2 right-2">
+        <!-- Menú derecha-arriba: solo visible si puede reportar (no es el dueño) -->
+        <div v-if="canReport(r)" class="absolute top-2 right-2">
           <button @click="openMenu(r)" class="text-muted-foreground hover:text-foreground">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -43,7 +43,7 @@
 
         <div class="flex items-start gap-3">
           <img
-            :src="getImageUrl(r.user_avatar || r.provider_avatar, 'avatar') || '/default-avatar.png'"
+            :src="getAvatarUrl(r)" 
             alt="avatar"
             class="w-10 h-10 rounded-full object-cover"
             loading="lazy"
@@ -58,7 +58,7 @@
               <img
                 v-for="(src, idx) in safePhotos(r)"
                 :key="idx"
-                :src="getImageUrl(src, 'uploads')"
+                :src="getImageUrl(src, getPhotoFolder(r))"
                 class="w-16 h-16 rounded object-cover border"
                 loading="lazy"
               />
@@ -81,7 +81,7 @@
             <!-- Respuesta -->
             <div v-if="(r.provider_reply || r.user_reply)" class="mt-3 p-3 bg-accent/10 rounded border border-accent/30 text-sm">
               <p class="font-semibold text-accent">
-                {{ r.type === 'service_review' ? 'Respuesta del proveedor' : 'Tu respuesta' }}
+                {{ getReplyLabel(r) }}
               </p>
               <p>{{ (r.provider_reply || r.user_reply).message }}</p>
               <p class="text-xs text-muted-foreground mt-1">
@@ -133,6 +133,7 @@
     :targetRole="targetRole"
     :authToken="authStore.token"
     :serviceHistoryId="currentServiceHistoryId"
+    :reviewType="currentReviewType"
     @close="showForm = false"
     @save="handleSave"
   />
@@ -167,26 +168,70 @@ const targetRole = ref<'provider' | 'user'>('provider')
 const showForm = ref(false)
 const currentEdit = ref<Review | null>(null)
 const currentServiceHistoryId = ref<number | string | undefined>(undefined)
+const currentReviewType = ref<'service' | 'user'>('service')
 
 /* ----------  ROLES  ---------- */
 const isProvider = computed(() => authStore.user?.role === 'provider')
+const isAdmin = computed(() => authStore.user?.role === 'admin')
+const currentUserRole = computed(() => authStore.user?.role as string)
 
-/* ----------  OWNER LOGIC: Quién puede denunciar  ---------- */
+/* ----------  HELPERS  ---------- */
+function getReviewType(r: Review): 'service' | 'user' {
+  return (r as any).review_type || r.type || 'service'
+}
+
+function getAvatarUrl(r: Review): string {
+  const avatar = r.user_avatar || r.provider_avatar || (r as any).provider_avatar
+  return getImageUrl(avatar, 'avatar') || '/default-avatar.png'
+}
+
+function getPhotoFolder(r: Review): string {
+  return getReviewType(r) === 'user' ? 'user-reviews' : 'reviews'
+}
+
+function getReplyLabel(r: Review): string {
+  if (getReviewType(r) === 'service') {
+    return 'Respuesta del proveedor'
+  }
+  return 'Tu respuesta'
+}
+
+/* ----------  OWNER LOGIC: Quién puede denunciar (cualquiera menos el dueño) ---------- */
 const isOwner = (r: Review): boolean => {
   if (!authStore.user?.id) return false
   const userId = Number(authStore.user.id)
+  const type = getReviewType(r)
 
-  if (r.type === 'service_review') return Number(r.user_id) === userId
-  if (r.type === 'user_review') return Number(r.provider_id) === userId
+  if (type === 'service') return Number((r as any).user_id) === userId
+  if (type === 'user') return Number((r as any).provider_id) === userId
   return false
 }
 
-/* ----------  REPLY LOGIC: Quién puede responder  ---------- */
+const canReport = (r: Review): boolean => {
+  // Cualquiera autenticado que no sea el dueño puede reportar
+  return !!authStore.user?.id && !isOwner(r)
+}
+
+/* ----------  REPLY LOGIC: Quién puede responder ---------- */
 const canReply = (r: Review): boolean => {
   if (!authStore.user?.role) return false
+  const role = authStore.user.role
+  const type = getReviewType(r)
+  const userId = Number(authStore.user.id)
 
-  if (r.type === 'service_review') return isProvider.value
-  if (r.type === 'user_review') return !isProvider.value
+  // Admin puede responder cualquier reseña
+  if (role === 'admin') return true
+
+  // Proveedor responde a service_reviews que son para él
+  if (type === 'service' && role === 'provider') {
+    return Number((r as any).provider_id) === userId
+  }
+
+  // Usuario responde a user_reviews que son para él
+  if (type === 'user' && role === 'user') {
+    return Number((r as any).user_id) === userId
+  }
+
   return false
 }
 
@@ -199,10 +244,12 @@ async function loadReviews() {
 
     reviews.value = data.reviews.map((r: any) => ({
       ...r,
-      type: r.provider_reply !== undefined ? 'service_review' : 'user_review',
+      type: r.review_type || (r.provider_reply !== undefined ? 'service' : 'user'),
       id: Number(r.id),
       user_id: r.user_id ? Number(r.user_id) : undefined,
-      provider_id: r.provider_id ? Number(r.provider_id) : undefined
+      provider_id: r.provider_id ? Number(r.provider_id) : undefined,
+      service_history_id: r.service_history_id ? Number(r.service_history_id) : undefined,
+      review_type: r.review_type || (r.provider_reply !== undefined ? 'service' : 'user')
     }))
 
     average.value = data.average || 0
@@ -222,32 +269,38 @@ const { filters, filtered } = useReviews(reviews)
 /* ----------  MODAL  ---------- */
 
 function openReply(r: Review) {
+  const type = getReviewType(r)
   currentEdit.value = {
     id: r.id,
     rating: r.rating,
     comment: '',
-    type: r.type
+    type: type,
+    review_type: type
   } as Review
 
   modalMode.value = 'reply'
-  targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
-  currentServiceHistoryId.value = r.service_history_id
+  targetRole.value = type === 'service' ? 'provider' : 'user'
+  currentServiceHistoryId.value = (r as any).service_history_id
+  currentReviewType.value = type
   showForm.value = true
 }
 
 function openUpdate(r: Review) {
-  const reply = r.type === 'service_review' ? r.provider_reply : r.user_reply
+  const type = getReviewType(r)
+  const reply = type === 'service' ? r.provider_reply : r.user_reply
 
   currentEdit.value = {
     id: r.id,
     rating: r.rating,
     comment: reply?.message || '',
-    type: r.type
+    type: type,
+    review_type: type
   } as Review
 
   modalMode.value = 'edit'
-  targetRole.value = r.type === 'service_review' ? 'provider' : 'user'
-  currentServiceHistoryId.value = r.service_history_id
+  targetRole.value = type === 'service' ? 'provider' : 'user'
+  currentServiceHistoryId.value = (r as any).service_history_id
+  currentReviewType.value = type
   showForm.value = true
 }
 
@@ -256,15 +309,19 @@ function openMenu(r: Review) {
 }
 
 /* ----------  ACTIONS  ---------- */
-async function report(r: Review) {
+async function markHelpful(r: Review) {
   try {
-    await api.post(
-      '/reviews/report',
-      { review_id: r.id },
+    const { data } = await api.post(
+      '/reviews/helpful',
+      { 
+        review_id: r.id, 
+        review_type: getReviewType(r) 
+      },
       { headers: { Authorization: `Bearer ${authStore.token}` } }
     )
+    r.helpful_count = data.helpful_count || (r.helpful_count || 0) + 1
   } catch (e) {
-    console.error('Error al reportar:', e)
+    console.error('Error al marcar como útil:', e)
   }
 }
 
@@ -277,26 +334,15 @@ async function reportContent(r: Review) {
       '/reviews/report-content',
       {
         review_id: r.id,
+        review_type: getReviewType(r),
         reason,
         comment: `Denunciado por el ${authStore.user?.role}: ${authStore.user?.name}`
       },
       { headers: { Authorization: `Bearer ${authStore.token}` } }
     )
+    alert('Denuncia enviada. Gracias por ayudarnos.')
   } catch (e) {
     console.error('Error al denunciar:', e)
-  }
-}
-
-async function markHelpful(r: Review) {
-  try {
-    await api.post(
-      '/reviews/helpful',
-      { review_id: r.id },
-      { headers: { Authorization: `Bearer ${authStore.token}` } }
-    )
-    r.helpful_count = (r.helpful_count || 0) + 1
-  } catch (e) {
-    console.error('Error al marcar como útil:', e)
   }
 }
 
@@ -315,7 +361,7 @@ async function handleSave(payload: any) {
         `/reviews/${reviewId}/reply`,
         {
           message: payload.comment,
-          targetRole: targetRole.value
+          review_type: currentReviewType.value
         },
         { headers: { Authorization: `Bearer ${authStore.token}` } }
       )
@@ -324,7 +370,10 @@ async function handleSave(payload: any) {
     if (modalMode.value === 'edit') {
       await api.put(
         `/reviews/${reviewId}/reply`,
-        { message: payload.comment },
+        { 
+          message: payload.comment,
+          review_type: currentReviewType.value
+        },
         { headers: { Authorization: `Bearer ${authStore.token}` } }
       )
     }
@@ -341,7 +390,7 @@ async function handleSave(payload: any) {
 ---------------------------------------------------------- */
 function safePhotos(r: Review): string[] {
   try {
-    const photosData = r.photos || '[]'
+    const photosData = (r as any).photos || '[]'
     return Array.isArray(photosData) ? photosData : JSON.parse(photosData)
   } catch {
     return []
@@ -350,7 +399,7 @@ function safePhotos(r: Review): string[] {
 
 function safeTags(r: Review): string[] {
   try {
-    const tagsData = r.tags || '[]'
+    const tagsData = (r as any).tags || '[]'
     return Array.isArray(tagsData) ? tagsData : JSON.parse(tagsData)
   } catch {
     return []
