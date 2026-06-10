@@ -44,7 +44,8 @@
     </div>
 
     <!-- PULL-TO-REFRESH INDICATOR -->
-    <div v-if="pulling" class="pull-refresh-indicator">
+    <div v-if="pulling" 
+     class="pull-refresh-indicator">
       <div class="spinner" />
       <p>{{ $t('release_to_refresh') }}</p>
     </div>
