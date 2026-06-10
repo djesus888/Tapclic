@@ -29,7 +29,7 @@
       <!-- Provider -->
       <div class="flex items-center space-x-3">
         <img
-          :src="order.provider?.avatar_url || '/img/default-avatar.png'"
+          :src="getImageUrl(order.provider?.avatar_url, 'avatar') || '/img/default-avatar.png'"
           alt="Provider"
           class="w-12 h-12 rounded-full object-cover"
         >
@@ -73,6 +73,7 @@
 
 <script>
 import ProgressSteps from './ProgressSteps.vue'
+import { getImageUrl } from '@/utils/imageHelper'
 
 export default {
   components: { ProgressSteps },

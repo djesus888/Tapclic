@@ -7,7 +7,6 @@ require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
 require_once __DIR__ . '/../utils/Uploader.php';
-
 use services\WebSocketService;
 
 class ServiceController
@@ -16,7 +15,6 @@ class ServiceController
     private const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
     private const MAX_WIDTH      = 2000;
     private const MAX_HEIGHT     = 2000;
-   
 
     public function __construct()
     {
@@ -49,7 +47,6 @@ class ServiceController
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Servicio temporalmente no disponible o verifique si redis esta activo']);
             exit;
-           /* return true;*/
         }
     }
 
@@ -63,7 +60,6 @@ class ServiceController
         }
 
         $path = $_SERVER['REQUEST_URI'];
-
         match (true) {
             $method === 'POST' && preg_match('#/api/services/?$#', $path)        => $this->create($auth),
             $method === 'GET'  && preg_match('#/api/services/mine/?$#', $path)   => $this->mine($auth),
@@ -124,28 +120,28 @@ class ServiceController
         $data['provider_avatar_url'] = $user['avatar_url'] ?? null;
         $data['provider_rating']     = $user['average_rating'] ?? 5.0;
 
-        // ✅ Obtener el ID del servicio creado
+        // Obtener el ID del servicio creado
         $serviceId = $this->model->create($data);
 
         if ($serviceId) {
-            // ✅ LOG
+            // LOG
             AuditLogger::log($auth->id, 'service_created', 'Servicio creado', "ID: {$serviceId} - Título: {$data['title']} - Precio: \${$data['price']}");
 
-            // ✅ CORREGIDO: Notificación al admin con URL correcta
-            WebSocketService::emit('new-notification', [
-                'receiver_role' => 'admin',
-                'receiver_id'   => 1,
-                'title'         => 'Nuevo servicio pendiente de pago',
-                'message'       => "{$user['name']} creó el servicio '{$data['title']}' - Pendiente de pago",
-                'data_json'     => json_encode([
+            // CORREGIDO: Usar sendNotification en lugar de emit() con formato incorrecto
+            WebSocketService::sendNotification(
+                'admin',
+                1,
+                'Nuevo servicio pendiente de pago',
+                "{$user['name']} creó el servicio '{$data['title']}' - Pendiente de pago",
+                [
                     'url' => '/admin/services',
                     'action' => 'review_service',
                     'notification_type' => 'new_service',
                     'service_id' => $serviceId
-                ])
-            ]);
+                ]
+            );
 
-            // ✅ Devolver ID para redirigir al pago
+            // Devolver ID para redirigir al pago
             echo json_encode([
                 'success' => true,
                 'message' => 'Servicio creado correctamente',
@@ -184,7 +180,6 @@ class ServiceController
     private function update(object $auth): void
     {
         header('Content-Type: application/json');
-
         $id = $_POST['id'] ?? null;
         if (!$id) {
             http_response_code(400);
@@ -194,23 +189,18 @@ class ServiceController
 
         $data = $this->extractServiceDataFromRequest();
         if (!$data) return;
-
         $imageUrl = $this->handleImageUpload();
         if ($imageUrl) $data['image_url'] = $imageUrl;
-
         if ($this->model->update((int)$id, $auth->id, $data)) {
             AuditLogger::log($auth->id, 'service_updated', 'Servicio actualizado', "ID: {$id} - Título: {$data['title']}");
 
-            WebSocketService::emit('new-notification', [
-                'receiver_role' => 'user',
-                'receiver_id'   => 0,
-                'title'         => 'Servicio actualizado',
-                'message'       => 'Un servicio ha sido modificado.',
-                'data_json'     => json_encode([
-                    'url' => '/service/' . $id,
-                    'action' => 'view_service',
-                    'notification_type' => 'service_update'
-                ])
+            // CORREGIDO: Usar emitToRole en lugar de emit() con formato incorrecto
+            WebSocketService::emitToRole('user', 'new-notification', [
+                'title'   => 'Servicio actualizado',
+                'message' => 'Un servicio ha sido modificado.',
+                'url'     => '/service/' . $id,
+                'action'  => 'view_service',
+                'notification_type' => 'service_update'
             ]);
             echo json_encode(['message' => 'Servicio actualizado correctamente']);
         } else {
@@ -226,7 +216,6 @@ class ServiceController
 
         $input = json_decode(file_get_contents('php://input'), true);
         $id    = $input['id'] ?? null;
-
         if (!$id) {
             http_response_code(400);
             echo json_encode(['error' => 'ID requerido']);
@@ -246,16 +235,13 @@ class ServiceController
 
             AuditLogger::log($auth->id, 'service_deleted', 'Servicio eliminado', "ID: {$id} - Título: {$title}");
 
-            WebSocketService::emit('new-notification', [
-                'receiver_role' => 'user',
-                'receiver_id'   => 0,
-                'title'         => 'Servicio eliminado',
-                'message'       => 'Un servicio ya no está disponible.',
-                'data_json'     => json_encode([
-                    'url' => '/dashboard/user',
-                    'action' => 'default',
-                    'notification_type' => 'service_deleted'
-                ])
+            // CORREGIDO: Usar emitToRole en lugar de emit() con formato incorrecto
+            WebSocketService::emitToRole('user', 'new-notification', [
+                'title'   => 'Servicio eliminado',
+                'message' => 'Un servicio ya no está disponible.',
+                'url'     => '/dashboard/user',
+                'action'  => 'default',
+                'notification_type' => 'service_deleted'
             ]);
             echo json_encode(['message' => 'Servicio eliminado correctamente']);
         } catch (PDOException $e) {
@@ -280,7 +266,6 @@ class ServiceController
                 return null;
             }
         }
-
         return [
             'title'           => htmlspecialchars(trim($_POST['title']), ENT_QUOTES, 'UTF-8'),
             'description'     => htmlspecialchars(trim($_POST['description']), ENT_QUOTES, 'UTF-8'),
@@ -293,30 +278,28 @@ class ServiceController
         ];
     }
 
-private function handleImageUpload(): ?string
-{
-    if (empty($_FILES['image']['name'])) return null;
+    private function handleImageUpload(): ?string
+    {
+        if (empty($_FILES['image']['name'])) return null;
+        $file = $_FILES['image'];
+        if ($file['error'] !== UPLOAD_ERR_OK) return null;
+        if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
 
-    $file = $_FILES['image'];
-    if ($file['error'] !== UPLOAD_ERR_OK) return null;
-    if ($file['size'] > self::MAX_IMAGE_SIZE) return null;
+        [$width, $height] = getimagesize($file['tmp_name']);
+        if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
 
-    [$width, $height] = getimagesize($file['tmp_name']);
-    if (!$width || $width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) return null;
+        $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!in_array($file['type'], $allowed, true)) return null;
 
-    $allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!in_array($file['type'], $allowed, true)) return null;
-
-    $basePath = __DIR__ . '/../public/uploads';
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
-    $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
-    $uploader = new \Utils\Uploader($basePath, $baseUrl);
-
-    try {
-        return $uploader->saveFile($file, \Utils\Uploader::CAT_SERVICES);
-    } catch (\RuntimeException $e) {
-        error_log("Error subiendo imagen de servicio: " . $e->getMessage());
-        return null;
+        $basePath = __DIR__ . '/../public/uploads';
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+        $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
+        try {
+            return $uploader->saveFile($file, \Utils\Uploader::CAT_SERVICES);
+        } catch (\RuntimeException $e) {
+            error_log("Error subiendo imagen de servicio: " . $e->getMessage());
+            return null;
+        }
     }
-}
 }

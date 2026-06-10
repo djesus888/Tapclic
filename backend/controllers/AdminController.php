@@ -104,48 +104,59 @@ public function getAdmins() {
     }
 
     /* ---------- SEGURIDAD: verificar SSL ---------- */
-    private function checkSSLStatus($domain): array
-    {
-        if (!$domain) {
+/* ---------- SEGURIDAD: verificar SSL ---------- */
+private function checkSSLStatus($domain): array
+{
+    if (!$domain) {
+        return [
+            'valid' => false,
+            'message' => 'Dominio no configurado',
+            'expires' => null
+        ];
+    }
+
+    // Extraer solo el host (sin protocolo, sin puerto, sin path)
+    $parsed = parse_url($domain);
+    $host = $parsed['host'] ?? $domain;
+    
+    // Determinar el puerto: si la URL tiene puerto explícito, usarlo; si no, deducir del protocolo
+    $port = $parsed['port'] ?? null;
+    $scheme = $parsed['scheme'] ?? '';
+    
+    if ($port === null) {
+        // Si no hay puerto explícito, deducir del esquema
+        $port = (strpos($scheme, 'https') === 0) ? 443 : 3001;
+    }
+
+    // Verificar SSL usando stream
+    $context = stream_context_create([
+        'ssl' => [
+            'capture_peer_cert' => true,
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ]
+    ]);
+
+    try {
+        $protocol = ($scheme === 'https' || $port === 443) ? 'ssl://' : 'tcp://';
+        $client = @stream_socket_client(
+            "{$protocol}{$host}:{$port}",
+            $errno,
+            $errstr,
+            30,
+            STREAM_CLIENT_CONNECT,
+            $context
+        );
+
+        if (!$client) {
             return [
                 'valid' => false,
-                'message' => 'Dominio no configurado',
+                'message' => "No se pudo conectar a {$host}:{$port}: {$errstr}",
                 'expires' => null
             ];
         }
 
-        // Extraer solo el dominio
-        $parsed = parse_url($domain);
-        $host = $parsed['host'] ?? $domain;
-
-        // Verificar SSL usando stream
-        $context = stream_context_create([
-            'ssl' => [
-                'capture_peer_cert' => true,
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ]
-        ]);
-
-        try {
-            $protocol = (strpos($host, 'https') === 0) ? 'ssl://' : 'tcp://';
-            $client = stream_socket_client(
-            "{$protocol}{$host}:3001",
-                $errno,
-                $errstr,
-                30,
-                STREAM_CLIENT_CONNECT,
-                $context
-            );
-
-            if (!$client) {
-                return [
-                    'valid' => false,
-                    'message' => "Error conectando: $errstr",
-                    'expires' => null
-                ];
-            }
-
+        // ... el resto del método queda igual
                         $cert = stream_context_get_params($client);
             
             // Verificar si existe certificado SSL
@@ -1352,29 +1363,31 @@ public function getAnalyticsOverview(): void
     }
 
     /* ---------- SEGURIDAD: CONFIGURACIÓN SSL/DOMINIO ---------- */
-    public function getSecurityConfig(): void
-    {
-        $this->requireAdmin();
-        header('Content-Type: application/json');
+  public function getSecurityConfig(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
 
-        $db = $this->conn;
+    $db = $this->conn;
 
-        // Obtener configuración de seguridad desde system_config
-        $stmt = $db->prepare("
-            SELECT
-                system_host,
-                allow_user_registration,
-                max_login_attempts,
-                session_timeout_minutes,
-                password_expiration_days
-            FROM system_config
-            WHERE id = 1
-        ");
-        $stmt->execute();
-        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Obtener configuración de seguridad desde system_config
+    $stmt = $db->prepare("
+        SELECT
+            system_host,
+            ws_host,
+            allow_user_registration,
+            max_login_attempts,
+            session_timeout_minutes,
+            password_expiration_days
+        FROM system_config
+        WHERE id = 1
+    ");
+    $stmt->execute();
+    $config = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Verificar SSL
-        $sslStatus = $this->checkSSLStatus($config['system_host'] ?? '');
+    // Verificar SSL usando ws_host (prioridad) o system_host (fallback)
+    $sslCheckDomain = $config['ws_host'] ?? $config['system_host'] ?? '';
+    $sslStatus = $this->checkSSLStatus($sslCheckDomain);
 
         // Estadísticas de seguridad
         $failedLogins = (int) $db->query("

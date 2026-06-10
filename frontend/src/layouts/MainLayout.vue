@@ -111,11 +111,18 @@
           </div>
 
           <!-- Perfil (si tienes imagen) -->
-          <div class="user-avatar">
-            <div class="avatar-placeholder">
-              {{ authStore.user?.name?.charAt(0)?.toUpperCase() || 'U' }}
-            </div>
-          </div>
+<div class="user-avatar">
+    <img
+        :src="authStore.user?.avatar_url ? avatarUrl(authStore.user.avatar_url) : ''"
+        :alt="authStore.user?.name"
+        class="avatar-img"
+        @error="handleImageError"
+        v-if="authStore.user?.avatar_url"
+    />
+    <div class="avatar-placeholder" v-else>
+        {{ authStore.user?.name?.charAt(0)?.toUpperCase() || 'U' }}
+    </div>
+</div>
         </div>
       </div>
     </header>
@@ -367,12 +374,21 @@
       >
         <div class="sidebar-header">
           <div class="user-info">
-            <div class="sidebar-avatar">
-              <div class="sidebar-avatar-img">
-                {{ authStore.user?.name?.charAt(0)?.toUpperCase() || 'U' }}
-              </div>
-              <div class="user-status" :class="authStore.user?.is_online ? 'online' : 'offline'"></div>
-            </div>
+           <div class="sidebar-avatar">
+    <img
+        :src="authStore.user?.avatar_url ? avatarUrl(authStore.user.avatar_url) : ''"
+        :alt="authStore.user?.name"
+        class="sidebar-avatar-img"
+        @error="handleImageError"
+        v-if="authStore.user?.avatar_url"
+    />
+    <div class="sidebar-avatar-img" v-else>
+        {{ authStore.user?.name?.charAt(0)?.toUpperCase() || 'U' }}
+    </div>
+    <div class="user-status" :class="authStore.user?.is_online ? 'online' : 'offline'"></div>
+</div>
+
+
             <div class="user-details">
               <h3 class="user-name">{{ authStore.user?.name || 'Usuario' }}</h3>
               <p class="user-role">
@@ -498,6 +514,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import DOMPurify from 'dompurify'
+import { getImageUrl } from '@/utils/imageHelper'
 import { useAuthStore } from '@/stores/authStore'
 import { useConversationStore } from '@/stores/conversationStore'
 import { useNotificationStore } from '@/stores/notificationStore'
@@ -732,8 +749,8 @@ const openConversation = (conv) => {
 
 const avatarUrl = (src) => {
   if (!src) return '/img/default-avatar.png'
-  const baseUrl = import.meta.env.VITE_API_URL
-  return src.startsWith('/') ? src : `${baseUrl.replace('/api','')}/uploads/avatars/${src}`
+  if (src.startsWith('http')) return src
+  return getImageUrl(src, 'avatar')
 }
 
 const handleImageError = (event) => {

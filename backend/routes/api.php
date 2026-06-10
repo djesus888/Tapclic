@@ -172,6 +172,8 @@ if (preg_match('~/api/login~', $request)) {
     (new UserController())->getProvider((int)$m[1]);
 } elseif ($request === '/api/provider/payment-methods' && $method === 'GET') {
     (new PaymentMethodController())->providerIndex();
+} elseif ($request === '/api/provider/payment-methods' && $method === 'POST') {
+    (new PaymentMethodController())->providerStore();
 
 // --- RUTAS MÉTODOS DE PAGO ---
 } elseif ($request === '/api/payment-methods' && $method === 'GET') {

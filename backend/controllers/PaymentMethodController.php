@@ -74,6 +74,52 @@ public function providerIndex(): void
     }
 }
 
+    /**
+     * POST /api/provider/payment-methods
+     * Crear método de pago del proveedor
+     */
+    public function providerStore(): void
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $user = $this->authenticate();
+            if (!$user) return;
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Datos inválidos']);
+                return;
+            }
+
+            if (empty($input['method_type'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'method_type es requerido']);
+                return;
+            }
+
+            require_once __DIR__ . '/../models/ProviderPayment.php';
+            $providerPayment = new ProviderPayment();
+            $id = $providerPayment->create($user['id'], $input);
+
+            http_response_code(201);
+            echo json_encode([
+                'success' => true,
+                'message' => 'Método de pago creado exitosamente',
+                'id' => $id
+            ], JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Error al crear método de pago',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
 
     /**
      * GET /api/payment-methods/{value}

@@ -442,7 +442,7 @@ function getPriorityLabel(priority: string): string {
 
 function getAdminAvatar(admin?: Admin): string {
   if (admin?.avatar_url) {
-    return getImageUrl(`/uploads/${admin.avatar_url}`)
+    return getImageUrl(admin.avatar_url, 'avatar')
   }
   return '/img/default-admin.png'
 }

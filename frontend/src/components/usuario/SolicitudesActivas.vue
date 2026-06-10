@@ -460,7 +460,7 @@ export default {
     if (request.provider_avatar_url.startsWith('http')) {
       return request.provider_avatar_url;
     }
-    return getImageUrl(`/uploads/avatars/${request.provider_avatar_url}`);
+    return getImageUrl(request.provider_avatar_url, 'avatar');
   }
   return '/img/default-provider.png';
 },

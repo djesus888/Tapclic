@@ -190,13 +190,11 @@ const visiblePages = computed(() => {
 })
 
 // Methods
-const getImageUrl = (path) => {
-  if (!path) return 'https://via.placeholder.com/100?text=P'
-  if (path.startsWith('http') || path.startsWith('blob:')) return path
-  if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
-  return getImageUrlHelper(path, 'avatars')
+const avatarUrl = (name) => {
+  if (!name) return 'https://via.placeholder.com/100?text=P'
+  if (name.startsWith('http')) return name
+  return getImageUrlHelper(name, 'avatars')
 }
-const avatarUrl = (name) => name ? getImageUrl(name.startsWith('http') || name.startsWith('/') ? name : `/uploads/avatars/${name}`) : 'https://via.placeholder.com/100?text=P'
 
 const handleAvatarError = (e) => { e.target.src = 'https://via.placeholder.com/100?text=P' }
 

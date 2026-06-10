@@ -166,7 +166,7 @@
                     </span>
                   </label>
                   <!-- Botón para enviar email real -->
-                  <button 
+                  <button
                     class="btn-notification-action"
                     @click="sendEmailNotification"
                     :disabled="sendingEmail"
@@ -190,7 +190,7 @@
                     </span>
                   </label>
                   <!-- Botón para enviar SMS real -->
-                  <button 
+                  <button
                     class="btn-notification-action"
                     @click="sendSMSNotification"
                     :disabled="sendingSMS"
@@ -493,6 +493,8 @@
 import { ref, onMounted, reactive, watch } from 'vue'
 import api from '@/axios'
 import Swal from 'sweetalert2'
+import { useSystemStore } from '@/stores/systemStore'
+import { getImageUrl } from '@/utils/imageHelper'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18n } from 'vue-i18n'
 
@@ -500,10 +502,8 @@ export default {
   name: 'Profile',
   setup() {
     const authStore = useAuthStore()
+    const systemStore = useSystemStore()
     const { t, locale } = useI18n()
-
-    // Usar variable de entorno para la URL base
-    const BASE_URL = import.meta.env.VITE_API_URL 
 
     const user = ref(null)
     const form = ref({
@@ -548,66 +548,77 @@ export default {
     const sendingEmail = ref(false)
     const sendingSMS = ref(false)
 
-    const fetchProfile = async () => {
-      try {
+  const fetchProfile = async () => {
+    try {
+        // Asegurar que la configuración del sistema esté cargada
+        if (!systemStore.config) {
+            await systemStore.fetchConfig()
+        }
+
         const { data } = await api.get('/profile', {
-          headers: { Authorization: `Bearer ${authStore.token}` }
+            headers: { Authorization: `Bearer ${authStore.token}` }
         })
+
+        // 🔍 DIAGNÓSTICO
+        console.log('📸 avatar_url del backend:', data.user?.avatar_url)
 
         user.value = data.user || {}
 
+        // Construir URL del avatar usando getImageUrl
         if (user.value.avatar_url && !user.value.avatar_url.startsWith('http')) {
-          user.value.avatar_url = BASE_URL + '/uploads/avatars/' + user.value.avatar_url
+            user.value.avatar_url = getImageUrl(user.value.avatar_url, 'avatar')
+            console.log('📸 avatar_url después de getImageUrl:', user.value.avatar_url)
+        } else {
+            console.log('⚠️ No se procesó avatar_url. Valor:', user.value.avatar_url)
         }
 
         form.value = {
-          name: user.value.name || '',
-          email: user.value.email || '',
-          phone: user.value.phone || '',
-          address: user.value.address || '',
-          business_address: user.value.business_address || '',
-          service_categories: user.value.service_categories || '',
-          coverage_area: user.value.coverage_area || '',
-          preferences: user.value.preferences || ''
+            name: user.value.name || '',
+            email: user.value.email || '',
+            phone: user.value.phone || '',
+            address: user.value.address || '',
+            business_address: user.value.business_address || '',
+            service_categories: user.value.service_categories || '',
+            coverage_area: user.value.coverage_area || '',
+            preferences: user.value.preferences || ''
         }
 
         if (user.value.preferences) {
-          try {
-            const p = JSON.parse(user.value.preferences)
-            pref.language = p.language || 'es'
-            pref.dark = p.dark || false
-            pref.notifications.email = p.notifications?.email ?? true
-            pref.notifications.sms = p.notifications?.sms ?? false
-          } catch (e) {
-            console.warn('Preferencias corruptas, se usan valores por defecto')
-          }
+            try {
+                const p = JSON.parse(user.value.preferences)
+                pref.language = p.language || 'es'
+                pref.dark = p.dark || false
+                pref.notifications.email = p.notifications?.email ?? true
+                pref.notifications.sms = p.notifications?.sms ?? false
+            } catch (e) {
+                console.warn('Preferencias corruptas, se usan valores por defecto')
+            }
         }
 
         // Leer idioma desde localStorage (prioridad)
         const savedLang = localStorage.getItem('userLanguage')
         if (savedLang && ['es', 'en', 'pt'].includes(savedLang)) {
-          pref.language = savedLang
+            pref.language = savedLang
         }
-
         // Cargar preferencias de notificaciones
         await loadNotificationPreferences()
-      } catch (err) {
+    } catch (err) {
         console.error('Error al obtener perfil:', err)
 
         if (err.response?.status === 401) {
-          authStore.logout()
-          window.location.href = '/login'
+            authStore.logout()
+            window.location.href = '/login'
         } else {
-          Swal.fire({
-            icon: 'error',
-            title: t('profile.error'),
-            text: t('profile.loadFailed'),
-            timer: 3000,
-            showConfirmButton: true
-          })
+            Swal.fire({
+                icon: 'error',
+                title: t('profile.error'),
+                text: t('profile.loadFailed'),
+                timer: 3000,
+                showConfirmButton: true
+            })
         }
-      }
     }
+}
 
     const onAvatarChange = (e) => {
       const file = e.target.files[0]

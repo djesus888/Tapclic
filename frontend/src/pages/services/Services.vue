@@ -170,7 +170,7 @@ import ProviderContactModal from '@/components/ProviderContactModal.vue'
 import PaymentModal from '@/components/PaymentModal.vue'
 import ChatRoomModal from '@/components/ChatRoomModal.vue'
 import { useFavoritesStore } from '@/stores/favoritesStore'
-
+import { getImageUrl } from '@/utils/imageHelper'
 
 export default {
   name: 'ServicesPage',
@@ -333,10 +333,9 @@ isFavorite(serviceId) {
       return 'https://via.placeholder.com/400x250?text=Sin+Imagen';
     },
     getProviderAvatar(service) {
-      if (service.provider?.avatar_url) {
-        if (service.provider.avatar_url.startsWith('http')) return service.provider.avatar_url;
-        const base = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
-        return `${base}/uploads/avatars/${service.provider.avatar_url}`;
+if (service.provider?.avatar_url) {
+    if (service.provider.avatar_url.startsWith('http')) return service.provider.avatar_url;
+    return getImageUrl(service.provider.avatar_url, 'avatar');
       }
       return '/img/default-provider.png';
     },

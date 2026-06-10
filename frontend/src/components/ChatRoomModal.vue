@@ -157,17 +157,17 @@
           class="messages-list"
         >
           <div
-            v-for="msg in messages"
+            v-for="msg in sortedMessages"
             :key="msg.id"
             class="message-wrapper"
             :class="{
-              'sent': msg.sender === authStore.user?.role,
-              'received': msg.sender !== authStore.user?.role
+              'sent': msg.is_mine === true || msg.sender_id === authStore.user?.id,
+              'received': msg.is_mine === false || (msg.sender_id && msg.sender_id !== authStore.user?.id)
             }"
           >
             <!-- Avatar del remitente (solo para mensajes recibidos) -->
             <div
-              v-if="msg.sender !== authStore.user?.role"
+              v-if="!msg.is_mine && msg.sender_id !== authStore.user?.id"
               class="message-avatar"
             >
               <img
@@ -181,7 +181,7 @@
             <!-- Contenedor del mensaje -->
             <div class="message-container">
               <button
-                v-if="msg.sender === authStore.user?.role"
+                v-if="msg.is_mine === true || msg.sender_id === authStore.user?.id"
                 class="message-delete-btn"
                 title="Borrar para mí"
                 @click="deleteMessageForMe(msg.id)"
@@ -215,7 +215,7 @@
                   {{ formatMessageTime(msg.created_at) }}
                 </span>
                 <span
-                  v-if="msg.sender === authStore.user?.role"
+                  v-if="msg.is_mine === true || msg.sender_id === authStore.user?.id"
                   class="message-status"
                 >
                   <span
@@ -397,6 +397,15 @@ const pendingMessages = ref(new Map());
 const reconnectAttempts = ref(0);
 const hasMarkedAsDelivered = ref(false); // ✅ Para evitar múltiples llamadas
 
+// ✅ NUEVO: Computed para ordenar mensajes cronológicamente
+const sortedMessages = computed(() => {
+  return [...messages.value].sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return dateA - dateB; // Orden ascendente: más antiguos primero, más nuevos al final
+  });
+});
+
 // Computed properties
 const isSocketReady = computed(() => {
   return socketStore.socket?.connected === true && socketStore.socket?.id;
@@ -408,7 +417,13 @@ const isTargetOnline = computed(() => {
 
 const typingText = computed(() => {
   if (!isTyping.value) return '';
-  return `${props.target.name} está escribiendo...`;
+  if (!conversationId.value) return 'Alguien está escribiendo...';
+  
+  const typingUsersList = conversationStore.getTypingUsers(Number(conversationId.value));
+  if (typingUsersList.length > 0 && props.target.name) {
+    return `${props.target.name} está escribiendo...`;
+  }
+  return 'Alguien está escribiendo...';
 });
 
 // Métodos
@@ -445,7 +460,10 @@ const handleImageError = (event) => {
   img.classList.add('error-image');
 };
 
+// ✅ MEJORADO: Función scrollToBottom más robusta
 const scrollToBottom = async () => {
+  await nextTick();
+  // Doble nextTick para asegurar que el DOM se actualizó completamente
   await nextTick();
   if (scrollRef.value) {
     scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
@@ -459,10 +477,10 @@ const showNotification = (message, type = 'info') => {
   }
 };
 
-// ✅ NUEVO: Marcar mensajes como entregados
+// ✅ Marcar mensajes como entregados
 const markMessagesAsDelivered = async () => {
   if (!conversationId.value || hasMarkedAsDelivered.value) return;
-  
+
   try {
     console.log('📬 Marcando mensajes como entregados para conversación:', conversationId.value);
     const response = await api.post(
@@ -470,11 +488,11 @@ const markMessagesAsDelivered = async () => {
       {},
       { headers: { Authorization: `Bearer ${authStore.token}` } }
     );
-    
+
     if (response.data?.count > 0) {
       console.log(`✅ ${response.data.count} mensajes marcados como entregados`);
     }
-    
+
     hasMarkedAsDelivered.value = true;
   } catch (err) {
     console.error('❌ Error marcando mensajes como entregados:', err);
@@ -485,13 +503,13 @@ const markMessagesAsDelivered = async () => {
 const ensureConversation = async () => {
   if (conversationId.value) return true;
 
-// Si es chat de soporte, usar ticket_id del contexto
-if (props.target.role === 'support' && props.target.context?.ticket_id) {
-  conversationId.value = 'ticket_' + props.target.context.ticket_id;
-  return true;
-}
+  // Si es chat de soporte, usar ticket_id del contexto
+  if (props.target.role === 'support' && props.target.context?.ticket_id) {
+    conversationId.value = 'ticket_' + props.target.context.ticket_id;
+    return true;
+  }
 
- loadingConversation.value = true;
+  loadingConversation.value = true;
 
   try {
     console.log('🔍 Buscando conversación con:', props.target.id, props.target.role);
@@ -505,6 +523,7 @@ if (props.target.role === 'support' && props.target.context?.ticket_id) {
     if (existingConversation) {
       console.log('✅ Conversación encontrada en store:', existingConversation.id);
       conversationId.value = existingConversation.id;
+      conversationStore.activeConversationId = existingConversation.id;
       return true;
     }
 
@@ -518,6 +537,7 @@ if (props.target.role === 'support' && props.target.context?.ticket_id) {
       if (res.data?.id) {
         console.log('✅ Conversación encontrada en servidor:', res.data.id);
         conversationId.value = res.data.id;
+        conversationStore.activeConversationId = res.data.id;
         return true;
       }
     } catch (_err) {
@@ -538,6 +558,8 @@ if (props.target.role === 'support' && props.target.context?.ticket_id) {
     if (createRes.data?.id) {
       console.log('✅ Nueva conversación creada:', createRes.data.id);
       conversationId.value = createRes.data.id;
+      conversationStore.activeConversationId = createRes.data.id;
+      await conversationStore.fetchConversations();
       return true;
     }
 
@@ -554,41 +576,47 @@ if (props.target.role === 'support' && props.target.context?.ticket_id) {
 const fetchMessages = async () => {
   if (!authStore.token || !conversationId.value) return;
 
-try {
-  // Si es chat de soporte, obtener replies del ticket
-  if (props.target.role === 'support') {
-    const ticketId = props.target.context?.ticket_id || props.target.id;
-    const res = await api.get(`/support/tickets/${ticketId}/replies`);
-    messages.value = (res.data?.replies || []).map(r => ({
-      id: r.id,
-      text: r.message,
-      sender: r.user_type === 'admin' ? 'admin' : authStore.user?.role,
-      created_at: r.created_at,
-      avatar_url: r.user_type === 'admin' 
-  ? (props.target.avatarUrl || '/img/support-avatar.png')
-  : (authStore.user?.avatar_url || '/img/default-avatar.png'),
-      is_read: true,
-      is_delivered: true,
-      user_name: r.user_name
-    }));
-    await scrollToBottom();
-    return;
-  }
+  try {
+    // Si es chat de soporte, obtener replies del ticket
+    if (props.target.role === 'support') {
+      const ticketId = props.target.context?.ticket_id || props.target.id;
+      const res = await api.get(`/support/tickets/${ticketId}/replies`);
+      messages.value = (res.data?.replies || []).map(r => ({
+        id: r.id,
+        text: r.message,
+        sender: r.user_type === 'admin' ? 'admin' : authStore.user?.role,
+        sender_id: r.user_type === 'admin' ? props.target.id : authStore.user?.id,
+        is_mine: r.user_type !== 'admin' && r.user_id === authStore.user?.id,
+        created_at: r.created_at,
+        avatar_url: r.user_type === 'admin'
+          ? (props.target.avatarUrl || '/img/support-avatar.png')
+          : (authStore.user?.avatar_url || '/img/default-avatar.png'),
+        is_read: true,
+        is_delivered: true,
+        user_name: r.user_name
+      }));
+      await scrollToBottom();
+      return;
+    }
 
-  const res = await api.get(
-  `/messages/${conversationId.value}`,
-  { headers: { Authorization: `Bearer ${authStore.token}` } }
-);
+    const res = await api.get(
+      `/messages/${conversationId.value}`,
+      { headers: { Authorization: `Bearer ${authStore.token}` } }
+    );
 
-const msgs = res.data?.messages || [];
-    messages.value = msgs.map((m) => ({
-      ...m,
-      avatar_url: m.sender === props.target.role
-        ? props.target.avatarUrl
-        : authStore.user?.avatar_url || '',
-      is_read: Boolean(m.is_read),
-      is_delivered: Boolean(m.is_delivered)
-    }));
+    const msgs = res.data?.messages || [];
+    // ✅ Los mensajes ya vienen ordenados del servidor, pero nos aseguramos
+    messages.value = msgs
+      .map((m) => ({
+        ...m,
+        is_mine: m.sender_id === authStore.user?.id || m.sender === authStore.user?.role,
+        avatar_url: m.sender === props.target.role
+          ? props.target.avatarUrl
+          : authStore.user?.avatar_url || '',
+        is_read: Boolean(m.is_read),
+        is_delivered: Boolean(m.is_delivered)
+      }))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     // ✅ Marcar como entregados después de cargar mensajes
     await markMessagesAsDelivered();
@@ -668,41 +696,46 @@ const sendMessage = async () => {
     text: messageText,
     type: attachment_url ? 'image' : 'text',
     sender: authStore.user?.role,
+    sender_id: authStore.user?.id,
+    is_mine: true,
     created_at: new Date().toISOString(),
     avatar_url: authStore.user?.avatar_url || '',
     attachment_url,
     is_read: false,
     is_delivered: false,
-    _temp: true // ✅ Flag para identificar mensajes temporales
+    _temp: true
   };
 
+  // ✅ Agregar al array y ordenar
   messages.value.push(tempMessage);
   pendingMessages.value.set(tempId, tempMessage);
+  
+  // ✅ Forzar ordenamiento después de agregar
+  messages.value = [...messages.value].sort((a, b) => 
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  
   await scrollToBottom();
 
   loading.value = true;
 
   try {
+    // Si es chat de soporte, enviar como reply del ticket
+    if (props.target.role === 'support') {
+      const ticketId = props.target.context?.ticket_id || props.target.id;
+      const response = await api.post('/support/tickets/reply', {
+        ticket_id: ticketId,
+        message: messageText
+      }, { headers: { Authorization: `Bearer ${authStore.token}` } });
 
+      newMessage.value = '';
+      selectedFile.value = null;
+      previewUrl.value = null;
 
-// Si es chat de soporte, enviar como reply del ticket
-if (props.target.role === 'support') {
-  const ticketId = props.target.context?.ticket_id || props.target.id;
-  const response = await api.post('/support/tickets/reply', {
-    ticket_id: ticketId,
-    message: messageText
-  }, { headers: { Authorization: `Bearer ${authStore.token}` } });
-  
-  newMessage.value = '';
-  selectedFile.value = null;
-  previewUrl.value = null;
-  
-  // Recargar mensajes
-  await fetchMessages();
-  return;
-}
-
-
+      // Recargar mensajes
+      await fetchMessages();
+      return;
+    }
 
     // Enviar por HTTP primero
     const messageData = {
@@ -710,7 +743,7 @@ if (props.target.role === 'support') {
       recipient_id: props.target.id,
       recipient_role: props.target.role,
       text: messageText,
-      temp_id: tempId // ✅ Enviar temp_id al backend
+      temp_id: tempId
     };
 
     if (attachment_url) {
@@ -724,7 +757,6 @@ if (props.target.role === 'support') {
     );
 
     const sentMessage = response.data?.message || response.data;
-
     // Actualizar mensaje temporal con ID real
     const index = messages.value.findIndex(m => m.id === tempId);
     if (index !== -1) {
@@ -756,7 +788,6 @@ if (props.target.role === 'support') {
     previewUrl.value = null;
 
     emit('message-sent', messages.value[index]);
-
   } catch (err) {
     console.error('Error al enviar mensaje:', err);
     showNotification('Error al enviar el mensaje', 'error');
@@ -828,7 +859,6 @@ const handleTypingIndicator = (data) => {
   if (!data) return;
 
   const { conversation_id, user_id, is_typing } = data;
-
   if (conversation_id === conversationId.value && user_id === Number(props.target.id)) {
     isTyping.value = is_typing;
 
@@ -841,11 +871,14 @@ const handleTypingIndicator = (data) => {
   }
 };
 
+// ✅ CORREGIDO: handleNewMessage ahora inserta mensajes en orden y hace scroll
 const handleNewMessage = async (data) => {
   const { conversation_id, message } = data || {};
 
   if (conversation_id === conversationId.value && message) {
-    // Verificar si ya tenemos este mensaje
+    console.log('📨 Nuevo mensaje recibido en tiempo real:', message);
+    
+    // Verificar si ya tenemos este mensaje (evitar duplicados)
     const existingIndex = messages.value.findIndex(m =>
       m.id === message.id || m.temp_id === message.temp_id
     );
@@ -856,24 +889,41 @@ const handleNewMessage = async (data) => {
       messages.value[existingIndex] = {
         ...existingMsg,
         ...message,
+        is_mine: message.sender_id === authStore.user?.id || message.sender === authStore.user?.role,
         is_read: message.is_read !== undefined ? message.is_read : existingMsg.is_read,
         is_delivered: message.is_delivered !== undefined ? message.is_delivered : existingMsg.is_delivered,
         temp_id: undefined,
         _temp: false
       };
     } else {
-      // Nuevo mensaje
+      // ✅ NUEVO: Insertar mensaje en la posición correcta según su fecha
       const enrichedMessage = {
         ...message,
+        is_mine: message.sender_id === authStore.user?.id || message.sender === authStore.user?.role,
         is_read: message.is_read || false,
         user_read_at: message.user_read_at || null,
         is_delivered: message.is_delivered || false,
         _temp: false
       };
 
-      messages.value.push(enrichedMessage);
+      // ✅ Encontrar la posición correcta para insertar (orden cronológico)
+      const messageDate = new Date(enrichedMessage.created_at).getTime();
+      let insertIndex = messages.value.length; // Por defecto al final
+      
+      for (let i = 0; i < messages.value.length; i++) {
+        const currentDate = new Date(messages.value[i].created_at).getTime();
+        if (messageDate < currentDate) {
+          insertIndex = i;
+          break;
+        }
+      }
+      
+      // Insertar en la posición correcta
+      messages.value.splice(insertIndex, 0, enrichedMessage);
+      
+      console.log(`📌 Mensaje insertado en posición ${insertIndex} de ${messages.value.length} mensajes`);
 
-      // Marcar como entregado si es para nosotros
+      // ✅ Marcar como entregado si es para nosotros
       if (message.sender !== authStore.user?.role) {
         try {
           await api.post('/messages/mark-delivered',
@@ -896,7 +946,14 @@ const handleNewMessage = async (data) => {
       }
     }
 
+    // ✅ FORZAR scroll al fondo después de recibir mensaje
+    await nextTick();
     await scrollToBottom();
+    
+    // ✅ Scroll adicional después de un pequeño delay para asegurar
+    setTimeout(async () => {
+      await scrollToBottom();
+    }, 100);
   }
 };
 
@@ -919,6 +976,7 @@ const handleMessageConfirmation = (data) => {
       ...messages.value[index],
       ...realMessage,
       id: realMessage.id || data.temp_id,
+      is_mine: true,
       is_delivered: true,
       _temp: false
     };
@@ -1124,8 +1182,19 @@ const exportChatHistory = () => {
   showNotification('Historial exportado', 'success');
 };
 
-// Watchers
-watch(messages, scrollToBottom);
+// ✅ MEJORADO: Watcher para scroll cuando cambian los mensajes
+watch(messages, async () => {
+  await nextTick();
+  await scrollToBottom();
+}, { deep: true });
+
+// ✅ NUEVO: Watcher específico para el typing indicator
+watch(isTyping, async (newVal) => {
+  if (newVal) {
+    await nextTick();
+    await scrollToBottom();
+  }
+});
 
 // Lifecycle hooks
 onMounted(async () => {
@@ -1152,6 +1221,11 @@ onMounted(async () => {
     }
 
     await fetchMessages();
+    
+    // ✅ Scroll inicial después de cargar
+    setTimeout(async () => {
+      await scrollToBottom();
+    }, 300);
   } else {
     console.error('❌ No se pudo obtener conversationId');
     showNotification('Error al iniciar el chat', 'error');
@@ -1169,7 +1243,6 @@ onUnmounted(() => {
   socketStore.off('message_sent_confirmation', handleMessageConfirmation); // ✅ Agregado
 
   stopTyping();
-
   if (typingStopTimeout.value) clearTimeout(typingStopTimeout.value);
 
   if (conversationId.value && isSocketReady.value) {

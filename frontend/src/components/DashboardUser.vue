@@ -313,6 +313,7 @@ import SolicitudesActivas from '@/components/usuario/SolicitudesActivas.vue';
 import Soporte from '@/components/shared/Soporte.vue';
 import Historial from '@/components/shared/Historial.vue';
 import ReviewModal from '@/components/ReviewModal.vue';
+import { getImageUrl } from '@/utils/imageHelper'
 
 export default {
   name: 'DashboardUser',
@@ -825,7 +826,7 @@ export default {
         id: request.id, serviceName: request.service_title || 'Servicio', description: request.service_description || 'Sin descripción',
         price: Number(request.service_price || 0), payment_method: request.payment_method || 'Efectivo', created_at: request.created_at || request.date,
         address: request.provider_address || 'No especificada', provider: {
-          name: request.service_provider_name || 'Proveedor', avatar_url: request.provider_avatar_url ? `${this.API_URL}/uploads/avatars/${request.provider_avatar_url}` : '/img/default-provider.png',
+          name: request.service_provider_name || 'Proveedor', avatar_url: request.provider_avatar_url ? getImageUrl(request.provider_avatar_url, 'avatar') : '/img/default-provider.png',
           rating: request.provider_rating || null, phone: request.provider_phone || null, current_address: request.provider_address || 'No especificada',
         }, requestId: request.id, provider_id: request.provider_id || request.service_provider_id, user_id: request.user_id,
         status: request.status || 'accepted', payment_methods: request.payment_methods || [],

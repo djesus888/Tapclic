@@ -249,7 +249,7 @@ export default {
     getProviderAvatar(service) {
       if (service.provider?.avatar_url) {
         if (service.provider.avatar_url.startsWith('http')) return service.provider.avatar_url;
-        return getImageUrl(`/uploads/avatars/${service.provider.avatar_url}`);
+        return getImageUrl(service.provider.avatar_url, 'avatar');
       }
       return '/img/default-provider.png';
     },

@@ -204,10 +204,10 @@ class RequestController
             'created_at' => date('Y-m-d H:i:s')
         ];
 
-        try {
-            WebSocketService::emitToUser('provider', $providerId, 'new_request_created', $wsPayload);
-        } catch (Exception $e) {
-            error_log("⚠️ Excepción en emitToUser: " . $e->getMessage());
+        // ✅ CORREGIDO: Validar respuesta del WebSocket
+        $wsResult = WebSocketService::emitToUser('provider', $providerId, 'new_request_created', $wsPayload);
+        if (!$wsResult['success']) {
+            error_log("⚠️ [RequestController] No se notificó al proveedor {$providerId}: {$wsResult['message']}");
         }
 
         try {
@@ -384,10 +384,38 @@ class RequestController
                     'data_json' => json_encode(['type' => 'rating', 'notification_type' => 'open_rating', 'url' => '/orders/' . $requestId, 'action' => 'open_rating_modal', 'request_id' => (int)$requestId, 'provider_id' => $auth->id, 'from_role' => $auth->role])
                 ]);
 
-                WebSocketService::sendNotification('user', $request['user_id'], 'Servicio finalizado', 'El proveedor marcó el servicio como finalizado.', ['event' => 'open_rating_modal', 'notification_type' => 'open_rating', 'url' => '/orders/' . $requestId, 'action' => 'open_rating_modal', 'request_id' => (int)$requestId]);
-                WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
-                WebSocketService::emitToUser('user', $request['user_id'], 'open_rating_modal', ['request_id' => (int)$requestId, 'from_id' => $auth->id, 'from_role' => $auth->role, 'message' => 'Solicitar calificación']);
-                WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
+                // Notificaciones independientes: si una falla, las otras se intentan igual
+                $wsResults = [];
+
+                try {
+                    $wsResults['notif'] = WebSocketService::sendNotification('user', $request['user_id'], 'Servicio finalizado', 'El proveedor marcó el servicio como finalizado.', ['event' => 'open_rating_modal', 'notification_type' => 'open_rating', 'url' => '/orders/' . $requestId, 'action' => 'open_rating_modal', 'request_id' => (int)$requestId]);
+                } catch (Exception $e) {
+                    error_log("❌ [Finalized] Error en sendNotification: " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_status'] = WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
+                } catch (Exception $e) {
+                    error_log("❌ [Finalized] Error en emitToUser(status): " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_rating'] = WebSocketService::emitToUser('user', $request['user_id'], 'open_rating_modal', ['request_id' => (int)$requestId, 'from_id' => $auth->id, 'from_role' => $auth->role, 'message' => 'Solicitar calificación']);
+                } catch (Exception $e) {
+                    error_log("❌ [Finalized] Error en emitToUser(rating): " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_provider'] = WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]]);
+                } catch (Exception $e) {
+                    error_log("❌ [Finalized] Error en emitToUser(provider): " . $e->getMessage());
+                }
+
+                // Log de resultados
+                $failed = array_filter($wsResults, fn($r) => is_array($r) && !$r['success']);
+                if (!empty($failed)) {
+                    error_log("⚠️ [Finalized] Algunas notificaciones WS fallaron: " . json_encode(array_keys($failed)));
+                }
             }
 
             $this->archiveAndClean((int)$requestId, 'completed');
@@ -463,9 +491,31 @@ class RequestController
 
             $request = $this->model->getById($requestId);
             if ($request) {
-                WebSocketService::sendNotification('user', $request['user_id'], 'Solicitud rechazada', 'Tu solicitud fue rechazada');
-                WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
-                WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
+                // Notificaciones independientes
+                $wsResults = [];
+
+                try {
+                    $wsResults['notif'] = WebSocketService::sendNotification('user', $request['user_id'], 'Solicitud rechazada', 'Tu solicitud fue rechazada');
+                } catch (Exception $e) {
+                    error_log("❌ [Reject] Error en sendNotification: " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_user'] = WebSocketService::emitToUser('user', $request['user_id'], 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
+                } catch (Exception $e) {
+                    error_log("❌ [Reject] Error en emitToUser(user): " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_provider'] = WebSocketService::emitToUser('provider', $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'rejected', 'updated_at' => date('Y-m-d H:i:s')]]);
+                } catch (Exception $e) {
+                    error_log("❌ [Reject] Error en emitToUser(provider): " . $e->getMessage());
+                }
+
+                $failed = array_filter($wsResults, fn($r) => is_array($r) && !$r['success']);
+                if (!empty($failed)) {
+                    error_log("⚠️ [Reject] Algunas notificaciones WS fallaron: " . json_encode(array_keys($failed)));
+                }
             }
             $this->archiveAndClean((int)$requestId, 'rejected');
             echo json_encode(["success" => true, "message" => "Solicitud rechazada"]);
@@ -493,12 +543,66 @@ class RequestController
             if ($request) {
                 $otherRole = ($actorRole === 'provider') ? 'user' : 'provider';
                 $otherId = ($actorRole === 'provider') ? $request['user_id'] : $request['provider_id'];
-                WebSocketService::sendNotification($otherRole, $otherId, 'Solicitud cancelada', "Cancelada por el {$actorRole}");
-                WebSocketService::emitToUser($otherRole, $otherId, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s'), 'cancelled_by' => $actorRole]]);
-                WebSocketService::emitToUser($actorRole, $auth->id, 'request_updated', ['request' => ['id' => (int)$requestId, 'status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s'), 'cancelled_by' => $actorRole]]);
+
+                // Datos comunes del payload
+                $payload = [
+                    'request' => [
+                        'id' => (int)$requestId,
+                        'status' => 'cancelled',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                        'cancelled_by' => $actorRole
+                    ]
+                ];
+
+                // Notificar a AMBOS usuarios de forma independiente
+                // Si uno falla, el otro se intenta igual
+                $wsResults = [];
+
+                // 1. Notificar al otro usuario
+                try {
+                    $wsResults['notif_other'] = WebSocketService::sendNotification(
+                        $otherRole,
+                        $otherId,
+                        'Solicitud cancelada',
+                        "Cancelada por el {$actorRole}"
+                    );
+                } catch (Exception $e) {
+                    error_log("❌ [Cancel] Error en sendNotification a {$otherRole}_{$otherId}: " . $e->getMessage());
+                }
+
+                try {
+                    $wsResults['emit_other'] = WebSocketService::emitToUser(
+                        $otherRole,
+                        $otherId,
+                        'request_updated',
+                        $payload
+                    );
+                } catch (Exception $e) {
+                    error_log("❌ [Cancel] Error en emitToUser a {$otherRole}_{$otherId}: " . $e->getMessage());
+                }
+
+                // 2. Notificar al actor (quien canceló)
+                try {
+                    $wsResults['emit_actor'] = WebSocketService::emitToUser(
+                        $actorRole,
+                        $auth->id,
+                        'request_updated',
+                        $payload
+                    );
+                } catch (Exception $e) {
+                    error_log("❌ [Cancel] Error en emitToUser a {$actorRole}_{$auth->id}: " . $e->getMessage());
+                }
+
+                // Log de resultados
+                $failed = array_filter($wsResults, fn($r) => is_array($r) && !$r['success']);
+                if (!empty($failed)) {
+                    error_log("⚠️ [Cancel] Algunas notificaciones WS fallaron: " . json_encode(array_keys($failed)));
+                }
             }
+
             $this->archiveAndClean((int)$requestId, 'cancelled');
             echo json_encode(["success" => true]);
+
         } catch (Exception $e) {
             echo json_encode(["success" => false, "message" => $e->getMessage()]);
         }

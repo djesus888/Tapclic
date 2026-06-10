@@ -6,6 +6,26 @@ namespace Services;
 use Exception;
 use PDO;
 
+
+// Cargar .env si no está cargado
+if (!getenv('WS_URL') && file_exists(__DIR__ . '/../.env')) {
+    $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) continue;
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            if (!getenv($key)) {
+                putenv("$key=$value");
+                $_ENV[$key] = $value;
+            }
+        }
+    }
+    error_log("🔧 [WS] .env cargado manualmente");
+}
+
+
 class WebSocketService
 {
     private static ?string $baseUrl = null;
@@ -13,6 +33,7 @@ class WebSocketService
 
     /**
      * Obtener la URL base del WebSocket (único punto de verdad)
+     * Prioridad: DB (ws_host) → .env (WS_URL) → API_BASE_URL → fallback
      */
     private static function getBaseUrl(): string
     {
@@ -20,38 +41,33 @@ class WebSocketService
             return self::$baseUrl;
         }
 
-        // 1. Variable de entorno del servidor
-        $wsUrl = getenv('WS_URL');
+        // 1. PRIORIDAD: Base de datos (campo ws_host)
+        $wsUrl = self::getWebSocketUrlFromDatabase();
 
-        // 2. Si no existe, intentar desde base de datos
+        // 2. FALLBACK: Variable de entorno .env (WS_URL)
         if (empty($wsUrl)) {
-            $wsUrl = self::getWebSocketUrlFromDatabase();
+            $wsUrl = getenv('WS_URL');
+            if (!empty($wsUrl)) {
+                error_log("🔧 [WS] URL obtenida desde .env: $wsUrl");
+            }
         }
 
         // 3. Si no existe, construir desde API_BASE_URL
         if (empty($wsUrl)) {
             $apiUrl = getenv('API_BASE_URL');
             if (!empty($apiUrl)) {
-                // Convertir http:// a ws://, https:// a wss://
                 $wsUrl = preg_replace('/^http(s?):\/\//', 'ws$1://', $apiUrl);
-                error_log("🔧 WebSocket URL construida desde API_BASE_URL: $wsUrl");
+                error_log("🔧 [WS] URL construida desde API_BASE_URL: $wsUrl");
             }
         }
 
         // 4. Fallback final
-        // Usar protocolo HTTP correcto para el endpoint /emit
-        // El servidor Node.js expone endpoints HTTP (POST /emit, GET /status)
         if (empty($wsUrl)) {
-            if (self::isDevelopment()) {
-                $wsUrl = 'http://localhost:3001';
-            } else {
-                // En producción, mantener https:// si el dominio tiene SSL
-                $wsUrl = 'https://ws.tapclic.com';
-            }
-            error_log("⚠️ WebSocket URL no configurada, usando fallback: $wsUrl");
+            $wsUrl = self::isDevelopment() ? 'http://localhost:3001' : 'https://ws.tapclic.com';
+            error_log("⚠️ [WS] URL no configurada en DB ni .env, usando fallback: $wsUrl");
         }
 
-        // Asegurar que usamos http:// o https:// (no ws://)
+        // Asegurar http:// o https:// (no ws://)
         // Porque las peticiones CURL van al endpoint HTTP /emit
         if (strpos($wsUrl, 'ws://') === 0) {
             $wsUrl = preg_replace('/^ws:/', 'http:', $wsUrl);
@@ -60,7 +76,7 @@ class WebSocketService
         }
 
         self::$baseUrl = rtrim($wsUrl, '/');
-        error_log("✅ WebSocketService usando URL: " . self::$baseUrl);
+        error_log("✅ [WS] WebSocketService usando URL: " . self::$baseUrl);
 
         return self::$baseUrl;
     }
@@ -82,12 +98,11 @@ class WebSocketService
             if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $url = $row['ws_host'];
                 if (!empty($url)) {
-                    // Mantener como http/https para CURL
                     return $url;
                 }
             }
         } catch (Exception $e) {
-            error_log("⚠️ Error al obtener WS_URL de BD: " . $e->getMessage());
+            error_log("⚠️ [WS] Error al obtener WS_URL de BD: " . $e->getMessage());
         }
         return null;
     }
@@ -119,11 +134,10 @@ class WebSocketService
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            // Aceptamos cualquier código 2xx o 3xx
             return $httpCode >= 200 && $httpCode < 400;
         } catch (Exception $e) {
             if (self::isDevelopment()) {
-                error_log("⚠️ WebSocket reachability check falló: " . $e->getMessage());
+                error_log("⚠️ [WS] WebSocket reachability check falló: " . $e->getMessage());
             }
             return false;
         }
@@ -131,25 +145,32 @@ class WebSocketService
 
     /**
      * Emitir evento a través de WebSocket (método unificado)
+     *
+     * @param string $event Nombre del evento
+     * @param array $payload Datos del evento
+     * @param array|null $target Destino (room, usuario, rol)
+     * @return array Resultado con éxito, mensaje y código HTTP
      */
-    public static function emit(string $event, array $payload, ?array $target = null): bool
+    public static function emit(string $event, array $payload, ?array $target = null): array
     {
+        $result = [
+            'success' => false,
+            'http_code' => null,
+            'message' => '',
+            'event' => $event
+        ];
+
         try {
             $baseUrl = self::getBaseUrl();
             $url = $baseUrl . '/emit';
 
-            // Verificar reachability pero NO bloquear el envío
-            if (!self::isUrlReachable($baseUrl)) {
-                error_log("⚠️ WebSocket server no reachable: " . $baseUrl . " - Intentando enviar de todas formas...");
-            }
-
             $data = [
                 'event' => $event,
                 'payload' => $payload,
-                'timestamp' => time() // ✅ AGREGADO: timestamp para debugging
+                'timestamp' => time()
             ];
 
-            // Añadir target si existe (room o usuario específico)
+            // Añadir target si existe
             if ($target) {
                 if (isset($target['room'])) {
                     $data['room'] = $target['room'];
@@ -161,7 +182,6 @@ class WebSocketService
                 if (isset($target['conversation_id'])) {
                     $data['conversation_id'] = $target['conversation_id'];
                 }
-                // ✅ AGREGADO: soporte para broadcast a rol completo
                 if (isset($target['broadcast_role'])) {
                     $data['broadcast_role'] = $target['broadcast_role'];
                 }
@@ -169,12 +189,19 @@ class WebSocketService
 
             $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
 
-            // ✅ AGREGADO: Log detallado para debugging
+            if ($jsonData === false) {
+                $result['message'] = 'Error al codificar JSON: ' . json_last_error_msg();
+                error_log("❌ [WS] {$result['message']}");
+                return $result;
+            }
+
+            // Log detallado para debugging
             error_log("📤 [WS] Emitiendo evento '$event' a URL: $url");
             error_log("📦 [WS] Payload: " . json_encode([
                 'event' => $event,
                 'target' => $target ? array_keys($target) : 'broadcast',
-                'payload_keys' => array_keys($payload)
+                'payload_keys' => array_keys($payload),
+                'payload_size' => strlen($jsonData) . ' bytes'
             ]));
 
             $ch = curl_init($url);
@@ -197,34 +224,84 @@ class WebSocketService
             ]);
 
             $response = curl_exec($ch);
-            $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            $curlErrno = curl_errno($ch);
+            $responseBody = $response ? substr($response, 0, 500) : '';
             curl_close($ch);
 
-            $success = ($status >= 200 && $status < 300) && empty($error);
+            $result['http_code'] = $httpCode;
 
-            if (!$success) {
-                error_log("❌ [WS] Error HTTP $status: $error");
+            // Evaluar resultado
+            if ($curlErrno) {
+                // Error de conexión/red (servidor caído, timeout, DNS, etc.)
+                switch ($curlErrno) {
+                    case CURLE_COULDNT_CONNECT:
+                        $result['message'] = "No se pudo conectar al servidor WebSocket en $baseUrl";
+                        break;
+                    case CURLE_OPERATION_TIMEOUTED:
+                        $result['message'] = "Timeout al conectar con WebSocket (más de " . self::$timeout . "s)";
+                        break;
+                    case CURLE_SSL_CONNECT_ERROR:
+                        $result['message'] = "Error SSL al conectar con WebSocket";
+                        break;
+                    default:
+                        $result['message'] = "Error CURL ($curlErrno): $curlError";
+                }
+                error_log("❌ [WS] Error de conexión: {$result['message']}");
+
+            } elseif ($httpCode >= 200 && $httpCode < 300) {
+                // Éxito
+                $result['success'] = true;
+                $result['message'] = 'Evento enviado correctamente';
+
+                // Verificar respuesta JSON del servidor Node.js
+                $responseData = json_decode($responseBody, true);
+                if ($responseData && isset($responseData['status']) && $responseData['status'] !== 'ok') {
+                    error_log("⚠️ [WS] Servidor respondió pero con estado inesperado: " . json_encode($responseData));
+                }
+
+                error_log("✅ [WS] Evento '$event' enviado correctamente (HTTP $httpCode)");
+
+            } elseif ($httpCode >= 500) {
+                // Error del servidor Node.js
+                $result['message'] = "Error interno del servidor WebSocket (HTTP $httpCode)";
+                error_log("❌ [WS] {$result['message']}");
+                error_log("📦 [WS] Respuesta: $responseBody");
+
+            } elseif ($httpCode >= 400) {
+                // Error del cliente (payload mal formado, etc.)
+                $result['message'] = "Error en la petición al WebSocket (HTTP $httpCode)";
+                error_log("❌ [WS] {$result['message']}");
                 error_log("📦 [WS] Data enviada: " . substr($jsonData, 0, 500));
+                error_log("📦 [WS] Respuesta: $responseBody");
+
             } else {
-                error_log("✅ [WS] Evento '$event' enviado correctamente (HTTP $status)");
+                // Código inesperado (3xx, etc.)
+                $result['message'] = "Respuesta inesperada del WebSocket (HTTP $httpCode)";
+                error_log("⚠️ [WS] {$result['message']}");
             }
 
-            return $success;
+            return $result;
+
         } catch (Exception $e) {
+            $result['message'] = 'Excepción: ' . $e->getMessage();
             error_log("❌ [WS] Excepción en emit: " . $e->getMessage());
-            return false;
+            error_log("❌ [WS] Trace: " . $e->getTraceAsString());
+            return $result;
         }
     }
 
     /**
      * Emitir evento a sala específica
+     *
+     * @return array Resultado con éxito, mensaje y código HTTP
      */
-    public static function emitToRoom(string $room, string $event, array $payload): bool
+    public static function emitToRoom(string $room, string $event, array $payload): array
     {
         $target = ['room' => $room];
 
-        error_log("📡 Emitiendo a sala {$room}: {$event}");
+        error_log("📡 [WS] Emitiendo a sala {$room}: {$event}");
 
         // Si es sala de conversación, añadir conversation_id
         if (strpos($room, 'conversation_') === 0) {
@@ -248,8 +325,10 @@ class WebSocketService
 
     /**
      * Emitir evento a usuario específico
+     *
+     * @return array Resultado con éxito, mensaje y código HTTP
      */
-    public static function emitToUser(string $receiverRole, int $receiverId, string $event, array $payload): bool
+    public static function emitToUser(string $receiverRole, int $receiverId, string $event, array $payload): array
     {
         $target = [
             'receiver_id' => $receiverId,
@@ -264,7 +343,7 @@ class WebSocketService
             $payload['conversation_id'] = $target['conversation_id'];
         }
 
-        // ✅ AGREGADO: timestamp si no existe
+        // Timestamp si no existe
         if (!isset($payload['timestamp'])) {
             $payload['timestamp'] = time();
         }
@@ -275,9 +354,11 @@ class WebSocketService
     }
 
     /**
-     * ✅ NUEVO: Emitir evento a todos los usuarios de un rol específico
+     * Emitir evento a todos los usuarios de un rol específico
+     *
+     * @return array Resultado con éxito, mensaje y código HTTP
      */
-    public static function emitToRole(string $receiverRole, string $event, array $payload): bool
+    public static function emitToRole(string $receiverRole, string $event, array $payload): array
     {
         $target = [
             'broadcast_role' => $receiverRole
@@ -294,6 +375,8 @@ class WebSocketService
 
     /**
      * Enviar notificación a usuario
+     *
+     * @return array Resultado con éxito, mensaje y código HTTP
      */
     public static function sendNotification(
         string $receiverRole,
@@ -301,9 +384,9 @@ class WebSocketService
         string $title,
         string $message,
         array $data = []
-    ): bool {
+    ): array {
         $payload = [
-            'event' => $data['event'] ?? 'status_changed', // ✅ CORRECCIÓN: Incluir event para el switch en socketStore
+            'event' => $data['event'] ?? 'status_changed',
             'title' => $title,
             'message' => $message,
             'notification_type' => $data['notification_type'] ?? 'general',
@@ -311,15 +394,20 @@ class WebSocketService
             'action' => $data['action'] ?? null,
             'conversation_id' => $data['conversation_id'] ?? null,
             'sender_name' => $data['sender_name'] ?? null,
-            'request_id' => $data['request_id'] ?? null, // ✅ AGREGADO
-            'service_id' => $data['service_id'] ?? null, // ✅ AGREGADO
+            'request_id' => $data['request_id'] ?? null,
+            'service_id' => $data['service_id'] ?? null,
             'timestamp' => time()
         ];
 
-        // ✅ AGREGADO: Log para debugging
         error_log("📢 [WS] Enviando notificación a {$receiverRole}_{$receiverId}: $title");
 
-        return self::emitToUser($receiverRole, $receiverId, 'new-notification', $payload);
+        $result = self::emitToUser($receiverRole, $receiverId, 'new-notification', $payload);
+
+        if (!$result['success']) {
+            error_log("⚠️ [WS] Notificación no enviada a {$receiverRole}_{$receiverId}: {$result['message']}");
+        }
+
+        return $result;
     }
 
     /**

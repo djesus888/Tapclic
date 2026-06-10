@@ -253,10 +253,10 @@ const providerName = computed(() => {
 const providerAvatar = computed(() => {
   const provider = props.request?.provider
   if (provider?.avatar_url) {
-    return getImageUrl(`/uploads/avatars/${provider.avatar_url}`)
+    return getImageUrl(provider.avatar_url, 'avatar')
   }
   if (provider?.avatar) {
-    return getImageUrl(`/uploads/avatars/${provider.avatar}`)
+    return getImageUrl(provider.avatar, 'avatar')
   }
   return '/img/default-provider.png'
 })
@@ -300,7 +300,7 @@ const providerReviewsStats = computed(() => {
 const openChat = () => {
   const provider = props.request?.provider
   const avatar = provider?.avatar_url
-    ? getImageUrl(`/uploads/avatars/${provider.avatar_url}`)
+    ? getImageUrl(provider.avatar_url, 'avatar')
     : '/img/default-provider.png'
 
   
@@ -356,7 +356,7 @@ const loadProviderReviews = async () => {
 
 const getReviewerAvatar = (review) => {
   if (review.provider_avatar) {
-    return getImageUrl(`/uploads/avatars/${review.provider_avatar}`)
+    return getImageUrl(review.provider_avatar, 'avatar')
   }
   return '/img/default-user.png'
 }

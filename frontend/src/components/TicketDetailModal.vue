@@ -236,7 +236,7 @@ function getCategoryLabel(category: string): string {
 
 function getUserAvatar(user: any): string {
   if (user?.avatar_url) {
-    return getImageUrl(`/uploads/${user.avatar_url}`)
+   return getImageUrl(user.avatar_url, 'avatar')
   }
   return '/img/default-avatar.png'
 }

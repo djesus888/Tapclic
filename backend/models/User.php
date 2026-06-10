@@ -13,7 +13,7 @@ class User {
 
     public function findByEmailOrPhone($identifier) {
         // Devuelve también password para verificación en login
-        $query = "SELECT id, name, email, phone, role, password FROM {$this->table} WHERE email = :id OR phone = :id LIMIT 1";
+        $query = "SELECT id, name, email, phone, role, password, avatar_url FROM {$this->table} WHERE email = :id OR phone = :id LIMIT 1";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $identifier);
         $stmt->execute();

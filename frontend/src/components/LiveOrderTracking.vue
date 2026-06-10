@@ -152,7 +152,7 @@
             <div class="provider-card">
               <div class="provider-header">
                 <img
-                  :src="localOrder.provider?.avatar_url || '/img/default-provider.png'"
+                 :src="getImageUrl(localOrder.provider?.avatar_url, 'avatar') || '/img/default-provider.png'"
                   alt="Provider"
                   class="provider-avatar"
                   @error="handleImageError"
@@ -361,6 +361,7 @@
 import { useI18n } from 'vue-i18n'
 import { useSocketStore } from '@/stores/socketStore'
 import { useToast } from 'vue-toastification'
+import { getImageUrl } from '@/utils/imageHelper'
 import api from '@/axios'
 
 export default {

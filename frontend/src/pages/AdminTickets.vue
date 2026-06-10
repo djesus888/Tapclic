@@ -1240,14 +1240,14 @@ function getStatusLabel(status: string): string {
 
 function getUserAvatar(user?: User): string {
   if (user?.avatar_url) {
-    return getImageUrl(user.avatar_url)
+    return getImageUrl(user.avatar_url, 'avatar')
   }
   return '/img/default-avatar.png'
 }
 
 function getAdminAvatar(admin?: Admin): string {
   if (admin?.avatar_url) {
-    return getImageUrl(admin.avatar_url)
+    return getImageUrl(admin.avatar_url, 'avatar')
   }
   return '/img/default-admin.png'
 }

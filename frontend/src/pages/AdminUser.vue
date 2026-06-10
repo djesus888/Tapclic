@@ -335,7 +335,7 @@
               <div class="avatar-upload">
                 <div class="avatar-preview">
                   <img
-                    :src="preview || getImageUrl(form.avatar_url || '')"
+                    :src="preview || getImageUrlHelper(form.avatar_url || '')"
                     alt="Vista previa"
                     class="avatar-preview-img"
                   >
@@ -415,11 +415,10 @@ const toast = ref({
 })
 
 // ✅ Función para obtener URL de imágenes (corregida)
-const getImageUrl = (path) => {
-  if (!path) return 'https://via.placeholder.com/100?text=Usuario'
-  if (path.startsWith('http') || path.startsWith('blob:')) return path
-  if (path.startsWith('/')) return `${import.meta.env.VITE_API_URL || ''}${path}`
-  return getImageUrlHelper(path, 'avatars')
+const avatarUrl = (name) => {
+  if (!name) return 'https://via.placeholder.com/100?text=U'
+  if (name.startsWith('http')) return name
+  return getImageUrlHelper(name, 'avatars')
 }
 
 // Computed properties para estadísticas
@@ -558,7 +557,7 @@ const goToPage = page => {
 // ✅ Corregido: openModal con getImageUrl
 const openModal = (user) => {
   form.value = { ...user }
-  preview.value = user?.avatar_url ? getImageUrl(user.avatar_url) : null
+  preview.value = user?.avatar_url ? getImageUrlHelper(user.avatar_url) : null
   modalOpen.value = true
 }
 
@@ -602,11 +601,11 @@ const deleteUser = async id => {
 }
 
 // ✅ Corregido: avatarUrl con getImageUrl
-const avatarUrl = (name) =>
-  name
-    ? getImageUrl(name.startsWith('http') || name.startsWith('/') ? name : `/uploads/avatars/${name}`)
-    : 'https://via.placeholder.com/100?text=Usuario'
-
+const avatarUrl = (name) => {
+  if (!name) return 'https://via.placeholder.com/100?text=U'
+  if (name.startsWith('http')) return name
+  return getImageUrlHelper(name, 'avatars')
+}
 onMounted(fetchUsers)
 </script>
 

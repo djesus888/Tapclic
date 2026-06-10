@@ -4,7 +4,7 @@
     <!-- Encabezado -->
     <div class="flex items-center gap-4 mb-6">
       <img
-        :src="profile.avatar_url || '/default-avatar.png'"
+        :src="getImageUrl(profile.avatar_url, 'avatar') || '/default-avatar.png'"
         class="w-20 h-20 rounded-full object-cover border"
       />
       <div>
