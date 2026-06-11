@@ -414,12 +414,6 @@ const toast = ref({
   type: 'success'
 })
 
-// ✅ Función para obtener URL de imágenes (corregida)
-const avatarUrl = (name) => {
-  if (!name) return 'https://via.placeholder.com/100?text=U'
-  if (name.startsWith('http')) return name
-  return getImageUrlHelper(name, 'avatars')
-}
 
 // Computed properties para estadísticas
 const clientCount = computed(() => {
@@ -602,7 +596,7 @@ const deleteUser = async id => {
 
 // ✅ Corregido: avatarUrl con getImageUrl
 const avatarUrl = (name) => {
-  if (!name) return 'https://via.placeholder.com/100?text=U'
+  if (!name) return '/img/default-avatar.png'
   if (name.startsWith('http')) return name
   return getImageUrlHelper(name, 'avatars')
 }

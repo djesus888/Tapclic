@@ -369,7 +369,9 @@ function rehire(r) {
 
 /* Helpers visuales */
 function avatar(url) {
-  return url ? getImageUrl(url) : '/img/default-provider.png'
+  if (!url) return '/img/default-provider.png'
+  if (url.startsWith('http')) return url
+  return getImageUrl(url, 'avatar')
 }
 function statusLabel(s) {
   const map = {

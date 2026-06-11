@@ -236,7 +236,7 @@ const providerAvatar = computed(() => {
   if (user?.avatar) {
     return getImageUrl(user.avatar, 'avatar')
   }
-  return null // No mostrar avatar si no existe
+  return '/img/default-avatar.png'
 })
 
 const providerRating = computed(() => {

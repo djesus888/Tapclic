@@ -589,7 +589,7 @@ if (service.provider?.avatar_url) {
   text-align: center;
 }
 
--.search-results-count {
+.search-results-count {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 6px 16px;

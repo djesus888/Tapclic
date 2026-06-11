@@ -484,7 +484,9 @@ function openLiveTracking() {
 
 /* ---------- helpers ---------- */
 function avatar(url?: string) {
-  return url ? getImageUrl(`/uploads/${url}`) : '/img/default-provider.png'
+  if (!url) return '/img/default-provider.png'
+  if (url.startsWith('http')) return url
+  return getImageUrl(url, 'avatar')
 }
 
 /* ---------- nuevo helper para manejar errores de imagen ---------- */

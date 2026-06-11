@@ -191,7 +191,7 @@ const visiblePages = computed(() => {
 
 // Methods
 const avatarUrl = (name) => {
-  if (!name) return 'https://via.placeholder.com/100?text=P'
+  if (!name) return '/img/default-avatar.png'
   if (name.startsWith('http')) return name
   return getImageUrlHelper(name, 'avatars')
 }

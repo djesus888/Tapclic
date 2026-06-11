@@ -326,7 +326,6 @@ export default {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
-1a
 .page-header p {
   font-size: 1.2rem;
   opacity: 0.9;

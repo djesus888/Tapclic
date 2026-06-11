@@ -251,6 +251,7 @@
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConversationStore } from '@/stores/conversationStore'
+import { getImageUrl } from '@/utils/imageHelper'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketStore } from '@/stores/socketStore'
 import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
@@ -433,7 +434,7 @@ function interlocutor(conv) {
 function avatarUrl(avatar) {
   if (!avatar) return '/img/default-avatar.png'
   if (avatar.startsWith('http')) return avatar
-  return `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${avatar}`
+  return getImageUrl(avatar, 'avatar')
 }
 
 function truncateMessage(message, length) {
