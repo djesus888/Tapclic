@@ -71,8 +71,14 @@ const routes = [
       { path: 'dashboard/user',     component: () => import('@/components/DashboardUser.vue'),    meta: { role: 'user' } },
       { path: 'dashboard/admin',    component: () => import('@/components/DashboardAdmin.vue'),   meta: { role: 'admin' } },
       { path: 'dashboard/provider', component: () => import('@/components/DashboardProvider.vue'), meta: { role: 'provider' } },
+
+
+       // Ruta 404 -  Dentro del layout protegido
+       { path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
     ],
   },
+// Ruta 404 -  para  rutas no protegidas
+{ path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
 ]
 
 const router = createRouter({
