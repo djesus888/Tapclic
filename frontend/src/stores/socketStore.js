@@ -67,7 +67,6 @@ export const useSocketStore = defineStore('socket', {
         console.log('⏳ Conexión ya en progreso, esperando...');
         return await this._creating;
       }
-
       if (this._isDisconnecting) {
         console.log('⏳ Esperando desconexión actual...');
         const maxWait = 5000;
@@ -85,7 +84,6 @@ export const useSocketStore = defineStore('socket', {
       if (!this.notificationSound) {
         this.initNotificationSound();
       }
-
       if (this.socket) {
         console.log('🧹 Limpiando socket anterior no conectado');
         this.socket.removeAllListeners();
@@ -132,6 +130,11 @@ export const useSocketStore = defineStore('socket', {
 
           console.log('✅ Socket conectado, ID:', socket.id);
 
+          // ✅ CORRECCIÓN #1: Guardar copia de salas antes de limpiar
+          const roomsToRejoin = new Set(this._joinedRooms);
+          this._joinedRooms.clear();
+          console.log('🧹 Salas unidas limpiadas tras reconexión, reuniendo:', [...roomsToRejoin]);
+
           const currentPath = window.location.pathname;
           const chatMatch = currentPath.match(/\/chat\/(\d+)/);
           if (chatMatch) {
@@ -139,7 +142,8 @@ export const useSocketStore = defineStore('socket', {
             this.joinConversationRoom(conversationId);
           }
 
-          this._joinedRooms.forEach(room => {
+          // ✅ CORRECCIÓN #1: Iterar la copia guardada, no el Set vacío
+          roomsToRejoin.forEach(room => {
             socket.emit('join-room', room, (response) => {
               if (response?.success) {
                 console.log(`✅ Re-unido a sala: ${room}`);
@@ -160,7 +164,7 @@ export const useSocketStore = defineStore('socket', {
             this._pendingRooms.clear();
           }
 
-          // ✅ CORRECCIÓN: Restaurar handlers de componentes correctamente
+          // Restaurar handlers de componentes
           for (const [event, handlersSet] of this._componentHandlers) {
             for (const handler of handlersSet) {
               socket.off(event, handler);
@@ -174,6 +178,10 @@ export const useSocketStore = defineStore('socket', {
           this._flushPendingEvents();
           this.startHeartbeat();
           this.startHttpHeartbeat();
+
+          // ✅ CORRECCIÓN #12: Emitir evento 'connect' para que conversationStore.initSocket() se ejecute
+          this._emitToHandlers('connect', { socketId: socket.id });
+
           resolve(socket);
         };
 
@@ -254,7 +262,6 @@ export const useSocketStore = defineStore('socket', {
         this._reconnectBaseDelay * Math.pow(2, this._reconnectAttempts),
         this._reconnectMaxDelay
       );
-
       console.log(`🔄 Programando reconexión en ${delay}ms (intento ${this._reconnectAttempts + 1})`);
       this._reconnectTimer = setTimeout(() => {
         this._attemptReconnect();
@@ -263,7 +270,6 @@ export const useSocketStore = defineStore('socket', {
 
     async _attemptReconnect() {
       if (this._isReconnecting) return;
-
       this._isReconnecting = true;
       this._reconnectAttempts++;
       const authStore = useAuthStore();
@@ -283,7 +289,6 @@ export const useSocketStore = defineStore('socket', {
         }
         return;
       }
-
       console.log(`🔄 Intentando reconexión ${this._reconnectAttempts}...`);
 
       try {
@@ -308,17 +313,10 @@ export const useSocketStore = defineStore('socket', {
       const notificationStore = useNotificationStore();
       const conversationStore = useConversationStore();
 
-      // =====================================================
-      // ✅ CORREGIDO: Listener ÚNICO para new-notification
-      // SOLO el socketStore llama a addNotification, el notificationStore
-      // ya NO tiene su propio listener para evitar duplicados
-      // =====================================================
       socket.on('new-notification', (notification) => {
         console.log('📢 [SOCKET] Notificación recibida:', notification);
         notificationStore.addNotification(notification);
-        // Reproducir sonido
         this.playNotificationSound();
-        // Emitir a los handlers de componentes para que DashboardUser reaccione
         this._emitToHandlers('new-notification', notification);
       });
 
@@ -337,33 +335,24 @@ export const useSocketStore = defineStore('socket', {
         onlineUsersStore.removeOnlineUser(userId);
       });
 
-      // =====================================================
-      // ✅ CORRECCIÓN: Listeners para eventos de solicitudes
-      // Ahora emiten a los handlers de componentes
-      // =====================================================
       socket.on('new_request_created', (data) => {
         console.log('🆕 [SOCKET] Nueva solicitud recibida:', data);
-        // Reproducir sonido
         this.playNotificationSound();
-        // Emitir a los handlers de componentes
         this._emitToHandlers('new_request_created', data);
       });
 
       socket.on('request_updated', (data) => {
         console.log('🔄 [SOCKET] Solicitud actualizada:', JSON.stringify(data));
-        // Reproducir sonido para cambios importantes
         const status = data.request?.status || data.status;
         if (status === 'accepted' || status === 'rejected' || status === 'cancelled' || status === 'completed') {
           this.playNotificationSound();
         }
-        // ✅ EMITIR a los handlers de componentes (esto es lo que faltaba para el tiempo real)
         this._emitToHandlers('request_updated', data);
       });
 
       socket.on('payment_updated', (data) => {
         console.log('💳 [SOCKET] Pago actualizado:', JSON.stringify(data));
         this.playNotificationSound();
-        // ✅ EMITIR a los handlers de componentes para actualizar UI en tiempo real
         this._emitToHandlers('payment_updated', data);
       });
 
@@ -373,13 +362,12 @@ export const useSocketStore = defineStore('socket', {
       });
 
       // =====================================================
-      // new_message - VERSIÓN CORREGIDA
+      // new_message - VERSIÓN CORREGIDA (sin emitir delivered/read)
       // =====================================================
       socket.on('new_message', (data) => {
         console.log('📨 [SOCKET] new_message recibido:', JSON.stringify(data, null, 2));
 
         let messageData = {};
-
         if (data.message && typeof data.message === 'object') {
           messageData = {
             ...data,
@@ -397,6 +385,10 @@ export const useSocketStore = defineStore('socket', {
           };
         }
 
+        const authStore = useAuthStore();
+        messageData.is_mine = String(messageData.sender_id) === String(authStore.user?.id) &&
+                              messageData.sender === authStore.user?.role;
+
         const conversationId = messageData.conversation_id;
         if (!conversationId) {
           console.error('❌ [SOCKET] No se pudo obtener conversation_id');
@@ -408,7 +400,6 @@ export const useSocketStore = defineStore('socket', {
           this.joinConversationRoom(conversationId);
         }
 
-        const authStore = useAuthStore();
         const existingMessages = conversationStore?.messages?.[conversationId] || [];
         const messageExists = existingMessages.some(m =>
           m.id === messageData.id ||
@@ -420,33 +411,30 @@ export const useSocketStore = defineStore('socket', {
           return;
         }
 
+        if (messageData.is_mine && messageData.temp_id) {
+          const tempIndex = existingMessages.findIndex(m =>
+            m.temp_id === messageData.temp_id && m._temp === true
+          );
+          if (tempIndex !== -1) {
+            console.log('🔄 [SOCKET] Reemplazando mensaje temporal:', messageData.temp_id);
+            conversationStore.messages[conversationId][tempIndex] = {
+              ...existingMessages[tempIndex],
+              ...messageData,
+              _temp: false,
+              temp_id: undefined
+            };
+            conversationStore.messages = {
+              ...conversationStore.messages,
+              [conversationId]: [...conversationStore.messages[conversationId]]
+            };
+            return;
+          }
+        }
+
+        // ✅ CORRECCIÓN #3: Delegar toda la lógica a conversationStore.addMessage()
+        // que es el ÚNICO responsable de emitir delivered/read y reproducir sonido
         if (conversationStore) {
           conversationStore.addMessage(conversationId, messageData);
-        }
-
-        const isOwnMessage = String(messageData.sender_id) === String(authStore.user?.id);
-        const hasRealId = messageData.id && !String(messageData.id).startsWith('temp_');
-
-        if (!isOwnMessage && hasRealId) {
-          console.log(`📬 [SOCKET] Emitiendo message_delivered para mensaje ${messageData.id}`);
-          socket.emit('message_delivered', {
-            conversation_id: conversationId,
-            message_ids: [messageData.id]
-          });
-
-          if (Number(conversationId) === Number(conversationStore.activeConversationId)) {
-            console.log(`✅ [SOCKET] Emitiendo message_read para mensaje ${messageData.id} (conversación activa)`);
-            socket.emit('message_read', {
-              conversation_id: conversationId,
-              message_ids: [messageData.id]
-            });
-          }
-        } else if (!isOwnMessage && !hasRealId) {
-          console.warn(`⚠️ [SOCKET] Mensaje sin ID real, no se emite delivered/read:`, messageData);
-        }
-
-        if (!isOwnMessage) {
-          this.playNotificationSound();
         }
       });
 
@@ -473,34 +461,28 @@ export const useSocketStore = defineStore('socket', {
         if (conversationStore) {
           const conversationId = normalizedData.conversation_id || data.conversation_id;
           const messageIds = normalizedData.message_ids || data.message_ids || [];
-
           if (conversationId && messageIds.length > 0) {
             conversationStore.markMessagesAsReadLocally(conversationId, messageIds);
           }
         }
-
         this._emitToHandlers('message_read', normalizedData);
       });
 
       socket.on('message_delivered', (data) => {
         console.log('📬 Mensajes entregados:', data);
         const normalizedData = this._normalizeEventData(data);
-
         if (conversationStore) {
           conversationStore.markMessagesAsDelivered(normalizedData);
         }
-
         this._emitToHandlers('message_delivered', normalizedData);
       });
 
       socket.on('typing_indicator', (data) => {
         console.log('⌨️ Indicador de escritura:', data);
         const normalizedData = this._normalizeEventData(data);
-
         if (conversationStore) {
           conversationStore.setTypingIndicator(normalizedData);
         }
-
         this._emitToHandlers('typing_indicator', normalizedData);
       });
 
@@ -567,14 +549,11 @@ export const useSocketStore = defineStore('socket', {
               this.disconnect();
               return;
             }
-
             if (newToken === oldToken) return;
-
             if (!this.socket || !this.socket.connected) {
               await this.connectWithToken(newToken, authStore.user);
               return;
             }
-
             this.socket.auth.token = newToken;
             this.socket.emit('refresh-token', newToken);
           },
@@ -610,7 +589,6 @@ export const useSocketStore = defineStore('socket', {
     async sendHttpHeartbeat() {
       const authStore = useAuthStore();
       if (!authStore.token) return;
-
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/user/heartbeat`, {
           method: 'POST',
@@ -649,7 +627,6 @@ export const useSocketStore = defineStore('socket', {
           message: message
         };
       }
-
       if (data.payload) return data.payload;
       if (data.message) return data.message;
       return data;
@@ -658,7 +635,6 @@ export const useSocketStore = defineStore('socket', {
     _emitToHandlers(event, data) {
       if (this._componentHandlers.has(event)) {
         const handlers = this._componentHandlers.get(event);
-
         handlers.forEach(handler => {
           try {
             handler(data);
@@ -695,11 +671,9 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Parámetros inválidos para socket.on()');
         return;
       }
-
       if (!this._componentHandlers.has(event)) {
         this._componentHandlers.set(event, new Set());
       }
-
       const handlers = this._componentHandlers.get(event);
       if (!handlers.has(handler)) {
         handlers.add(handler);
@@ -715,9 +689,7 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Evento inválido para socket.off()');
         return;
       }
-
       if (!this._componentHandlers.has(event)) return;
-
       const handlers = this._componentHandlers.get(event);
       if (handler) {
         handlers.delete(handler);
@@ -730,13 +702,11 @@ export const useSocketStore = defineStore('socket', {
           this.socket.off(event);
         }
       }
-
       if (handlers.size === 0) this._componentHandlers.delete(event);
     },
 
     cleanupHandlers(event, componentId) {
       if (!event) return;
-
       if (componentId && this._componentHandlers.has(event)) {
         const handlers = this._componentHandlers.get(event);
         for (const handler of handlers) {
@@ -755,7 +725,6 @@ export const useSocketStore = defineStore('socket', {
 
     cleanupComponentHandlers(componentId) {
       if (!componentId) return;
-
       for (const [event, handlers] of this._componentHandlers) {
         for (const handler of handlers) {
           if (handler.__componentId === componentId) {
@@ -782,7 +751,6 @@ export const useSocketStore = defineStore('socket', {
         this._queueEvent(event, payload);
         return;
       }
-
       let safePayload = {};
       try {
         safePayload = payload ? JSON.parse(JSON.stringify(payload)) : {};
@@ -790,13 +758,11 @@ export const useSocketStore = defineStore('socket', {
         console.error('❌ Error al copiar payload:', e);
         safePayload = payload || {};
       }
-
       if (!this.socket.connected) {
         console.log(`📤 Evento en cola (offline): ${event}`, safePayload);
         this._queueEvent(event, safePayload);
         return;
       }
-
       try {
         if (event === 'send_message') {
           const tempId = safePayload.temp_id || Date.now();
@@ -805,7 +771,6 @@ export const useSocketStore = defineStore('socket', {
             payload: safePayload,
             timestamp: Date.now()
           });
-
           setTimeout(() => {
             if (this._pendingConfirmations.has(tempId)) {
               console.warn(`⚠️ No se recibió confirmación para mensaje ${tempId}`);
@@ -843,16 +808,13 @@ export const useSocketStore = defineStore('socket', {
       const maxAge = 60000;
       const maxRetries = 3;
       const stillPending = [];
-
       for (const item of this._pendingEvents) {
         const age = now - item.timestamp;
         const retries = item.retryCount || 0;
-
         if (age > maxAge || retries >= maxRetries) {
           console.warn(`⏰ Evento expirado (age: ${age}ms, retries: ${retries}): ${item.event}`, item.payload);
           continue;
         }
-
         try {
           this.socket.emit(item.event, item.payload);
           console.log(`📤 Evento pendiente enviado: ${item.event}`, item.payload);
@@ -862,7 +824,6 @@ export const useSocketStore = defineStore('socket', {
           stillPending.push(item);
         }
       }
-
       this._pendingEvents = stillPending;
     },
 
@@ -876,12 +837,10 @@ export const useSocketStore = defineStore('socket', {
         this.initNotificationSound();
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-
       if (!this.notificationSound) {
         console.error('❌ No se pudo inicializar el sonido');
         return;
       }
-
       try {
         this.notificationSound.currentTime = 0;
         await this.notificationSound.play();
@@ -924,7 +883,6 @@ export const useSocketStore = defineStore('socket', {
         clearInterval(this.heartbeatInterval);
         this.heartbeatInterval = null;
       }
-
       if (this.httpHeartbeatInterval) {
         clearInterval(this.httpHeartbeatInterval);
         this.httpHeartbeatInterval = null;
@@ -943,7 +901,6 @@ export const useSocketStore = defineStore('socket', {
         this._stopAuthWatch = null;
       }
       this._initialized = false;
-
       console.log('🔌 SocketStore desconectado completamente');
       this._isDisconnecting = false;
     },
@@ -953,13 +910,11 @@ export const useSocketStore = defineStore('socket', {
         console.log('🔌 Socket ya conectado');
         return;
       }
-
       if (this._disconnectedByServer) {
         console.log('🔄 Intentando reconexión manual después de desconexión por servidor');
         this._disconnectedByServer = false;
         this._shouldReconnect = true;
       }
-
       if (this._reconnectTimer) {
         clearTimeout(this._reconnectTimer);
         this._reconnectTimer = null;
@@ -1012,14 +967,12 @@ export const useSocketStore = defineStore('socket', {
         console.log(`✅ Ya está en sala: ${room}`);
         return true;
       }
-
       if (!this.socket || !this.socket.connected) {
         console.log(`⏳ Socket no conectado, guardando sala para unirse después: ${room}`);
         this._pendingRooms = this._pendingRooms || new Set();
         this._pendingRooms.add(room);
         return false;
       }
-
       return new Promise((resolve) => {
         console.log(`🔗 Uniéndose a sala: ${room}`);
         this.socket.emit('join-room', room, (response) => {

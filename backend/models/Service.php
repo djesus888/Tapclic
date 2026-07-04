@@ -16,30 +16,32 @@ class Service
     /* ----------  CREATE  ---------- */
     public function create(array $data): int|bool
     {
-        $sql = "INSERT INTO {$this->table}
-                (user_id, title, description, service_details, status, price, category, location,
-                 image_url, provider_name, provider_avatar_url, provider_rating, isAvailable)
-                VALUES
-                (:user_id, :title, :description, :service_details, :status, :price, :category, :location,
-                 :image_url, :provider_name, :provider_avatar_url, :provider_rating, :isAvailable)";
 
-        $stmt = $this->conn->prepare($sql);
+$sql = "INSERT INTO {$this->table}
+        (user_id, title, description, service_details, status, service_type, price, category, location,
+         image_url, provider_name, provider_avatar_url, provider_rating, isAvailable)
+        VALUES
+        (:user_id, :title, :description, :service_details, :status, :service_type, :price, :category, :location,
+         :image_url, :provider_name, :provider_avatar_url, :provider_rating, :isAvailable)";
 
-        $saved = $stmt->execute([
-            ':user_id'             => $data['user_id'],
-            ':title'               => $data['title'],
-            ':description'         => $data['description'],
-            ':service_details'     => $data['service_details'] ?? null,
-            ':status'              => $data['status'] ?? 'pending',
-            ':price'               => $data['price'] ?? 0,
-            ':category'            => $data['category'] ?? null,
-            ':location'            => $data['location'] ?? null,
-            ':image_url'           => $data['image_url'] ?? null,
-            ':provider_name'       => $data['provider_name'] ?? null,
-            ':provider_avatar_url' => $data['provider_avatar_url'] ?? null,
-            ':provider_rating'     => $data['provider_rating'] ?? 5.0,
-            ':isAvailable'         => $data['isAvailable'] ?? 1,
-        ]);
+$stmt = $this->conn->prepare($sql);
+
+$saved = $stmt->execute([
+    ':user_id'             => $data['user_id'],
+    ':title'               => $data['title'],
+    ':description'         => $data['description'],
+    ':service_details'     => $data['service_details'] ?? null,
+    ':status'              => $data['status'] ?? 'pending',
+    ':service_type'        => $data['service_type'] ?? 'fijo',
+    ':price'               => $data['price'] ?? 0,
+    ':category'            => $data['category'] ?? null,
+    ':location'            => $data['location'] ?? null,
+    ':image_url'           => $data['image_url'] ?? null,
+    ':provider_name'       => $data['provider_name'] ?? null,
+    ':provider_avatar_url' => $data['provider_avatar_url'] ?? null,
+    ':provider_rating'     => $data['provider_rating'] ?? 5.0,
+    ':isAvailable'         => $data['isAvailable'] ?? 1,
+]);
 
        
 /* --------- notificación al administrador --------- */
@@ -54,7 +56,7 @@ return false;
 public function findById(int $id): ?array
 {
     $stmt = $this->conn->prepare("
-        SELECT id, title, description, price, location, image_url,
+        SELECT id, title, description, service_type, price, location, image_url,
                provider_name, provider_avatar_url, provider_rating,
                isAvailable, status, created_at,
                user_id AS provider_id

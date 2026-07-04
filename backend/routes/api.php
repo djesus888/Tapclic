@@ -17,6 +17,7 @@ require_once __DIR__ . '/../controllers/ContentController.php';
 require_once __DIR__ . '/../controllers/WalletController.php';
 require_once __DIR__ . '/../controllers/PaymentMethodController.php';
 require_once __DIR__ . '/../controllers/UserPresenceController.php';
+require_once __DIR__ . '/../controllers/ProviderStaffController.php';
 require_once __DIR__ . '/../controllers/BillingController.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
 require_once __DIR__ . '/../controllers/MonetizationController.php';
@@ -82,6 +83,17 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/payments/proof~', $request)
 ) {
     (new PaymentController())->handle($method);
+
+// --- RUTAS DELIVERY (STAFF) - DEBEN IR ANTES DEL BLOQUE requests ---
+} elseif ($request === '/api/delivery/orders' && $method === 'GET') {
+    (new RequestController())->getDeliveryOrders();
+} elseif ($request === '/api/delivery/update-status' && $method === 'POST') {
+    (new RequestController())->updateDeliveryStatus();
+} elseif ($request === '/api/requests/assign-delivery' && $method === 'POST') {
+    (new RequestController())->assignDelivery();
+} elseif ($request === '/api/delivery/history' && $method === 'GET') {
+    (new RequestController())->getDeliveryHistory();
+
 
 // --- RUTAS SOLICITUDES (REQUESTS) ---
 } elseif (
@@ -469,6 +481,20 @@ if (preg_match('~/api/login~', $request)) {
 // --- RUTA PÁGINAS ESTÁTICAS (PÚBLICO) ---
 } elseif (preg_match("~/api/page\/([a-z0-9_-]+)$~", $request, $m) && $method === "GET") {
     (new ContentController())->getPageBySlug($m[1]);
+
+// --- RUTAS PERSONAL DEL PROVEEDOR ---
+} elseif ($request === '/api/provider/staff/login' && $method === 'POST') {
+    (new ProviderStaffController())->login();
+} elseif (preg_match('~/api/provider/staff~', $request)) {
+    (new ProviderStaffController())->handle($method);
+
+// --- RUTAS PERFIL DE STAFF (AUTENTICADO COMO STAFF) ---
+} elseif ($request === '/api/staff/profile' && $method === 'GET') {
+    (new ProviderStaffController())->getProfile();
+} elseif ($request === '/api/staff/profile/update' && $method === 'POST') {
+    (new ProviderStaffController())->updateProfile();
+} elseif ($request === '/api/staff/change-password' && $method === 'POST') {
+    (new ProviderStaffController())->changePassword();
 
 // --- RUTA POR DEFECTO ---
 } else {

@@ -163,6 +163,14 @@
               {{ $t('register_here') }}
             </router-link>
           </p>
+<div class="staff-link">
+  <p class="staff-text">
+    ¿Eres repartidor?
+    <router-link to="/staff/login" class="staff-button">
+      🛵 Ingresa aquí
+    </router-link>
+  </p>
+</div>
         </div>
 
         <!-- Footer decorativo -->
@@ -190,7 +198,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSystemStore } from '@/stores/systemStore'
-import Swal from 'sweetalert2' // ✅ Mantenido igual
+import Swal from 'sweetalert2' 
 
 export default {
   setup() {

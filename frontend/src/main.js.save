@@ -19,7 +19,7 @@ import Swal from 'sweetalert2'
 import { useSocketStore } from '@/stores/socketStore.js'
 import { useSystemStore } from '@/stores/systemStore.js'
 import { useNotificationStore } from '@/stores/notificationStore.js'
-import { useAuthStore, initializeAuthStore } from '@/stores/authStore.js'
+import { initializeAuthStore } from '@/stores/authStore.js'
 
 // Crear instancia de Vue
 const app = createApp(App)
@@ -247,6 +247,40 @@ window.addEventListener('payment-updated', (e) => {
   })
 })
 
+// ============================================================
+// ✅ GUARD DE RUTAS
+// ============================================================
+router.beforeEach((to, from, next) => {
+  const publicRoutes = ['/login', '/register', '/', '/forgot-password']
+  const isPublic = publicRoutes.includes(to.path) ||
+                   to.path.startsWith('/reset-password') ||
+to.path.startsWith('/reset-password')
+                   to.path.startsWith('/page/')
+
+  // Páginas estáticas: accesibles siempre (con o sin sesión)
+  if (to.path.startsWith('/page/')) {
+    return next()
+  }
+
+  // Rutas protegidas sin token → login
+  if (!isPublic && !authStore.token) {
+    return next('/login')
+  }
+
+  // Login/Register con sesión activa → dashboard
+  if (isPublic && authStore.token) {
+    const role = authStore.user?.role
+    if (role === 'admin') {
+      return next('/dashboard/admin')
+    } else if (role === 'provider') {
+      return next('/dashboard/provider')
+    } else {
+      return next('/dashboard/user')
+    }
+  }
+
+  next()
+})
 
 // ============================================================
 // ✅ MONTAR APP

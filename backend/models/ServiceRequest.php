@@ -185,6 +185,53 @@ class ServiceRequest
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+
+public function getByStaffId(int $staffId): array {
+    $stmt = $this->conn->prepare("
+        SELECT sr.*, s.title as service_title, s.location as service_location,
+               u.name as user_name, u.phone as user_phone
+        FROM {$this->table} sr
+        JOIN services s ON sr.service_id = s.id
+        JOIN users u ON sr.user_id = u.id
+        WHERE sr.assigned_staff_id = :sid
+        AND sr.status NOT IN ('completed', 'cancelled', 'finalized')
+        ORDER BY sr.created_at DESC
+    ");
+    $stmt->execute([':sid' => $staffId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+public function getCompletedByStaffId(int $staffId): array {
+    $stmt = $this->conn->prepare("
+        SELECT sr.*, s.title as service_title, s.location as service_location,
+               u.name as user_name, u.phone as user_phone
+        FROM {$this->table} sr
+        JOIN services s ON sr.service_id = s.id
+        JOIN users u ON sr.user_id = u.id
+        WHERE sr.assigned_staff_id = :sid
+        AND sr.status IN ('completed', 'cancelled', 'finalized')
+        ORDER BY sr.updated_at DESC
+        LIMIT 50
+    ");
+    $stmt->execute([':sid' => $staffId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+public function getHistoryByStaffId(int $staffId): array {
+    $stmt = $this->conn->prepare("
+        SELECT sh.*, u.name as user_name, u.phone as user_phone
+        FROM service_history sh
+        JOIN users u ON sh.user_id = u.id
+        WHERE sh.assigned_staff_id = :sid
+        ORDER BY sh.finished_at DESC
+        LIMIT 50
+    ");
+    $stmt->execute([':sid' => $staffId]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
     public function getActiveByProvider(int $providerId): array
     {
         $sql = "
@@ -253,6 +300,14 @@ class ServiceRequest
             ':actorId' => $actorId
         ]);
     }
+
+
+public function assignStaff(int $requestId, int $staffId): bool {
+    $stmt = $this->conn->prepare("UPDATE {$this->table} SET assigned_staff_id = :sid WHERE id = :rid");
+    return $stmt->execute([':sid' => $staffId, ':rid' => $requestId]);
+}
+
+
 
     // ✅ CORREGIDO: saveNotification con verificación anti-duplicados
     public function saveNotification($data)
@@ -399,17 +454,16 @@ class ServiceRequest
             $finStatus = $payRow['payment_status'] ?? 'pending';
             $finMethod = $payRow['payment_method'] ?? null;
 
-            $sql = "INSERT INTO service_history
-                      (user_id, service_id, request_id, service_title, service_price,
-                       provider_name, status, finished_at, provider_id,
-                       payment_status, payment_method)
-                    SELECT r.user_id, r.service_id, r.id,
-                           s.title, s.price, s.provider_name, :st, NOW(), r.provider_id,
-                           :payStatus, :payMethod
-                    FROM {$this->table} r
-                    JOIN services s ON s.id = r.service_id
-                    WHERE r.id = :id";
-            $stmt = $pdo->prepare($sql);
+          $sql = "INSERT INTO service_history
+          (user_id, service_id, request_id, service_title, service_price,
+           provider_name, status, finished_at, provider_id,
+           payment_status, payment_method, assigned_staff_id)
+           SELECT r.user_id, r.service_id, r.id,
+               s.title, s.price, s.provider_name, :st, NOW(), r.provider_id,
+               :payStatus, :payMethod, r.assigned_staff_id
+          FROM {$this->table} r
+          JOIN services s ON s.id = r.service_id
+          WHERE r.id = :id";            $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':id'         => $reqId,
                 ':st'         => $status,

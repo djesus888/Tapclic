@@ -1,3 +1,4 @@
+
 <template>
   <div class="requests-view p-2 sm:p-4 max-w-5xl mx-auto">
     <!-- Título + nueva solicitud -->
@@ -254,6 +255,7 @@ async function fetchRequests () {
   }
 }
 
+
 /* Filtros + búsqueda + paginación */
 const filtered = computed(() => {
   let data = requests.value
@@ -430,4 +432,7 @@ function pageClass(p) {
 /* Scroll suave en tabs */
 ::-webkit-scrollbar { height: 4px; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+}
+
 </style>

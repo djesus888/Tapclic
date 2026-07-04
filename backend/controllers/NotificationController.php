@@ -64,25 +64,27 @@ class NotificationController {
             return;
         }
 
-        $data['sender_id'] = $auth->id;
+        $data['sender_id'] = $auth->staff_id ?? $auth->id;
 
         $ok = $this->model->send($data);
         echo json_encode(["success" => $ok]);
     }
 
     private function mine($auth) {
-        $result = $this->model->getForUser($auth->id, $auth->role);
-        echo json_encode($result);
+    $userId = $auth->staff_id ?? $auth->id;
+    $result = $this->model->getForUser($userId, $auth->role);
+    echo json_encode($result);
     }
 
     // ✅ NUEVO: Endpoint para obtener solo el contador de no leídas
     private function unreadCount($auth) {
-        $count = $this->model->getUnreadCount($auth->id, $auth->role);
-        echo json_encode([
-            'success' => true,
-            'unread_count' => $count
-        ]);
-    }
+    $userId = $auth->staff_id ?? $auth->id;
+    $count = $this->model->getUnreadCount($userId, $auth->role);
+    echo json_encode([
+        'success' => true,
+        'unread_count' => $count
+    ]);
+}
 
     private function markAsRead($auth) {
         $data = json_decode(file_get_contents("php://input"), true);

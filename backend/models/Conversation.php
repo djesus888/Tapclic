@@ -13,51 +13,46 @@ class Conversation
     }
 
     public function getByParticipant(int $userId, string $role): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT
-                c.id,
-                CASE
-                    WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
-                        (SELECT CASE
-                            WHEN c.participant2_type = 'user' THEN (SELECT name FROM users WHERE id = c.participant2_id)
-                            WHEN c.participant2_type = 'provider' THEN (SELECT name FROM users WHERE id = c.participant2_id)
-                            WHEN c.participant2_type = 'admin' THEN 'Admin'
-                        END)
-                    ELSE
-                        (SELECT CASE
-                            WHEN c.participant1_type = 'user' THEN (SELECT name FROM users WHERE id = c.participant1_id)
-                            WHEN c.participant1_type = 'provider' THEN (SELECT name FROM users WHERE id = c.participant1_id)
-                            WHEN c.participant1_type = 'admin' THEN 'Admin'
-                        END)
-                END AS participant_name,
-                CASE
-                    WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
-                        (SELECT avatar_url FROM users WHERE id = c.participant2_id LIMIT 1)
-                    ELSE
-                        (SELECT avatar_url FROM users WHERE id = c.participant1_id LIMIT 1)
-                END AS participant_avatar,
-                CASE
-                    WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
-                        c.participant2_type
-                    ELSE
-                        c.participant1_type
-                END AS participant_role,
-                CASE
-                    WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
-                        c.participant2_id
-                    ELSE
-                        c.participant1_id
-                END AS participant_id,
-                CASE
-                    WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
-                        c.participant2_type
-                    ELSE
-                        c.participant1_type
-                END AS participant_type,
-                COALESCE(lm.last_message_time, c.updated_at) AS last_message_at,
-                (
-                    SELECT COUNT(*)
+{
+    $stmt = $this->db->prepare("
+        SELECT
+            c.id,
+            CASE
+                WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
+                    CASE
+                        WHEN c.participant2_type IN ('user','provider','admin') THEN (SELECT name FROM users WHERE id = c.participant2_id)
+                        WHEN c.participant2_type LIKE 'staff_%' THEN (SELECT name FROM provider_staff WHERE id = c.participant2_id)
+                        ELSE 'Usuario'
+                    END
+                ELSE
+                    CASE
+                        WHEN c.participant1_type IN ('user','provider','admin') THEN (SELECT name FROM users WHERE id = c.participant1_id)
+                        WHEN c.participant1_type LIKE 'staff_%' THEN (SELECT name FROM provider_staff WHERE id = c.participant1_id)
+                        ELSE 'Usuario'
+                    END
+            END AS participant_name,
+            CASE
+                WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
+                    CASE
+                        WHEN c.participant2_type IN ('user','provider','admin') THEN (SELECT avatar_url FROM users WHERE id = c.participant2_id LIMIT 1)
+                        ELSE NULL
+                    END
+                ELSE
+                    CASE
+                        WHEN c.participant1_type IN ('user','provider','admin') THEN (SELECT avatar_url FROM users WHERE id = c.participant1_id LIMIT 1)
+                        ELSE NULL
+                    END
+            END AS participant_avatar,
+            CASE
+                WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN c.participant2_type
+                ELSE c.participant1_type
+            END AS participant_role,
+            CASE
+                WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN c.participant2_id
+                ELSE c.participant1_id
+            END AS participant_id,
+            COALESCE(lm.last_message_time, c.updated_at) AS last_message_at,
+            (SELECT COUNT(*) 
                     FROM messages m2
                     INNER JOIN message_status ms ON m2.id = ms.message_id
                     WHERE m2.conversation_id = c.id

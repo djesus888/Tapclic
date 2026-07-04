@@ -274,6 +274,7 @@ class ServiceController
             'category'        => htmlspecialchars(trim($_POST['category']), ENT_QUOTES, 'UTF-8'),
             'location'        => htmlspecialchars(trim($_POST['location']), ENT_QUOTES, 'UTF-8'),
             'status'          => 'pending',
+            'service_type'    => $_POST['service_type'] ?? 'fijo',
             'isAvailable'     => 1,
         ];
     }

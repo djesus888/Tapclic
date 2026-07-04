@@ -4,6 +4,8 @@ require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
+require_once __DIR__ . '/../middleware/Auth.php';
+
 
 use services\WebSocketService;
 
@@ -137,10 +139,228 @@ class RequestController
         }
     }
 
-    private function archiveAndClean(int $requestId, string $finalStatus): void
+private function archiveAndClean(int $requestId, string $finalStatus): void
     {
         $this->model->close($requestId, $finalStatus);
     }
+
+
+public function getDeliveryOrders() {
+    $auth = Auth::verify();
+    if (!$auth || !isset($auth->staff_id)) {
+        http_response_code(403);
+        echo json_encode(["error" => "No autorizado"]);
+        return;
+    }
+    $orders = $this->model->getByStaffId($auth->staff_id);
+    echo json_encode(["success" => true, "orders" => $orders]);
+}
+
+public function getDeliveryHistory() {
+    $auth = Auth::verify();
+    if (!isset($auth->staff_id)) {
+        http_response_code(403);
+        echo json_encode(["error" => "Solo personal autorizado"]);
+        return;
+    }
+$orders = $this->model->getHistoryByStaffId($auth->staff_id);
+    echo json_encode(["success" => true, "orders" => $orders]);
+}
+
+public function updateDeliveryStatus() {
+    $auth = Auth::verify();
+    // Verificar que sea un staff (delivery)
+    if (!isset($auth->staff_id)) {
+        http_response_code(403);
+        echo json_encode(["error" => "Solo personal autorizado"]);
+        return;
+    }
+
+    $data = json_decode(file_get_contents("php://input"), true);
+    $requestId = $data['request_id'] ?? null;
+    $newStatus = $data['status'] ?? null;
+
+    $validStatuses = ['in_progress', 'on_the_way', 'arrived', 'finalized', 'completed'];
+    if (!$requestId || !in_array($newStatus, $validStatuses)) {
+        http_response_code(400);
+        echo json_encode(["error" => "Datos inválidos"]);
+        return;
+    }
+
+    // Verificar que el pedido está asignado a este staff
+    $request = $this->model->getById($requestId);
+    if (!$request || $request['assigned_staff_id'] != $auth->staff_id) {
+        http_response_code(403);
+        echo json_encode(["error" => "Este pedido no te está asignado"]);
+        return;
+    }
+
+    $ok = $this->model->updateStatus($requestId, $auth->staff_id, $newStatus);
+
+    if ($ok) {
+
+
+// ✅ Emitir WebSocket
+try {
+    require_once __DIR__ . '/../services/WebSocketService.php';
+    \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $auth->staff_id, 'request_updated', [
+        'request_id' => $requestId,
+        'status' => $newStatus,
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+} catch (\Exception $e) {
+    error_log("⚠️ No se pudo emitir WebSocket: " . $e->getMessage());
+}
+
+
+        // Mensajes según el estado
+        $statusMessages = [
+            'in_progress' => '🚛 El delivery ha iniciado la entrega',
+            'on_the_way'  => '🛵 El delivery va en camino',
+            'arrived'     => '📍 El delivery ha llegado al destino',
+            'finalized'   => '✅ El delivery ha entregado el pedido',
+            'completed'   => '✅ Entrega completada',
+        ];
+        $message = $statusMessages[$newStatus] ?? "Estado actualizado: {$newStatus}";
+
+        // ✅ Notificar al cliente (user)
+        try {
+            $this->model->saveNotification([
+                'sender_id' => $auth->staff_id,
+                'receiver_id' => $request['user_id'],
+                'receiver_role' => 'user',
+                'title' => '📦 Actualización de tu pedido',
+                'message' => $message,
+                'data_json' => json_encode([
+                    'url' => '/requests',
+                    'action' => 'view_request',
+                    'notification_type' => 'status_updated',
+                    'request_id' => $requestId,
+                    'status' => $newStatus
+                ])
+            ]);
+        } catch (Exception $e) {
+            error_log("⚠️ No se pudo notificar al cliente: " . $e->getMessage());
+        }
+
+        // ✅ Notificar al proveedor
+        try {
+            $this->model->saveNotification([
+                'sender_id' => $auth->staff_id,
+                'receiver_id' => $request['provider_id'],
+                'receiver_role' => 'provider',
+                'title' => '📦 Delivery actualizó estado',
+                'message' => $message,
+                'data_json' => json_encode([
+                    'url' => '/dashboard/provider',
+                    'action' => 'view_request',
+                    'notification_type' => 'status_updated',
+                    'request_id' => $requestId,
+                    'status' => $newStatus
+                ])
+            ]);
+        } catch (Exception $e) {
+            error_log("⚠️ No se pudo notificar al proveedor: " . $e->getMessage());
+        }
+
+        echo json_encode(["success" => true, "message" => "Estado actualizado"]);
+    } else {
+        http_response_code(500);
+        echo json_encode(["error" => "Error al actualizar"]);
+    }
+}
+
+
+public function assignDelivery() {
+    $auth = Auth::verify();
+    $data = json_decode(file_get_contents("php://input"), true);
+    $requestId = $data['request_id'] ?? null;
+    $staffId = $data['staff_id'] ?? null;
+
+    if (!$requestId || !$staffId) {
+        http_response_code(400);
+        echo json_encode(["error" => "Faltan request_id o staff_id"]);
+        return;
+    }
+
+    // Verificar que el pedido es del proveedor
+    $request = $this->model->getById($requestId);
+    if (!$request || $request['provider_id'] != $auth->id) {
+        http_response_code(403);
+        echo json_encode(["error" => "No autorizado"]);
+        return;
+    }
+
+    // Verificar que el staff pertenece al proveedor
+    require_once __DIR__ . '/../models/ProviderStaff.php';
+    $staffModel = new ProviderStaff();
+    $staff = $staffModel->findById($staffId);
+    if (!$staff || $staff['provider_id'] != $auth->id) {
+        http_response_code(403);
+        echo json_encode(["error" => "Delivery no válido"]);
+        return;
+    }
+
+    // Asignar delivery
+    $ok = $this->model->assignStaff($requestId, $staffId);
+    
+    if ($ok) {
+        AuditLogger::log($auth->id, 'delivery_assigned', 'Delivery asignado', "Pedido: {$requestId} → Staff: {$staffId}");
+
+
+// ✅ Emitir evento WebSocket al staff asignado
+try {
+    require_once __DIR__ . '/../services/WebSocketService.php';
+    \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $staffId, 'new-notification', [
+        'event' => 'delivery_assigned',
+        'title' => '🚚 Nuevo pedido asignado',
+        'message' => "Se te ha asignado un nuevo pedido #{$requestId}",
+        'notification_type' => 'delivery_assigned',
+        'url' => '/delivery/orders',
+        'action' => 'view_delivery',
+        'request_id' => $requestId,
+        'timestamp' => date('Y-m-d H:i:s')
+    ]);
+    
+    // También emitir request_updated al staff
+    \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $staffId, 'request_updated', [
+        'request_id' => $requestId,
+        'status' => $request['status'],
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+} catch (\Exception $e) {
+    error_log("⚠️ No se pudo emitir WebSocket al staff: " . $e->getMessage());
+}
+
+echo json_encode(["success" => true, "message" => "Delivery asignado correctamente"]);
+
+// ✅ Notificar al staff asignado
+try {
+    $staffData = $staffModel->findById($staffId);
+    $this->model->saveNotification([
+        'sender_id' => $auth->id,
+        'receiver_id' => $staffId,
+        'receiver_role' => 'staff_' . ($staffData['role'] ?? 'delivery'),
+        'title' => '🚚 Nuevo pedido asignado',
+        'message' => "Se te ha asignado un nuevo pedido # {$requestId}",
+        'data_json' => json_encode([
+            'url' => '/delivery/orders',
+            'action' => 'view_delivery',
+            'notification_type' => 'delivery_assigned',
+            'request_id' => $requestId
+        ])
+    ]);
+} catch (Exception $e) {
+    error_log("⚠️ No se pudo notificar al staff: " . $e->getMessage());
+}
+
+
+    } else {
+        http_response_code(500);
+        echo json_encode(["error" => "Error al asignar delivery"]);
+    }
+}
+
 
     private function create($auth)
     {
@@ -608,19 +828,38 @@ class RequestController
         }
     }
 
-    private function getStatus($auth)
-    {
-        if (!preg_match('/\/api\/requests\/status\/(\d+)/', $_SERVER['REQUEST_URI'], $matches)) {
-            http_response_code(400); echo json_encode(['error' => 'ID de solicitud inválido']); return;
-        }
-        $requestId = $matches[1];
-        $request = $this->model->getById($requestId);
-        if (!$request) { http_response_code(404); echo json_encode(['error' => 'Solicitud no encontrada']); return; }
-        if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id) {
-            http_response_code(403); echo json_encode(['error' => 'No autorizado']); return;
-        }
-        echo json_encode(['status' => $request['status']]);
+
+private function getStatus($auth)
+{
+    if (!preg_match('/\/api\/requests\/status\/(\d+)/', $_SERVER['REQUEST_URI'], $matches)) {
+        http_response_code(400); echo json_encode(['error' => 'ID de solicitud inválido']); return;
     }
+    $requestId = $matches[1];
+    $request = $this->model->getById($requestId);
+    if (!$request) { http_response_code(404); echo json_encode(['error' => 'Solicitud no encontrada']); return; }
+    if ($request['user_id'] != $auth->id && $request['provider_id'] != $auth->id && 
+        (!isset($auth->staff_id) || $request['assigned_staff_id'] != $auth->staff_id)) {
+        http_response_code(403); echo json_encode(['error' => 'No autorizado']); return;
+    }
+    
+    $response = ['status' => $request['status']];
+    
+    // ✅ Si tiene staff asignado, incluir sus datos
+    if (!empty($request['assigned_staff_id'])) {
+        require_once __DIR__ . '/../models/ProviderStaff.php';
+        $staffModel = new ProviderStaff();
+        $staff = $staffModel->findById($request['assigned_staff_id']);
+        if ($staff) {
+            $response['delivery'] = [
+                'id' => $staff['id'],
+                'name' => $staff['name'],
+                'phone' => $staff['phone']
+            ];
+        }
+    }
+    
+    echo json_encode($response);
+}
 
     private function unauthorized()
     {

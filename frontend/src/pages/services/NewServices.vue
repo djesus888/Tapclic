@@ -98,6 +98,14 @@
                 <input v-model="form.location" type="text" required maxlength="50" :placeholder="$t('services.locationPlaceholder')" class="form-input" />
               </div>
             </div>
+<div class="form-group">
+  <label class="form-label"><span class="label-icon">🏷️</span>Tipo de servicio</label>
+  <select v-model="form.service_type" class="form-input">
+    <option value="fijo">🏪 En local (fijo)</option>
+    <option value="delivery">🛵 Con delivery</option>
+    <option value="remoto">💻 Remoto / Online</option>
+  </select>
+</div>
           </div>
         </div>
 
@@ -171,9 +179,9 @@ export default {
     const currentStep = ref(1)
 
     const form = ref({
-      title: '', description: '', service_details: '',
-      price: null, category: '', location: ''
-    })
+  title: '', description: '', service_details: '',
+  price: null, category: '', location: '', service_type: 'fijo'
+})
 
     const imageFile = ref(null)
     const previewUrl = ref(null)
@@ -232,6 +240,7 @@ export default {
         formData.append('price', form.value.price)
         formData.append('category', form.value.category.trim())
         formData.append('location', form.value.location.trim())
+        formData.append('service_type', form.value.service_type || 'fijo')
         if (imageFile.value) formData.append('image', imageFile.value)
 
         const response = await api.post('/services', formData, {

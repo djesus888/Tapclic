@@ -1,10 +1,4 @@
 <?php
-// ✅ NUEVO: Configurar error reporting para ver errores
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('log_errors', 1);
-ini_set('error_log', '/data/data/com.termux/files/usr/var/log/php_error.log');
-
 // backend/controllers/MessageController.php
 require_once __DIR__ . "/../middleware/Auth.php";
 require_once __DIR__ . '/../models/Message.php';
@@ -107,7 +101,6 @@ class MessageController
     {
         $user = $this->authUser();
         $message = $this->messageModel->getMessageById($messageId);
-
         if (!$message) {
             http_response_code(404);
             echo json_encode(["message" => "Mensaje no encontrado"]);
@@ -171,7 +164,6 @@ class MessageController
                       AND ms.user_type = :user_type
                       AND ms.delivered_at IS NOT NULL
                       AND ms.is_delivered = TRUE";
-
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
                 'conversation_id' => $conversationId,
@@ -221,46 +213,44 @@ class MessageController
         echo json_encode(["success" => true, "messages" => $messages], JSON_UNESCAPED_UNICODE);
     }
 
-// ========== REEMPLAZAR el método uploadMessageImage() completo ==========
+    // ========== REEMPLAZAR el método uploadMessageImage() completo ==========
+    public function uploadMessageImage(): void
+    {
+        $this->authUser();
 
-public function uploadMessageImage(): void
-{
-    $this->authUser();
+        if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
+            $this->jsonError(400, 'Error al subir la imagen: código ' . $code);
+        }
 
-    if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-        $code = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
-        $this->jsonError(400, 'Error al subir la imagen: código ' . $code);
+        $file = $_FILES['image'];
+        $maxSize = 5 * 1024 * 1024;
+        if ($file['size'] > $maxSize) {
+            $this->jsonError(413, 'La imagen es demasiado grande (máx 5MB)');
+        }
+
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        if (!in_array($mime, $allowedTypes, true)) {
+            $this->jsonError(415, 'Tipo de archivo no permitido. Solo imágenes JPG, PNG, GIF o WEBP');
+        }
+
+        require_once __DIR__ . '/../utils/Uploader.php';
+        $basePath = __DIR__ . '/../public/uploads';
+        $baseUrl = $this->getBaseUrl() . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+        try {
+            $imageUrl = $uploader->saveFile($file, \Utils\Uploader::CAT_MESSAGES);
+        } catch (\RuntimeException $e) {
+            $this->jsonError(500, 'Error al guardar el archivo: ' . $e->getMessage());
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['image_url' => $imageUrl], JSON_UNESCAPED_UNICODE);
+        exit;
     }
-
-    $file = $_FILES['image'];
-    $maxSize = 5 * 1024 * 1024;
-    if ($file['size'] > $maxSize) {
-        $this->jsonError(413, 'La imagen es demasiado grande (máx 5MB)');
-    }
-
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->file($file['tmp_name']);
-    if (!in_array($mime, $allowedTypes, true)) {
-        $this->jsonError(415, 'Tipo de archivo no permitido. Solo imágenes JPG, PNG, GIF o WEBP');
-    }
-
-    require_once __DIR__ . '/../utils/Uploader.php';
-    
-    $basePath = __DIR__ . '/../public/uploads';
-    $baseUrl = $this->getBaseUrl() . '/uploads';
-    $uploader = new \Utils\Uploader($basePath, $baseUrl);
-
-    try {
-        $imageUrl = $uploader->saveFile($file, \Utils\Uploader::CAT_MESSAGES);
-    } catch (\RuntimeException $e) {
-        $this->jsonError(500, 'Error al guardar el archivo: ' . $e->getMessage());
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['image_url' => $imageUrl], JSON_UNESCAPED_UNICODE);
-    exit;
-}
 
     // ✅ CORREGIDO: markAsRead - AHORA EMITE UN SOLO EVENTO CON TODOS LOS IDs
     public function markAsRead($data)
@@ -284,7 +274,6 @@ public function uploadMessageImage(): void
         // ✅ 🔥 CORRECCIÓN CRÍTICA: Emitir UN SOLO evento con TODOS los message_ids
         // Obtener conversation_id del primer mensaje (todos deberían ser de la misma conversación)
         $firstMsg = $this->messageModel->getMessageById($ids[0]);
-
         if ($firstMsg && isset($firstMsg['conversation_id'])) {
             WebSocketService::emitToRoom(
                 "conversation_{$firstMsg['conversation_id']}",
@@ -348,11 +337,6 @@ public function uploadMessageImage(): void
     // ✅ CORREGIDO: sendMessage mejorado
     public function sendMessage($data)
     {
-        // ✅ NUEVO: Log completo de lo que llega
-        error_log("========== sendMessage llamado ==========");
-        error_log("Data recibida: " . json_encode($data, JSON_UNESCAPED_UNICODE));
-        error_log("POST raw: " . file_get_contents('php://input'));
-
         try {
             $user = $this->authUser();
             $senderId = $user->id;
@@ -436,10 +420,23 @@ public function uploadMessageImage(): void
                     $messageWithStatus = $message;
                     $messageWithStatus['is_delivered'] = false;
                     $messageWithStatus['is_read'] = false;
+                    $messageWithStatus['sender_type'] = $senderType;
+                    $messageWithStatus['sender'] = $senderType;
                 }
 
                 // ✅ Asegurar que is_mine está correcto
                 $messageWithStatus['is_mine'] = true;
+
+
+                // ✅ Forzar el sender real (el que viene del token, no de la BD)
+                $messageWithStatus['sender'] = $senderType;
+                $messageWithStatus['sender_id'] = $senderId;
+
+
+                // ✅ CORRECCIÓN: No incluir is_mine en el payload de la sala (el frontend lo calcula)
+                // El frontend calcula is_mine comparando sender_id con el usuario actual
+                unset($messageWithStatus['is_mine']);
+
                 error_log("📦 Enviando confirmación al remitente {$senderId}: " . json_encode([
                     'message_id' => $message['id'],
                     'is_delivered' => $messageWithStatus['is_delivered'] ?? false,
@@ -458,18 +455,36 @@ public function uploadMessageImage(): void
                     ]
                 );
 
-                // ✅ NUEVO: Enviar confirmación al remitente CON TODOS LOS ESTADOS
-                WebSocketService::emitToUser(
-                    $senderType,
-                    $senderId,
-                    'message_sent_confirmation',
-                    [
-                        'conversation_id' => $conversationId,
-                        'message' => $messageWithStatus,
-                        'temp_id' => $data['temp_id'] ?? null,
-                        'status' => 'confirmed'
-                    ]
-                );
+ 
+// ✅ CORRECCIÓN #2: Crear un mensaje limpio SIN conversation_id para evitar duplicación de salas
+$confirmationMessage = [
+    'id' => $messageWithStatus['id'],
+    'text' => $messageWithStatus['text'] ?? '',
+    'type' => $messageWithStatus['type'] ?? 'text',
+    'attachment_url' => $messageWithStatus['attachment_url'] ?? null,
+    'sender_id' => $messageWithStatus['sender_id'],
+    'sender' => $senderType,
+    'receiver_id' => $messageWithStatus['receiver_id'] ?? $receiverId,
+    'receiver_role' => $messageWithStatus['receiver_role'] ?? $receiverType,
+    'created_at' => $messageWithStatus['created_at'],
+    'is_delivered' => $messageWithStatus['is_delivered'] ?? false,
+    'is_read' => $messageWithStatus['is_read'] ?? false,
+];
+
+
+
+WebSocketService::emitToUser(
+    $senderType,
+    $senderId,
+    'message_sent_confirmation',
+ [
+    'conversation_id' => $conversationId,
+    'message' => $confirmationMessage,
+    'temp_id' => $data['temp_id'] ?? null,
+    'status' => 'confirmed'
+]
+);
+
 
                 // ✅ IMPORTANTE: Devolver respuesta HTTP
                 header('Content-Type: application/json; charset=utf-8');
@@ -533,7 +548,6 @@ public function uploadMessageImage(): void
                       AND ms.user_id = ?
                       AND ms.user_type = ?
                       AND ms.delivered_at IS NOT NULL";
-
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$conversationId, $user->id, $user->role]);
             $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -612,7 +626,6 @@ public function uploadMessageImage(): void
                   AND ms.user_id = ?
                   AND ms.user_type = ?
                 ORDER BY m.created_at ASC";
-
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$conversationId, $user->id, $user->role]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -1,37 +1,144 @@
-// src/stores/authStore.js 
+// src/stores/authStore.js
 import { defineStore } from 'pinia'
-import api from '@/axios' 
+import api from '@/axios'
 import Swal from 'sweetalert2'
-import router from '@/router' 
+import router from '@/router'
 import { i18n } from '@/i18n'
-import { useSocketStore } from './socketStore' 
+import { useSocketStore } from './socketStore'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    token: localStorage.getItem('token') || null,
+    token: (() => {
+      // ✅ Priorizar staff_token si existe
+      const staffToken = localStorage.getItem('staff_token')
+      if (staffToken) return staffToken
+      return localStorage.getItem('token') || null
+    })(),
     user: (() => {
+      // ✅ Si es staff, cargar datos de staff
+      const staffToken = localStorage.getItem('staff_token')
+      if (staffToken) {
+        const staffData = localStorage.getItem('staff')
+        try {
+          if (staffData) {
+            const parsed = JSON.parse(staffData)
+            return {
+              id: parsed.id,
+              name: parsed.name,
+              email: parsed.email,
+              phone: parsed.phone,
+              role: 'staff_' + (parsed.role || 'delivery'),
+              provider_id: parsed.provider_id,
+              active: parsed.active,
+              created_at: parsed.created_at,
+              avatar_url: parsed.avatar_url || null,
+              is_online: true
+            }
+          }
+        } catch {
+          localStorage.removeItem('staff')
+        }
+        return null
+      }
+      
+      // ✅ Si es usuario normal, cargar datos normales
       const stored = localStorage.getItem('user')
       try {
         return stored ? JSON.parse(stored) : null
       } catch {
-        localStorage.removeItem('user') 
+        localStorage.removeItem('user')
         return null
       }
     })(),
-    role: localStorage.getItem('role') || null,
+    role: (() => {
+      // ✅ Priorizar rol de staff
+      const staffToken = localStorage.getItem('staff_token')
+      if (staffToken) {
+        const staffData = localStorage.getItem('staff')
+        try {
+          if (staffData) {
+            const parsed = JSON.parse(staffData)
+            return 'staff_' + (parsed.role || 'delivery')
+          }
+        } catch {
+          // ignorar
+        }
+        return 'staff_delivery'
+      }
+      return localStorage.getItem('role') || null
+    })(),
     locale: localStorage.getItem('userLocale') || 'es',
     loading: false,
   }),
 
+  getters: {
+    // ✅ Getter para verificar si es staff
+    isStaff: (state) => {
+      if (localStorage.getItem('staff_token')) return true
+      return state.role?.startsWith('staff_') || false
+    },
+    
+    // ✅ Getter para obtener el nombre del rol en texto legible
+    roleText: (state) => {
+      if (!state.role) return 'Usuario'
+      
+      if (state.role.startsWith('staff_')) {
+        const staffRole = state.role.replace('staff_', '')
+        switch (staffRole) {
+          case 'delivery': return 'Staff Delivery'
+          case 'manager': return 'Staff Manager'
+          case 'support': return 'Staff Soporte'
+          default: return 'Staff'
+        }
+      }
+      
+      switch (state.role) {
+        case 'admin': return 'Administrador'
+        case 'provider': return 'Proveedor'
+        case 'user': return 'Cliente'
+        default: return state.role
+      }
+    },
+    
+    // ✅ Getter para verificar si está autenticado (staff o usuario normal)
+    isAuthenticated: (state) => {
+      return !!(state.token && state.user)
+    }
+  },
+
   actions: {
     // HELPERS PRIVADOS (APIS INTERNA MEJORADA)
     _saveAuthData({ token, user, role }) {
-      const data = { token, user: JSON.stringify(user), role }
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          localStorage.setItem(key, value)
-        }
-      })
+      const isStaff = role?.startsWith('staff_') || localStorage.getItem('staff_token')
+      
+      if (isStaff) {
+        // ✅ Guardar como staff
+        localStorage.setItem('staff_token', token)
+        localStorage.setItem('staff', JSON.stringify({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role?.replace('staff_', '') || 'delivery',
+          provider_id: user.provider_id,
+          active: user.active,
+          created_at: user.created_at,
+          avatar_url: user.avatar_url || null
+        }))
+        // Limpiar datos de usuario normal si existen
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        localStorage.removeItem('role')
+      } else {
+        // ✅ Guardar como usuario normal
+        localStorage.setItem('token', token)
+        localStorage.setItem('user', JSON.stringify(user))
+        localStorage.setItem('role', role)
+        // Limpiar datos de staff si existen
+        localStorage.removeItem('staff_token')
+        localStorage.removeItem('staff')
+      }
+      
       this.token = token
       this.user = user
       this.role = role
@@ -43,16 +150,20 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.role = null
       this.locale = 'es'
+      
+      // ✅ Limpiar ambos tipos de almacenamiento
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('role')
+      localStorage.removeItem('staff_token')
+      localStorage.removeItem('staff')
       localStorage.removeItem('userLocale')
+      
       this.setAxiosToken(null)
     },
 
     // INYECCIÓN DE DEPENDENCIAS (PARA TESTING)
     _getDependencies() {
-      // Permite sobrescribir en tests
       return {
         apiInstance: api,
         routerInstance: router,
@@ -91,20 +202,50 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loadFromStorage() {
-      const token = localStorage.getItem('token')
-      const user = localStorage.getItem('user')
-      if (token && user) {
+      // ✅ Detectar si es staff
+      const staffToken = localStorage.getItem('staff_token')
+      const normalToken = localStorage.getItem('token')
+      const token = staffToken || normalToken
+      
+      if (token) {
         try {
           this.token = token
-          this.user = JSON.parse(user)
-          this.role = localStorage.getItem('role')
+          
+          if (staffToken) {
+            // ✅ Cargar datos de staff
+            const staffData = localStorage.getItem('staff')
+            if (staffData) {
+              const parsed = JSON.parse(staffData)
+              this.user = {
+                id: parsed.id,
+                name: parsed.name,
+                email: parsed.email,
+                phone: parsed.phone,
+                role: 'staff_' + (parsed.role || 'delivery'),
+                provider_id: parsed.provider_id,
+                active: parsed.active,
+                created_at: parsed.created_at,
+                avatar_url: parsed.avatar_url || null,
+                is_online: true
+              }
+              this.role = 'staff_' + (parsed.role || 'delivery')
+            }
+          } else {
+            // ✅ Cargar datos de usuario normal
+            const user = localStorage.getItem('user')
+            if (user) {
+              this.user = JSON.parse(user)
+              this.role = localStorage.getItem('role')
+            }
+          }
+          
           this.setAxiosToken(token)
           await this.loadLocale()
 
-          // CORREGIDO: Usar socketStore en lugar de websocket
+          // Conectar socket
           const socketStore = useSocketStore()
-          await socketStore.init() // Asegurar inicialización
-          socketStore.connect(token) // Conectar con token
+          await socketStore.init()
+          socketStore.connect(token)
 
         } catch (error) {
           console.warn('⚠️ Datos corruptos en localStorage, limpiando...')
@@ -155,12 +296,12 @@ export const useAuthStore = defineStore('auth', {
 
         this._saveAuthData({ token, user, role: user.role })
 
-        // CORREGIDO: Usar socketStore en lugar de websocket
+        // Conectar socket
         const socketStore = useSocketStore()
-        await socketStore.init() // Asegurar inicialización
-        socketStore.connect(token) // Conectar después del login
+        await socketStore.init()
+        socketStore.connect(token)
 
-        // Carga de locale con await para consistencia
+        // Carga de locale
         if (user.locale) {
           this.setLocale(user.locale)
         } else {
@@ -196,6 +337,70 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // ✅ Nuevo método: Login de Staff
+    async staffLogin(credentials) {
+      this.loading = true
+      const { apiInstance, routerInstance, i18nInstance } = this._getDependencies()
+      try {
+        const res = await apiInstance.post('/staff/login', credentials)
+        const { token, staff } = res.data
+        
+        if (!token || !staff) {
+          throw new Error('Respuesta inválida del servidor al iniciar sesión.')
+        }
+
+        // Construir objeto de usuario para staff
+        const user = {
+          id: staff.id,
+          name: staff.name,
+          email: staff.email,
+          phone: staff.phone,
+          role: 'staff_' + (staff.role || 'delivery'),
+          provider_id: staff.provider_id,
+          active: staff.active,
+          created_at: staff.created_at,
+          avatar_url: staff.avatar_url || null,
+          is_online: true
+        }
+
+        this._saveAuthData({ token, user, role: user.role })
+
+        // Conectar socket
+        const socketStore = useSocketStore()
+        await socketStore.init()
+        socketStore.connect(token)
+
+        await this.loadLocale()
+
+        const $t = i18nInstance.global.t
+        Swal.fire({
+          icon: 'success',
+          title: $t('success'),
+          text: 'Inicio de sesión exitoso',
+          timer: 1500,
+          showConfirmButton: false,
+          willClose: async () => {
+            const target = '/delivery/orders'
+            if (routerInstance.currentRoute.value.path !== target) {
+              await routerInstance.replace(target).catch(() => {})
+            }
+          },
+        })
+        
+        return staff
+      } catch (error) {
+        const $t = i18nInstance.global.t
+        Swal.fire(
+          $t('error'),
+          error.response?.data?.message || error.message || 'Credenciales inválidas',
+          'error'
+        )
+        return false
+      } finally {
+        this.loading = false
+      }
+    },
+
     async refreshToken(retries = 1) {
       const { apiInstance } = this._getDependencies()
       try {
@@ -204,11 +409,9 @@ export const useAuthStore = defineStore('auth', {
         })
         const { token, user } = res.data
 
-        // Solo actualizar si hay cambio
         if (token && token !== this.token) {
           this._saveAuthData({ token, user, role: user?.role || this.role })
 
-          // CORREGIDO: Reconectar socketStore con nuevo token
           const socketStore = useSocketStore()
           socketStore.disconnect()
           socketStore.connect(token)
@@ -218,9 +421,8 @@ export const useAuthStore = defineStore('auth', {
       } catch (err) {
         console.error('❌ No se pudo refrescar el token:', err)
 
-        // Lógica de reintento para errores de red
         if (retries > 0 && (!err.response || err.code === 'ERR_NETWORK')) {
-          await new Promise(r => setTimeout(r, 500)) // Espera 500ms
+          await new Promise(r => setTimeout(r, 500))
           return this.refreshToken(retries - 1)
         }
 
@@ -240,36 +442,80 @@ export const useAuthStore = defineStore('auth', {
         if (res.data.success) {
           this.setLocale(locale)
           this.user.locale = locale
-          localStorage.setItem('user', JSON.stringify(this.user))
+          
+          // ✅ Guardar en el storage correcto
+          if (this.isStaff) {
+            const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
+            staffData.locale = locale
+            localStorage.setItem('staff', JSON.stringify(staffData))
+          } else {
+            localStorage.setItem('user', JSON.stringify(this.user))
+          }
         }
       } catch (error) {
         console.error('Error al actualizar idioma:', error)
       }
     },
 
+    // ✅ Método para actualizar perfil de staff
+    async updateStaffProfile(profileData) {
+      if (!this.isStaff || !this.token) return
+      const { apiInstance } = this._getDependencies()
+      try {
+        const res = await apiInstance.put('/staff/profile', profileData, {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        
+        if (res.data.staff) {
+          const updatedStaff = res.data.staff
+          // Actualizar en localStorage
+          localStorage.setItem('staff', JSON.stringify(updatedStaff))
+          
+          // Actualizar en el store
+          this.user = {
+            ...this.user,
+            name: updatedStaff.name,
+            email: updatedStaff.email,
+            phone: updatedStaff.phone,
+            avatar_url: updatedStaff.avatar_url || null
+          }
+        }
+        
+        return res.data
+      } catch (error) {
+        console.error('Error al actualizar perfil de staff:', error)
+        throw error
+      }
+    },
+
     logout() {
       const { routerInstance, i18nInstance } = this._getDependencies()
 
-      // CORREGIDO: Desconectar socketStore en lugar de websocket
+      // Desconectar socket
       const socketStore = useSocketStore()
       socketStore.disconnect()
 
+      // ✅ Determinar a dónde redirigir según el tipo de usuario
+      const wasStaff = this.isStaff || localStorage.getItem('staff_token')
+      
       this._clearAuthData()
 
       if (i18nInstance?.global) i18nInstance.global.locale.value = 'es'
       document.documentElement.lang = 'es'
-      if (routerInstance.currentRoute.value.path !== '/login') {
-        routerInstance.replace('/login').catch(() => {})
+      
+      // ✅ Redirigir al login correcto
+      const targetPath = wasStaff ? '/staff/login' : '/login'
+      if (routerInstance.currentRoute.value.path !== targetPath) {
+        routerInstance.replace(targetPath).catch(() => {})
       }
     },
   },
 })
 
-// INICIALIZACIÓN MEJORADA (MANTIENE MISMA FIRMA PÚBLICA)
+// INICIALIZACIÓN MEJORADA
 export function initializeAuthStore(dependencies = {}) {
   const auth = useAuthStore()
 
-  // Permitir inyección de dependencias para tests
   if (Object.keys(dependencies).length > 0) {
     auth._getDependencies = () => ({
       api: api,
@@ -281,10 +527,8 @@ export function initializeAuthStore(dependencies = {}) {
 
   if (auth.token) {
     auth.setAxiosToken(auth.token)
-    // Carga asíncrona sin bloquear
     auth.loadLocale().catch(console.warn)
 
-    // CORREGIDO: Conectar socketStore al inicializar si hay token
     const socketStore = useSocketStore()
     socketStore.init().then(() => {
       socketStore.connect(auth.token)

@@ -100,16 +100,29 @@ class ConversationController
                 ? $conversation['participant2_type']
                 : $conversation['participant1_type'];
 
-            // Obtener info del otro participante desde tabla users
-            $userStmt = $this->db->prepare("
-                SELECT id, name, avatar_url, role
-                FROM users
-                WHERE id = ? AND role = ?
-                LIMIT 1
-            ");
-            $userStmt->execute([$otherParticipantId, $otherParticipantType]);
-            $otherUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+// Obtener info del otro participante
+$otherUser = null;
+if ($otherParticipantType === 'user' || $otherParticipantType === 'provider' || $otherParticipantType === 'admin') {
+    $userStmt = $this->db->prepare("SELECT id, name, avatar_url, role FROM users WHERE id = ? AND role = ? LIMIT 1");
+    $userStmt->execute([$otherParticipantId, $otherParticipantType]);
+    $otherUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+} elseif (strpos($otherParticipantType, 'staff_') === 0) {
+    $userStmt = $this->db->prepare("SELECT id, name, avatar_url, role FROM provider_staff WHERE id = ? LIMIT 1");
+    $userStmt->execute([$otherParticipantId]);
+    $otherUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+    if ($otherUser) {
+        $otherUser['role'] = 'staff_' . ($otherUser['role'] ?? 'delivery');
+    }
+}
 
+if (!$otherUser) {
+    $otherUser = [
+        'id' => $otherParticipantId,
+        'name' => 'Usuario',
+        'avatar_url' => null,
+        'role' => $otherParticipantType
+    ];
+}
             // Contar mensajes no leídos usando message_status
             $unreadStmt = $this->db->prepare("
                 SELECT COUNT(*) as unread_count

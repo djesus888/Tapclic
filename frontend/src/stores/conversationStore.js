@@ -9,15 +9,12 @@ export const useConversationStore = defineStore('conversation', () => {
   const conversations = ref([])
   const messages = ref({})
   const loaded = ref(false)
-  const typingUsers = ref(new Map()) // conversationId -> Set(userId)
-  const activeConversationId = ref(null) // Estado global para la conversación activa
+  const typingUsers = ref(new Map())
+  const activeConversationId = ref(null)
   const unreadCount = computed(() =>
     conversations.value.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
   )
 
-  // -------------------------------------------------------
-  // 1. Inicialización del socket (solo UNA vez)
-  // -------------------------------------------------------
   let _socketInitialized = false
 
   function initSocket() {
@@ -29,13 +26,9 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log('🔌 Chat conectado al WS')
       socketStore.emit('join-room', room)
     })
-
     _socketInitialized = true
   }
 
-  // -------------------------------------------------------
-  // 2. Desconectar (cuando haga falta)
-  // -------------------------------------------------------
   function disconnectSocket() {
     const socketStore = useSocketStore()
     socketStore.off('connect')
@@ -49,11 +42,7 @@ export const useConversationStore = defineStore('conversation', () => {
     typingUsers.value.clear()
   }
 
-  // -------------------------------------------------------
-  // 3. FUNCIÓN AUXILIAR: Normalizar conversación
-  // -------------------------------------------------------
   function normalizeConversation(conv) {
-    // Si viene de getConversations() (lista)
     if (conv.participant && !conv.other_participant) {
       return {
         id: conv.id,
@@ -68,7 +57,6 @@ export const useConversationStore = defineStore('conversation', () => {
         participants: [conv.participant]
       }
     }
-    // Si viene de getById() (individual)
     if (conv.other_participant) {
       return {
         id: conv.id,
@@ -83,13 +71,9 @@ export const useConversationStore = defineStore('conversation', () => {
         participants: conv.participants || []
       }
     }
-    // Fallback
     return conv
   }
 
-  // -------------------------------------------------------
-  // 4. NUEVO MÉTODO: Marcar conversación como leída (desde MainLayout)
-  // -------------------------------------------------------
   function markConversationAsRead(conversationId) {
     const conv = conversations.value.find(c => c.id === conversationId)
     if (conv) {
@@ -98,49 +82,34 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // -------------------------------------------------------
-  // 5. NUEVOS MÉTODOS REQUERIDOS POR SOCKETSTORE
-  // -------------------------------------------------------
-
-  // NUEVO: Método público para marcar mensajes como leídos (llamado desde socketStore)
   function markMessagesAsRead(data) {
     console.log('📚 markMessagesAsRead llamado desde socketStore:', data)
     const conversationId = data.conversation_id || data.conversationId
     const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : [])
-
     if (conversationId && messageIds.length > 0) {
       markMessagesAsReadLocally(conversationId, messageIds)
     }
   }
 
-  // NUEVO: Método público para marcar mensajes como entregados (llamado desde socketStore)
   function markMessagesAsDelivered(data) {
     console.log('📬 markMessagesAsDelivered llamado desde socketStore:', data)
     const conversationId = data.conversation_id || data.conversationId
     const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : [])
-
     if (conversationId && messageIds.length > 0) {
       markMessagesAsDeliveredLocally(conversationId, messageIds)
     }
   }
 
-  // NUEVO: Método para manejar indicadores de escritura
-  const typingTimeouts = new Map() // key: `${conversationId}_${userId}`
+  const typingTimeouts = new Map()
 
-  // =====================================================
-  // setTypingIndicator - VERSIÓN CORREGIDA (reactiva)
-  // =====================================================
   function setTypingIndicator(data) {
     console.log('⌨️ setTypingIndicator:', data)
-
     const conversationId = data.conversation_id || data.conversationId
     const userId = data.user_id || data.userId
     const isTyping = data.is_typing === true || data.isTyping === true
 
     if (!conversationId || !userId) return
 
-    // ✅ IMPORTANTE: Para que Vue detecte cambios, debemos crear un NUEVO Set
-    // o usar la técnica de reasignación
     let typingSet = typingUsers.value.get(conversationId)
     if (!typingSet) {
       typingSet = new Set()
@@ -150,22 +119,16 @@ export const useConversationStore = defineStore('conversation', () => {
     const key = `${conversationId}_${userId}`
     if (isTyping) {
       typingSet.add(userId)
-
-      // Limpiar timeout anterior si existe
       if (typingTimeouts.has(key)) {
         clearTimeout(typingTimeouts.get(key))
       }
-
-      // Auto-limpiar después de 3 segundos
       const timeout = setTimeout(() => {
         const currentSet = typingUsers.value.get(conversationId)
         if (currentSet?.has(userId)) {
           currentSet.delete(userId)
-          // ✅ Si el Set queda vacío, eliminarlo del Map
           if (currentSet.size === 0) {
             typingUsers.value.delete(conversationId)
           }
-          // ✅ Forzar reactividad reasignando el Map (opcional, ayuda a Vue)
           typingUsers.value = new Map(typingUsers.value)
         }
         typingTimeouts.delete(key)
@@ -177,7 +140,6 @@ export const useConversationStore = defineStore('conversation', () => {
         if (typingSet.size === 0) {
           typingUsers.value.delete(conversationId)
         }
-        // ✅ Forzar reactividad
         typingUsers.value = new Map(typingUsers.value)
       }
       if (typingTimeouts.has(key)) {
@@ -187,54 +149,34 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // =====================================================
-  // confirmMessageSent - VERSIÓN CORREGIDA (NUNCA RETROCEDE)
-  // =====================================================
   function confirmMessageSent(data) {
     console.log('✅ confirmMessageSent:', data)
 
-    // =====================================================
-    // VALIDACIÓN 1: Verificar que data existe
-    // =====================================================
     if (!data) {
       console.warn('⚠️ confirmMessageSent: data es undefined')
       return
     }
 
-    // =====================================================
-    // VALIDACIÓN 2: Extraer IDs correctamente
-    // =====================================================
     const conversationId = data.conversation_id || data.conversationId
-
     const tempId = data.temp_id || data.tempId
 
     if (!conversationId) {
       console.warn('⚠️ confirmMessageSent: falta conversationId', data)
       return
     }
-
     if (!tempId) {
       console.warn('⚠️ confirmMessageSent: falta tempId', data)
       return
     }
 
-    // =====================================================
-    // VALIDACIÓN 3: Verificar que existe el array de mensajes
-    // =====================================================
     if (!messages.value[conversationId]) {
       console.warn(`⚠️ confirmMessageSent: no hay mensajes para conversationId ${conversationId}`)
       messages.value[conversationId] = []
       return
     }
 
-    // =====================================================
-    // VALIDACIÓN 4: Buscar mensaje temporal
-    // =====================================================
     const index = messages.value[conversationId].findIndex(m =>
-      m.temp_id === tempId ||
-      m.id === tempId ||
-      m._temp_id === tempId ||
-      (m._temp && m.id === tempId)
+      m.temp_id === tempId
     )
 
     if (index === -1) {
@@ -242,9 +184,6 @@ export const useConversationStore = defineStore('conversation', () => {
       return
     }
 
-    // =====================================================
-    // EXTRAER el mensaje real de data
-    // =====================================================
     let realMessage = data.message || data.payload || data
     if (realMessage === data && data.conversation_id && data.text !== undefined) {
       realMessage = data
@@ -254,98 +193,46 @@ export const useConversationStore = defineStore('conversation', () => {
       return
     }
 
-    // GUARDAR el mensaje temporal (que puede tener estados ya actualizados)
     const tempMessage = messages.value[conversationId][index]
     const authStore = useAuthStore()
 
-    console.log('📦 Mensaje temporal (BEFORE):', {
-      id: tempMessage.id,
-      temp_id: tempMessage.temp_id,
-      is_delivered: tempMessage.is_delivered,
-      is_read: tempMessage.is_read
-    })
-
-    console.log('📦 Mensaje real del servidor:', {
-      id: realMessage.id,
-      is_delivered: realMessage.is_delivered,
-      is_read: realMessage.is_read
-    })
-
-    // =====================================================
-    // 🔥 CRÍTICO: PRESERVAR ESTADOS - NUNCA RETROCEDER
-    // Los estados más avanzados (true) tienen prioridad
-    // =====================================================
     const finalIsDelivered = tempMessage.is_delivered === true || realMessage.is_delivered === true
     const finalIsRead = tempMessage.is_read === true || realMessage.is_read === true
 
-    console.log('📦 Estados finales:', {
-      is_delivered: finalIsDelivered,
-      is_read: finalIsRead
-    })
+    const calculatedIsMine = String(realMessage.sender_id || tempMessage.sender_id) === String(authStore.user?.id) &&
+                             (realMessage.sender || tempMessage.sender) === authStore.user?.role
 
-    // =====================================================
-    // CONSTRUIR mensaje confirmado PRESERVANDO estados
-    // =====================================================
     const confirmedMessage = {
-      // ✅ ID real del servidor
       id: realMessage.id || tempId,
       temp_id: tempId,
       conversation_id: conversationId,
-
-      // ✅ Datos del mensaje
       text: realMessage.text || tempMessage.text || '',
       type: realMessage.type || tempMessage.type || 'text',
       attachment_url: realMessage.attachment_url || tempMessage.attachment_url || null,
-
-      // ✅ Sender/receiver
       sender_id: realMessage.sender_id || tempMessage.sender_id,
       sender: realMessage.sender || tempMessage.sender,
       receiver_id: realMessage.receiver_id || tempMessage.receiver_id,
       receiver_role: realMessage.receiver_role || tempMessage.receiver_role,
-
-      // ✅ Fechas
       created_at: realMessage.created_at || tempMessage.created_at || new Date().toISOString(),
-
-      // ✅ 🔥 CRÍTICO: Estados - PRESERVAR los más avanzados
       is_delivered: finalIsDelivered,
       is_read: finalIsRead,
-
-      // ✅ Si está leído, implica entregado
       ...(finalIsRead && { is_delivered: true }),
-
-      // ✅ Fechas de estado - usar la más reciente
       delivered_at: (tempMessage.is_delivered && tempMessage.delivered_at) || realMessage.delivered_at || null,
       read_at: (tempMessage.is_read && tempMessage.read_at) || realMessage.read_at || null,
-
-      // ✅ Flags
-      is_mine: true,
+      is_mine: calculatedIsMine,
       _temp: false,
       _confirmed: true,
       confirmed_at: new Date().toISOString(),
-
-      // ✅ Avatar
       avatar_url: authStore.user?.avatar_url || ''
     }
 
-    console.log('📦 Mensaje confirmado FINAL:', {
-      id: confirmedMessage.id,
-      temp_id: confirmedMessage.temp_id,
-      is_delivered: confirmedMessage.is_delivered,
-      is_read: confirmedMessage.is_read
-    })
-
-    // =====================================================
-    // REEMPLAZAR el mensaje temporal
-    // =====================================================
     messages.value[conversationId][index] = confirmedMessage
 
-    // ✅ Forzar reactividad
     messages.value = {
       ...messages.value,
       [conversationId]: [...messages.value[conversationId]]
     }
 
-    // Disparar evento
     const event = new CustomEvent('conversation-message-confirmed', {
       detail: {
         conversationId,
@@ -355,14 +242,12 @@ export const useConversationStore = defineStore('conversation', () => {
     })
     window.dispatchEvent(event)
 
-    // Limpiar pending confirmations
     const socketStore = useSocketStore()
     if (socketStore._pendingConfirmations) {
       socketStore._pendingConfirmations.delete(tempId)
     }
   }
 
-  // NUEVO: Método para enviar indicador de escritura
   function sendTypingIndicator(conversationId, isTyping) {
     const socketStore = useSocketStore()
     const authStore = useAuthStore()
@@ -373,10 +258,6 @@ export const useConversationStore = defineStore('conversation', () => {
       is_typing: isTyping
     })
   }
-
-  // -------------------------------------------------------
-  // 6. Resto de acciones
-  // -------------------------------------------------------
 
   async function fetchConversations() {
     try {
@@ -413,15 +294,13 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       const { data } = await api.get(`/messages/${conversationId}`)
       const authStore = useAuthStore()
-
       console.log('📥 fetchMessages - Datos recibidos:', data.messages?.length || 0, 'mensajes')
 
       messages.value[conversationId] = (data.messages || []).map(m => ({
         ...m,
         conversation_id: conversationId,
-        // ✅ CORREGIDO: Calcular is_mine correctamente
-        is_mine: String(m.sender_id) === String(authStore.user?.id),
-        // ✅ Asegurar valores booleanos
+        is_mine: String(m.sender_id) === String(authStore.user?.id) &&
+         m.sender === authStore.user?.role,
         is_delivered: Boolean(m.is_delivered),
         is_read: Boolean(m.is_read)
       }))
@@ -432,7 +311,6 @@ export const useConversationStore = defineStore('conversation', () => {
       const unreadInThisConv = messages.value[conversationId].filter(
         m => !m.is_read && !m.is_mine
       ).length
-
       const conv = conversations.value.find(c => c.id === conversationId)
       if (conv) {
         conv.unreadCount = unreadInThisConv
@@ -442,17 +320,13 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // 🔧 FIX: syncMessageStatuses - no pisar estados
   async function syncMessageStatuses(conversationId) {
     if (!conversationId) return
-
     try {
       console.log('🔄 [STORE] Sincronizando estados de mensajes para conversación:', conversationId)
-
       const { data } = await api.get(`/messages/${conversationId}/status`, {
         headers: { Authorization: `Bearer ${useAuthStore().token}` }
       })
-
       if (data?.messages && data.messages.length > 0) {
         const msgs = messages.value[conversationId]
         if (!msgs) return
@@ -467,7 +341,6 @@ export const useConversationStore = defineStore('conversation', () => {
 
           let newMsg = { ...localMsg }
 
-          // ✅ Solo actualizar si el servidor tiene estado más avanzado
           if (serverMsg.is_read && !localMsg.is_read) {
             newMsg.is_read = true
             newMsg.read_at = serverMsg.read_at || new Date().toISOString()
@@ -488,7 +361,6 @@ export const useConversationStore = defineStore('conversation', () => {
           messages.value[conversationId] = updatedMessages
         }
 
-        // Actualizar unreadCount de la conversación
         const conv = conversations.value.find(c => c.id === conversationId)
         if (conv && newlyReadCount > 0) {
           conv.unreadCount = Math.max(0, (conv.unreadCount || 0) - newlyReadCount)
@@ -501,37 +373,25 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  // ✅ CORREGIDO: Solo llama al endpoint HTTP. El backend emite message_read.
   async function markAsRead(conversationId, messageIds) {
     if (!messageIds || messageIds.length === 0) return
-
     try {
-      // ✅ Marcar localmente primero (feedback inmediato)
       markMessagesAsReadLocally(conversationId, messageIds)
-      // Enviar al servidor
       await api.post('/messages/read', { message_ids: messageIds })
-
-      // Emitir por socket para notificar al otro usuario
-      const socketStore = useSocketStore()
-      socketStore.emit('message_read', {
-        conversation_id: conversationId,
-        message_ids: messageIds
-      })
-
-      console.log('✅ Mensajes marcados como leídos:', messageIds)
+      // ✅ NO emitir message_read por socket. El backend lo hace.
+      console.log('✅ Mensajes marcados como leídos (HTTP):', messageIds)
     } catch (err) {
       console.error('Error marking as read:', err)
     }
   }
 
+  // ✅ CORREGIDO: Solo actualiza localmente. El backend emite message_delivered.
   async function markAsDelivered(conversationId, messageIds) {
     if (!messageIds || messageIds.length === 0) return
-
     try {
-      const socketStore = useSocketStore()
-      socketStore.emit('message_delivered', {
-        conversation_id: conversationId,
-        message_ids: messageIds
-      })
+      // ✅ NO emitir message_delivered por socket. El backend lo hace.
+      console.log('📬 markAsDelivered: solo actualización local, el backend emitirá el evento')
     } catch (err) {
       console.error('Error marking as delivered:', err)
     }
@@ -551,7 +411,6 @@ export const useConversationStore = defineStore('conversation', () => {
   async function deleteConversationForMe(conversationId) {
     try {
       await api.delete(`/conversations/${conversationId}/for-me`)
-
       conversations.value = conversations.value.filter(c => c.id !== conversationId)
       delete messages.value[conversationId]
       typingUsers.value.delete(conversationId)
@@ -568,11 +427,12 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // =====================================================
-  // addMessage - VERSIÓN CORREGIDA (con reemplazo de temporal)
-  // =====================================================
+  // ✅ CORREGIDO: Eliminadas emisiones de message_delivered y message_read
+  // Solo se emite typing y se reproduce sonido. El backend maneja delivered/read.
   function addMessage(conversationId, message) {
     const authStore = useAuthStore()
+    const socketStore = useSocketStore()
+
     if (!message) {
       console.warn('⚠️ addMessage: message es undefined')
       return
@@ -584,13 +444,11 @@ export const useConversationStore = defineStore('conversation', () => {
       messages.value[conversationId] = []
     }
 
-    // ✅ CORRECCIÓN 3: Si es mensaje propio con temp_id, reemplazar el temporal inmediatamente
     if (message.is_mine === true && message.temp_id) {
       const tempIndex = messages.value[conversationId].findIndex(m => m.temp_id === message.temp_id)
       if (tempIndex !== -1) {
         console.log('🔄 Reemplazando mensaje temporal con confirmación por socket:', message.temp_id)
         const tempMsg = messages.value[conversationId][tempIndex]
-        // Reemplazar temporal con el real, preservando estados más avanzados
         messages.value[conversationId][tempIndex] = {
           ...message,
           is_delivered: tempMsg.is_delivered || message.is_delivered,
@@ -599,12 +457,11 @@ export const useConversationStore = defineStore('conversation', () => {
           read_at: tempMsg.read_at || message.read_at,
           _confirmed: true
         }
-        // Forzar reactividad
         messages.value = {
           ...messages.value,
           [conversationId]: [...messages.value[conversationId]]
         }
-        return // No agregar como nuevo mensaje
+        return
       }
     }
 
@@ -621,11 +478,13 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log('⛔ Mensaje real ya existe, evitando duplicado')
       return
     }
-
     if (existsByTempId) {
       console.log('⛔ Mensaje con temp_id ya existe, evitando duplicado')
       return
     }
+
+    const calculatedIsMine = String(message.sender_id) === String(authStore.user?.id) &&
+                             message.sender === authStore.user?.role
 
     const enrichedMessage = {
       ...message,
@@ -633,7 +492,7 @@ export const useConversationStore = defineStore('conversation', () => {
       conversation_id: conversationId,
       is_delivered: message.is_delivered === true,
       is_read: message.is_read === true,
-      is_mine: String(message.sender_id) === String(authStore.user?.id),
+      is_mine: calculatedIsMine,
       delivered_at: message.delivered_at || null,
       read_at: message.read_at || null,
       _temp: message._temp || false,
@@ -648,7 +507,6 @@ export const useConversationStore = defineStore('conversation', () => {
     console.log('✅ Mensaje agregado:', enrichedMessage)
 
     const conv = conversations.value.find(c => c.id === conversationId)
-
     if (conv) {
       conv.lastMessage = {
         text: message.text || '',
@@ -660,17 +518,15 @@ export const useConversationStore = defineStore('conversation', () => {
         id: message.id,
         temp_id: message.temp_id || null
       }
-
       if (!enrichedMessage.is_mine && !enrichedMessage.is_read) {
         conv.unreadCount = (conv.unreadCount || 0) + 1
       }
       conv.updated_at = message.created_at || new Date().toISOString()
     } else {
-      const isMine = enrichedMessage.is_mine
-      const otherId = isMine ? message.receiver_id : message.sender_id
-      const otherRole = isMine ? message.receiver_role : message.sender
-      const otherName = isMine ? message.receiver_name : message.sender_name
-      const otherAvatar = isMine ? message.receiver_avatar : message.sender_avatar
+      const otherId = calculatedIsMine ? message.receiver_id : message.sender_id
+      const otherRole = calculatedIsMine ? message.receiver_role : message.sender
+      const otherName = calculatedIsMine ? message.receiver_name : message.sender_name
+      const otherAvatar = calculatedIsMine ? message.receiver_avatar : message.sender_avatar
 
       const newConversation = {
         id: conversationId,
@@ -695,39 +551,13 @@ export const useConversationStore = defineStore('conversation', () => {
         updated_at: message.created_at || new Date().toISOString(),
         created_at: message.created_at || new Date().toISOString()
       }
-
       conversations.value.unshift(newConversation)
       console.log('📋 Nueva conversación creada:', newConversation)
     }
 
-    // =====================================================
-    // 🔥 FIX CRÍTICO: Marcar como leído INMEDIATAMENTE si el usuario actual es el receptor
-    // y la conversación está activa (ChatView montado)
-    // =====================================================
-    const isCurrentUserReceiver = String(message.sender_id) !== String(authStore.user?.id)
-    const isNotTemp = !message._temp
-
-    if (
-      isCurrentUserReceiver &&
-      isNotTemp &&
-      !enrichedMessage.is_read &&
-      Number(conversationId) === Number(activeConversationId.value)
-    ) {
-      console.log('🔥 [STORE] Mensaje recibido, marcando como leído automáticamente')
-
-      // Marcar localmente inmediatamente
-      markMessagesAsReadLocally(conversationId, [enrichedMessage.id])
-
-      // Emitir al servidor para notificar al remitente
-      const socketStore = useSocketStore()
-      socketStore.emit('message_read', {
-        conversation_id: conversationId,
-        message_ids: [enrichedMessage.id]
-      })
-
-      // También hacer la llamada HTTP para persistir
-      api.post('/messages/read', { message_ids: [enrichedMessage.id] })
-        .catch(err => console.error('❌ Error al marcar como leído en BD:', err))
+    // ✅ Solo reproducir sonido para mensajes ajenos
+    if (!calculatedIsMine) {
+      socketStore.playNotificationSound()
     }
 
     window.dispatchEvent(new CustomEvent('conversation-message-added', {
@@ -735,7 +565,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }))
   }
 
-  // 🔧 FIX: markMessagesAsReadLocally - CORREGIDA la lógica de búsqueda
   function markMessagesAsReadLocally(conversationId, messageIds) {
     console.log('📖 [STORE] Marcando localmente como leídos:', { conversationId, messageIds })
 
@@ -746,11 +575,7 @@ export const useConversationStore = defineStore('conversation', () => {
     let newlyReadCount = 0
 
     const updatedMessages = msgs.map(m => {
-      // ✅ CORRECCIÓN 1: Buscar por ID real O por temp_id (considerando mensajes confirmados)
       const matchesRealId = messageIds.includes(m.id)
-      // El temp_id del mensaje temporal debe coincidir con algún ID en messageIds
-      // PERO messageIds son IDs reales, no temporales
-      // Entonces buscamos si el mensaje temporal fue confirmado (tiene ID real) y ese ID está en messageIds
       const matchesTempId = m.temp_id && messageIds.some(id => {
         return String(id) === String(m.id) || (m._confirmed && String(id) === String(m.temp_id))
       })
@@ -785,7 +610,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // REEMPLAZAR la función completa con:
   function markMessagesAsDeliveredLocally(conversationId, messageIds) {
     console.log('📬 [STORE] Marcando localmente como entregados:', { conversationId, messageIds });
 
@@ -799,23 +623,18 @@ export const useConversationStore = defineStore('conversation', () => {
     let updatedCount = 0;
 
     const updatedMessages = msgs.map(m => {
-      // ✅ CORRECCIÓN: Buscar por ID (número o string) y también por temp_id
       const messageIdStr = String(m.id);
       const isInList = messageIds.some(id => String(id) === messageIdStr);
-
-      // También verificar si el mensaje temporal fue confirmado
       const isConfirmedTemp = m.temp_id && messageIds.some(id => String(id) === String(m.temp_id));
 
       if ((isInList || isConfirmedTemp) && !m.is_delivered) {
         updated = true;
         updatedCount++;
         console.log(`📬 [STORE] Marcando como entregado mensaje: ${m.id} (temp: ${m.temp_id})`);
-
         return {
           ...m,
           is_delivered: true,
           delivered_at: new Date().toISOString(),
-          // Si es mensaje propio, asegurar que se refleje en la UI
           _updated_at: Date.now()
         };
       }
@@ -823,7 +642,6 @@ export const useConversationStore = defineStore('conversation', () => {
     });
 
     if (updated) {
-      // ✅ CORRECCIÓN: Forzar reactividad creando nuevo array
       messages.value = {
         ...messages.value,
         [conversationId]: [...updatedMessages]
@@ -831,7 +649,6 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log(`📬 [STORE] ${updatedCount} mensajes marcados como entregados`);
     }
 
-    // Actualizar lastMessage en la conversación
     const conv = conversations.value.find(c => c.id === conversationId);
     if (conv && conv.lastMessage) {
       const lastMsgId = String(conv.lastMessage.id);
@@ -868,21 +685,15 @@ export const useConversationStore = defineStore('conversation', () => {
         title: message.is_read ? 'Leído' : ''
       }
     }
-
     if (message.is_read) {
       return { icon: '✓✓', color: 'text-blue-500', title: 'Leído' }
     }
-
     if (message.is_delivered) {
       return { icon: '✓✓', color: 'text-gray-400', title: 'Entregado' }
     }
-
     return { icon: '✓', color: 'text-gray-400', title: 'Enviado' }
   }
 
-  // =====================================================
-  // getTypingUsers - VERSIÓN CORREGIDA (devuelve array)
-  // =====================================================
   function getTypingUsers(conversationId) {
     const typingSet = typingUsers.value.get(conversationId)
     return typingSet ? Array.from(typingSet) : []

@@ -227,7 +227,7 @@
                 <span v-if="!notification.is_read" class="unread-dot"></span>
                 <span class="notification-type-icon">
                   {{
-                    notification.type === 'order' ? '📦' :
+                    notification.type === 'order' ? ' 📦' :
                     notification.type === 'message' ? '💬' :
                     notification.type === 'system' ? '⚙️' :
                     '🔔'
@@ -331,9 +331,9 @@
               @click="openConversation(conv)"
             >
               <div class="conversation-avatar">
-                <img
-                  :src="avatarUrl(conv.otherAvatar)"
-                  :alt="conv.otherName"
+             <img 
+                  :src="getConversationAvatar(conv)"    
+                  :alt="getConversationName(conv)"
                   class="avatar-img"
                   loading="lazy"
                   @error="handleImageError"
@@ -345,7 +345,7 @@
 
               <div class="conversation-content">
                 <div class="conversation-header">
-                  <h4 class="conversation-name">{{ conv.otherName }}</h4>
+                  <h4 class="conversation-name">{{ getConversationName(conv) }}</h4>
                   <span class="conversation-time">
                     {{ formatDate(conv.updated_at || conv.created_at) }}
                   </span>
@@ -353,7 +353,7 @@
 
                 <div class="conversation-preview">
                   <p class="conversation-last-message">
-                    {{ conv.lastMessage?.text || $t('noMessages') }}
+                  {{ getLastMessageText(conv) || $t('noMessages') }}
                   </p>
                   <span v-if="conv.unreadCount > 0" class="unread-dot"></span>
                 </div>
@@ -393,6 +393,7 @@
               <h3 class="user-name">{{ authStore.user?.name || 'Usuario' }}</h3>
               <p class="user-role">
                 {{
+                  isStaffUser ? 'Staff (' + getUserRoleText + ')' :
                   authStore.user?.role === 'admin' ? 'Administrador' :
                   authStore.user?.role === 'provider' ? 'Proveedor' :
                   'Cliente'
@@ -410,8 +411,23 @@
         </div>
 
         <div class="sidebar-menu">
+          <!-- Menú para Staff -->
+          <template v-if="isStaffUser">
+            <RouterLink
+              v-for="item in filteredStaffMenu"
+              :key="item.to"
+              :to="item.to"
+              class="menu-item"
+              @click="showUserPanel = false"
+            >
+              <span class="menu-icon">{{ item.icon }}</span>
+              <span class="menu-text">{{ $t(item.label) }}</span>
+              <span class="menu-arrow">›</span>
+            </RouterLink>
+          </template>
+
           <!-- Menú para Usuario -->
-          <template v-if="authStore.user?.role === 'user'">
+          <template v-else-if="authStore.user?.role === 'user'">
             <RouterLink
               v-for="item in filteredUserMenu"
               :key="item.to"
@@ -555,6 +571,38 @@ const availableLanguages = {
   en: '🇺🇸'
 }
 
+// ✅ Función para detectar si es usuario staff
+const isStaffUser = computed(() => {
+  if (localStorage.getItem('staff_token')) return true
+  const role = authStore.user?.role || ''
+  return role.startsWith('staff_') || role === 'staff'
+})
+
+// ✅ Función para obtener el texto del rol de staff
+const getUserRoleText = computed(() => {
+  const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
+  const role = staffData.role || authStore.user?.role || ''
+  switch (role) {
+    case 'delivery':
+    case 'staff_delivery':
+      return 'Delivery'
+    case 'manager':
+    case 'staff_manager':
+      return 'Manager'
+    case 'support':
+    case 'staff_support':
+      return 'Soporte'
+    case 'staff':
+      return 'Staff'
+    default:
+      if (role.startsWith('staff_')) {
+        const cleanRole = role.replace('staff_', '')
+        return cleanRole.charAt(0).toUpperCase() + cleanRole.slice(1)
+      }
+      return 'Staff'
+  }
+})
+
 const userMenuItems = [
   { to: '/', label: 'home', icon: '🏠' },
   { to: '/routes', label: 'myRoutes', icon: '🛣️' },
@@ -572,9 +620,10 @@ const providerMenuItems = [
   { to: '/routes', label: 'myRoutes', icon: '🛣️' },
   { to: '/services', label: 'Services', icon: '📦' },
   { to: '/myservices', label: 'myServices', icon: '📦' },
-  { to: '/services/new', label: 'addService', icon: '➕' },
+  { to: '/services/new', label: 'addService', icon: ' ➕' },
   { to: '/payment', label: 'payment_method', icon: '💳' },
   { to: '/provider/billing', label: 'billing', icon: '💳' },
+  { to: '/provider/staff', label: 'myStaff', icon: '👥' },
   { to: '/earnings', label: 'myEarnings', icon: '📈' },
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '🛡️' },
@@ -586,15 +635,15 @@ const providerMenuItems = [
 const adminMenuItems = [
   { to: '/dashboard', label: 'adminDashboard', icon: '🔑' },
   { to: '/routes', label: 'myRoutes', icon: '🛣️' },
-  { to: '/admin/users', label: 'manageUsers', icon: '👥' },
+  { to: '/admin/users', label: 'manageUsers', icon: ' 👥' },
   { to: '/provider', label: 'manageProviders', icon: '🛡️' },
   { to: '/admin/services', label: 'manageServices', icon: '📦' },
   { to: '/admin/service-payments', label: 'servicePayments', icon: '💳' },
   { to: '/admin/reports', label: 'reports', icon: '📊' },
   { to: '/admin/system', label: 'systemSettings', icon: '⚙️' },
-  { to: '/admin/content', label: 'contentManager', icon: '📝' },
+  { to: '/admin/content', label: 'contentManager', icon: ' 📝' },
   { to: '/admin/payments', label: 'paymentGateways', icon: '💳' },
-  { to: '/admin/security', label: 'security', icon: '🔒' },
+  { to: '/admin/security', label: 'security', icon: ' 🔒' },
   { to: '/admin/backups', label: 'backups', icon: '💾' },
   { to: '/admin/logs', label: 'systemLogs', icon: '📋' },
   { to: '/admin/analytics', label: 'analytics', icon: '📈', feature: 'analytics' },
@@ -609,10 +658,16 @@ const adminMenuItems = [
   { to: '/config', label: 'settings', icon: '🔧' }
 ]
 
-// ✅ Menús filtrados por features
+const staffMenuItems = [
+  { to: '/delivery/orders', label: 'deliveries', icon: '🚚' },
+  { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
+  { to: '/profile', label: 'profile', icon: '👤' },
+]
+
 const filteredUserMenu = computed(() => userMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
 const filteredProviderMenu = computed(() => providerMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
 const filteredAdminMenu = computed(() => adminMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
+const filteredStaffMenu = computed(() => staffMenuItems.filter(item => !item.feature || isFeatureEnabled(item.feature)))
 
 function isFeatureEnabled(feature) {
   switch (feature) {
@@ -686,12 +741,10 @@ const markAllAsRead = async () => {
       return
     }
 
-    // ✅ Marcar en BD
     await api.post('/notifications/read-all', {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    // ✅ Recargar de la API en vez de mutar 137 elementos
     await notificationStore.loadNotificationsFromAPI()
 
     console.log('✅ Todas las notificaciones marcadas como leídas')
@@ -709,28 +762,31 @@ const handleNotificationClick = async (notification) => {
 
     try {
       socketStore.markAsRead(notification.id)
-    } catch (e) {
-      // Ignorar
-    }
-
-    activePanel.value = null
+    } catch (e) {}
 
     let targetPath = null
     if (notification.data_json) {
       try {
         const data = JSON.parse(notification.data_json)
-        if (data.link) targetPath = data.link
-        if (data.type === 'order' && data.orderId) targetPath = `/orders/${data.orderId}`
-        else if (data.type === 'service' && data.serviceId) targetPath = `/services/${data.serviceId}`
-        else if (data.type === 'chat' && data.chatId) targetPath = `/chats/${data.chatId}`
-      } catch (e) {
-        console.warn('⚠️ data_json inválido:', e)
-      }
+        if (data.type === 'order' && data.orderId) {
+          targetPath = `/orders/${data.orderId}`
+        } else if (data.type === 'service' && data.serviceId) {
+          targetPath = `/services/${data.serviceId}`
+        } else if (data.type === 'chat' && data.chatId) {
+          targetPath = `/chats/${data.chatId}`
+        }
+      } catch (e) {}
     }
     if (!targetPath && notification.link) targetPath = notification.link
 
-    if (targetPath) router.push(targetPath)
-    else selectedNotification.value = notification
+    if (targetPath) {
+      activePanel.value = null
+      router.push(targetPath)
+    } else {
+      selectedNotification.value = notification
+      await nextTick()
+      activePanel.value = null
+    }
 
   } catch (error) {
     console.error('❌ Error en handleNotificationClick:', error)
@@ -747,6 +803,25 @@ const openConversation = (conv) => {
   activePanel.value = null
 }
 
+// ✅ CORREGIDO: Usar la estructura real de la conversación normalizada
+const getConversationName = (conv) => {
+  // La conversación normalizada tiene other_participant.name
+  return conv.other_participant?.name || conv.otherName || 'Usuario'
+}
+
+// ✅ CORREGIDO: Usar la estructura real para el avatar
+const getConversationAvatar = (conv) => {
+  const avatarUrl = conv.other_participant?.avatar_url || conv.otherAvatar || null
+  if (!avatarUrl) return '/img/default-avatar.png'
+  if (avatarUrl.startsWith('http')) return avatarUrl
+  return getImageUrl(avatarUrl, 'avatar')
+}
+
+// ✅ CORREGIDO: Obtener el último mensaje de forma segura
+const getLastMessageText = (conv) => {
+  return conv.lastMessage?.text || conv.last_message?.text || ''
+}
+
 const avatarUrl = (src) => {
   if (!src) return '/img/default-avatar.png'
   if (src.startsWith('http')) return src
@@ -759,13 +834,21 @@ const handleImageError = (event) => {
 
 const logout = async () => {
   try {
+    const token = localStorage.getItem('staff_token') || authStore.token
     await api.post('/logout', {}, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
+      headers: { Authorization: `Bearer ${token}` }
     }).catch(() => {})
   } finally {
     showUserPanel.value = false
-    authStore.logout()
-    router.push('/login')
+
+    if (localStorage.getItem('staff_token')) {
+      localStorage.removeItem('staff_token')
+      localStorage.removeItem('staff')
+      router.push('/staff/login')
+    } else {
+      authStore.logout()
+      router.push('/login')
+    }
   }
 }
 
@@ -805,7 +888,7 @@ onMounted(async () => {
   document.addEventListener('click', unlockAudio)
   document.addEventListener('touchstart', unlockAudio)
 
-  if (authStore.user) {
+  if (authStore.user || localStorage.getItem('staff_token')) {
     try {
       notificationStore.reset?.()
       await Promise.all([
@@ -814,15 +897,20 @@ onMounted(async () => {
       ])
 
       socketStore.init({ heartbeat: true, heartbeatInterval: 30000 })
-      socketStore.on('new-message', (payload) => conversationStore.prependMessage?.(payload))
+
+      // ✅ CORREGIDO: Usar 'new_message' (con guión bajo) en lugar de 'new-message'
+      // El socketStore ya maneja new_message y lo agrega al conversationStore
+      // No necesitamos duplicar la lógica aquí
+
       socketStore.on('conversation-updated', (payload) => conversationStore.updateConversation?.(payload))
 
       visibilityChangeListener = () => {
-        if (!document.hidden && authStore.user) {
+        if (!document.hidden && (authStore.user || localStorage.getItem('staff_token'))) {
           socketStore.init()
         }
       }
       document.addEventListener('visibilitychange', visibilityChangeListener)
+
     } catch (err) {
       console.error('❌ Error al inicializar:', err)
     }
@@ -838,12 +926,10 @@ onBeforeUnmount(() => {
   }
   if (visibilityChangeListener) document.removeEventListener('visibilitychange', visibilityChangeListener)
 
-  socketStore.off('new-message')
   socketStore.off('conversation-updated')
   socketStore.disconnect()
 })
 </script>
-
 
 <style scoped>
 /* ========== ESTILOS GLOBALES ========== */

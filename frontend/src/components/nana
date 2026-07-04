@@ -1,4 +1,7 @@
-<template>
+
+# ChatRoomModal.vue corregido - Voy a generar el archivo completo
+
+chat_room_modal_corrected = '''<template>
   <div
     class="chat-modal-overlay"
     @click.self="$emit('close')"
@@ -353,7 +356,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSocketStore } from '@/stores/socketStore';
 import { useOnlineUsersStore } from '@/stores/onlineUsersStore';
 import { useConversationStore } from '@/stores/conversationStore';
-import { getImageUrl } from '@/utils/imageHelper';
+import { getImageUrl } from '@/utils/imageHelper'
 
 // Definición de props
 const props = defineProps({
@@ -398,6 +401,7 @@ const hasMarkedAsDelivered = ref(false);
 const messages = computed(() => {
   const convId = localConversationId.value;
   if (!convId) return [];
+  // ✅ Agregar _uniqueKey para evitar problemas de :key en v-for
   const msgs = conversationStore.messages[convId] || [];
   return msgs.map((m, index) => ({
     ...m,
@@ -417,6 +421,7 @@ const isTargetOnline = computed(() => {
 const typingText = computed(() => {
   if (!isTyping.value) return '';
   if (!localConversationId.value) return 'Alguien está escribiendo...';
+
   const typingUsersList = conversationStore.getTypingUsers(Number(localConversationId.value));
   if (typingUsersList.length > 0 && props.target.name) {
     return `${props.target.name} está escribiendo...`;
@@ -473,7 +478,6 @@ const showNotification = (message, type = 'info') => {
   }
 };
 
-// ✅ CORREGIDO: Solo HTTP. El backend emite message_delivered por socket.
 const markMessagesAsDelivered = async () => {
   if (!localConversationId.value || hasMarkedAsDelivered.value) return;
 
@@ -488,7 +492,6 @@ const markMessagesAsDelivered = async () => {
       console.log(`✅ ${response.data.count} mensajes marcados como entregados`);
     }
     hasMarkedAsDelivered.value = true;
-    // ✅ El backend se encarga de emitir message_delivered a los remitentes
   } catch (err) {
     console.error('❌ Error marcando mensajes como entregados:', err);
   }
@@ -506,6 +509,7 @@ const ensureConversation = async () => {
 
   try {
     console.log('🔍 Buscando conversación con:', props.target.id, props.target.role);
+
     const existingConversation = conversationStore.conversations.find(c => {
       const participants = c.participants || [];
       return participants.some(p => p.id === props.target.id && p.role === props.target.role);
@@ -514,10 +518,7 @@ const ensureConversation = async () => {
     if (existingConversation) {
       console.log('✅ Conversación encontrada en store:', existingConversation.id);
       localConversationId.value = existingConversation.id;
-      // ✅ CORREGIDO: Protección antes de asignar .value
-      if (conversationStore?.activeConversationId) {
-        conversationStore.activeConversationId.value = existingConversation.id;
-      }
+      conversationStore.activeConversationId = existingConversation.id;
       return true;
     }
 
@@ -529,10 +530,7 @@ const ensureConversation = async () => {
       if (res.data?.id) {
         console.log('✅ Conversación encontrada en servidor:', res.data.id);
         localConversationId.value = res.data.id;
-        // ✅ CORREGIDO: Protección antes de asignar .value
-        if (conversationStore?.activeConversationId) {
-          conversationStore.activeConversationId.value = res.data.id;
-        }
+        conversationStore.activeConversationId = res.data.id;
         return true;
       }
     } catch (_err) {
@@ -552,10 +550,7 @@ const ensureConversation = async () => {
     if (createRes.data?.id) {
       console.log('✅ Nueva conversación creada:', createRes.data.id);
       localConversationId.value = createRes.data.id;
-      // ✅ CORREGIDO: Protección antes de asignar .value
-      if (conversationStore?.activeConversationId) {
-        conversationStore.activeConversationId.value = createRes.data.id;
-      }
+      conversationStore.activeConversationId = createRes.data.id;
       await conversationStore.fetchConversations();
       return true;
     }
@@ -572,7 +567,6 @@ const ensureConversation = async () => {
 
 const fetchMessages = async () => {
   if (!authStore.token || !localConversationId.value) return;
-
   try {
     if (props.target.role === 'support') {
       const ticketId = props.target.context?.ticket_id || props.target.id;
@@ -591,6 +585,7 @@ const fetchMessages = async () => {
         is_delivered: true,
         user_name: r.user_name
       }));
+      // ✅ Usar conversationStore en lugar de array local
       conversationStore.messages[localConversationId.value] = supportMessages;
       await scrollToBottom();
       return;
@@ -639,13 +634,14 @@ const sendMessage = async () => {
     uploadingImage.value = false;
   }
 
+  // ✅ CORRECCIÓN: Generar IDs únicos para evitar colisiones
   const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const messageText = newMessage.value.trim() || (attachment_url ? '📷 Imagen' : '');
   const convId = localConversationId.value;
 
   const tempMessage = {
-    id: tempId,
-    temp_id: tempId,
+    id: tempId,           // ✅ ID único temporal
+    temp_id: tempId,      // ✅ temp_id para tracking
     text: messageText,
     type: attachment_url ? 'image' : 'text',
     sender: authStore.user?.role,
@@ -659,6 +655,7 @@ const sendMessage = async () => {
     _temp: true
   };
 
+  // ✅ Agregar al conversationStore (no al array local)
   if (!conversationStore.messages[convId]) {
     conversationStore.messages[convId] = [];
   }
@@ -673,7 +670,7 @@ const sendMessage = async () => {
   try {
     if (props.target.role === 'support') {
       const ticketId = props.target.context?.ticket_id || props.target.id;
-      await api.post('/support/tickets/reply', {
+      const response = await api.post('/support/tickets/reply', {
         ticket_id: ticketId,
         message: messageText
       }, { headers: { Authorization: `Bearer ${authStore.token}` } });
@@ -704,6 +701,7 @@ const sendMessage = async () => {
 
     const sentMessage = response.data?.message || response.data;
 
+    // ✅ CORRECCIÓN: Usar confirmMessageSent del store para reemplazar el temporal
     conversationStore.confirmMessageSent({
       conversation_id: convId,
       temp_id: tempId,
@@ -729,9 +727,6 @@ const onFileChange = (e) => {
   reader.readAsDataURL(file);
 };
 
-// ✅ CORREGIDO: Protección contra envíos duplicados de typing
-let typingSent = false;
-
 const handleTyping = () => {
   if (!isSocketReady.value) {
     console.warn('⚠️ Socket no conectado, reintentando en 1s...');
@@ -742,9 +737,7 @@ const handleTyping = () => {
     console.warn('⚠️ No se puede enviar typing: destinatario offline o sin conversación');
     return;
   }
-  if (typingSent) return;
 
-  typingSent = true;
   socketStore.emit('typing', {
     receiver_id: props.target.id,
     receiver_role: props.target.role,
@@ -755,10 +748,7 @@ const handleTyping = () => {
   emit('typing', true);
 
   if (typingTimeout.value) clearTimeout(typingTimeout.value);
-  typingTimeout.value = setTimeout(() => {
-    stopTyping();
-    typingSent = false;
-  }, 3000);
+  typingTimeout.value = setTimeout(stopTyping, 3000);
 };
 
 const stopTyping = () => {
@@ -777,7 +767,6 @@ const stopTyping = () => {
     clearTimeout(typingTimeout.value);
     typingTimeout.value = null;
   }
-  typingSent = false;
 };
 
 // Manejadores de eventos
@@ -795,44 +784,69 @@ const handleTypingIndicator = (data) => {
   }
 };
 
-// ✅ CORREGIDO: Solo scroll. Toda la lógica está en socketStore → conversationStore.
+// ✅ CORRECCIÓN: handleNewMessage simplificado - solo scroll, no manipular mensajes
 const handleNewMessage = async (data) => {
   const { conversation_id, message } = data || {};
+
   if (conversation_id === localConversationId.value && message) {
     console.log('📨 Nuevo mensaje recibido en tiempo real en modal:', message);
+    // ✅ El socketStore ya agregó el mensaje al conversationStore
+    // Solo hacer scroll al fondo
     await nextTick();
     await scrollToBottom();
+
+    // ✅ Marcar como entregado si es para nosotros
+    const isForMe = message.sender !== authStore.user?.role;
+    if (isForMe && message.id && !String(message.id).startsWith('temp')) {
+      try {
+        await api.post('/messages/mark-delivered',
+          { message_id: message.id },
+          { headers: { Authorization: `Bearer ${authStore.token}` } }
+        );
+        if (isSocketReady.value) {
+          socketStore.emit('messages_delivered', {
+            conversation_id: localConversationId.value,
+            message_ids: [message.id]
+          });
+        }
+      } catch (err) {
+        console.error('Error al marcar mensaje como entregado:', err);
+      }
+      socketStore.playNotificationSound();
+    }
   }
 };
 
-// ✅ CORREGIDO: El conversationStore ya manejó la confirmación
+// ✅ CORRECCIÓN: handleMessageConfirmation simplificado
 const handleMessageConfirmation = (data) => {
   console.log('✅ Confirmación de mensaje en ChatRoomModal:', data);
+  // ✅ El conversationStore ya manejó la confirmación via confirmMessageSent
+  // No necesitamos hacer nada aquí
 };
 
 const handleMessageDeleted = (data) => {
   const { conversation_id, message_id } = data || {};
   if (conversation_id === localConversationId.value) {
-    // El conversationStore ya eliminó el mensaje
+    // ✅ El conversationStore ya eliminó el mensaje
+    // No necesitamos hacer nada aquí
   }
 };
 
-// ✅ CORREGIDO: Validar message_ids no vacío
 const handleMessageRead = (data) => {
   const { conversation_id, message_ids } = data || {};
-  if (conversation_id === localConversationId.value && Array.isArray(message_ids) && message_ids.length > 0) {
-    console.log('✅ [ChatRoomModal] Marcando como leídos:', message_ids.length);
-    conversationStore.markMessagesAsReadLocally(localConversationId.value, message_ids);
+  if (conversation_id === localConversationId.value && message_ids) {
+    // ✅ El conversationStore ya marcó los mensajes como leídos
+    // No necesitamos hacer nada aquí
   }
 };
 
-// ✅ CORREGIDO: Validar message_ids no vacío
 const handleMessageDelivered = (data) => {
   if (!data) return;
   const { conversation_id, message_ids } = data;
-  if (conversation_id === localConversationId.value && Array.isArray(message_ids) && message_ids.length > 0) {
-    console.log('📬 [ChatRoomModal] Marcando como entregados:', message_ids.length);
-    conversationStore.markMessagesAsDeliveredLocally(localConversationId.value, message_ids);
+  if (conversation_id === localConversationId.value && Array.isArray(message_ids)) {
+    // ✅ El conversationStore ya marcó los mensajes como entregados
+    // No necesitamos hacer nada aquí
+    console.log('✅ Mensajes marcados como entregados:', message_ids);
   }
 };
 
@@ -860,6 +874,7 @@ const deleteMessageForMe = async (messageId) => {
     await api.delete(`/messages/${messageId}/for-me`, {
       headers: { Authorization: `Bearer ${authStore.token}` }
     });
+    // ✅ Usar conversationStore.removeMessage
     conversationStore.removeMessage(localConversationId.value, messageId);
     showNotification('Mensaje borrado', 'success');
   } catch (err) {
@@ -929,6 +944,7 @@ const clearAllMessagesForMe = async () => {
       }).catch(() => {})
     );
     await Promise.all(promises);
+    // ✅ Limpiar en conversationStore
     conversationStore.messages[localConversationId.value] = [];
     showMenu.value = false;
     showNotification('Mensajes borrados', 'success');
@@ -994,13 +1010,13 @@ const exportChatHistory = () => {
   showNotification('Historial exportado', 'success');
 };
 
-// Watcher para scroll cuando cambian los mensajes
+// ✅ MEJORADO: Watcher para scroll cuando cambian los mensajes
 watch(() => conversationStore.messages[localConversationId.value], async () => {
   await nextTick();
   await scrollToBottom();
 }, { deep: true });
 
-// Watcher específico para el typing indicator
+// ✅ NUEVO: Watcher específico para el typing indicator
 watch(isTyping, async (newVal) => {
   if (newVal) {
     await nextTick();
@@ -1019,6 +1035,7 @@ onMounted(async () => {
   if (hasConversation && localConversationId.value) {
     setupListeners();
 
+    // Unirse a la sala de conversación
     if (isSocketReady.value) {
       socketStore.joinConversationRoom(localConversationId.value);
     } else {
@@ -1032,6 +1049,7 @@ onMounted(async () => {
 
     await fetchMessages();
 
+    // ✅ Scroll inicial después de cargar
     setTimeout(async () => {
       await scrollToBottom();
     }, 300);
@@ -1059,840 +1077,3 @@ onUnmounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.message-delete-btn {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #ff4444;
-  color: white;
-  border: none;
-  font-size: 12px;
-  cursor: pointer;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 10;
-}
-
-.message-wrapper:hover .message-delete-btn {
-  display: flex;
-  opacity: 1;
-}
-
-.message-delete-btn:hover {
-  background: #cc0000;
-}
-
-.message-container {
-  position: relative;
-}
-
-.chat-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(5px);
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.chat-modal-container {
-  background: white;
-  width: 90%;
-  max-width: 600px;
-  height: 80vh;
-  border-radius: 1rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.chat-modal-header {
-  background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: white;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.user-avatar {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  flex-shrink: 0;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-online-dot {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 10px;
-  height: 10px;
-  background: #b2bec3;
-  border-radius: 50%;
-  border: 2px solid white;
-  transition: background-color 0.3s;
-}
-
-.avatar-online-dot.online {
-  background: #00b894;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(0, 184, 148, 0.7);
-  }
-  50% {
-    transform: scale(1.1);
-    box-shadow: 0 0 0 4px rgba(0, 184, 148, 0.3);
-  }
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.user-name-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 0.25rem;
-}
-
-.user-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: white;
-  margin: 0;
-}
-
-.online-badge {
-  background: #00b894;
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 10px;
-  letter-spacing: 0.5px;
-  animation: glow 2s infinite;
-}
-
-@keyframes glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.user-role {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0;
-  text-transform: capitalize;
-}
-
-.file-input-wrapper {
-  position: relative;
-}
-
-.attach-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.2rem;
-  transition: all 0.3s;
-}
-
-.attach-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.file-input {
-  display: none;
-}
-
-.menu-btn {
-  width: 36px;
-  height: 36px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.menu-btn:hover,
-.menu-btn.active {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.close-btn {
-  width: 36px;
-  height: 36px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.dropdown-wrapper {
-  position: relative;
-}
-
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 0.5rem;
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-  min-width: 200px;
-  z-index: 10;
-  animation: fadeIn 0.2s ease;
-}
-
-.dropdown-item {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: none;
-  background: none;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  color: #2d3436;
-  font-size: 0.95rem;
-}
-
-.dropdown-item:hover {
-  background: #f1f2f6;
-}
-
-.dropdown-item:first-child {
-  border-radius: 0.5rem 0.5rem 0 0;
-}
-
-.dropdown-item:last-child {
-  border-radius: 0 0 0.5rem 0.5rem;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: #e1e8ed;
-  margin: 0.25rem 0;
-}
-
-.item-icon {
-  font-size: 1.1rem;
-}
-
-.item-text {
-  flex: 1;
-  text-align: left;
-}
-
-.messages-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-  background: #f8f9fa;
-}
-
-.messages-area.empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.empty-messages {
-  text-align: center;
-  max-width: 400px;
-  padding: 2rem;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-title {
-  color: #2d3436;
-  font-size: 1.2rem;
-  margin: 0 0 0.5rem 0;
-}
-
-.empty-subtitle {
-  color: #636e72;
-  margin-bottom: 2rem;
-}
-
-.chat-tips {
-  background: #f1f2f6;
-  border-radius: 0.75rem;
-  padding: 1rem;
-}
-
-.tip {
-  color: #0984e3;
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
-  text-align: left;
-}
-
-.message-wrapper {
-  display: flex;
-  gap: 0.75rem;
-  animation: fadeIn 0.3s ease;
-}
-
-.message-wrapper.sent {
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  flex-shrink: 0;
-}
-
-.avatar-small {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.message-container {
-  max-width: 70%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.sent .message-container {
-  align-items: flex-end;
-}
-
-.message-text {
-  background: white;
-  padding: 0.75rem 1rem;
-  border-radius: 1rem;
-  border-bottom-left-radius: 0.25rem;
-  color: #2d3436;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.sent .message-text {
-  background: #0984e3;
-  color: white;
-  border-bottom-left-radius: 1rem;
-  border-bottom-right-radius: 0.25rem;
-}
-
-.message-image {
-  margin-top: 0.5rem;
-}
-
-.image-preview {
-  max-width: 100%;
-  max-height: 200px;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: transform 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.image-preview:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.message-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
-  color: #b2bec3;
-  margin-top: 0.25rem;
-}
-
-.sent .message-info {
-  justify-content: flex-end;
-}
-
-.typing-indicator-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: white;
-  border-radius: 18px;
-  border: 1px solid #f1f2f6;
-  align-self: flex-start;
-  max-width: 200px;
-  margin-top: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-}
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  background: #0984e3;
-  border-radius: 50%;
-  animation: typingBounce 1.4s infinite ease-in-out;
-}
-
-.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes typingBounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-
-.typing-text {
-  color: #636e72;
-  font-size: 0.8rem;
-  font-style: italic;
-}
-
-.image-preview-container {
-  padding: 1rem;
-  border-top: 1px solid #e1e8ed;
-  background: #f8f9fa;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.preview-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #2d3436;
-}
-
-.preview-close {
-  background: none;
-  border: none;
-  color: #636e72;
-  font-size: 1.2rem;
-  cursor: pointer;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.3s;
-}
-
-.preview-close:hover {
-  background: #e1e8ed;
-  color: #d63031;
-}
-
-.preview-image {
-  max-width: 100%;
-  max-height: 100px;
-  border-radius: 0.5rem;
-  object-fit: contain;
-}
-
-.input-area {
-  padding: 1rem;
-  border-top: 1px solid #e1e8ed;
-  background: white;
-}
-
-.input-wrapper {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.message-input {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border: 2px solid #e1e8ed;
-  border-radius: 2rem;
-  font-size: 0.95rem;
-  transition: all 0.3s;
-  outline: none;
-}
-
-.message-input:focus {
-  border-color: #0984e3;
-  box-shadow: 0 0 0 3px rgba(9, 132, 227, 0.1);
-}
-
-.message-input:disabled {
-  background: #f1f2f6;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  width: 44px;
-  height: 44px;
-  border: none;
-  background: #0984e3;
-  color: white;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-}
-
-.send-btn:hover:not(:disabled) {
-  transform: scale(1.1);
-  background: #0866b3;
-  box-shadow: 0 4px 12px rgba(9, 132, 227, 0.3);
-}
-
-.send-btn.disabled {
-  background: #b2bec3;
-  cursor: not-allowed;
-}
-
-.send-btn.loading {
-  background: #b2bec3;
-  cursor: wait;
-}
-
-.spinner-small {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.input-hints {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.75rem;
-  color: #b2bec3;
-  padding-left: 0.5rem;
-}
-
-.hint {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.online-hint {
-  color: #00b894 !important;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.online-hint::before {
-  content: '●';
-  font-size: 0.8rem;
-}
-
-.messages-area::-webkit-scrollbar {
-  width: 6px;
-}
-
-.messages-area::-webkit-scrollbar-track {
-  background: #f1f2f6;
-}
-
-.messages-area::-webkit-scrollbar-thumb {
-  background: #b2bec3;
-  border-radius: 3px;
-}
-
-.messages-area::-webkit-scrollbar-thumb:hover {
-  background: #636e72;
-}
-
-.image-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  animation: fadeIn 0.3s ease;
-}
-
-.image-modal-container {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  animation: zoomIn 0.3s ease;
-}
-
-@keyframes zoomIn {
-  from {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.image-modal-close {
-  position: absolute;
-  top: -40px;
-  right: 0;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-}
-
-.image-modal-close:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.image-modal-img {
-  max-width: 100%;
-  max-height: 90vh;
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-
-@media (max-width: 768px) {
-  .image-modal-close {
-    top: -50px;
-    right: 10px;
-  }
-}
-
-@media (max-width: 768px) {
-  .chat-modal-container {
-    width: 100%;
-    height: 100vh;
-    border-radius: 0;
-  }
-
-  .chat-modal-header {
-    padding: 0.75rem 1rem;
-  }
-
-  .user-name {
-    font-size: 1rem;
-  }
-
-  .online-badge {
-    font-size: 0.55rem;
-    padding: 1px 4px;
-  }
-
-  .avatar-online-dot {
-    width: 8px;
-    height: 8px;
-  }
-
-  .message-container {
-    max-width: 85%;
-  }
-
-  .message-text {
-    font-size: 0.9rem;
-    padding: 0.6rem 0.9rem;
-  }
-
-  .input-hints {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .header-left {
-    gap: 0.5rem;
-  }
-
-  .user-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .attach-btn,
-  .menu-btn,
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 1rem;
-  }
-
-  .dropdown-menu {
-    right: -20px;
-  }
-
-  .message-container {
-    max-width: 90%;
-  }
-
-  .messages-area {
-    padding: 1rem;
-  }
-
-  .input-wrapper {
-    gap: 0.5rem;
-  }
-
-  .message-input {
-    padding: 0.6rem 0.9rem;
-    font-size: 0.9rem;
-  }
-
-  .send-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 1.3rem;
-  }
-}
-
-.status-sent {
-  color: #9ca3af;
-  margin-left: 4px;
-}
-
-.status-delivered {
-  color: #9ca3af;
-  margin-left: 4px;
-}
-
-.status-read {
-  color: #3b82f6;
-  margin-left: 4px;
-}
-
-.read-indicator {
-  color: #3b82f6;
-  margin-left: 4px;
-  font-size: 12px;
-}
-
-.error-image {
-  opacity: 0.5;
-  filter: grayscale(100%);
-}
-</style>

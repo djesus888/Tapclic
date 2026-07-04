@@ -18,12 +18,11 @@
       <p>Las solicitudes que recibas aparecerán aquí</p>
     </div>
 
-
     <!-- Solicitudes Grid -->
     <div v-else class="requests-grid">
-      <div 
-        v-for="req in requests" 
-        :key="`${req.id}-${$i18n.locale}`" 
+      <div
+        v-for="req in requests"
+        :key="`${req.id}-${$i18n.locale}`"
         class="request-card"
         :class="getStatusClass(req.status)"
       >
@@ -42,7 +41,7 @@
         <!-- Service Description -->
         <div class="card-content">
           <p class="service-description">{{ sanitize(req.service_description) }}</p>
-          
+
           <!-- Client Info -->
           <div class="client-info">
             <div class="client-avatar">👤</div>
@@ -65,7 +64,7 @@
 
           <!-- Payment Proof Button -->
           <div v-if="req.payment_status === 'verifying'" class="proof-section">
-            <button 
+            <button
               class="btn-proof"
               @click="$emit('open-proof', req.id)"
             >
@@ -82,9 +81,9 @@
               <span class="timeline-arrow" :class="{ 'open': openTimeline === req.id }">▼</span>
             </div>
             <div v-if="openTimeline === req.id" class="timeline-content">
-              <div 
-                v-for="(l,i) in timeline(req)" 
-                :key="i" 
+              <div
+                v-for="(l,i) in timeline(req)"
+                :key="i"
                 class="timeline-item"
               >
                 <div class="timeline-dot"></div>
@@ -101,7 +100,7 @@
         <div class="card-footer">
           <!-- Status Dropdown -->
           <div class="status-dropdown">
-            <button 
+            <button
               class="dropdown-toggle"
               @click="toggleDropdown(req.id)"
             >
@@ -109,11 +108,11 @@
               {{ $t('status') }}
               <span class="dropdown-arrow" :class="{ 'open': openDropdown === req.id }">▼</span>
             </button>
-            
+
             <div v-if="openDropdown === req.id" class="dropdown-menu">
-              <button 
-                v-for="st in allowedNext(req.status)" 
-                :key="st" 
+              <button
+                v-for="st in allowedNext(req.status)"
+                :key="st"
                 class="dropdown-item"
                 @click="$emit('set-status', req.id, st)"
               >
@@ -125,13 +124,24 @@
 
           <!-- Action Buttons -->
           <div class="action-buttons">
-            <button 
+            <button
               class="btn-chat"
               @click="$emit('open-chat', req.user_id, 'user')"
             >
               <span class="chat-icon">💬</span>
               <span class="chat-text">Chat</span>
             </button>
+            <button
+              v-if="!req.assigned_staff_id"
+              class="btn-assign"
+              @click="$emit('assign-delivery', req.id)"
+            >
+              <span class="assign-icon">🛵</span>
+              <span class="assign-text">Asignar Delivery</span>
+            </button>
+            <span v-else class="assigned-badge">
+              🛵 {{ req.staff_name || 'Asignado' }}
+            </span>
           </div>
         </div>
 
@@ -193,7 +203,7 @@ export default {
     loading: { type: Boolean, default: false },
     dropdownState: { type: [String, Number], default: null }
   },
-  emits: ['set-status', 'open-chat', 'open-proof', 'toggle-dropdown'],
+  emits: ['set-status', 'open-chat', 'open-proof', 'toggle-dropdown', 'assign-delivery'],
   data() {
     return {
       openTimeline: null
@@ -204,12 +214,12 @@ export default {
       return this.dropdownState;
     },
     activeRequestsCount() {
-      return this.requests.filter(r => 
+      return this.requests.filter(r =>
         ['accepted', 'in_progress', 'on_the_way', 'arrived'].includes(r.status)
       ).length;
     },
     pendingPaymentCount() {
-      return this.requests.filter(r => 
+      return this.requests.filter(r =>
         r.payment_status === 'pending' || r.payment_status === 'verifying'
       ).length;
     }
@@ -229,7 +239,7 @@ export default {
       };
       return classes[status] || '';
     },
-    
+
     sanitize(str) {
       if (!str || typeof str !== 'string') return str;
       const tempDiv = document.createElement('div');
@@ -238,7 +248,7 @@ export default {
         .replace(/on\w+="[^"]*"/g, '').replace(/on\w+='[^']*'/g, '')
         .replace(/javascript:/gi, '');
     },
-    
+
     formatDate(d, onlyTime = false) {
       if (!d) return '';
       const locale = this.$i18n.locale.value || 'es';
@@ -246,30 +256,29 @@ export default {
         : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
       try { return new Date(d).toLocaleString(locale, opts); } catch { return d; }
     },
-    
+
     formatCurrency(amount) {
       const locale = this.$i18n.locale.value || 'es';
       return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(amount || 0);
     },
-    
+
     statusLabel(status) {
       const key = 'status.' + status;
       const translated = this.$t(key);
       return translated === key ? status : translated;
     },
-    
+
     emoji(status) { return STATUS_EMOJIS[status] || '•'; },
-    
     allowedNext(status) { return STATUS_FLOW[status] || []; },
-    
-    toggleDropdown(id) { 
-      this.$emit('toggle-dropdown', id); 
+
+    toggleDropdown(id) {
+      this.$emit('toggle-dropdown', id);
     },
-    
+
     toggleTimeline(id) {
       this.openTimeline = this.openTimeline === id ? null : id;
     },
-    
+
     elapsed(updatedAt) {
       if (!updatedAt) return '00:00:00';
       try {
@@ -280,9 +289,9 @@ export default {
         return `${h}:${m}:${s}`;
       } catch { return '00:00:00'; }
     },
-    
-    timeline(req) { 
-      return [{ status: req.status, updated_at: req.updated_at }]; 
+
+    timeline(req) {
+      return [{ status: req.status, updated_at: req.updated_at }];
     }
   }
 };
@@ -772,6 +781,7 @@ export default {
 .action-buttons {
   display: flex;
   gap: 12px;
+  align-items: center;
 }
 
 .btn-chat {
@@ -801,6 +811,47 @@ export default {
 
 .chat-text {
   font-size: 0.9rem;
+}
+
+/* Botón Asignar Delivery */
+.btn-assign {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+  min-width: 100px;
+  justify-content: center;
+}
+
+.btn-assign:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+}
+
+.assign-icon {
+  font-size: 1.1rem;
+}
+
+.assign-text {
+  font-size: 0.9rem;
+}
+
+/* Badge de ya asignado */
+.assigned-badge {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Card Update */
@@ -879,32 +930,33 @@ export default {
   .solicitudes-activas-page {
     padding: 16px;
   }
-  
+
   .page-header h1 {
     font-size: 2rem;
   }
-  
+
   .requests-grid {
     grid-template-columns: 1fr;
     gap: 24px;
   }
-  
+
   .card-footer {
     flex-direction: column;
   }
-  
+
   .status-dropdown {
     width: 100%;
   }
-  
+
   .action-buttons {
     width: 100%;
+    flex-direction: column;
   }
-  
-  .btn-chat {
+
+  .btn-chat, .btn-assign {
     width: 100%;
   }
-  
+
   .stats-summary {
     grid-template-columns: 1fr;
   }
@@ -914,23 +966,23 @@ export default {
   .page-header {
     padding: 20px;
   }
-  
+
   .page-header h1 {
     font-size: 1.8rem;
     flex-direction: column;
     gap: 10px;
   }
-  
+
   .card-header {
     flex-direction: column;
     gap: 15px;
     align-items: stretch;
   }
-  
+
   .timeline-header {
     padding: 12px 16px;
   }
-  
+
   .card-update {
     flex-direction: column;
     text-align: center;

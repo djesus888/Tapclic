@@ -45,7 +45,6 @@
                   {{ getUserRoleLabel(user?.role) }}
                 </span>
               </div>
-
               <div class="avatar-file-info" v-if="avatarFile">
                 <div class="file-item">
                   <span class="file-icon">📄</span>
@@ -165,7 +164,6 @@
                       {{ $t('notifyEmail') }}
                     </span>
                   </label>
-                  <!-- Botón para enviar email real -->
                   <button
                     class="btn-notification-action"
                     @click="sendEmailNotification"
@@ -189,7 +187,6 @@
                       {{ $t('notifySMS') }}
                     </span>
                   </label>
-                  <!-- Botón para enviar SMS real -->
                   <button
                     class="btn-notification-action"
                     @click="sendSMSNotification"
@@ -213,7 +210,6 @@
             <h3><span class="header-icon">📝</span> {{ $t('personalInfo') }}</h3>
             <p class="card-subtitle">{{ $t('personalInfoSubtitle') }}</p>
           </div>
-
           <form @submit.prevent="updateProfile" class="form-content">
             <!-- Name -->
             <div class="form-group">
@@ -522,6 +518,9 @@ export default {
     const defaultAvatar = '/img/default-avatar.png'
     const loading = ref(false)
 
+    // ✅ Detectar si es staff
+    const isStaff = ref(false)
+
     // Preferencias
     const pref = reactive({
       language: 'es',
@@ -548,77 +547,114 @@ export default {
     const sendingEmail = ref(false)
     const sendingSMS = ref(false)
 
-  const fetchProfile = async () => {
-    try {
+    // ✅ Detectar tipo de usuario
+    const detectUserType = () => {
+      // Verificar staff_token en localStorage
+      if (localStorage.getItem('staff_token')) {
+        isStaff.value = true
+        return 'staff'
+      }
+      // Verificar rol en authStore
+      if (authStore.user?.role?.startsWith('staff_')) {
+        isStaff.value = true
+        return 'staff'
+      }
+      return 'user'
+    }
+
+    const fetchProfile = async () => {
+      try {
+        const userType = detectUserType()
+        
         // Asegurar que la configuración del sistema esté cargada
         if (!systemStore.config) {
-            await systemStore.fetchConfig()
+          await systemStore.fetchConfig()
         }
 
-        const { data } = await api.get('/profile', {
+        let data
+        
+        // ✅ Usar endpoint diferente según el tipo de usuario
+        if (userType === 'staff') {
+          // Endpoint para staff
+          const response = await api.get('/staff/profile', {
             headers: { Authorization: `Bearer ${authStore.token}` }
-        })
+          })
+          data = response.data
+          // Adaptar respuesta de staff al formato esperado
+          user.value = {
+            ...data.staff,
+            role: 'staff_' + (data.staff?.role || 'delivery'),
+            avatar_url: data.staff?.avatar_url || null,
+            verified: data.staff?.active === 1,
+            created_at: data.staff?.created_at
+          }
+        } else {
+          // Endpoint para usuario normal
+          const response = await api.get('/profile', {
+            headers: { Authorization: `Bearer ${authStore.token}` }
+          })
+          data = response.data
+          user.value = data.user || {}
+        }
 
-        // 🔍 DIAGNÓSTICO
-        console.log('📸 avatar_url del backend:', data.user?.avatar_url)
-
-        user.value = data.user || {}
+        console.log('📸 Datos de perfil cargados:', user.value)
+        console.log('📸 avatar_url del backend:', user.value?.avatar_url)
 
         // Construir URL del avatar usando getImageUrl
         if (user.value.avatar_url && !user.value.avatar_url.startsWith('http')) {
-            user.value.avatar_url = getImageUrl(user.value.avatar_url, 'avatar')
-            console.log('📸 avatar_url después de getImageUrl:', user.value.avatar_url)
+          user.value.avatar_url = getImageUrl(user.value.avatar_url, 'avatar')
+          console.log('📸 avatar_url después de getImageUrl:', user.value.avatar_url)
         } else {
-            console.log('⚠️ No se procesó avatar_url. Valor:', user.value.avatar_url)
+          console.log('⚠️ No se procesó avatar_url. Valor:', user.value.avatar_url)
         }
 
         form.value = {
-            name: user.value.name || '',
-            email: user.value.email || '',
-            phone: user.value.phone || '',
-            address: user.value.address || '',
-            business_address: user.value.business_address || '',
-            service_categories: user.value.service_categories || '',
-            coverage_area: user.value.coverage_area || '',
-            preferences: user.value.preferences || ''
+          name: user.value.name || '',
+          email: user.value.email || '',
+          phone: user.value.phone || '',
+          address: user.value.address || '',
+          business_address: user.value.business_address || '',
+          service_categories: user.value.service_categories || '',
+          coverage_area: user.value.coverage_area || '',
+          preferences: user.value.preferences || ''
         }
 
         if (user.value.preferences) {
-            try {
-                const p = JSON.parse(user.value.preferences)
-                pref.language = p.language || 'es'
-                pref.dark = p.dark || false
-                pref.notifications.email = p.notifications?.email ?? true
-                pref.notifications.sms = p.notifications?.sms ?? false
-            } catch (e) {
-                console.warn('Preferencias corruptas, se usan valores por defecto')
-            }
+          try {
+            const p = JSON.parse(user.value.preferences)
+            pref.language = p.language || 'es'
+            pref.dark = p.dark || false
+            pref.notifications.email = p.notifications?.email ?? true
+            pref.notifications.sms = p.notifications?.sms ?? false
+          } catch (e) {
+            console.warn('Preferencias corruptas, se usan valores por defecto')
+          }
         }
 
         // Leer idioma desde localStorage (prioridad)
         const savedLang = localStorage.getItem('userLanguage')
         if (savedLang && ['es', 'en', 'pt'].includes(savedLang)) {
-            pref.language = savedLang
+          pref.language = savedLang
         }
         // Cargar preferencias de notificaciones
         await loadNotificationPreferences()
-    } catch (err) {
+      } catch (err) {
         console.error('Error al obtener perfil:', err)
 
         if (err.response?.status === 401) {
-            authStore.logout()
-            window.location.href = '/login'
+          authStore.logout()
+          window.location.href = isStaff.value ? '/staff/login' : '/login'
         } else {
-            Swal.fire({
-                icon: 'error',
-                title: t('profile.error'),
-                text: t('profile.loadFailed'),
-                timer: 3000,
-                showConfirmButton: true
-            })
+          Swal.fire({
+            icon: 'error',
+            title: t('profile.error'),
+            text: t('profile.loadFailed'),
+            timer: 3000,
+            showConfirmButton: true
+          })
         }
+      }
     }
-}
 
     const onAvatarChange = (e) => {
       const file = e.target.files[0]
@@ -672,21 +708,29 @@ export default {
       form.value.preferences = JSON.stringify(pref)
 
       try {
+        const userType = detectUserType()
         const payload = new FormData()
         payload.append('name', form.value.name.trim())
         payload.append('email', form.value.email.trim().toLowerCase())
         payload.append('phone', form.value.phone.trim())
         payload.append('address', form.value.address.trim())
-        payload.append('business_address', form.value.business_address.trim())
-        payload.append('service_categories', form.value.service_categories.trim())
-        payload.append('coverage_area', form.value.coverage_area.trim())
+        
+        if (!isStaff.value) {
+          payload.append('business_address', form.value.business_address.trim())
+          payload.append('service_categories', form.value.service_categories.trim())
+          payload.append('coverage_area', form.value.coverage_area.trim())
+        }
+        
         payload.append('preferences', form.value.preferences)
 
         if (avatarFile.value) {
           payload.append('avatar', avatarFile.value)
         }
 
-        const response = await api.post('/profile/update', payload, {
+        // ✅ Usar endpoint diferente según el tipo de usuario
+        const endpoint = userType === 'staff' ? '/staff/profile/update' : '/profile/update'
+        
+        const response = await api.post(endpoint, payload, {
           headers: {
             Authorization: `Bearer ${authStore.token}`,
             'Content-Type': 'multipart/form-data'
@@ -771,7 +815,9 @@ export default {
       passwordLoading.value = true
 
       try {
-        await api.post('/profile/change-password', passwordForm.value, {
+        const endpoint = isStaff.value ? '/staff/change-password' : '/profile/change-password'
+        
+        await api.post(endpoint, passwordForm.value, {
           headers: { Authorization: `Bearer ${authStore.token}` }
         })
 
@@ -977,6 +1023,9 @@ export default {
 
     // Helper methods
     const getRoleClass = (role) => {
+      if (!role) return 'role-default'
+      if (role.startsWith('staff_')) return 'role-staff'
+      
       const classes = {
         admin: 'role-admin',
         provider: 'role-provider',
@@ -986,6 +1035,17 @@ export default {
     }
 
     const getUserRoleLabel = (role) => {
+      if (!role) return t('roleUser')
+      if (role.startsWith('staff_')) {
+        const staffRole = role.replace('staff_', '')
+        const labels = {
+          delivery: 'Staff Delivery',
+          manager: 'Staff Manager',
+          support: 'Staff Soporte'
+        }
+        return labels[staffRole] || 'Staff'
+      }
+      
       const labels = {
         admin: t('roleAdmin'),
         provider: t('roleProvider'),
@@ -1062,6 +1122,7 @@ export default {
       updateProfile,
       t,
       pref,
+      isStaff,
       getRoleClass,
       getUserRoleLabel,
       formatFileSize,

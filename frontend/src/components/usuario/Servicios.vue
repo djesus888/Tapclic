@@ -225,7 +225,7 @@ export default {
   },
   async mounted() {
     const favs = await this.favoritesStore.fetchFavorites().catch(() => []);
-    this.favoriteIds = favs.map(f => f.service_id || f.serviceId);
+this.favoriteIds = Array.isArray(favs) ? favs.map(f => f.service_id || f.serviceId) : [];
     this.$nextTick(() => { this.priceRange = this.maxPrice; });
   },
   methods: {

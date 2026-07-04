@@ -8,7 +8,7 @@ const routes = [
   { path: '/register',component: () => import('@/pages/Register.vue') },
   { path: '/forgot-password', component: () => import('@/pages/ForgotPassword.vue') },
   { path: '/reset-password',  component: () => import('@/pages/ResetPassword.vue') },
-
+  { path: '/staff/login', component: () => import('@/pages/StaffLogin.vue') },
 
   
 /* Ruta real para /dashboard que evita el doble redirect */
@@ -66,12 +66,14 @@ const routes = [
       { path: 'requests', component: () => import('@/pages/Requests.vue') },
       { path: 'service/:id', component: () => import('@/pages/ServiceDetailPage.vue') },
       { path: 'admin/tickets', component: () => import('@/pages/AdminTickets.vue') },
+      { path: 'provider/staff', component: () => import('@/pages/ProviderStaff.vue'), meta: { role: 'provider' } },
+      { path: 'delivery/orders', component: () => import('@/pages/DeliveryOrders.vue') },
 
       /* Dashboards por rol */
       { path: 'dashboard/user',     component: () => import('@/components/DashboardUser.vue'),    meta: { role: 'user' } },
       { path: 'dashboard/admin',    component: () => import('@/components/DashboardAdmin.vue'),   meta: { role: 'admin' } },
       { path: 'dashboard/provider', component: () => import('@/components/DashboardProvider.vue'), meta: { role: 'provider' } },
-
+//      { path: 'dashboard/delivery', component: () => import('@/components/DashboardDelivery.vue') },
 
        // Ruta 404 -  Dentro del layout protegido
        { path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
@@ -87,20 +89,36 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
+  const staffToken = localStorage.getItem('staff_token')
+  const isStaff = !!staffToken
+
+  if (isStaff) {
+    if (to.path === '/staff/login') return next('/delivery/orders')
+    
+    // ✅ Permitir acceso a delivery, chats, profile, config y routes
+    if (to.path.startsWith('/delivery') || 
+        to.path === '/chats' ||
+        to.path === '/chat' ||
+        to.path.startsWith('/chat/') ||
+        to.path === '/profile' ||
+        to.path === '/config' ||
+        to.path === '/routes') {
+      return next()
+    }
+    
+    return next('/delivery/orders')
+}
+
+  // USUARIO NORMAL
   const auth = useAuthStore()
   const role = auth.user?.role
 
-  /* Si ya está logueado y va a login/register, redirige a su dashboard */
   if ((to.path === '/login' || to.path === '/register') && role) {
     return next(`/dashboard/${role}`)
   }
-
-  /* Ruta protegida y sin token → login */
   if (to.meta.requiresAuth && !auth.token) {
     return next('/login')
   }
-
-  /* Ruta con rol requerido y no coincide → dashboard de su rol */
   if (to.meta.role && role !== to.meta.role) {
     return next(role ? `/dashboard/${role}` : '/login')
   }

@@ -9,7 +9,7 @@
           <div class="chat-user-info">
             <div class="user-avatar-wrapper">
               <img
-                :src="target.avatarUrl || 'https://via.placeholder.com/60?text=Usuario'"
+                :src="target.avatarUrl || '/img/default-avatar.png'"
                 :alt="target.name || 'Usuario'"
                 class="user-avatar-modern"
                 @error="handleImageError"
@@ -137,7 +137,7 @@
               <!-- Avatar para mensajes recibidos -->
               <div v-if="!msg.is_mine" class="message-avatar-modern">
                 <img
-                  :src="msg.avatar_url || target?.avatarUrl || 'https://via.placeholder.com/36?text=U'"
+                 :src="msg.avatar_url ? getImageUrl(msg.avatar_url, 'avatar') : (target?.avatarUrl || '/img/default-avatar.png')"
                   :alt="msg.sender"
                   class="avatar-small-modern"
                   @error="handleImageError"
@@ -341,9 +341,6 @@
 </template>
 
 <script setup>
-// ============================================
-// IMPORTS
-// ============================================
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useConversationStore } from '@/stores/conversationStore'
@@ -353,10 +350,8 @@ import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 import api from '@/axios'
 import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { getImageUrl } from '@/utils/imageHelper'
 
-// ============================================
-// STORES
-// ============================================
 const route = useRoute()
 const router = useRouter()
 const conversationStore = useConversationStore()
@@ -364,9 +359,6 @@ const authStore = useAuthStore()
 const socketStore = useSocketStore()
 const onlineUsersStore = useOnlineUsersStore()
 
-// ============================================
-// ESTADOS
-// ============================================
 const target = ref(null)
 const newMessage = ref('')
 const loading = ref(false)
@@ -375,36 +367,20 @@ const showMenu = ref(false)
 const scrollRef = ref(null)
 const selectedFile = ref(null)
 const previewUrl = ref(null)
-
-// Typing
 const isTyping = ref(false)
 let typingTimeout = null
-
-// Modal de imagen
 const selectedImage = ref(null)
 const showImageModal = ref(false)
 const selectedImageCaption = ref('')
-
-// Favoritos
 const favoriteConversations = ref(new Set(loadFavorites()))
 const messageStats = ref(null)
-
-// ============================================
-// Socket listeners (para limpieza)
-// ============================================
 const socketListeners = {}
 
-// ============================================
-// Computed para mensajes desde store
-// ============================================
 const currentMessages = computed(() => {
   const convId = Number(route.params.id)
   return conversationStore.messages[convId] || []
 })
 
-// ============================================
-// COMPUTED
-// ============================================
 const isUserOnline = computed(() => {
   if (!target.value?.id) return false
   return onlineUsersStore.isUserOnline(Number(target.value.id))
@@ -429,26 +405,16 @@ const isFavorite = computed(() => {
   return favoriteConversations.value.has(Number(route.params.id))
 })
 
-// ============================================
-// FUNCIONES DE FORMATO
-// ============================================
 function formatRole(role) {
   if (!role) return 'Usuario'
-  const roles = {
-    provider: 'Proveedor',
-    client: 'Cliente',
-    user: 'Usuario',
-    admin: 'Administrador'
-  }
+  const roles = { provider: 'Proveedor', client: 'Cliente', user: 'Usuario', admin: 'Administrador' }
   return roles[role.toLowerCase()] || role
 }
 
 function formatLastSeen(timestamp, detailed = false) {
   if (!timestamp) return 'desconocido'
   const date = new Date(timestamp * 1000)
-  if (detailed) {
-    return format(date, 'dd/MM/yyyy HH:mm', { locale: es })
-  }
+  if (detailed) return format(date, 'dd/MM/yyyy HH:mm', { locale: es })
   return formatDistanceToNow(date, { addSuffix: true, locale: es })
 }
 
@@ -457,15 +423,12 @@ function formatMessageTime(timestamp) {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// ============================================
-// FUNCIONES DE MENSAJES
-// ============================================
 async function fetchMessages() {
   if (!authStore.token || !target.value) return
   const conversationId = Number(route.params.id)
   try {
     await conversationStore.fetchMessages(conversationId)
-    await markMessagesAsDelivered()
+    await markMessagesAsDeliveredHttp()
     await loadMessageStats(conversationId)
     await scrollToBottom()
   } catch (err) {
@@ -473,44 +436,23 @@ async function fetchMessages() {
   }
 }
 
-// ============================================
-// MARCAR MENSAJES COMO ENTREGADOS (MEJORADO CON SOCKET)
-// ============================================
-async function markMessagesAsDelivered() {
+async function markMessagesAsDeliveredHttp() {
   const conversationId = Number(route.params.id)
   if (!conversationId) return
-
   try {
-    console.log('📬 Marcando mensajes como entregados para conversación:', conversationId)
     const response = await api.post(
       `/messages/conversation/${conversationId}/delivered`,
-      {
-        target_id: target.value?.id,
-        target_role: target.value?.role
-      },
-      {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      }
+      { target_id: target.value?.id, target_role: target.value?.role },
+      { headers: { Authorization: `Bearer ${authStore.token}` } }
     )
     if (response.data?.count > 0) {
       console.log(`✅ ${response.data.count} mensajes marcados como entregados`)
-    }
-
-    // ✅ SEGUNDA MEJORA: Emitir por socket para notificar al otro cliente
-    if (socketStore.socket?.connected) {
-      socketStore.emit('message_delivered', {
-        conversation_id: conversationId
-      })
-      console.log('📬 Emitido message_delivered por socket para conversación:', conversationId)
     }
   } catch (err) {
     console.error('❌ Error marcando mensajes como entregados:', err)
   }
 }
 
-// ============================================
-// MANEJO DE ARCHIVOS
-// ============================================
 function onFileChange(e) {
   const file = e.target.files?.[0]
   if (!file) return
@@ -525,38 +467,21 @@ function clearPreview() {
   previewUrl.value = null
 }
 
-// ============================================
-// SEND MESSAGE - Función corregida
-// ============================================
 const sendMessage = async () => {
-  console.log('📤 sendMessage called')
-  if ((!newMessage.value.trim() && !selectedFile.value) || !authStore.token) {
-    console.warn('⚠️ No hay mensaje o token')
-    return
-  }
-
+  if ((!newMessage.value.trim() && !selectedFile.value) || !authStore.token) return
   stopTyping()
   let attachment_url = null
-
-  // Subir imagen si existe
   if (selectedFile.value) {
     uploadingImage.value = true
     const formData = new FormData()
     formData.append('image', selectedFile.value)
-
     try {
       const uploadRes = await api.post('/upload/image', formData, {
-        headers: {
-          Authorization: `Bearer ${authStore.token}`,
-          'Content-Type': 'multipart/form-data'
-        }
+        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'multipart/form-data' }
       })
-      if (!uploadRes.data?.image_url) {
-        throw new Error('URL de imagen no recibida del servidor')
-      }
+      if (!uploadRes.data?.image_url) throw new Error('URL de imagen no recibida')
       attachment_url = uploadRes.data.image_url
     } catch (err) {
-      console.error('Error al subir imagen:', err)
       uploadingImage.value = false
       showNotification(err.response?.data?.error || 'Error al subir la imagen', 'error')
       return
@@ -566,97 +491,54 @@ const sendMessage = async () => {
 
   const messageText = newMessage.value.trim()
   const conversationId = Number(route.params.id)
+  if (!conversationId || !target.value) return
 
-  if (!conversationId || !target.value) {
-    console.error('❌ Faltan datos para enviar mensaje')
-    return
-  }
-
-  // Crear mensaje temporal
   const tempId = `temp_${Date.now()}_${Math.random()}`
   const tempMessage = {
-    id: tempId,
-    temp_id: tempId,
+    id: tempId, temp_id: tempId,
     text: messageText || (attachment_url ? '📷 Imagen' : ''),
-    sender_id: authStore.user?.id,
-    sender: authStore.user?.role,
-    is_mine: true,
-    is_delivered: false,
-    is_read: false,
-    created_at: new Date().toISOString(),
-    attachment_url: attachment_url,
+    sender_id: authStore.user?.id, sender: authStore.user?.role,
+    is_mine: true, is_delivered: false, is_read: false,
+    created_at: new Date().toISOString(), attachment_url,
     type: attachment_url ? 'image' : 'text',
-    avatar_url: authStore.user?.avatar_url || '',
-    _temp: true
+    avatar_url: authStore.user?.avatar_url || '', _temp: true
   }
 
-  // Agregar temporalmente
-  if (!conversationStore.messages[conversationId]) {
-    conversationStore.messages[conversationId] = []
-  }
+  if (!conversationStore.messages[conversationId]) conversationStore.messages[conversationId] = []
   conversationStore.messages[conversationId].push(tempMessage)
   await scrollToBottom()
-
   newMessage.value = ''
   selectedFile.value = null
   previewUrl.value = null
   loading.value = true
 
-  // Enviar por WebSocket
-  const wsMessage = {
-    conversation_id: conversationId,
-    recipient_id: target.value.id,
-    recipient_role: target.value.role,
-    text: messageText,
-    temp_id: tempId,
-    type: attachment_url ? 'image' : 'text',
-    attachment_url: attachment_url
-  }
-
-  console.log('📤 Enviando por WebSocket:', wsMessage)
-  if (socketStore.socket?.connected) {
-    socketStore.socket.emit('send_message', wsMessage)
-  } else {
-    console.warn('⚠️ WebSocket no conectado')
-  }
-
-  // Enviar por HTTP
   try {
-    const res = await api.post('/messages/send', wsMessage, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    const res = await api.post('/messages/send', {
+      conversation_id: conversationId, recipient_id: target.value.id,
+      recipient_role: target.value.role, text: messageText,
+      temp_id: tempId, type: attachment_url ? 'image' : 'text',
+      attachment_url
+    }, { headers: { Authorization: `Bearer ${authStore.token}` } })
     const realMessage = res.data.message || res.data
-    conversationStore.confirmMessageSent({
-      conversation_id: conversationId,
-      temp_id: tempId,
-      message: realMessage
-    })
+    conversationStore.confirmMessageSent({ conversation_id: conversationId, temp_id: tempId, message: realMessage })
     await loadMessageStats(conversationId)
-    console.log('✅ Mensaje guardado en BD')
   } catch (err) {
-    console.error('❌ Error HTTP:', err)
-    const index = conversationStore.messages[conversationId].findIndex(
-      m => m.id === tempId || m.temp_id === tempId
-    )
-    if (index !== -1) {
-      conversationStore.messages[conversationId][index].error = true
-    }
+    const index = conversationStore.messages[conversationId].findIndex(m => m.id === tempId || m.temp_id === tempId)
+    if (index !== -1) conversationStore.messages[conversationId][index].error = true
     showNotification(err.response?.data?.message || 'Error al enviar', 'error')
   } finally {
     loading.value = false
   }
 }
+let typingSent = false
 
-// ============================================
-// TYPING
-// ============================================
 function handleTyping() {
   if (!socketStore.socket?.connected || !isUserOnline.value || !target.value) return
+  if (typingSent) return  // ✅ No reenviar si ya se envió
   const conversationId = Number(route.params.id)
-  if (!conversationId) {
-    console.warn('⚠️ No se puede enviar typing: conversationId no disponible')
-    return
-  }
+  if (!conversationId) return
+
+  typingSent = true
   socketStore.emit('typing', {
     receiver_id: target.value.id,
     receiver_role: target.value.role,
@@ -664,166 +546,91 @@ function handleTyping() {
     conversation_id: conversationId
   })
 
-  if (typingTimeout) {
-    clearTimeout(typingTimeout)
-  }
+  if (typingTimeout) clearTimeout(typingTimeout)
   typingTimeout = setTimeout(() => {
     stopTyping()
+    typingSent = false
   }, 3000)
 }
 
 function stopTyping() {
-  if (!socketStore.socket?.connected || !isUserOnline.value || !target.value) return
+  if (!socketStore.socket?.connected || !target.value) return
   const conversationId = Number(route.params.id)
-  if (!conversationId) {
-    console.warn('⚠️ No se puede detener typing: conversationId no disponible')
-    return
-  }
+  if (!conversationId) return
+
   socketStore.emit('typing', {
     receiver_id: target.value.id,
     receiver_role: target.value.role,
     is_typing: false,
     conversation_id: conversationId
   })
-  if (typingTimeout) {
-    clearTimeout(typingTimeout)
-    typingTimeout = null
-  }
-}
-
-// ============================================
-// SOFT DELETE - PARA EL USUARIO
-// ============================================
+  if (typingTimeout) { clearTimeout(typingTimeout); typingTimeout = null }
+ 
+ typingSent = false
+} 
 async function deleteMessageForMe(messageId) {
-  if (!confirm('¿Borrar este mensaje solo para ti? El otro usuario aún podrá verlo.')) return
+  if (!confirm('¿Borrar este mensaje solo para ti?')) return
   try {
-    await api.delete(`/messages/${messageId}/for-me`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    await api.delete(`/messages/${messageId}/for-me`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     const convId = Number(route.params.id)
-    if (conversationStore.messages[convId]) {
-      conversationStore.messages[convId] = conversationStore.messages[convId].filter(m => m.id !== messageId)
-    }
+    if (conversationStore.messages[convId]) conversationStore.messages[convId] = conversationStore.messages[convId].filter(m => m.id !== messageId)
     showNotification('Mensaje borrado', 'success')
     loadMessageStats(convId)
-  } catch (err) {
-    console.error('Error al borrar mensaje:', err)
-    showNotification('Error al borrar el mensaje', 'error')
-  }
+  } catch (err) { showNotification('Error al borrar el mensaje', 'error') }
 }
 
 async function deleteChatForMe() {
-  if (!confirm('¿Borrar esta conversación solo para ti? El otro usuario aún podrá ver los mensajes.')) return
+  if (!confirm('¿Borrar esta conversación solo para ti?')) return
   try {
-    await api.delete(`/conversations/${route.params.id}/for-me`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    await api.delete(`/conversations/${route.params.id}/for-me`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     showNotification('Conversación borrada', 'success')
     router.push('/chats')
-  } catch (err) {
-    console.error('Error al borrar conversación:', err)
-    showNotification('Error al borrar la conversación', 'error')
-  }
+  } catch (err) { showNotification('Error al borrar la conversación', 'error') }
 }
 
-// ============================================
-// FUNCIONES DE CONFIRMACIÓN
-// ============================================
 const confirmClearMessagesForMe = () => {
-  if (currentMessages.value.length === 0) {
-    showNotification('No hay mensajes para borrar', 'info')
-    return
-  }
-  if (confirm('¿Borrar TODOS los mensajes para ti? El otro usuario aún podrá verlos.')) {
-    clearAllMessagesForMe()
-  }
+  if (currentMessages.value.length === 0) { showNotification('No hay mensajes para borrar', 'info'); return }
+  if (confirm('¿Borrar TODOS los mensajes para ti?')) clearAllMessagesForMe()
 }
-
-const confirmDeleteChatForMe = () => {
-  deleteChatForMe()
-}
-
+const confirmDeleteChatForMe = () => deleteChatForMe()
 const confirmHardDeleteMessages = () => {
-  if (authStore.user?.role !== 'admin') {
-    showNotification('Solo administradores', 'error')
-    return
-  }
-  if (confirm('¿ELIMINAR PERMANENTEMENTE todos los mensajes? Esta acción NO se puede deshacer.')) {
-    clearAllMessages()
-  }
+  if (authStore.user?.role !== 'admin') { showNotification('Solo administradores', 'error'); return }
+  if (confirm('¿ELIMINAR PERMANENTEMENTE todos los mensajes?')) clearAllMessages()
 }
-
 const confirmHardDeleteChat = () => {
-  if (authStore.user?.role !== 'admin') {
-    showNotification('Solo administradores', 'error')
-    return
-  }
-  if (confirm('¿ELIMINAR PERMANENTEMENTE toda la conversación? Esta acción NO se puede deshacer.')) {
-    deleteEntireChat()
-  }
+  if (authStore.user?.role !== 'admin') { showNotification('Solo administradores', 'error'); return }
+  if (confirm('¿ELIMINAR PERMANENTEMENTE toda la conversación?')) deleteEntireChat()
 }
 
-// ============================================
-// HARD DELETE (SOLO ADMIN)
-// ============================================
 const clearAllMessagesForMe = async () => {
   if (!authStore.token || !target.value) return
   try {
     loading.value = true
-    const messagesToDelete = [...currentMessages.value]
-    const promises = messagesToDelete.map(msg =>
-      api.delete(`/messages/${msg.id}/for-me`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      }).catch(() => {})
-    )
+    const promises = currentMessages.value.map(msg => api.delete(`/messages/${msg.id}/for-me`, { headers: { Authorization: `Bearer ${authStore.token}` } }).catch(() => {}))
     await Promise.all(promises)
     const convId = Number(route.params.id)
-    if (conversationStore.messages[convId]) {
-      conversationStore.messages[convId] = []
-    }
+    if (conversationStore.messages[convId]) conversationStore.messages[convId] = []
     showMenu.value = false
     showNotification('Mensajes borrados', 'success')
-  } catch (error) {
-    console.error('Error al borrar mensajes:', error)
-    showNotification('Error al borrar los mensajes', 'error')
-  } finally {
-    loading.value = false
-  }
+  } catch (error) { showNotification('Error al borrar los mensajes', 'error') }
+  finally { loading.value = false }
 }
 
 const clearAllMessages = async () => {
   if (!authStore.token || !target.value) return
   try {
     loading.value = true
-    const response = await api.delete(`/conversations/${route.params.id}/messages`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    const response = await api.delete(`/conversations/${route.params.id}/messages`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     if (response.data.success) {
       const convId = Number(route.params.id)
-      if (conversationStore.messages[convId]) {
-        conversationStore.messages[convId] = []
-      }
+      if (conversationStore.messages[convId]) conversationStore.messages[convId] = []
       showMenu.value = false
       showNotification('Todos los mensajes han sido borrados permanentemente', 'success')
-      if (conversationStore.currentConversation) {
-        conversationStore.currentConversation.last_message = null
-      }
-    } else {
-      showNotification('Error al borrar los mensajes', 'error')
-    }
+    } else { showNotification('Error al borrar los mensajes', 'error') }
   } catch (error) {
-    console.error('Error al borrar mensajes:', error)
-    if (error.response?.status === 404) {
-      await fallbackClearMessages()
-    } else {
-      showNotification(
-        error.response?.data?.message || 'Error al borrar los mensajes',
-        'error'
-      )
-    }
-  } finally {
-    loading.value = false
-  }
+    if (error.response?.status === 404) await fallbackClearMessages()
+    else showNotification(error.response?.data?.message || 'Error al borrar los mensajes', 'error')
+  } finally { loading.value = false }
 }
 
 const fallbackClearMessages = async () => {
@@ -832,107 +639,52 @@ const fallbackClearMessages = async () => {
     const messageIds = currentMessages.value.map(m => m.id)
     let deletedCount = 0
     for (const msgId of messageIds) {
-      try {
-        await api.delete(`/messages/${msgId}`, {
-          headers: { Authorization: `Bearer ${authStore.token}` }
-        })
-        deletedCount++
-      } catch (err) {
-        console.error(`Error borrando mensaje ${msgId}:`, err)
-      }
+      try { await api.delete(`/messages/${msgId}`, { headers: { Authorization: `Bearer ${authStore.token}` } }); deletedCount++ }
+      catch (err) { console.error(`Error borrando mensaje ${msgId}:`, err) }
     }
     if (deletedCount > 0) {
       const convId = Number(route.params.id)
-      if (conversationStore.messages[convId]) {
-        conversationStore.messages[convId] = []
-      }
+      if (conversationStore.messages[convId]) conversationStore.messages[convId] = []
       showMenu.value = false
       showNotification(`Se borraron ${deletedCount} mensajes`, 'success')
-    } else {
-      showNotification('No se pudo borrar ningún mensaje', 'error')
-    }
-  } catch (error) {
-    console.error('Error en fallback clear:', error)
-    showNotification('Error al borrar mensajes', 'error')
-  }
+    } else { showNotification('No se pudo borrar ningún mensaje', 'error') }
+  } catch (error) { showNotification('Error al borrar mensajes', 'error') }
 }
 
 const deleteEntireChat = async () => {
   if (!authStore.token || !target.value) return
   try {
     loading.value = true
-    const response = await api.delete(`/conversations/${route.params.id}`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    const response = await api.delete(`/conversations/${route.params.id}`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     if (response.data.success) {
       showNotification('Conversación eliminada permanentemente', 'success')
       if (conversationStore.conversations) {
-        const index = conversationStore.conversations.findIndex(
-          c => c.id === Number(route.params.id)
-        )
-        if (index !== -1) {
-          conversationStore.conversations.splice(index, 1)
-        }
+        const index = conversationStore.conversations.findIndex(c => c.id === Number(route.params.id))
+        if (index !== -1) conversationStore.conversations.splice(index, 1)
       }
       router.push('/chats')
-    } else {
-      showNotification('Error al eliminar la conversación', 'error')
-    }
+    } else { showNotification('Error al eliminar la conversación', 'error') }
   } catch (error) {
-    console.error('Error al eliminar conversación:', error)
-    if (error.response?.status === 404) {
-      await legacyDeleteChat()
-    } else {
-      showNotification(
-        error.response?.data?.message || 'Error al eliminar la conversación',
-        'error'
-      )
-    }
-  } finally {
-    loading.value = false
-  }
+    if (error.response?.status === 404) await legacyDeleteChat()
+    else showNotification(error.response?.data?.message || 'Error al eliminar la conversación', 'error')
+  } finally { loading.value = false }
 }
 
 const legacyDeleteChat = async () => {
   try {
-    const response = await api.delete(`/messages/${target.value.id}/${target.value.role}`, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
-    })
+    const response = await api.delete(`/messages/${target.value.id}/${target.value.role}`, { headers: { Authorization: `Bearer ${authStore.token}` } })
     if (response.data.success) {
-      if (response.data.messages && response.data.messages.length > 0) {
+      if (response.data.messages?.length > 0) {
         const convId = Number(route.params.id)
-        if (conversationStore.messages[convId]) {
-          conversationStore.messages[convId] = response.data.messages
-        }
+        if (conversationStore.messages[convId]) conversationStore.messages[convId] = response.data.messages
         showNotification('No se pudo eliminar la conversación completa. Algunos mensajes permanecen.', 'warning')
-      } else {
-        showNotification('Conversación eliminada', 'success')
-        router.push('/chats')
-      }
+      } else { showNotification('Conversación eliminada', 'success'); router.push('/chats') }
     }
-  } catch (error) {
-    console.error('Error en legacy delete:', error)
-    showNotification('Error al eliminar la conversación', 'error')
-  }
+  } catch (error) { showNotification('Error al eliminar la conversación', 'error') }
 }
 
-function clearMessages() {
-  confirmHardDeleteMessages()
-}
-
-async function deleteChat() {
-  confirmHardDeleteChat()
-}
-
-// ============================================
-// EXPORTAR HISTORIAL
-// ============================================
 function exportChatHistory() {
-  const chatData = {
-    target: target.value,
-    messages: currentMessages.value,
-    exportDate: new Date().toISOString()
-  }
+  const chatData = { target: target.value, messages: currentMessages.value, exportDate: new Date().toISOString() }
   const dataStr = JSON.stringify(chatData, null, 2)
   const dataBlob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(dataBlob)
@@ -943,19 +695,11 @@ function exportChatHistory() {
   URL.revokeObjectURL(url)
 }
 
-// ============================================
-// SCROLL
-// ============================================
 async function scrollToBottom() {
   await nextTick()
-  if (scrollRef.value) {
-    scrollRef.value.scrollTop = scrollRef.value.scrollHeight
-  }
+  if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight
 }
 
-// ============================================
-// ESTADÍSTICAS
-// ============================================
 async function loadMessageStats(conversationId) {
   try {
     const msgs = currentMessages.value
@@ -964,41 +708,16 @@ async function loadMessageStats(conversationId) {
       yours: msgs.filter(m => m.is_mine).length || 0,
       theirs: msgs.filter(m => !m.is_mine).length || 0
     }
-  } catch (error) {
-    console.error('Error cargando estadísticas:', error)
-  }
+  } catch (error) { console.error('Error cargando estadísticas:', error) }
 }
 
-// ============================================
-// SINCRONIZAR ESTADOS DE MENSAJES
-// ============================================
-async function syncMessageStatuses(conversationId) {
-  try {
-    console.log('🔄 Sincronizando estados de mensajes...')
-    await conversationStore.syncMessageStatuses(conversationId)
-    console.log('✅ Estados sincronizados correctamente')
-  } catch (err) {
-    console.error('❌ Error sincronizando estados:', err)
-  }
-}
-
-// ============================================
-// FAVORITOS
-// ============================================
 function loadFavorites() {
-  try {
-    const saved = localStorage.getItem('favorite_conversations')
-    return saved ? JSON.parse(saved) : []
-  } catch {
-    return []
-  }
+  try { const saved = localStorage.getItem('favorite_conversations'); return saved ? JSON.parse(saved) : [] }
+  catch { return [] }
 }
 
 function saveFavorites() {
-  localStorage.setItem(
-    'favorite_conversations',
-    JSON.stringify(Array.from(favoriteConversations.value))
-  )
+  localStorage.setItem('favorite_conversations', JSON.stringify(Array.from(favoriteConversations.value)))
 }
 
 function toggleFavorite() {
@@ -1013,34 +732,15 @@ function toggleFavorite() {
   saveFavorites()
 }
 
-// ============================================
-// NAVEGACIÓN Y UTILIDADES
-// ============================================
-function goBack() {
-  router.push('/chats')
-}
-
 function viewProfile() {
-  if (target.value) {
-    router.push(`/profile/${target.value.id}`).catch(() => {
-      showNotification('Página de perfil no disponible', 'error')
-    })
-  }
+  if (target.value) router.push(`/profile/${target.value.id}`).catch(() => showNotification('Página de perfil no disponible', 'error'))
 }
 
 function shareConversation() {
   const shareUrl = `${window.location.origin}/chat/${route.params.id}`
   if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(shareUrl)
-      .then(() => {
-        showNotification('Enlace del chat copiado al portapapeles', 'success')
-      })
-      .catch(() => {
-        fallbackCopy(shareUrl)
-      })
-  } else {
-    fallbackCopy(shareUrl)
-  }
+    navigator.clipboard.writeText(shareUrl).then(() => showNotification('Enlace copiado', 'success')).catch(() => fallbackCopy(shareUrl))
+  } else { fallbackCopy(shareUrl) }
 }
 
 function fallbackCopy(text) {
@@ -1050,332 +750,163 @@ function fallbackCopy(text) {
   textArea.select()
   document.execCommand('copy')
   document.body.removeChild(textArea)
-  showNotification('Enlace del chat copiado al portapapeles', 'success')
+  showNotification('Enlace copiado', 'success')
 }
 
-function exportChat() {
-  showNotification('Función de exportación en desarrollo', 'info')
-}
+function handleImageError(event) { event.target.src = 'https://via.placeholder.com/60?text=Usuario' }
+function openImage(url, caption = '') { selectedImage.value = url; selectedImageCaption.value = caption; showImageModal.value = true }
+function closeImageModal() { showImageModal.value = false; selectedImage.value = null; selectedImageCaption.value = '' }
 
-function handleImageError(event) {
-  event.target.src = 'https://via.placeholder.com/60?text=Usuario'
-}
-
-function openImage(url, caption = '') {
-  selectedImage.value = url
-  selectedImageCaption.value = caption
-  showImageModal.value = true
-}
-
-function closeImageModal() {
-  showImageModal.value = false
-  selectedImage.value = null
-  selectedImageCaption.value = ''
-}
-
-// ============================================
-// NOTIFICACIONES
-// ============================================
 function showNotification(message, type = 'info') {
   console.log(`[${type.toUpperCase()}] ${message}`)
-  if (window.notificationSystem) {
-    window.notificationSystem.show(message, type)
-  } else {
-    if (type === 'error' || type === 'success') {
-      alert(message)
-    } else {
-      console.log(`🔔 ${type}: ${message}`)
-    }
-  }
+  if (window.notificationSystem) window.notificationSystem.show(message, type)
+  else if (type === 'error' || type === 'success') alert(message)
 }
 
 // ============================================
-// WATCHERS
+// WATCHERS (PROTEGIDOS)
 // ============================================
-// Watch para actualizar scroll cuando cambien los mensajes
 watch(currentMessages, () => {
   scrollToBottom()
+  loadMessageStats(Number(route.params.id))
 }, { deep: true })
 
-// ============================================
-// WATCHER PARA MARCAR MENSAJES COMO LEÍDOS
-// ============================================
+// ✅ CORREGIDO: Proteger el watcher contra valores null/undefined
 let isMarkingRead = false
 let lastMarkedReadTime = 0
-const MARK_READ_DEBOUNCE_MS = 100
+const MARK_READ_DEBOUNCE_MS = 300
 
-watch(() => conversationStore.messages[Number(route.params.id)], async (newMessages, oldMessages) => {
-  if (!newMessages) return
-
-  await loadMessageStats(Number(route.params.id))
-  await scrollToBottom()
-
-  const now = Date.now()
-  if (now - lastMarkedReadTime < MARK_READ_DEBOUNCE_MS) {
-    return
-  }
-
-  lastMarkedReadTime = now
-  if (isMarkingRead) return
-
-  const unreadMessages = newMessages.filter(m => !m.is_mine && !m.is_read)
-
-  if (unreadMessages.length > 0) {
-    isMarkingRead = true
-    const messageIds = unreadMessages.map(m => m.id)
+watch(
+  () => {
     const convId = Number(route.params.id)
+    // ✅ Protección: retornar array vacío si no hay mensajes
+    return conversationStore?.messages?.[convId] ?? []
+  },
+  async (newMessages) => {
+    if (!newMessages || !Array.isArray(newMessages)) return
+    const now = Date.now()
+    if (now - lastMarkedReadTime < MARK_READ_DEBOUNCE_MS) return
+    lastMarkedReadTime = now
+    if (isMarkingRead) return
 
-    console.log('📖 [ChatView] Marcando como leídos:', messageIds.length, 'mensajes (inmediato)')
-
-    conversationStore.markMessagesAsReadLocally(convId, messageIds)
-
-    if (socketStore.socket?.connected) {
-      socketStore.emit('message_read', {
-        conversation_id: convId,
-        message_ids: messageIds
-      })
+    const unreadMessages = newMessages.filter(m => m && !m.is_mine && !m.is_read && m.id && !String(m.id).startsWith('temp'))
+    if (unreadMessages.length > 0) {
+      isMarkingRead = true
+      const messageIds = unreadMessages.map(m => m.id)
+      const convId = Number(route.params.id)
+      await conversationStore.markAsRead(convId, messageIds).catch(err => console.error('❌ Error al marcar como leídos:', err))
+      setTimeout(() => { isMarkingRead = false }, 200)
     }
+  },
+  { deep: true, immediate: true }
+)
 
-    await conversationStore.markAsRead(convId, messageIds).catch(err => {
-      console.error('❌ Error al marcar como leídos en servidor:', err)
-    })
-
-    setTimeout(() => {
-      isMarkingRead = false
-    }, 200)
-  }
-}, { deep: true, immediate: true })
-
-// ============================================
-// WATCHER PARA MARCAR MENSAJES COMO ENTREGADOS
-// ============================================
-let lastMarkedDeliveredTime = 0
-const MARK_DELIVERED_DEBOUNCE_MS = 100
-
-watch(() => conversationStore.messages[Number(route.params.id)], async (newMessages) => {
-  if (!newMessages) return
-
-  const now = Date.now()
-  if (now - lastMarkedDeliveredTime < MARK_DELIVERED_DEBOUNCE_MS) return
-  lastMarkedDeliveredTime = now
-
-  const undeliveredMessages = newMessages.filter(m => !m.is_mine && !m.is_delivered && m.id && !String(m.id).startsWith('temp'))
-
-  if (undeliveredMessages.length > 0) {
-    const messageIds = undeliveredMessages.map(m => m.id)
-    const convId = Number(route.params.id)
-    console.log('📬 [ChatView] Marcando como entregados:', messageIds.length, 'mensajes')
-    conversationStore.markMessagesAsDeliveredLocally(convId, messageIds)
-    if (socketStore.socket?.connected) {
-      socketStore.emit('message_delivered', {
-        conversation_id: convId,
-        message_ids: messageIds
-      })
-    }
-  }
-}, { deep: true, immediate: true })
-
-// Watch para typing indicator usando getTypingUsers
+// Watch para typing
 watch(() => conversationStore.getTypingUsers(Number(route.params.id)), (typingUsersList) => {
   isTyping.value = typingUsersList.length > 0
 }, { immediate: true, deep: true })
 
-// Watch para scroll en typing
 watch(isTyping, (newVal) => {
-  if (newVal) {
-    nextTick(() => scrollToBottom())
-  }
+  if (newVal) nextTick(() => scrollToBottom())
 })
 
 // ============================================
-// HANDLERS DE EVENTOS DE SOCKET (CORREGIDOS)
+// HANDLERS DE EVENTOS DE SOCKET
 // ============================================
-
-// ✅ CORREGIDO: Handler para nuevos mensajes - AHORA AGREGA AL STORE
 const handleNewMessage = (data) => {
-  console.log('📨 [ChatView] new_message recibido:', data)
   const messageData = data.message || data
-  const convId = Number(route.params.id)
-  if (messageData.conversation_id === convId) {
-    // ✅ 🔥 AGREGAR MENSAJE AL STORE (CLAVE)
-    conversationStore.addMessage(convId, messageData)
-    // Scroll
-    nextTick(() => scrollToBottom())
+  const convId = Number(messageData.conversation_id)
+  if (convId === Number(route.params.id)) nextTick(() => scrollToBottom())
+}
+
+const handleMessageDelivered = (data) => {
+  const conversationId = Number(route.params.id)
+  const deliveredConversationId = Number(data.conversation_id || data.conversationId)
+  if (deliveredConversationId === conversationId) {
+    const messageIds = data.message_ids || data.messageIds || []
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      nextTick(() => { loadMessageStats(conversationId); scrollToBottom() })
+    }
   }
 }
 
-// REEMPLAZAR handleMessageDelivered con:
-const handleMessageDelivered = (data) => {
-  console.log('📬 [ChatView] message_delivered RECIBIDO:', data);
-  
-  // ✅ CORRECCIÓN 1: Normalizar conversation_id (puede venir como string)
-  const conversationId = Number(route.params.id);
-  const deliveredConversationId = Number(data.conversation_id || data.conversationId);
-  
-  console.log(`📬 Comparando IDs: local=${conversationId}, recibido=${deliveredConversationId}`);
-  
-  // ✅ CORRECCIÓN 2: Comparar como números
-  if (deliveredConversationId === conversationId) {
-    // ✅ CORRECCIÓN 3: Extraer message_ids de todas las formas posibles
-    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : []);
-    
-    console.log('📬 IDs de mensajes a marcar como entregados:', messageIds);
-    
-    if (messageIds.length > 0) {
-      // Actualizar localmente
-      conversationStore.markMessagesAsDeliveredLocally(conversationId, messageIds);
-      
-      // ✅ CORRECCIÓN 4: Forzar actualización visual inmediata
-      nextTick(() => {
-        loadMessageStats(conversationId);
-        scrollToBottom();
-      });
-      
-      console.log('✅ Estados de entrega actualizados para mensajes propios');
-    }
-  }
-};
-
-// REEMPLAZAR handleMessageRead con:
 const handleMessageRead = (data) => {
-  console.log('✅ [ChatView] message_read RECIBIDO:', data);
-  
-  // ✅ CORRECCIÓN 1: Normalizar conversation_id
-  const conversationId = Number(route.params.id);
-  const readConversationId = Number(data.conversation_id || data.conversationId);
-  
-  console.log(`✅ Comparando IDs: local=${conversationId}, recibido=${readConversationId}`);
-  
-  // ✅ CORRECCIÓN 2: Comparar como números
+  const conversationId = Number(route.params.id)
+  const readConversationId = Number(data.conversation_id || data.conversationId)
   if (readConversationId === conversationId) {
-    // ✅ CORRECCIÓN 3: Extraer message_ids de todas las formas posibles
-    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : []);
-    
-    console.log('✅ IDs de mensajes a marcar como leídos:', messageIds);
-    
-    if (messageIds.length > 0) {
-      // Actualizar localmente
-      conversationStore.markMessagesAsReadLocally(conversationId, messageIds);
-      
-      // ✅ CORRECCIÓN 4: Forzar actualización visual inmediata
-      nextTick(() => {
-        loadMessageStats(conversationId);
-        scrollToBottom();
-      });
-      
-      console.log('✅ Estados de lectura actualizados para mensajes propios');
+    const messageIds = data.message_ids || data.messageIds || []
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      nextTick(() => { loadMessageStats(conversationId); scrollToBottom() })
     }
   }
-};
+}
 
-// Handler para indicadores de escritura
 const handleTypingIndicator = (data) => {
   const convId = Number(route.params.id)
-  if (data.conversation_id === convId) {
-    console.log('⌨️ [ChatView] typing_indicator recibido:', data)
-  }
+  if (data.conversation_id === convId) console.log('⌨️ [ChatView] typing_indicator:', data)
 }
 
 // ============================================
 // LIFECYCLE HOOKS
 // ============================================
 onMounted(async () => {
-  conversationStore.activeConversationId = Number(route.params.id)
+  // ✅ Protección al asignar activeConversationId
+  if (conversationStore?.activeConversationId) {
+    conversationStore.activeConversationId.value = Number(route.params.id)
+  }
+
+  if (socketListeners.new_message) socketStore.off('new_message', socketListeners.new_message)
+  if (socketListeners.typing_indicator) socketStore.off('typing_indicator', socketListeners.typing_indicator)
+  if (socketListeners.message_delivered) socketStore.off('message_delivered', socketListeners.message_delivered)
+  if (socketListeners.message_read) socketStore.off('message_read', socketListeners.message_read)
+  if (socketListeners.message_sent_confirmation) socketStore.off('message_sent_confirmation', socketListeners.message_sent_confirmation)
 
   const conversationId = Number(route.params.id)
 
   try {
-    console.log('🔍 Cargando conversación:', conversationId)
-
     let conversation = await conversationStore.fetchConversation(conversationId)
+    if (!conversation) { router.replace('/chats'); return }
 
-    if (!conversation) {
-      console.error('No se encontró la conversación')
-      router.replace('/chats')
-      return
-    }
-
-    console.log('📦 Conversación recibida:', conversation)
     const other = conversation.other_participant
-
-    if (!other) {
-      console.error('No se encontró el otro participante', conversation)
-      router.replace('/chats')
-      return
-    }
+    if (!other) { router.replace('/chats'); return }
 
     target.value = {
       id: other.id,
       name: other.name || 'Usuario',
       role: other.role || 'user',
-      avatarUrl: other.avatar_url || other.avatar || null
+      avatarUrl: other.avatar_url ? getImageUrl(other.avatar_url, 'avatar') : null
     }
 
-    console.log('✅ Target asignado:', target.value)
-
     await fetchMessages()
-    await markMessagesAsDelivered()
+    await markMessagesAsDeliveredHttp()
     await conversationStore.syncMessageStatuses(conversationId)
     await conversationStore.fetchConversations()
 
-    // Esperar a que el socket esté conectado antes de unirse
-    const waitForSocket = () => {
-      return new Promise((resolve) => {
-        if (socketStore.socket?.connected) {
-          resolve(true)
-        } else {
-          const checkInterval = setInterval(() => {
-            if (socketStore.socket?.connected) {
-              clearInterval(checkInterval)
-              resolve(true)
-            }
-          }, 100)
-          setTimeout(() => {
-            clearInterval(checkInterval)
-            resolve(false)
-          }, 5000)
-        }
-      })
-    }
+    const waitForSocket = () => new Promise((resolve) => {
+      if (socketStore.socket?.connected) { resolve(true); return }
+      const checkInterval = setInterval(() => {
+        if (socketStore.socket?.connected) { clearInterval(checkInterval); resolve(true) }
+      }, 100)
+      setTimeout(() => { clearInterval(checkInterval); resolve(false) }, 5000)
+    })
 
     await waitForSocket()
+    await socketStore.joinConversationRoom(conversationId)
 
-    // Unirse a la sala de conversación
-    const joined = await socketStore.joinConversationRoom(conversationId)
-    if (joined) {
-      console.log('✅ Unido a sala de conversación:', conversationId)
-    } else {
-      console.warn('⚠️ No se pudo unir a la sala de conversación')
-    }
-
-    // =====================================================
-    // 🔥 AGREGAR TODOS LOS LISTENERS DE SOCKET
-    // =====================================================
-    // 1. Nuevos mensajes
     socketStore.on('new_message', handleNewMessage)
     socketListeners.new_message = handleNewMessage
-
-    // 2. Indicadores de escritura
     socketStore.on('typing_indicator', handleTypingIndicator)
     socketListeners.typing_indicator = handleTypingIndicator
-
-    // 3. Mensajes entregados (tildes ✓✓ gris) - CORREGIDO
     socketStore.on('message_delivered', handleMessageDelivered)
     socketListeners.message_delivered = handleMessageDelivered
-
-    // 4. Mensajes leídos (tildes ✓✓ azul) - CORREGIDO
     socketStore.on('message_read', handleMessageRead)
     socketListeners.message_read = handleMessageRead
 
-    // 5. Confirmación de mensajes
     const handleMessageSentConfirmation = (data) => {
-      console.log('✅ [ChatView] message_sent_confirmation:', data)
       nextTick(() => loadMessageStats(conversationId))
     }
     socketStore.on('message_sent_confirmation', handleMessageSentConfirmation)
     socketListeners.message_sent_confirmation = handleMessageSentConfirmation
-
-    console.log('🎧 Todos los listeners de socket registrados correctamente')
 
   } catch (error) {
     console.error('Error al cargar la conversación:', error)
@@ -1384,32 +915,16 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  conversationStore.activeConversationId = null
-
-  // Salir de la sala de conversación
+  if (conversationStore?.activeConversationId) {
+    conversationStore.activeConversationId.value = null
+  }
   socketStore.leaveConversationRoom(Number(route.params.id))
-
-  // Limpiar TODOS los listeners del socket
-  if (socketListeners.new_message) {
-    socketStore.off('new_message', socketListeners.new_message)
-  }
-  if (socketListeners.typing_indicator) {
-    socketStore.off('typing_indicator', socketListeners.typing_indicator)
-  }
-  if (socketListeners.message_delivered) {
-    socketStore.off('message_delivered', socketListeners.message_delivered)
-  }
-  if (socketListeners.message_read) {
-    socketStore.off('message_read', socketListeners.message_read)
-  }
-  if (socketListeners.message_sent_confirmation) {
-    socketStore.off('message_sent_confirmation', socketListeners.message_sent_confirmation)
-  }
-
-  // Limpiar timeout de typing
-  if (typingTimeout) {
-    clearTimeout(typingTimeout)
-  }
+  if (socketListeners.new_message) socketStore.off('new_message', socketListeners.new_message)
+  if (socketListeners.typing_indicator) socketStore.off('typing_indicator', socketListeners.typing_indicator)
+  if (socketListeners.message_delivered) socketStore.off('message_delivered', socketListeners.message_delivered)
+  if (socketListeners.message_read) socketStore.off('message_read', socketListeners.message_read)
+  if (socketListeners.message_sent_confirmation) socketStore.off('message_sent_confirmation', socketListeners.message_sent_confirmation)
+  if (typingTimeout) clearTimeout(typingTimeout)
 })
 </script>
 

@@ -105,8 +105,8 @@ public function getMessagesByConversationForUser(int $conversationId, int $userI
 
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    return array_map(function($r) use ($userId, $conversationId) {
-        $isMine = ($r['sender_id'] == $userId);
+    return array_map(function($r) use ($userId, $userRole, $conversationId) {
+       $isMine = ($r['sender_id'] == $userId && $r['sender_type'] == $userRole);
         
         // 🔥 CORRECCIÓN CRÍTICA:
         // Si el mensaje es del usuario actual (is_mine = true), usar el estado del OTRO usuario
@@ -463,7 +463,7 @@ public function getMessageByIdForUser(int $id, int $userId, string $userRole): a
     }
     
     $msg = $this->mapMessageWithStatus($row);
-    $msg['is_mine'] = ($row['sender_id'] == $userId);
+    $msg['is_mine'] = ($row['sender_id'] == $userId && $row['sender'] == $userRole);
     
     // ✅ Asegurar que sender está presente (usando sender_type como fallback)
     if (!isset($msg['sender']) && isset($row['sender'])) {

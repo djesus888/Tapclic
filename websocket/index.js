@@ -58,6 +58,26 @@ const emitLimiter = rateLimit({
 app.use('/emit', emitLimiter);
 app.use('/emit-event', emitLimiter);
 
+// ✅ CORREGIDO: Función helper para generar userKey de forma consistente
+// Usa un delimitador que no aparece en roles (:: en lugar de _)
+function buildUserKey(id, role) {
+  return `${role}::${id}`;
+}
+
+// ✅ CORREGIDO: Función helper para parsear userKey
+function parseUserKey(key) {
+  const separatorIndex = key.indexOf('::');
+  if (separatorIndex === -1) {
+    // Fallback para claves antiguas con _
+    const parts = key.split('_');
+    return { role: parts[0], id: parts.slice(1).join('_') };
+  }
+  return {
+    role: key.substring(0, separatorIndex),
+    id: key.substring(separatorIndex + 2)
+  };
+}
+
 function addPendingEvent(room, event, payload, reqBody = {}) {
   if (!pendingEvents.has(room)) pendingEvents.set(room, []);
   const roomEvents = pendingEvents.get(room);
@@ -104,11 +124,11 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   const { id, role } = socket.user;
+  // ✅ CORREGIDO: Usar buildUserKey para consistencia
+  const userKey = buildUserKey(id, role);
   const room = `${role}_${id}`;
 
   // Manejo de conexiones duplicadas - CERRAR CONEXIÓN VIEJA
-  const userKey = `${id}_${role}`;
-
   if (userSockets.has(userKey)) {
     console.log(`⚠️ Conexión duplicada para ${userKey}, cerrando conexión vieja`);
     const oldSocket = userSockets.get(userKey);
@@ -120,9 +140,9 @@ io.on('connection', (socket) => {
   userSockets.set(userKey, socket);
   socket.join(room);
   const roomSize = io.sockets.adapter.rooms.get(room)?.size || 0;
-  console.log(`🔌 Conectado: ${id} (${role}) | Room '${room}' size: ${roomSize}`);
+  console.log(`🔌 Conectado: ${id} (${role}) | UserKey: ${userKey} | Room '${room}' size: ${roomSize}`);
 
-  // ✅ CORRECCIÓN: También unirse a sala de rol para broadcast
+  // ✅ Unirse a sala de rol para broadcast
   const roleRoom = `role_${role}`;
   socket.join(roleRoom);
   console.log(`🔌 ${id} también unido a sala de rol: ${roleRoom}`);
@@ -144,77 +164,6 @@ io.on('connection', (socket) => {
 
     pendingEvents.set(room, []);
   }
-
-  // Evento para enviar mensajes
-  socket.on('send_message', (data) => {
-    try {
-      console.log('📨 [NODE] send_message recibido:', JSON.stringify(data, null, 2));
-
-      if (!data || !data.conversation_id) {
-        console.error('❌ Datos de mensaje incompletos:', data);
-        socket.emit('error', {
-          message: 'Datos de mensaje incompletos',
-          temp_id: data?.temp_id
-        });
-        return;
-      }
-
-      // EXTRAER TEXTO DE FORMA SEGURA - PRESERVANDO UTF-8
-      let messageText = '';
-
-      if (typeof data.text === 'string') {
-        messageText = data.text;
-      } else if (data.message && typeof data.message === 'string') {
-        messageText = data.message;
-      } else if (data.message && typeof data.message === 'object') {
-        messageText = data.message.text || data.message.content || '';
-      } else {
-        messageText = data.text || data.message || '';
-      }
-
-      messageText = String(messageText);
-
-      const messageForLog = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText;
-      console.log(`📨 Mensaje recibido: ${id} → conv_${data.conversation_id}: ${messageForLog}`);
-
-      // CONSTRUIR DATOS DEL MENSAJE
-      const messageData = {
-        id: data.id || Date.now(),
-        temp_id: data.temp_id || null,
-        conversation_id: data.conversation_id,
-        text: messageText,
-        sender_id: id,
-        sender: role,
-        receiver_id: data.recipient_id,
-        receiver_role: data.recipient_role,
-        type: data.type || (data.attachment_url ? 'image' : 'text'),
-        attachment_url: data.attachment_url || null,
-        created_at: new Date().toISOString(),
-        is_delivered: false,
-        is_read: false,
-        ...data
-      };
-
-      // Enviar a la sala de conversación
-      const conversationRoom = `conversation_${data.conversation_id}`;
-      io.to(conversationRoom).emit('new_message', messageData);
-      console.log(`📨 Mensaje emitido a sala: ${conversationRoom}`);
-
-      // Confirmar al remitente
-      socket.emit('message_sent_confirmation', {
-        ...messageData,
-        status: 'delivered_to_server',
-        confirmed_at: new Date().toISOString()
-      });
-
-    } catch (error) {
-      console.error('❌ Error en send_message:', error);
-      socket.emit('error', {
-        message: 'Error interno al procesar mensaje',
-        temp_id: data?.temp_id
-      });
-    }
-  });
 
   // Manejar typing con mejor validación
   socket.on('typing', (data) => {
@@ -287,11 +236,14 @@ io.on('connection', (socket) => {
     socket.emit('heartbeat_ack', { timestamp: Date.now() });
   });
 
+  // ✅ CORREGIDO: message_read y message_delivered SOLO reenvían al conversation_room
+  // El backend ya notifica a los remitentes individualmente vía HTTP → emitToUser
+  // Estos listeners son para cuando un cliente emite directamente (legacy support)
   socket.on('message_read', (data) => {
     const { conversation_id, message_ids } = data;
 
-    if (!conversation_id || !message_ids) {
-      console.error('❌ Datos de messages_read incompletos:', data);
+    if (!conversation_id || !message_ids || !Array.isArray(message_ids) || message_ids.length === 0) {
+      console.error('❌ Datos de message_read incompletos o inválidos:', data);
       return;
     }
 
@@ -304,14 +256,14 @@ io.on('connection', (socket) => {
       timestamp: Date.now()
     });
 
-    console.log(`👁️ Mensajes marcados como leídos: ${message_ids.length} mensajes en conversación ${conversation_id}`);
+    console.log(`👁️ Mensajes marcados como leídos: ${message_ids.length} mensajes en conversación ${conversation_id} por ${role}:${id}`);
   });
 
   socket.on('message_delivered', (data) => {
     const { conversation_id, message_ids } = data;
 
-    if (!conversation_id || !message_ids) {
-      console.error('❌ Datos de messages_delivered incompletos:', data);
+    if (!conversation_id || !message_ids || !Array.isArray(message_ids) || message_ids.length === 0) {
+      console.error('❌ Datos de message_delivered incompletos o inválidos:', data);
       return;
     }
 
@@ -324,7 +276,7 @@ io.on('connection', (socket) => {
       timestamp: Date.now()
     });
 
-    console.log(`📬 Mensajes marcados como entregados: ${message_ids.length} mensajes en conversación ${conversation_id}`);
+    console.log(`📬 Mensajes marcados como entregados: ${message_ids.length} mensajes en conversación ${conversation_id} por ${role}:${id}`);
   });
 
   socket.on('refresh-token', (newToken, callback) => {
@@ -364,7 +316,7 @@ io.on('connection', (socket) => {
       }
 
       socket.join(roomName);
-      console.log(`✅ Cliente ${id} se unió a room: ${roomName}`);
+      console.log(`✅ Cliente ${userKey} se unió a room: ${roomName}`);
 
       if (callback && typeof callback === 'function') {
         callback({ success: true, room: roomName });
@@ -380,7 +332,7 @@ io.on('connection', (socket) => {
   socket.on('leave-room', (roomName, callback) => {
     try {
       socket.leave(roomName);
-      console.log(`👋 Cliente ${id} salió de room: ${roomName}`);
+      console.log(`👋 Cliente ${userKey} salió de room: ${roomName}`);
 
       if (callback && typeof callback === 'function') {
         callback({ success: true, room: roomName });
@@ -396,14 +348,17 @@ io.on('connection', (socket) => {
   socket.on('mark_notification_read', (data) => {
     const { notification_id } = data;
     if (notification_id) {
-      console.log(`✅ Notificación ${notification_id} marcada como leída por ${id}`);
+      console.log(`✅ Notificación ${notification_id} marcada como leída por ${userKey}`);
     }
   });
 
   socket.on('disconnect', (reason) => {
+    // ✅ CORREGIDO: Usar el userKey del closure para eliminar correctamente
     if (userSockets.get(userKey) === socket) {
       userSockets.delete(userKey);
+      console.log(`🗑️ Socket eliminado de userSockets: ${userKey}`);
     }
+
     // Limpiar typing con sus timeouts
     for (const [key, value] of typingUsers.entries()) {
       if (value.userId === id) {
@@ -414,11 +369,11 @@ io.on('connection', (socket) => {
       }
     }
 
-    console.log(`❌ Desconectado: ${id} (${role}) | Reason: ${reason}`);
+    console.log(`❌ Desconectado: ${userKey} | Reason: ${reason}`);
   });
 
   socket.on('error', (err) => {
-    console.error(`❌ Socket error para ${id}:`, err.message);
+    console.error(`❌ Socket error para ${userKey}:`, err.message);
   });
 });
 
@@ -454,26 +409,27 @@ app.post('/emit', (req, res) => {
     return res.status(400).json({ error: 'Invalid event' });
   }
 
-  const rooms = [];
+  // Usar Set para evitar salas duplicadas
+  const rooms = new Set();
 
-  // ✅ Soporte para broadcast_role (emitToRole)
+  // Soporte para broadcast_role (emitToRole)
   if (broadcast_role) {
     const roleRoom = `role_${broadcast_role}`;
-    rooms.push(roleRoom);
+    rooms.add(roleRoom);
     console.log(`📢 [EMIT] Broadcast a rol: ${roleRoom}`);
   }
 
   if (receiver_id && receiver_role) {
-    rooms.push(`${receiver_role}_${receiver_id}`);
+    rooms.add(`${receiver_role}_${receiver_id}`);
   }
   if (conversation_id) {
-    rooms.push(`conversation_${conversation_id}`);
+    rooms.add(`conversation_${conversation_id}`);
   }
   if (room) {
-    rooms.push(room);
+    rooms.add(room);
   }
 
-  if (rooms.length === 0) {
+  if (rooms.size === 0) {
     console.error('❌ [EMIT] No se pudo determinar sala destino');
     return res.status(400).json({
       error: 'Se requiere receiver_id/receiver_role, broadcast_role, conversation_id o room'
@@ -481,13 +437,14 @@ app.post('/emit', (req, res) => {
   }
 
   if (event) {
-    // ✅ CORREGIDO: Asegurar conversation_id en el payload y preservar estructura anidada
     const eventPayload = {
       ...(payload || {}),
       conversation_id: conversation_id || payload?.conversation_id || null
     };
 
-    rooms.forEach(room => {
+    const roomsArray = Array.from(rooms);
+
+    roomsArray.forEach(room => {
       const socketsInRoom = io.sockets.adapter.rooms.get(room);
 
       if (socketsInRoom && socketsInRoom.size > 0) {
@@ -499,8 +456,7 @@ app.post('/emit', (req, res) => {
       }
     });
 
-    // ✅ CORREGIDO: SOLO enviar notificación tradicional si hay title Y message
-    // Eventos como payment_updated, request_updated NO tienen title/message
+    // SOLO enviar notificación tradicional si hay title Y message
     if (title && message) {
       const notificationPayload = {
         id: Date.now(),
@@ -512,7 +468,7 @@ app.post('/emit', (req, res) => {
         created_at: new Date().toISOString(),
       };
 
-      rooms.forEach(room => {
+      roomsArray.forEach(room => {
         const socketsInRoom = io.sockets.adapter.rooms.get(room);
 
         if (socketsInRoom && socketsInRoom.size > 0) {
@@ -528,7 +484,7 @@ app.post('/emit', (req, res) => {
 
   res.json({
     status: 'enviado',
-    rooms,
+    rooms: Array.from(rooms),
     timestamp: new Date().toISOString()
   });
 });
@@ -584,12 +540,12 @@ app.post('/emit-event', (req, res) => {
   });
 });
 
-// Endpoint /status actualizado
+// ✅ CORREGIDO: Endpoint /status usa parseUserKey
 app.get('/status', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   const usersOnline = Array.from(userSockets.keys()).map(key => {
-    const [id, role] = key.split('_');
-    return { id: parseInt(id), role };
+    const parsed = parseUserKey(key);
+    return { id: parseInt(parsed.id), role: parsed.role };
   });
 
   res.json({
