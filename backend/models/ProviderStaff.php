@@ -54,9 +54,6 @@ class ProviderStaff {
         ]);
     }
 
-    /**
-     * Actualizar perfil de staff (incluye email y avatar)
-     */
     public function updateProfile(int $id, array $data): bool {
         $fields = [];
         $params = [':id' => $id];
@@ -87,9 +84,6 @@ class ProviderStaff {
         return $stmt->execute($params);
     }
 
-    /**
-     * Actualizar contraseña de staff
-     */
     public function updatePassword(int $id, string $newPassword): bool {
         $sql = "UPDATE {$this->table} SET password = :password WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
@@ -97,6 +91,50 @@ class ProviderStaff {
             ':password' => password_hash($newPassword, PASSWORD_DEFAULT),
             ':id'       => $id,
         ]);
+    }
+
+    // ✅ NUEVO: Actualizar estado online
+    public function updateOnlineStatus(int $id, bool $isOnline): bool {
+        $sql = "UPDATE {$this->table} 
+                SET is_online = :is_online, 
+                    last_seen = CASE WHEN :is_online = 1 THEN last_seen ELSE NOW() END
+                WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        return $stmt->execute([
+            ':is_online' => $isOnline ? 1 : 0,
+            ':id' => $id
+        ]);
+    }
+
+
+
+/**
+ * Marcar como offline a staff que no ha enviado heartbeat
+ * dentro del tiempo límite
+ */
+public function markOfflineByTimeout(int $timeoutMinutes = 5): int {
+    $sql = "UPDATE {$this->table} 
+            SET is_online = 0, 
+                last_seen = NOW() 
+            WHERE is_online = 1 
+            AND active = 1
+            AND last_heartbeat IS NOT NULL
+            AND last_heartbeat < DATE_SUB(NOW(), INTERVAL :timeout MINUTE)";
+    $stmt = $this->conn->prepare($sql);
+    $stmt->execute([':timeout' => $timeoutMinutes]);
+    return $stmt->rowCount();
+}
+
+
+
+    // ✅ NUEVO: Actualizar heartbeat
+    public function updateHeartbeat(int $id): bool {
+        $sql = "UPDATE {$this->table} 
+                SET is_online = 1, 
+                    last_heartbeat = NOW() 
+                WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        return $stmt->execute([':id' => $id]);
     }
 
     public function delete(int $id): bool {

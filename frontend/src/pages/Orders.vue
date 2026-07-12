@@ -21,7 +21,7 @@
           {{ activeOrders.length }}
         </span>
       </button>
-      
+
       <button
         class="tab-button"
         :class="{ active: selectedTab === 'history' }"
@@ -68,7 +68,7 @@
             <div class="card-badge" :class="statusColor(o.status)">
               {{ statusLabel(o.status) }}
             </div>
-            
+
             <div class="card-content">
               <div class="order-header">
                 <h3 class="service-title">{{ o.serviceTitle }}</h3>
@@ -93,7 +93,7 @@
                   <div class="status-dot" :class="statusColor(o.status)"></div>
                   <span class="status-text">{{ getStatusDescription(o.status) }}</span>
                 </div>
-                
+
                 <div class="action-buttons">
                   <button
                     v-if="authStore.user?.role === 'provider' && o.status === 'in_progress'"
@@ -112,7 +112,15 @@
                     <span class="btn-text">{{ $t('cancel') }}</span>
                   </button>
                   <button
-                    v-if="o.status === 'completed'"
+                    v-if="canDispute(o)"
+                    class="btn-action btn-dispute"
+                    @click="openDisputeModal(o)"
+                  >
+                    <span class="btn-icon">⚖️</span>
+                    <span class="btn-text">Disputa</span>
+                  </button>
+                  <button
+                    v-if="canReview(o)"
                     class="btn-action btn-review"
                     @click="openReviewModal(o)"
                   >
@@ -150,7 +158,7 @@
             <div class="card-badge completed">
               Completado
             </div>
-            
+
             <div class="card-content">
               <div class="order-header">
                 <h3 class="service-title">{{ h.serviceTitle }}</h3>
@@ -174,7 +182,7 @@
                 <div class="completion-info">
                   <span class="completion-text">Finalizado {{ fmtDate(h.finishedAt) }}</span>
                 </div>
-                
+
                 <div class="action-buttons">
                   <button
                     class="btn-action btn-repeat"
@@ -184,6 +192,7 @@
                     <span class="btn-text">{{ $t('repeat') }}</span>
                   </button>
                   <button
+                    v-if="canReview(h)"
                     class="btn-action btn-review"
                     @click="openReviewModal(h)"
                   >
@@ -198,7 +207,7 @@
       </section>
     </div>
 
-    <!-- Modal reseña (MANTENIDO EXACTO) -->
+    <!-- Modal reseña -->
     <Teleport to="body">
       <div
         v-if="reviewModal.open"
@@ -359,6 +368,81 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Modal disputa (NUEVO) -->
+    <Teleport to="body">
+      <div
+        v-if="disputeModal.open"
+        class="modal-overlay"
+        @click.self="disputeModal.open = false"
+      >
+        <div class="modal">
+          <div class="modal-header dispute-header">
+            <h2>⚖️ Abrir Disputa</h2>
+            <button
+              class="modal-close"
+              @click="disputeModal.open = false"
+            >
+              <svg
+                class="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="modal-section">
+            <label class="modal-label">Motivo *</label>
+            <select v-model="disputeModal.reason" class="dispute-select">
+              <option value="" disabled>Selecciona un motivo</option>
+              <option value="No recibí el servicio">No recibí el servicio</option>
+              <option value="El servicio no fue satisfactorio">El servicio no fue satisfactorio</option>
+              <option value="El proveedor no se presentó">El proveedor no se presentó</option>
+              <option value="Cobro indebido">Cobro indebido</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+
+          <div class="modal-section">
+            <label class="modal-label">Descripción</label>
+            <textarea
+              v-model="disputeModal.description"
+              rows="4"
+              maxlength="500"
+              class="modal-textarea"
+              placeholder="Describe lo sucedido..."
+            />
+            <div class="char-count">
+              {{ disputeModal.description.length }}/500
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              class="btn-modal btn-cancel"
+              @click="disputeModal.open = false"
+            >
+              Cancelar
+            </button>
+            <button
+              :disabled="!disputeModal.reason"
+              class="btn-modal btn-dispute-confirm"
+              @click="sendDispute"
+            >
+              ⚖️ Abrir Disputa
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -371,12 +455,15 @@ import Swal from 'sweetalert2'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/es'
+import axios from 'axios'
+
 dayjs.extend(relativeTime)
 dayjs.locale('es')
 
 const authStore = useAuthStore()
 const socketStore = useSocketStore()
 const { t } = useI18n()
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL })
 
 const selectedTab = ref('active')
 const loading = ref(true)
@@ -388,13 +475,54 @@ const reviewModal = reactive({
   stars: 0,
   comment: '',
   tags: [],
-  photos: []
+  photos: [],
+  reviewType: null
+})
+
+// NUEVO: Modal de disputa
+const disputeModal = reactive({
+  open: false,
+  order: null,
+  reason: '',
+  description: ''
 })
 
 const quickTags = ['Puntual', 'Profesional', 'Calidad', 'Limpio', 'Buen precio', 'Amable']
 const fileInput = ref()
 
-// Métodos existentes (MANTENIDOS EXACTAMENTE IGUAL)
+// ============ FUNCIONES DE PERMISOS Y ROLES ============
+
+const canReview = (order) => {
+  const userRole = authStore.user?.role
+  const orderStatus = order.status
+  if (orderStatus !== 'completed') return false
+  const allowedRoles = ['client', 'provider', 'admin', 'moderator']
+  return allowedRoles.includes(userRole)
+}
+
+// NUEVO: Verifica si se puede abrir disputa
+const canDispute = (order) => {
+  const userRole = authStore.user?.role
+  // Solo clientes pueden abrir disputa
+  if (userRole !== 'user' && userRole !== 'client') return false
+  // Solo en pedidos donde ya se pagó o está en progreso
+  const allowedStatuses = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'completed']
+  return allowedStatuses.includes(order.status)
+}
+
+const getReviewType = () => {
+  const userRole = authStore.user?.role
+  const reviewTypes = {
+    client: { endpoint: '/history/rate', type: 'service_review' },
+    provider: { endpoint: '/history/rate-user', type: 'user_review' },
+    admin: { endpoint: '/history/admin-rate', type: 'admin_review' },
+    moderator: { endpoint: '/history/moderator-rate', type: 'moderator_review' }
+  }
+  return reviewTypes[userRole] || null
+}
+
+// ============ MÉTODOS DE ESTADO Y FORMATO ============
+
 const statusLabel = s =>
   ({ pending: 'Pendiente', accepted: 'Aceptada', in_progress: 'En progreso', on_the_way: 'En camino', arrived: 'Llegó', completed: 'Completada', cancelled: 'Cancelada' }[s] || s)
 
@@ -426,6 +554,8 @@ const formatPrice = (price) => {
     currency: 'USD'
   }).format(price)
 }
+
+// ============ MÉTODOS DE ÓRDENES ============
 
 async function fetchOrders () {
   loading.value = true
@@ -489,12 +619,32 @@ async function finaliseOrder (id) {
   }
 }
 
+async function repeatOrder (historyItem) {
+  try {
+    const payload = { repeat_from: historyItem.id }
+    const { data } = await api.post('/api/requests/create', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    Swal.fire(t('orders.repeated'), `ID ${data.requestId}`, 'success')
+    selectedTab.value = 'active'
+    await fetchOrders()
+  } catch (err) {
+    Swal.fire(t('error'), t('orders.repeatFailed'), 'error')
+  }
+}
+
+// ============ MÉTODOS DE RESEÑAS ============
+
 function openReviewModal (order) {
+  const reviewType = getReviewType()
+  if (!reviewType) {
+    Swal.fire('Error', 'No tienes permisos para hacer reseñas', 'error')
+    return
+  }
   reviewModal.order = order
   reviewModal.stars = 0
   reviewModal.comment = ''
   reviewModal.tags = []
   reviewModal.photos = []
+  reviewModal.reviewType = reviewType
   reviewModal.open = true
 }
 
@@ -520,40 +670,34 @@ async function handleFile (e) {
     e.target.value = ''
     return
   }
-
-  // Validar tamaño
   if (file.size > 5 * 1024 * 1024) {
     Swal.fire('Error', 'La imagen no debe superar 5MB', 'warning')
     e.target.value = ''
     return
   }
-
   try {
-    // Subir imagen al servidor
     const fd = new FormData()
     fd.append('file', file)
     const { data } = await api.post('/reviews/image', fd, {
-      headers: { 
+      headers: {
         Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'multipart/form-data'
       }
     })
-    // Guardar URL devuelta por el servidor
     reviewModal.photos.push(data.url)
   } catch (err) {
     console.error('Error subiendo imagen:', err)
     Swal.fire('Error', 'No se pudo subir la imagen', 'error')
   }
-  
   e.target.value = ''
 }
 
 async function sendReview () {
   if (reviewModal.stars === 0) return
-  
-  const isProvider = authStore.user?.role === 'provider'
-  const endpoint = isProvider ? '/history/rate-user' : '/history/rate'
-  
+  if (!reviewModal.reviewType) {
+    Swal.fire('Error', 'No tienes permisos para hacer reseñas', 'error')
+    return
+  }
   try {
     const payload = {
       id: Number(reviewModal.order.id),
@@ -561,16 +705,15 @@ async function sendReview () {
       rating: Number(reviewModal.stars),
       comment: reviewModal.comment,
       tags: reviewModal.tags.join(','),
-      photos: reviewModal.photos.join(',')
+      photos: reviewModal.photos.join(','),
+      review_type: reviewModal.reviewType.type
     }
-
-    await api.post(endpoint, payload, {
+    await api.post(reviewModal.reviewType.endpoint, payload, {
       headers: {
         Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json'
       }
     })
-
     reviewModal.open = false
     Swal.fire(t('orders.reviewSent'), '', 'success')
   } catch (err) {
@@ -582,17 +725,40 @@ async function sendReview () {
   }
 }
 
-async function repeatOrder (historyItem) {
+// ============ MÉTODOS DE DISPUTA (NUEVO) ============
+
+function openDisputeModal (order) {
+  disputeModal.order = order
+  disputeModal.reason = ''
+  disputeModal.description = ''
+  disputeModal.open = true
+}
+
+async function sendDispute () {
+  if (!disputeModal.reason) return
   try {
-    const payload = { repeat_from: historyItem.id }
-    const { data } = await api.post('/api/requests/create', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
-    Swal.fire(t('orders.repeated'), `ID ${data.requestId}`, 'success')
-    selectedTab.value = 'active'
-    await fetchOrders()
+    await api.post('/api/payments/dispute', {
+      request_id: disputeModal.order.id,
+      reason: disputeModal.reason,
+      description: disputeModal.description
+    }, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    disputeModal.open = false
+    Swal.fire('Disputa abierta', 'Un administrador revisará tu caso pronto.', 'success')
   } catch (err) {
-    Swal.fire(t('error'), t('orders.repeatFailed'), 'error')
+    if (err.response && err.response.status === 409) {
+      Swal.fire('Atención', 'Ya existe una disputa abierta para este pedido.', 'warning')
+    } else {
+      Swal.fire('Error', 'No se pudo abrir la disputa. Intenta de nuevo.', 'error')
+    }
   }
 }
+
+// ============ LIFECYCLE ============
 
 let unsub = null
 onMounted(() => {
@@ -606,9 +772,6 @@ onMounted(() => {
   fetchOrders()
 })
 onUnmounted(() => unsub && unsub())
-
-import axios from 'axios'
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
 </script>
 
 <style scoped>
@@ -985,6 +1148,12 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   color: white;
 }
 
+/* NUEVO: Botón disputa */
+.btn-dispute {
+  background: linear-gradient(135deg, #e17055 0%, #d63031 100%);
+  color: white;
+}
+
 .btn-action:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -994,7 +1163,7 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   font-size: 1rem;
 }
 
-/* Modal Styles (Rediseñado pero funcionalidad igual) */
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1025,6 +1194,11 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   padding: 24px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+}
+
+/* NUEVO: Header de disputa */
+.dispute-header {
+  background: linear-gradient(135deg, #d63031 0%, #e17055 100%);
 }
 
 .modal-header h2 {
@@ -1060,6 +1234,24 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   margin-bottom: 12px;
   font-weight: 600;
   color: #2d3436;
+}
+
+/* NUEVO: Select de disputa */
+.dispute-select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #dfe6e9;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.dispute-select:focus {
+  outline: none;
+  border-color: #e17055;
 }
 
 .stars-container {
@@ -1234,12 +1426,20 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   color: white;
 }
 
-.btn-confirm:hover:not(:disabled) {
+/* NUEVO: Botón confirmar disputa */
+.btn-dispute-confirm {
+  background: linear-gradient(135deg, #d63031 0%, #e17055 100%);
+  color: white;
+}
+
+.btn-confirm:hover:not(:disabled),
+.btn-dispute-confirm:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-.btn-confirm:disabled {
+.btn-confirm:disabled,
+.btn-dispute-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1255,35 +1455,35 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   .orders-page {
     padding: 16px;
   }
-  
+
   .title-section h1 {
     font-size: 2rem;
   }
-  
+
   .tabs-section {
     flex-direction: column;
     max-width: 300px;
   }
-  
+
   .orders-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .order-header {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .price-tag {
     align-self: flex-start;
   }
-  
+
   .card-footer {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
   }
-  
+
   .action-buttons {
     justify-content: flex-end;
   }
@@ -1293,21 +1493,21 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_URL})
   .orders-section {
     padding: 20px;
   }
-  
+
   .section-header h2 {
     font-size: 1.5rem;
   }
-  
+
   .btn-action {
     flex: 1;
     justify-content: center;
   }
-  
+
   .modal {
     width: 95%;
     margin: 0 10px;
   }
-  
+
   .modal-header {
     padding: 16px;
   }

@@ -215,7 +215,7 @@ class BillingController
 
         $stmt = $this->conn->prepare("
             UPDATE provider_billing SET
-                status = 'paid',
+                status = 'verifying',
                 paid_at = NOW(),
                 payment_method = ?,
                 payment_reference = ?,

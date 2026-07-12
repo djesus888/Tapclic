@@ -58,13 +58,13 @@ const emitLimiter = rateLimit({
 app.use('/emit', emitLimiter);
 app.use('/emit-event', emitLimiter);
 
-// ✅ CORREGIDO: Función helper para generar userKey de forma consistente
+// ✅ Función helper para generar userKey de forma consistente
 // Usa un delimitador que no aparece en roles (:: en lugar de _)
 function buildUserKey(id, role) {
   return `${role}::${id}`;
 }
 
-// ✅ CORREGIDO: Función helper para parsear userKey
+// ✅ Función helper para parsear userKey
 function parseUserKey(key) {
   const separatorIndex = key.indexOf('::');
   if (separatorIndex === -1) {
@@ -76,6 +76,27 @@ function parseUserKey(key) {
     role: key.substring(0, separatorIndex),
     id: key.substring(separatorIndex + 2)
   };
+}
+
+// ✅ Función helper para formatear usuario online (estructura consistente)
+function formatOnlineUser(key, socket) {
+  const parsed = parseUserKey(key);
+  return {
+    userId: parseInt(parsed.id),
+    role: parsed.role,
+    name: socket?.user?.name || null,
+    avatar: socket?.user?.avatar_url || null,
+    socketId: socket?.id || null,
+    connectedAt: new Date().toISOString()
+  };
+}
+
+// ✅ Función para obtener lista completa de usuarios online
+function getOnlineUsersList() {
+  return Array.from(userSockets.keys()).map(key => {
+    const socket = userSockets.get(key);
+    return formatOnlineUser(key, socket);
+  });
 }
 
 function addPendingEvent(room, event, payload, reqBody = {}) {
@@ -124,7 +145,7 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   const { id, role } = socket.user;
-  // ✅ CORREGIDO: Usar buildUserKey para consistencia
+  // ✅ Usar buildUserKey para consistencia
   const userKey = buildUserKey(id, role);
   const room = `${role}_${id}`;
 
@@ -146,6 +167,20 @@ io.on('connection', (socket) => {
   const roleRoom = `role_${role}`;
   socket.join(roleRoom);
   console.log(`🔌 ${id} también unido a sala de rol: ${roleRoom}`);
+
+  // ✅ Emitir presencia a todos los clientes
+  io.emit('user_online', {
+    user_id: id,
+    role: role,
+    name: socket.user.name,
+    avatar: socket.user.avatar_url
+  });
+  console.log(`📡 Emitido user_online: ${id} (${role})`);
+
+  // ✅ NUEVO: Emitir lista completa de usuarios online al nuevo usuario conectado
+  const usersOnline = getOnlineUsersList();
+  socket.emit('users_online', usersOnline);
+  console.log(`📡 Emitido users_online a ${userKey}: ${usersOnline.length} usuarios`);
 
   // Enviar eventos pendientes al conectar
   if (pendingEvents.has(room)) {
@@ -236,7 +271,7 @@ io.on('connection', (socket) => {
     socket.emit('heartbeat_ack', { timestamp: Date.now() });
   });
 
-  // ✅ CORREGIDO: message_read y message_delivered SOLO reenvían al conversation_room
+  // ✅ message_read y message_delivered SOLO reenvían al conversation_room
   // El backend ya notifica a los remitentes individualmente vía HTTP → emitToUser
   // Estos listeners son para cuando un cliente emite directamente (legacy support)
   socket.on('message_read', (data) => {
@@ -353,7 +388,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
-    // ✅ CORREGIDO: Usar el userKey del closure para eliminar correctamente
+    // ✅ Emitir presencia offline antes de eliminar
+    io.emit('user_offline', {
+      user_id: id,
+      role: role
+    });
+    console.log(`📡 Emitido user_offline: ${id} (${role})`);
+
+    // ✅ Usar el userKey del closure para eliminar correctamente
     if (userSockets.get(userKey) === socket) {
       userSockets.delete(userKey);
       console.log(`🗑️ Socket eliminado de userSockets: ${userKey}`);
@@ -377,7 +419,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ CORREGIDO: Endpoint /emit con soporte para broadcast_role
+// ✅ Endpoint /emit con soporte para broadcast_role
 app.post('/emit', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -540,13 +582,11 @@ app.post('/emit-event', (req, res) => {
   });
 });
 
-// ✅ CORREGIDO: Endpoint /status usa parseUserKey
+// ✅ CORREGIDO: Endpoint /status usa la estructura correcta
 app.get('/status', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  const usersOnline = Array.from(userSockets.keys()).map(key => {
-    const parsed = parseUserKey(key);
-    return { id: parseInt(parsed.id), role: parsed.role };
-  });
+  
+  const usersOnline = getOnlineUsersList();
 
   res.json({
     status: 'online',
@@ -557,6 +597,46 @@ app.get('/status', (req, res) => {
     pending_events: pendingEvents.size,
     active_sockets: userSockets.size
   });
+});
+
+// ✅ Endpoint para notificar presencia (staff online/offline)
+app.post('/presence', (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  const { user_id, role, status, broadcast_role } = req.body;
+
+  if (!user_id || !status) {
+    return res.status(400).json({ error: 'user_id y status requeridos' });
+  }
+
+  const userRole = role || broadcast_role || 'unknown';
+
+  // Emitir a todos los conectados
+  io.emit('user_presence', {
+    user_id: parseInt(user_id),
+    role: userRole,
+    status: status, // 'online' o 'offline'
+    timestamp: Date.now()
+  });
+
+  // También emitir eventos específicos con la estructura correcta
+  if (status === 'online') {
+    io.emit('user_online', {
+      user_id: parseInt(user_id),
+      role: userRole,
+      timestamp: Date.now()
+    });
+  } else {
+    io.emit('user_offline', {
+      user_id: parseInt(user_id),
+      role: userRole,
+      timestamp: Date.now()
+    });
+  }
+
+  console.log(`📡 Presencia: user=${user_id} role=${userRole} status=${status}`);
+
+  res.json({ success: true });
 });
 
 // Limpieza periódica de eventos pendientes (cada 10 minutos)

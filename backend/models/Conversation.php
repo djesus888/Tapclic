@@ -12,7 +12,8 @@ class Conversation
         $this->db = (new Database())->getConnection();
     }
 
-    public function getByParticipant(int $userId, string $role): array
+
+public function getByParticipant(int $userId, string $role): array
 {
     $stmt = $this->db->prepare("
         SELECT
@@ -35,11 +36,13 @@ class Conversation
                 WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
                     CASE
                         WHEN c.participant2_type IN ('user','provider','admin') THEN (SELECT avatar_url FROM users WHERE id = c.participant2_id LIMIT 1)
+                        WHEN c.participant2_type LIKE 'staff_%' THEN (SELECT avatar_url FROM provider_staff WHERE id = c.participant2_id LIMIT 1)
                         ELSE NULL
                     END
                 ELSE
                     CASE
                         WHEN c.participant1_type IN ('user','provider','admin') THEN (SELECT avatar_url FROM users WHERE id = c.participant1_id LIMIT 1)
+                        WHEN c.participant1_type LIKE 'staff_%' THEN (SELECT avatar_url FROM provider_staff WHERE id = c.participant1_id LIMIT 1)
                         ELSE NULL
                     END
             END AS participant_avatar,
@@ -51,8 +54,27 @@ class Conversation
                 WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN c.participant2_id
                 ELSE c.participant1_id
             END AS participant_id,
+            -- ✅ NUEVO: Obtener estado online del participante
+            CASE
+                WHEN c.participant1_id = :uid AND c.participant1_type = :role THEN
+                    CASE
+                        WHEN c.participant2_type IN ('user','provider','admin') THEN 
+                            (SELECT CASE WHEN last_seen_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE) THEN 1 ELSE 0 END FROM users WHERE id = c.participant2_id)
+                        WHEN c.participant2_type LIKE 'staff_%' THEN 
+                            (SELECT CASE WHEN is_online = 1 AND last_heartbeat > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END FROM provider_staff WHERE id = c.participant2_id)
+                        ELSE 0
+                    END
+                ELSE
+                    CASE
+                        WHEN c.participant1_type IN ('user','provider','admin') THEN 
+                            (SELECT CASE WHEN last_seen_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE) THEN 1 ELSE 0 END FROM users WHERE id = c.participant1_id)
+                        WHEN c.participant1_type LIKE 'staff_%' THEN 
+                            (SELECT CASE WHEN is_online = 1 AND last_heartbeat > DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END FROM provider_staff WHERE id = c.participant1_id)
+                        ELSE 0
+                    END
+            END AS participant_is_online,
             COALESCE(lm.last_message_time, c.updated_at) AS last_message_at,
-            (SELECT COUNT(*) 
+            (SELECT COUNT(*)
                     FROM messages m2
                     INNER JOIN message_status ms ON m2.id = ms.message_id
                     WHERE m2.conversation_id = c.id
@@ -82,9 +104,9 @@ class Conversation
             ORDER BY last_message_at DESC
         ");
 
-        $stmt->execute(['uid' => $userId, 'role' => $role]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+    $stmt->execute(['uid' => $userId, 'role' => $role]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
     public function findOrCreate(int $userId1, string $type1, int $userId2, string $type2): int
     {

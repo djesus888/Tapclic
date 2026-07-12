@@ -540,7 +540,9 @@ import { useSystemStore } from '@/stores/systemStore'
 import { formatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import NotificationModal from '@/layouts/NotificationModal.vue'
+import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 
+const onlineUsersStore = useOnlineUsersStore()
 const HEADER_EXPANDED_HEIGHT = 88
 const HEADER_COLLAPSED_HEIGHT = 56
 const SCROLL_THRESHOLD = 100
@@ -621,6 +623,7 @@ const providerMenuItems = [
   { to: '/services', label: 'Services', icon: '📦' },
   { to: '/myservices', label: 'myServices', icon: '📦' },
   { to: '/services/new', label: 'addService', icon: ' ➕' },
+  { to: '/orders', label: 'myOrders', icon: '📦' },
   { to: '/payment', label: 'payment_method', icon: '💳' },
   { to: '/provider/billing', label: 'billing', icon: '💳' },
   { to: '/provider/staff', label: 'myStaff', icon: '👥' },
@@ -652,6 +655,8 @@ const adminMenuItems = [
   { to: '/admin/monetization', label: 'monetization', icon: '💰' },
   { to: '/admin/billing', label: 'billing', icon: '💳' },
   { to: '/admin/update', label: 'update', icon: '🔄' },
+  { to: '/services', label: 'Services', icon: '📦' },
+  { to: '/orders', label: 'myOrders', icon: '📦' },  
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '👤' },
   { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
@@ -834,21 +839,58 @@ const handleImageError = (event) => {
 
 const logout = async () => {
   try {
-    const token = localStorage.getItem('staff_token') || authStore.token
-    await api.post('/logout', {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).catch(() => {})
-  } finally {
-    showUserPanel.value = false
+    const staffToken = localStorage.getItem('staff_token')
 
-    if (localStorage.getItem('staff_token')) {
+    if (staffToken) {
+      // ✅ Logout de staff con endpoint correcto
+      try {
+        await api.post('/provider/staff/logout', {}, {
+          headers: { Authorization: `Bearer ${staffToken}` }
+        })
+      } catch (err) {
+        console.error('Error en logout staff:', err)
+      }
+
       localStorage.removeItem('staff_token')
       localStorage.removeItem('staff')
+      
+      // ✅ Limpiar lista de usuarios online
+      onlineUsersStore.clearAll()
+
+      if (socketStore) {
+        socketStore.disconnect()
+      }
+
+      showUserPanel.value = false
       router.push('/staff/login')
     } else {
+      // Logout de usuario normal
+      try {
+        const token = authStore.token
+        if (token) {
+          await api.post('/logout', {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        }
+      } catch (err) {
+        console.error('Error en logout:', err)
+      }
+
+      // ✅ También limpiar para usuario normal
+      onlineUsersStore.clearAll()
+      
       authStore.logout()
+      showUserPanel.value = false
       router.push('/login')
     }
+  } catch (error) {
+    console.error('Error general en logout:', error)
+    localStorage.removeItem('staff_token')
+    localStorage.removeItem('staff')
+    onlineUsersStore.clearAll()
+    authStore.logout()
+    showUserPanel.value = false
+    router.push('/login')
   }
 }
 
@@ -862,6 +904,30 @@ let visibilityChangeListener = null
 
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
+
+  // ✅ Refrescar estado online del staff desde el backend
+  if (localStorage.getItem('staff_token')) {
+    try {
+      const staffToken = localStorage.getItem('staff_token')
+      const { data } = await api.get('/staff/profile', {
+        headers: { Authorization: `Bearer ${staffToken}` }
+      })
+      if (data?.staff) {
+        // Actualizar authStore
+        authStore.user = {
+          ...authStore.user,
+          is_online: data.staff.is_online ?? false
+        }
+        // Actualizar localStorage
+        const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
+        staffData.is_online = data.staff.is_online ?? false
+        localStorage.setItem('staff', JSON.stringify(staffData))
+      }
+    } catch (err) {
+      console.warn('No se pudo refrescar estado online del staff:', err)
+    }
+  }
+
 
   clickOutsideListener = (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {

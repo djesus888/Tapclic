@@ -1,5 +1,3 @@
-// ---------- utils/auth.js ----------
-
 // Obtiene el token guardado
 function getToken() {
   return localStorage.getItem("token");

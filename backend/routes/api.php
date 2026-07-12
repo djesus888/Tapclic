@@ -80,7 +80,9 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/payments/public~', $request) ||
     preg_match('~/api/payments/confirm-payment~', $request) ||
     preg_match('~/api/payments/reject-payment~', $request) ||
-    preg_match('~/api/payments/proof~', $request)
+    preg_match('~/api/payments/proof~', $request) ||
+    preg_match('~/api/payments/disputes~', $request) ||
+    preg_match('~/api/payments/dispute~', $request)
 ) {
     (new PaymentController())->handle($method);
 
@@ -204,6 +206,14 @@ if (preg_match('~/api/login~', $request)) {
     (new PaymentMethodController())->destroy((int)$m[1]);
 
 // --- RUTAS ADMIN (REPORTES Y ESTADÍSTICAS) ---
+} elseif (preg_match('~/api/admin/reports/reviews~', $request) && $method === 'GET') {
+    (new HistoryController())->getReports();
+} elseif (preg_match('~/api/admin/disputes~', $request) && $method === 'GET') {
+    (new PaymentController())->adminGetDisputes();
+} elseif (preg_match('~/api/admin/disputes/resolve~', $request) && $method === 'POST') {
+    (new PaymentController())->adminResolveDispute();
+} elseif ($method === 'POST' && preg_match('~/api/admin/reports/resolve~', $request)) {
+    (new HistoryController())->resolveReport();
 } elseif (preg_match('~/api/admin/reports~', $request) && $method === 'GET') {
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
@@ -485,6 +495,10 @@ if (preg_match('~/api/login~', $request)) {
 // --- RUTAS PERSONAL DEL PROVEEDOR ---
 } elseif ($request === '/api/provider/staff/login' && $method === 'POST') {
     (new ProviderStaffController())->login();
+} elseif ($request === '/api/provider/staff/logout' && $method === 'POST') {
+    (new ProviderStaffController())->logout();
+} elseif ($request === '/api/provider/staff/heartbeat' && $method === 'POST') {
+    (new ProviderStaffController())->heartbeat();
 } elseif (preg_match('~/api/provider/staff~', $request)) {
     (new ProviderStaffController())->handle($method);
 

@@ -34,7 +34,9 @@ class HistoryController
             ($method === 'POST' && preg_match('~/api/reviews/image/?$~', $path)) ||
             ($method === 'POST' && preg_match('~/api/reviews/helpful/?$~', $path)) ||
             ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $path)) ||
-            ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $path))
+            ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $path)) ||
+            ($method === 'GET'  && preg_match('~/api/admin/reports/?$~', $path)) ||
+            ($method === 'POST' && preg_match('~/api/admin/resolve-report/?$~', $path))
         ) {
             // Procesamiento de rutas (ordenado de más específico a menos específico)
             if ($method === 'POST' && preg_match('~/api/reviews/image/?$~', $path)) {
@@ -45,6 +47,10 @@ class HistoryController
                 $this->report();
             } elseif ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $path)) {
                 $this->reportContent();
+            } elseif ($method === 'GET' && preg_match('~/api/admin/reports/?$~', $path)) {
+                $this->getReports();
+            } elseif ($method === 'POST' && preg_match('~/api/admin/resolve-report/?$~', $path)) {
+                $this->resolveReport();
             } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $path, $m)) {
                 $this->reply((int)$m[1]);
             } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/?$~', $path, $m)) {
@@ -72,7 +78,7 @@ class HistoryController
         }
     }
 
-    // ✅ NUEVO: Subir imagen de reseña
+    // ✅ Subir imagen de reseña
     public function uploadReviewImage(): void
     {
         $userId = $this->checkAuth();
@@ -99,19 +105,19 @@ class HistoryController
             $this->send(400, ['message' => 'La imagen no debe superar 5MB']);
         }
 
-$basePath = __DIR__ . '/../public/uploads';
-$baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
-$uploader = new \Utils\Uploader($basePath, $baseUrl);
+        $basePath = __DIR__ . '/../public/uploads';
+        $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
 
-try {
-    $url = $uploader->saveFile($file, \Utils\Uploader::CAT_REVIEWS . '/temp');
-} catch (\RuntimeException $e) {
-    $this->send(500, ['message' => 'Error al guardar imagen: ' . $e->getMessage()]);
-}
+        try {
+            $url = $uploader->saveFile($file, \Utils\Uploader::CAT_REVIEWS . '/temp');
+        } catch (\RuntimeException $e) {
+            $this->send(500, ['message' => 'Error al guardar imagen: ' . $e->getMessage()]);
+        }
         $this->send(200, ['success' => true, 'url' => $url]);
     }
 
-    // ✅ NUEVO: Marcar como útil
+    // ✅ Marcar como útil
     public function markHelpful(): void
     {
         $userId = $this->checkAuth();
@@ -147,7 +153,7 @@ try {
         $this->send(200, ['success' => true, 'helpful_count' => $count]);
     }
 
-    // ✅ NUEVO: Reportar reseña (simple)
+    // ✅ Reportar reseña (simple)
     public function report(): void
     {
         $userId = $this->checkAuth();
@@ -170,14 +176,18 @@ try {
         }
 
         $stmt = $this->conn->prepare(
-            "INSERT INTO review_reports (review_id, review_type, user_id) VALUES (:rid, :rtype, :uid)"
+            "INSERT INTO review_reports (review_id, review_type, user_id, reason, status, created_at) 
+             VALUES (:rid, :rtype, :uid, 'No especificado', 'pending', NOW())"
         );
         $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+
+        // Notificar a admins
+        $this->notifyAdminsAboutReport($reviewId, $reviewType, $userId, 'No especificado');
 
         $this->send(200, ['success' => true, 'message' => 'Reseña reportada']);
     }
 
-    // ✅ NUEVO: Reportar contenido con motivo
+    // ✅ Reportar contenido con motivo (CORREGIDO)
     public function reportContent(): void
     {
         $userId = $this->checkAuth();
@@ -186,6 +196,7 @@ try {
         $reviewId = $input['review_id'] ?? null;
         $reviewType = $input['review_type'] ?? 'service';
         $reason = $input['reason'] ?? 'No especificado';
+        $comment = $input['comment'] ?? '';
 
         if (!$reviewId) {
             $this->send(400, ['message' => 'Falta review_id']);
@@ -200,18 +211,172 @@ try {
             $this->send(409, ['message' => 'Ya reportaste esta reseña']);
         }
 
+        // CORREGIDO: SQL con todos los parámetros
         $stmt = $this->conn->prepare(
-            "INSERT INTO review_reports (review_id, review_type, user_id, created_at) VALUES (:rid, :rtype, :uid, NOW())"
+            "INSERT INTO review_reports (review_id, review_type, user_id, reason, comment, status, created_at) 
+             VALUES (:rid, :rtype, :uid, :reason, :comment, 'pending', NOW())"
         );
-        $stmt->execute([':rid' => $reviewId, ':rtype' => $reviewType, ':uid' => $userId]);
+        $stmt->execute([
+            ':rid' => $reviewId,
+            ':rtype' => $reviewType,
+            ':uid' => $userId,
+            ':reason' => $reason,
+            ':comment' => $comment
+        ]);
 
-        // Guardar motivo en notification o log para admin
+        $reportId = $this->conn->lastInsertId();
+
+        // Notificar a admins
+        $this->notifyAdminsAboutReport($reviewId, $reviewType, $userId, $reason, $comment);
+
         error_log("Reporte de contenido: review_id=$reviewId, type=$reviewType, reason=$reason, user=$userId");
 
-        $this->send(200, ['success' => true, 'message' => 'Contenido denunciado']);
+        $this->send(200, [
+            'success' => true, 
+            'message' => 'Contenido denunciado. Un administrador lo revisará pronto.',
+            'report_id' => $reportId
+        ]);
     }
 
-    // ✅ NUEVO: Método para obtener historial por ID de request
+    // ✅ NUEVO: Obtener reportes (solo admin/moderator)
+    public function getReports(): void
+    {
+        $userId = $this->checkAuth();
+        $this->checkAdminAccess($userId);
+
+        $status = $_GET['status'] ?? 'all';
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        $offset = ($page - 1) * $limit;
+
+        $whereClause = "";
+        $params = [];
+
+        if ($status !== 'all') {
+            $whereClause = "WHERE r.status = :status";
+            $params[':status'] = $status;
+        }
+
+        // Obtener reportes con información relacionada
+        $sql = "SELECT 
+                    r.id,
+                    r.review_id,
+                    r.review_type,
+                    r.reason,
+                    r.comment,
+                    r.status,
+                    r.action_taken,
+                    r.resolution_note,
+                    r.created_at,
+                    r.resolved_at,
+                    u.id as reporter_id,
+                    u.name as reporter_name,
+                    u.email as reporter_email,
+                    admin.name as resolver_name
+                FROM review_reports r
+                JOIN users u ON r.user_id = u.id
+                LEFT JOIN users admin ON r.resolved_by = admin.id
+                {$whereClause}
+                ORDER BY r.created_at DESC
+                LIMIT :limit OFFSET :offset";
+
+        $stmt = $this->conn->prepare($sql);
+
+        if ($status !== 'all') {
+            $stmt->bindParam(':status', $status, PDO::PARAM_STR);
+        }
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Contar total para paginación
+        $countSql = "SELECT COUNT(*) FROM review_reports r {$whereClause}";
+        $countStmt = $this->conn->prepare($countSql);
+        if ($status !== 'all') {
+            $countStmt->bindParam(':status', $status, PDO::PARAM_STR);
+        }
+        $countStmt->execute();
+        $total = $countStmt->fetchColumn();
+
+        $this->send(200, [
+            'success' => true,
+            'data' => $reports,
+            'pagination' => [
+                'total' => (int)$total,
+                'page' => $page,
+                'limit' => $limit,
+                'total_pages' => ceil($total / $limit)
+            ]
+        ]);
+    }
+
+    // ✅ NUEVO: Resolver un reporte
+    public function resolveReport(): void
+    {
+        $userId = $this->checkAuth();
+        $this->checkAdminAccess($userId);
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $reportId = $input['report_id'] ?? null;
+        $action = $input['action'] ?? 'dismiss';
+        $resolutionNote = $input['resolution_note'] ?? '';
+
+        if (!$reportId) {
+            $this->send(400, ['message' => 'Falta report_id']);
+        }
+
+        // Actualizar reporte
+        $stmt = $this->conn->prepare(
+            "UPDATE review_reports 
+             SET status = 'resolved', 
+                 resolved_by = :admin_id, 
+                 resolution_note = :note,
+                 action_taken = :action,
+                 resolved_at = NOW() 
+             WHERE id = :report_id"
+        );
+        $stmt->execute([
+            ':admin_id' => $userId,
+            ':note' => $resolutionNote,
+            ':action' => $action,
+            ':report_id' => $reportId
+        ]);
+
+        // Si la acción es eliminar reseña
+        if ($action === 'delete_review') {
+            $stmt = $this->conn->prepare("SELECT review_id, review_type FROM review_reports WHERE id = :rid");
+            $stmt->execute([':rid' => $reportId]);
+            $report = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($report) {
+                $this->deleteReview($report['review_id'], $report['review_type']);
+            }
+        }
+
+        // Notificar al usuario que reportó
+        $stmt = $this->conn->prepare(
+            "SELECT u.id, u.email, u.name, r.review_id 
+             FROM review_reports r 
+             JOIN users u ON r.user_id = u.id 
+             WHERE r.id = :rid"
+        );
+        $stmt->execute([':rid' => $reportId]);
+        $reporter = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($reporter) {
+            $this->notifyUserAboutResolution($reporter, $action, $resolutionNote);
+        }
+
+        $this->send(200, [
+            'success' => true,
+            'message' => 'Reporte resuelto exitosamente'
+        ]);
+    }
+
+    // ✅ Método para obtener historial por ID de request
     public function getHistoryByRequest(int $requestId): void
     {
         $userId = $this->checkAuth();
@@ -249,7 +414,7 @@ try {
         $this->send(200, ['success' => true, 'history' => $history]);
     }
 
-    // ✅ CORREGIDO: updateReview ahora soporta user_reviews
+    // ✅ updateReview ahora soporta user_reviews
     public function updateReview(int $reviewId): void
     {
         $userId = $this->checkAuth();
@@ -381,7 +546,7 @@ try {
         $this->send(200, ['success' => true, 'message' => 'Respuesta guardada', 'reply' => ['review_id' => $reviewId, 'review_type' => $reviewType, 'sender_type' => $senderType, 'sender_id' => $userId, 'message' => $message, 'created_at' => date('Y-m-d H:i:s')]]);
     }
 
-    /* ==================== MÉTODO PARA ACTUALIZAR RESPUESTA (CORREGIDO) ==================== */
+    /* ==================== MÉTODO PARA ACTUALIZAR RESPUESTA ==================== */
     public function reply(int $reviewId): void
     {
         $userId = $this->checkAuth();
@@ -497,39 +662,171 @@ try {
         exit;
     }
 
+    // Verificar acceso de admin
+    private function checkAdminAccess(int $userId): void
+    {
+        $stmt = $this->conn->prepare("SELECT role FROM users WHERE id = :uid AND active = 1");
+        $stmt->execute([':uid' => $userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user || !in_array($user['role'], ['admin', 'moderator'])) {
+            $this->send(403, ['message' => 'Acceso denegado. Solo administradores.']);
+        }
+    }
+
+    // Notificar a todos los admins sobre un reporte
+    private function notifyAdminsAboutReport(int $reviewId, string $reviewType, int $reporterId, string $reason, string $comment = ''): void
+    {
+        // Obtener información del usuario que reporta
+        $stmt = $this->conn->prepare("SELECT name FROM users WHERE id = :uid");
+        $stmt->execute([':uid' => $reporterId]);
+        $reporter = $stmt->fetch(PDO::FETCH_ASSOC);
+        $reporterName = $reporter['name'] ?? 'Usuario';
+
+        // Obtener todos los admins y moderadores
+        $stmt = $this->conn->prepare(
+            "SELECT id, email, name, role FROM users WHERE role IN ('admin', 'moderator') AND active = 1"
+        );
+        $stmt->execute();
+        $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($admins as $admin) {
+            // Guardar notificación en BD para cada admin
+            $notifStmt = $this->conn->prepare(
+                "INSERT INTO notifications (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at) 
+                 VALUES (:sender, :receiver, :role, :title, :message, :data, 0, NOW())"
+            );
+            $notifStmt->execute([
+                ':sender' => $reporterId,
+                ':receiver' => $admin['id'],
+                ':role' => $admin['role'],
+                ':title' => 'Nueva reseña reportada',
+                ':message' => "El usuario {$reporterName} ha reportado una reseña. Motivo: {$reason}",
+                ':data' => json_encode([
+                    'type' => 'review_reported',
+                    'review_id' => $reviewId,
+                    'review_type' => $reviewType,
+                    'reason' => $reason,
+                    'comment' => $comment,
+                    'route' => '/admin/reports'
+                ])
+            ]);
+
+            // Intentar enviar notificación por WebSocket
+            try {
+                if (file_exists(__DIR__ . '/../services/WebSocketService.php')) {
+                    require_once __DIR__ . '/../services/WebSocketService.php';
+                    \Services\WebSocketService::sendNotification(
+                        $admin['role'],
+                        $admin['id'],
+                        'Nueva reseña reportada',
+                        "El usuario {$reporterName} ha reportado una reseña. Motivo: {$reason}",
+                        [
+                            'event' => 'review_reported',
+                            'notification_type' => 'review_reported',
+                            'url' => '/admin/reports',
+                            'action' => 'view_reports'
+                        ]
+                    );
+                }
+            } catch (\Exception $e) {
+                error_log("Error enviando WebSocket en notifyAdminsAboutReport: " . $e->getMessage());
+            }
+        }
+    }
+
+    // Eliminar reseña (soft delete)
+    private function deleteReview(int $reviewId, string $reviewType): void
+    {
+        if ($reviewType === 'service' || $reviewType === 'service_review') {
+            $stmt = $this->conn->prepare("UPDATE service_reviews SET is_deleted = 1, deleted_at = NOW() WHERE id = :rid");
+        } else {
+            $stmt = $this->conn->prepare("UPDATE user_reviews SET is_deleted = 1, deleted_at = NOW() WHERE id = :rid");
+        }
+        $stmt->execute([':rid' => $reviewId]);
+    }
+
+    // Notificar al usuario sobre la resolución de su reporte
+    private function notifyUserAboutResolution(array $user, string $action, string $note): void
+    {
+        $message = match($action) {
+            'dismiss' => 'Tu reporte ha sido revisado y no se encontraron violaciones.',
+            'delete_review' => 'La reseña que reportaste ha sido eliminada por violar nuestras políticas.',
+            'warn_user' => 'El usuario reportado ha recibido una advertencia.',
+            default => 'Tu reporte ha sido procesado.'
+        };
+
+        if ($note) {
+            $message .= " Nota del administrador: {$note}";
+        }
+
+        $stmt = $this->conn->prepare(
+            "INSERT INTO notifications (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at) 
+             VALUES (:sender, :receiver, 'user', 'Reporte resuelto', :message, :data, 0, NOW())"
+        );
+        $stmt->execute([
+            ':sender' => 0, // Sistema
+            ':receiver' => $user['id'],
+            ':message' => $message,
+            ':data' => json_encode(['route' => '/reviews'])
+        ]);
+
+        // Intentar enviar por WebSocket
+        try {
+            if (file_exists(__DIR__ . '/../services/WebSocketService.php')) {
+                require_once __DIR__ . '/../services/WebSocketService.php';
+                \Services\WebSocketService::sendNotification(
+                    'user',
+                    $user['id'],
+                    'Reporte resuelto',
+                    $message,
+                    [
+                        'event' => 'report_resolved',
+                        'notification_type' => 'report_resolved',
+                        'url' => '/reviews',
+                        'action' => 'view_resolution'
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            error_log("Error enviando WebSocket en notifyUserAboutResolution: " . $e->getMessage());
+        }
+    }
+
     /* ---------- helper interno para subir imágenes ---------- */
-private function saveUploadedImages(int $historyId): array
-{
-    $saved = [];
-    if (empty($_FILES['images']['name'][0])) {
+    private function saveUploadedImages(int $historyId): array
+    {
+        $saved = [];
+        if (empty($_FILES['images']['name'][0])) {
+            return $saved;
+        }
+
+        $basePath = __DIR__ . '/../public/uploads';
+        $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+        $total = count($_FILES['images']['name']);
+        for ($i = 0; $i < $total; $i++) {
+            $error = $_FILES['images']['error'][$i];
+            $tmp   = $_FILES['images']['tmp_name'][$i];
+            if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
+                continue;
+            }
+
+            try {
+                $url = $uploader->saveFile([
+                    'tmp_name' => $tmp,
+                    'name' => $_FILES['images']['name'][$i],
+                    'error' => $error
+                ], \Utils\Uploader::CAT_REVIEWS . '/' . $historyId);
+                $saved[] = $url;
+            } catch (\RuntimeException $e) {
+                continue;
+            }
+        }
         return $saved;
     }
 
-    $basePath = __DIR__ . '/../public/uploads';
-    $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
-    $uploader = new \Utils\Uploader($basePath, $baseUrl);
-
-    $total = count($_FILES['images']['name']);
-    for ($i = 0; $i < $total; $i++) {
-        $error = $_FILES['images']['error'][$i];
-        $tmp   = $_FILES['images']['tmp_name'][$i];
-        if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
-            continue;
-        }
-
-        try {
-            $url = $uploader->saveFile([
-                'tmp_name' => $tmp,
-                'name' => $_FILES['images']['name'][$i],
-                'error' => $error
-            ], \Utils\Uploader::CAT_REVIEWS . '/' . $historyId);
-            $saved[] = $url;
-        } catch (\RuntimeException $e) {
-            continue;
-        }
-    }
-    return $saved;
-}
     public function rate(): void
     {
         $headers = getallheaders();
@@ -687,7 +984,7 @@ private function saveUploadedImages(int $historyId): array
         }
     }
 
-    // ✅ CORREGIDO: receivedReviews ahora soporta admin
+    // ✅ receivedReviews ahora soporta admin
     public function receivedReviews(): void
     {
         $headers = getallheaders();
@@ -916,39 +1213,40 @@ private function saveUploadedImages(int $historyId): array
     }
 
     /* ---------- helper interno para subir imágenes (rateUser) ---------- */
- private function saveUploadedImagesUser(int $historyId): array
-{
-    $saved = [];
-    if (empty($_FILES['images']['name'][0])) {
+    private function saveUploadedImagesUser(int $historyId): array
+    {
+        $saved = [];
+        if (empty($_FILES['images']['name'][0])) {
+            return $saved;
+        }
+
+        $basePath = __DIR__ . '/../public/uploads';
+        $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
+
+        $total = count($_FILES['images']['name']);
+        for ($i = 0; $i < $total; $i++) {
+            $error = $_FILES['images']['error'][$i];
+            $tmp   = $_FILES['images']['tmp_name'][$i];
+            if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
+                continue;
+            }
+
+            try {
+                $url = $uploader->saveFile([
+                    'tmp_name' => $tmp,
+                    'name' => $_FILES['images']['name'][$i],
+                    'error' => $error
+                ], \Utils\Uploader::CAT_REVIEWS . '/user/' . $historyId);
+                $saved[] = $url;
+            } catch (\RuntimeException $e) {
+                continue;
+            }
+        }
         return $saved;
     }
 
-    $basePath = __DIR__ . '/../public/uploads';
-    $baseUrl = rtrim(getenv('API_BASE_URL') ?: '', '/') . '/uploads';
-    $uploader = new \Utils\Uploader($basePath, $baseUrl);
-
-    $total = count($_FILES['images']['name']);
-    for ($i = 0; $i < $total; $i++) {
-        $error = $_FILES['images']['error'][$i];
-        $tmp   = $_FILES['images']['tmp_name'][$i];
-        if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) {
-            continue;
-        }
-
-        try {
-            $url = $uploader->saveFile([
-                'tmp_name' => $tmp,
-                'name' => $_FILES['images']['name'][$i],
-                'error' => $error
-            ], \Utils\Uploader::CAT_REVIEWS . '/user/' . $historyId);
-            $saved[] = $url;
-        } catch (\RuntimeException $e) {
-            continue;
-        }
-    }
-    return $saved;
-}
-    // ✅ CORREGIDO: rateUser ahora permite admin
+    // ✅ rateUser ahora permite admin
     public function rateUser(): void
     {
         $reviewerId = $this->checkAuth();
@@ -1067,7 +1365,7 @@ private function saveUploadedImages(int $historyId): array
         }
     }
 
-    // ✅ CORREGIDO: myReviews ahora incluye user_reviews
+    // ✅ myReviews ahora incluye user_reviews
     public function myReviews(): void
     {
         $userId = $this->checkAuth();

@@ -107,7 +107,15 @@ if ($otherParticipantType === 'user' || $otherParticipantType === 'provider' || 
     $userStmt->execute([$otherParticipantId, $otherParticipantType]);
     $otherUser = $userStmt->fetch(PDO::FETCH_ASSOC);
 } elseif (strpos($otherParticipantType, 'staff_') === 0) {
-    $userStmt = $this->db->prepare("SELECT id, name, avatar_url, role FROM provider_staff WHERE id = ? LIMIT 1");
+    $userStmt = $this->db->prepare("
+        SELECT id, name, avatar_url, role,
+               is_online,
+               CASE 
+                   WHEN is_online = 1 AND last_heartbeat > DATE_SUB(NOW(), INTERVAL 5 MINUTE) 
+                   THEN 1 ELSE 0 
+               END as is_actually_online
+        FROM provider_staff WHERE id = ? LIMIT 1
+    ");
     $userStmt->execute([$otherParticipantId]);
     $otherUser = $userStmt->fetch(PDO::FETCH_ASSOC);
     if ($otherUser) {
@@ -160,11 +168,12 @@ if (!$otherUser) {
                 'participant2_id' => (int)$conversation['participant2_id'],
                 'participant2_type' => $conversation['participant2_type'],
                 'other_participant' => [
-                    'id' => (int)$otherUser['id'],
-                    'name' => $otherUser['name'] ?? 'Usuario',
-                    'avatar_url' => $otherUser['avatar_url'],
-                    'role' => $otherUser['role']
-                ],
+                'id' => (int)$otherUser['id'],
+                'name' => $otherUser['name'] ?? 'Usuario',
+                'avatar_url' => $otherUser['avatar_url'],
+                'role' => $otherUser['role'],
+                'is_online' => (bool)($otherUser['is_actually_online'] ?? $otherUser['is_online'] ?? false)
+                 ],
                 'last_message' => $lastMessage ? [
                     'text' => $lastMessage['text'],
                     'sender_id' => (int)$lastMessage['sender_id'],
@@ -294,22 +303,23 @@ if (!$otherUser) {
 
             // ✅ CORREGIDO: Estructura unificada con 'participant' en singular
             $conversations[] = [
-                'id' => (int)$conv['id'],
-                'participant' => [ // ✅ Cambiado de 'participants' a 'participant'
-                    'id' => (int)$conv['participant_id'],
-                    'name' => $conv['participant_name'],
-                    'avatar' => $conv['participant_avatar'] ?: '/img/default-avatar.png',
-                    'role' => $conv['participant_role']
-                ],
-                'lastMessage' => $last ? [
-                    'text' => $last['text'],
-                    'created_at' => $last['created_at'],
-                    'sender_id' => (int)$last['sender_id'], // ✅ Añadido para identificar quién envió
-                    'sender_type' => $last['sender_type'],
-                    'is_mine' => ((int)$last['sender_id'] == $userId) // ✅ Bandera para identificar si es mío
-                ] : null,
-                'unreadCount' => (int)$unread,
-            ];
+    'id' => (int)$conv['id'],
+    'participant' => [
+        'id' => (int)$conv['participant_id'],
+        'name' => $conv['participant_name'],
+        'avatar' => $conv['participant_avatar'] ?: '/img/default-avatar.png',
+        'role' => $conv['participant_role'],
+        'is_online' => (bool)($conv['participant_is_online'] ?? false)  // ✅ NUEVO
+    ],
+    'lastMessage' => $last ? [
+        'text' => $last['text'],
+        'created_at' => $last['created_at'],
+        'sender_id' => (int)$last['sender_id'],
+        'sender_type' => $last['sender_type'],
+        'is_mine' => ((int)$last['sender_id'] == $userId)
+    ] : null,
+    'unreadCount' => (int)$unread,
+          ];
         }
 
         header('Content-Type: application/json; charset=utf-8'); // ✅ Añadido charset

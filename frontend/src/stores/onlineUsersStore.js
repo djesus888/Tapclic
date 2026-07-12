@@ -7,7 +7,7 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
   // Estado
   const users = ref([])
   const lastUpdate = ref(null)
-  const typingUsers = ref(new Map()) // Mapa de usuarios escribiendo por conversación
+  const typingUsers = ref(new Map())
 
   // Getters básicos
   const onlineCount = computed(() => users.value.length)
@@ -32,36 +32,63 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
     total: onlineCount.value
   }))
 
-  // Actions
+  // ✅ Clave única: rol + id
+  function buildKey(id, role) {
+    return `${role}_${id}`
+  }
+
+  // ✅ CORREGIDO: Limpia usuarios antiguos usando buildKey igual que mergeOnlineUsers
   function setOnlineUsers(newUsers) {
     const authStore = useAuthStore()
     const currentUserId = authStore.user?.id
 
-    users.value = newUsers.map(u => ({
-      id: u.userId || u.id,
-      name: u.name || u.userName,
-      avatar: u.avatar || u.avatar_url,
-      role: u.role,
-      lastSeen: u.lastSeen || u.last_seen || u.connectedAt,
-      isCurrentUser: (u.userId || u.id) === currentUserId,
-      socketId: u.socketId,
-      connectedAt: u.connectedAt
-    }))
+    const newMap = new Map()
+
+    newUsers.forEach(u => {
+      const userId = u.userId || u.id
+      const userRole = u.role
+      newMap.set(buildKey(userId, userRole), {
+        id: userId,
+        name: u.name || u.userName,
+        avatar: u.avatar || u.avatar_url,
+        role: userRole,
+        lastSeen: u.lastSeen || u.last_seen || u.connectedAt,
+        isCurrentUser: userId === currentUserId,
+        socketId: u.socketId,
+        connectedAt: u.connectedAt
+      })
+    })
+
+    // Eliminar los que ya no están
+    users.value = users.value.filter(u => newMap.has(buildKey(u.id, u.role)))
+
+    // Agregar o actualizar
+    newMap.forEach((data, key) => {
+      const idx = users.value.findIndex(u => buildKey(u.id, u.role) === key)
+      if (idx !== -1) users.value[idx] = data
+      else users.value.push(data)
+    })
+
     lastUpdate.value = Date.now()
   }
 
+  // ✅ Usa rol para distinguir usuarios con mismo ID
   function addOnlineUser(user) {
     const authStore = useAuthStore()
     const currentUserId = authStore.user?.id
     const userId = user.userId || user.id
+    const userRole = user.role
     if (!userId) return
 
-    if (!users.value.some(u => u.id === userId)) {
+    const key = buildKey(userId, userRole)
+    const exists = users.value.some(u => buildKey(u.id, u.role) === key)
+    
+    if (!exists) {
       users.value.push({
         id: userId,
         name: user.name || user.userName,
         avatar: user.avatar || user.avatar_url,
-        role: user.role,
+        role: userRole,
         lastSeen: user.lastSeen || user.last_seen || user.connectedAt,
         isCurrentUser: userId === currentUserId,
         socketId: user.socketId,
@@ -70,34 +97,81 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
     }
   }
 
-  function removeOnlineUser(userId) {
-    const index = users.value.findIndex(u => u.id === userId)
+  // ✅ Soporta rol para eliminar correctamente
+  function removeOnlineUser(userId, role = null) {
+    const index = users.value.findIndex(u => u.id === userId && (!role || u.role === role))
     if (index !== -1) {
       users.value.splice(index, 1)
     }
   }
 
-  function updateUserLastSeen(userId, timestamp = Date.now()) {
-    const user = users.value.find(u => u.id === userId)
+  // ✅ Merge inteligente: no pisa, actualiza
+  function mergeOnlineUsers(newUsers) {
+    const authStore = useAuthStore()
+    const currentUserId = authStore.user?.id
+    const newMap = new Map()
+
+    newUsers.forEach(u => {
+      const userId = u.userId || u.id
+      const userRole = u.role
+      newMap.set(buildKey(userId, userRole), {
+        id: userId,
+        name: u.name || u.userName,
+        avatar: u.avatar || u.avatar_url,
+        role: userRole,
+        lastSeen: u.lastSeen || u.last_seen || u.connectedAt,
+        isCurrentUser: userId === currentUserId,
+        socketId: u.socketId,
+        connectedAt: u.connectedAt || new Date().toISOString()
+      })
+    })
+
+    // Eliminar los que ya no están
+    users.value = users.value.filter(u => newMap.has(buildKey(u.id, u.role)))
+
+    // Agregar o actualizar
+    newMap.forEach((data, key) => {
+      const idx = users.value.findIndex(u => buildKey(u.id, u.role) === key)
+      if (idx !== -1) users.value[idx] = data
+      else users.value.push(data)
+    })
+    
+    lastUpdate.value = Date.now()
+  }
+
+  // ✅ CORREGIDO: Agregado parámetro role y búsqueda por id + role
+  function updateUserLastSeen(userId, role, timestamp = Date.now()) {
+    const user = users.value.find(u =>
+      u.id === userId && u.role === role
+    )
     if (user) {
       user.lastSeen = timestamp
     }
   }
 
-  // Verificar si un usuario específico está online
-  function isUserOnline(userId) {
+  // ✅ CORREGIDO: Validar por ID + rol
+  function isUserOnline(userId, role = null) {
     if (!userId) return false
-    return users.value.some(u => u.id === userId)
+
+    return users.value.some(u =>
+      u.id === userId &&
+      (!role || u.role === role)
+    )
   }
 
-  // Obtener usuario por ID
-  function getUserById(userId) {
-    return users.value.find(u => u.id === userId)
+  // ✅ CORREGIDO: Soporte para roles
+  function getUserById(userId, role = null) {
+    return users.value.find(u =>
+      u.id === userId &&
+      (!role || u.role === role)
+    )
   }
 
-  // Obtener estado completo de un usuario
-  function getUserStatus(userId) {
-    const user = users.value.find(u => u.id === userId)
+  // ✅ CORREGIDO: Recibe y busca por id + role
+  function getUserStatus(userId, role) {
+    const user = users.value.find(u =>
+      u.id === userId && u.role === role
+    )
     return {
       online: !!user,
       user: user || null,
@@ -114,7 +188,6 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
   const onlineUserIds = computed(() => users.value.map(u => u.id))
 
   // --- Funcionalidad de "escribiendo..." ---
-  // 🔥 MODIFICADO: Mejor manejo de typing
   function setUserTyping(conversationId, userId, isTyping) {
     if (!conversationId || !userId) return
 
@@ -130,8 +203,7 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
         timestamp: Date.now(),
         conversationId
       })
-      
-      // 🔥 NUEVO: Auto-limpiar después de 4 segundos
+
       setTimeout(() => {
         const current = typingUsers.value.get(conversationId)
         if (current?.get(userId)?.timestamp < Date.now() - 4000) {
@@ -149,7 +221,6 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
     }
   }
 
-  // 🔥 NUEVO: Manejar evento de typing desde socket
   function handleTypingEvent(data) {
     const { conversation_id, user_id, is_typing } = data
     setUserTyping(conversation_id, user_id, is_typing)
@@ -162,13 +233,12 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
   function getUsersTyping(conversationId) {
     const typing = typingUsers.value.get(conversationId)
     if (!typing) return []
-    
+
     return Array.from(typing.values())
       .filter(t => Date.now() - t.timestamp < 4000)
       .map(t => t.userId)
   }
 
-  // 🔥 NUEVO: Obtener nombres de usuarios escribiendo
   function getTypingNames(conversationId) {
     const userIds = getUsersTyping(conversationId)
     return userIds.map(id => {
@@ -179,19 +249,19 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
 
   function getTypingText(conversationId) {
     const typing = getUsersTyping(conversationId)
-    
+
     if (typing.length === 0) return ''
-    
+
     if (typing.length === 1) {
       const user = getUserById(typing[0])
       return `${user?.name || 'Alguien'} está escribiendo...`
     }
-    
+
     if (typing.length === 2) {
       const users = typing.map(id => getUserById(id)?.name || 'Alguien')
       return `${users[0]} y ${users[1]} están escribiendo...`
     }
-    
+
     return 'Varias personas están escribiendo...'
   }
 
@@ -211,7 +281,7 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
     typingUsers.value.clear()
     lastUpdate.value = null
   }
-
+  
   function clearTyping() {
     typingUsers.value.clear()
   }
@@ -235,7 +305,6 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
       const cached = localStorage.getItem('online_users_cache')
       if (cached) {
         const data = JSON.parse(cached)
-        // Solo usar cache si tiene menos de 1 minuto
         if (Date.now() - data.timestamp < 60000) {
           users.value = data.users
           lastUpdate.value = data.lastUpdate
@@ -249,12 +318,9 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
   }
 
   return {
-    // Estado
     users,
     lastUpdate,
     typingUsers,
-
-    // Getters
     onlineCount,
     providersOnline,
     clientsOnline,
@@ -262,32 +328,23 @@ export const useOnlineUsersStore = defineStore('onlineUsers', () => {
     onlineByRole,
     onlineUserIds,
     stats,
-
-    // Actions básicas
     setOnlineUsers,
     addOnlineUser,
     removeOnlineUser,
+    mergeOnlineUsers,
     updateUserLastSeen,
-
-    // Consultas
     isUserOnline,
     getUserById,
     getUserStatus,
     getOnlineUsersByRole,
-
-    // Typing
     setUserTyping,
-    handleTypingEvent, // 🔥 NUEVO
+    handleTypingEvent,
     isUserTyping,
     getUsersTyping,
-    getTypingNames, // 🔥 NUEVO
+    getTypingNames,
     getTypingText,
-
-    // Utilidades
     clearAll,
     clearTyping,
-
-    // Persistencia (opcional)
     saveToLocalStorage,
     loadFromLocalStorage
   }

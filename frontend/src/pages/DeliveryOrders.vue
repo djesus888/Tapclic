@@ -159,6 +159,27 @@ const router = useRouter()
 let requestUpdatedHandler = null
 let newNotificationHandler = null
 
+// ✅ Detecta cuando la página se restaura desde caché
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    // La página viene de bfcache, verificar autenticación
+    const token = localStorage.getItem('staff_token')
+    if (!token) {
+      // No hay token, redirigir al login
+      router.replace('/staff/login')
+    } else {
+      // Verificar que el token sigue siendo válido
+      api.get('/staff/profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {
+        localStorage.removeItem('staff_token')
+        localStorage.removeItem('staff')
+        router.replace('/staff/login')
+      })
+    }
+  }
+})
+
 const activeOrders = computed(() =>
   orders.value.filter(o => !['completed', 'cancelled', 'finalized'].includes(o.status))
 )

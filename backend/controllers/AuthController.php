@@ -341,36 +341,29 @@ class AuthController
     }
 
     /* ---------- LOGOUT ---------- */
-    public function logout(): void
-    {
-        header('Content-Type: application/json');
-
-        $headers = getallheaders();
-        $auth = $headers['Authorization'] ?? '';
-
-        if (!str_starts_with($auth, "Bearer ")) {
-            http_response_code(200);
-            echo json_encode([
-                "success" => true,
-                "message" => "Sesión cerrada"
-            ]);
-            return;
-        }
-
+public function logout(): void {
+    header('Content-Type: application/json');
+    $headers = getallheaders();
+    $auth = $headers['Authorization'] ?? '';
+    
+    if (str_starts_with($auth, "Bearer ")) {
         $token = str_replace("Bearer ", "", $auth);
         $decoded = JwtHandler::decode($token);
-
-        if ($decoded && isset($decoded->id)) {
-            $userId = $decoded->id;
-
-            // Actualizar última actividad antes de cerrar sesión
-            $this->userModel->updateLastSeen($userId);
+        
+        // ✅ AÑADE ESTO
+        if ($decoded && isset($decoded->exp)) {
+            Auth::addToBlacklist($token, date('Y-m-d H:i:s', $decoded->exp));
         }
-
-        http_response_code(200);
-        echo json_encode([
-            "success" => true,
-            "message" => "Sesión cerrada correctamente"
-        ]);
+        
+        if ($decoded && isset($decoded->id)) {
+            $this->userModel->updateLastSeen($decoded->id);
+        }
     }
+    
+    http_response_code(200);
+    echo json_encode([
+        "success" => true,
+        "message" => "Sesión cerrada correctamente"
+    ]);
+}
 }

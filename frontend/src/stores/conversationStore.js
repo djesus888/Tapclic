@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '@/axios'
 import { useSocketStore } from './socketStore'
+import { useOnlineUsersStore } from './onlineUsersStore'
 import { useAuthStore } from './authStore'
 
 export const useConversationStore = defineStore('conversation', () => {
@@ -42,6 +43,7 @@ export const useConversationStore = defineStore('conversation', () => {
     typingUsers.value.clear()
   }
 
+  // ✅ CORREGIDO: Incluye is_online en la normalización
   function normalizeConversation(conv) {
     if (conv.participant && !conv.other_participant) {
       return {
@@ -50,7 +52,8 @@ export const useConversationStore = defineStore('conversation', () => {
           id: conv.participant.id,
           name: conv.participant.name,
           avatar_url: conv.participant.avatar,
-          role: conv.participant.role
+          role: conv.participant.role,
+          is_online: conv.participant.is_online ?? false
         },
         lastMessage: conv.lastMessage || { text: '', created_at: null },
         unreadCount: conv.unreadCount || 0,
@@ -64,7 +67,8 @@ export const useConversationStore = defineStore('conversation', () => {
           id: conv.other_participant.id,
           name: conv.other_participant.name,
           avatar_url: conv.other_participant.avatar_url,
-          role: conv.other_participant.role
+          role: conv.other_participant.role,
+          is_online: conv.other_participant.is_online ?? false
         },
         lastMessage: conv.last_message || conv.lastMessage || { text: '', created_at: null },
         unreadCount: conv.unread_count || conv.unreadCount || 0,
@@ -264,6 +268,23 @@ export const useConversationStore = defineStore('conversation', () => {
       const { data: res } = await api.get('/conversations')
       const list = Array.isArray(res) ? res : res.conversations || []
       conversations.value = list.map(c => normalizeConversation(c))
+      
+      // ✅ Sincronizar onlineUsersStore con is_online de las conversaciones
+      const onlineUsersStore = useOnlineUsersStore()
+      list.forEach(conv => {
+        const other = conv.participant || conv.other_participant
+        if (other && other.is_online) {
+          onlineUsersStore.addOnlineUser({
+            userId: other.id,
+            role: other.role,
+            name: other.name,
+            avatar: other.avatar || other.avatar_url
+          })
+        } else if (other && !other.is_online) {
+          onlineUsersStore.removeOnlineUser(other.id, other.role)
+        }
+      })
+      
       console.log('📋 Conversaciones normalizadas:', conversations.value)
     } catch (err) {
       console.error('Error fetching conversations:', err)
@@ -373,24 +394,20 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // ✅ CORREGIDO: Solo llama al endpoint HTTP. El backend emite message_read.
   async function markAsRead(conversationId, messageIds) {
     if (!messageIds || messageIds.length === 0) return
     try {
       markMessagesAsReadLocally(conversationId, messageIds)
       await api.post('/messages/read', { message_ids: messageIds })
-      // ✅ NO emitir message_read por socket. El backend lo hace.
       console.log('✅ Mensajes marcados como leídos (HTTP):', messageIds)
     } catch (err) {
       console.error('Error marking as read:', err)
     }
   }
 
-  // ✅ CORREGIDO: Solo actualiza localmente. El backend emite message_delivered.
   async function markAsDelivered(conversationId, messageIds) {
     if (!messageIds || messageIds.length === 0) return
     try {
-      // ✅ NO emitir message_delivered por socket. El backend lo hace.
       console.log('📬 markAsDelivered: solo actualización local, el backend emitirá el evento')
     } catch (err) {
       console.error('Error marking as delivered:', err)
@@ -427,8 +444,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  // ✅ CORREGIDO: Eliminadas emisiones de message_delivered y message_read
-  // Solo se emite typing y se reproduce sonido. El backend maneja delivered/read.
   function addMessage(conversationId, message) {
     const authStore = useAuthStore()
     const socketStore = useSocketStore()
@@ -534,7 +549,8 @@ export const useConversationStore = defineStore('conversation', () => {
           id: otherId || 0,
           name: otherName || 'Usuario',
           avatar_url: otherAvatar || null,
-          role: otherRole || 'user'
+          role: otherRole || 'user',
+          is_online: false
         },
         lastMessage: {
           text: message.text || '',
@@ -555,7 +571,6 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log('📋 Nueva conversación creada:', newConversation)
     }
 
-    // ✅ Solo reproducir sonido para mensajes ajenos
     if (!calculatedIsMine) {
       socketStore.playNotificationSound()
     }

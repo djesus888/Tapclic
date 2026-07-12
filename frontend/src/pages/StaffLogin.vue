@@ -86,10 +86,10 @@
         <div class="register-link">
           <p class="register-text">
             {{ $t('staff_back_to_login') }}
-            <router-link to="/login" class="register-button">
+            <a @click.prevent="goToMainLogin" href="#" class="register-button">
               <span class="register-icon">🔐</span>
               {{ $t('go_to_login') }}
-            </router-link>
+            </a>
           </p>
         </div>
 
@@ -133,6 +133,13 @@ const changeLocale = (event) => {
   localStorage.setItem('userLocale', event.target.value)
 }
 
+const goToMainLogin = () => {
+  // Limpiar tokens de staff antes de redirigir al login principal
+  localStorage.removeItem('staff_token')
+  localStorage.removeItem('staff')
+  router.push('/login')
+}
+
 const login = async () => {
   loading.value = true
   error.value = ''
@@ -154,6 +161,7 @@ const login = async () => {
   }
 }
 </script>
+
 
 <style scoped>
 .login-page {

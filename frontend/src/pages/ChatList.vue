@@ -126,7 +126,7 @@
           @click="openChat(conv.id)"
           :class="{
             'unread': conv.unreadCount > 0,
-            'online-contact': isUserOnline(interlocutor(conv)?.id)
+            'online-contact': isUserOnline(interlocutor(conv)?.id, interlocutor(conv)?.role)
           }"
         >
           <!-- Unread Badge -->
@@ -144,8 +144,8 @@
             >
             <span
               class="online-dot"
-              :class="{ 'online': isUserOnline(interlocutor(conv)?.id) }"
-              :title="isUserOnline(interlocutor(conv)?.id) ? 'En línea' : 'Desconectado'"
+              :class="{ 'online': isUserOnline(interlocutor(conv)?.id, interlocutor(conv)?.role) }"
+              :title="isUserOnline(interlocutor(conv)?.id, interlocutor(conv)?.role) ? 'En línea' : 'Desconectado'"
             ></span>
           </div>
 
@@ -155,7 +155,7 @@
               <div class="user-info">
                 <div class="user-name-wrapper">
                   <h3 class="user-name">{{ interlocutor(conv)?.name || 'Usuario' }}</h3>
-                  <span class="online-badge" v-if="isUserOnline(interlocutor(conv)?.id)">
+                  <span class="online-badge" v-if="isUserOnline(interlocutor(conv)?.id, interlocutor(conv)?.role)">
                     EN LÍNEA
                   </span>
                 </div>
@@ -171,7 +171,7 @@
                 }}
               </span>
             </div>
-
+            
             <!-- Último mensaje con status -->
             <div class="last-message-wrapper">
               <p class="last-message">
@@ -289,7 +289,6 @@ const toast = ref({
  * ------------------------------------ */
 const isConnected = computed(() => socketStore.isConnected)
 const onlineCount = computed(() => onlineUsersStore.onlineCount)
-
 const totalUnread = computed(() => {
   if (!conversationStore.conversations) return 0
   return conversationStore.conversations.reduce((total, conv) => total + (conv.unreadCount || 0), 0)
@@ -308,14 +307,14 @@ const uniqueParticipants = computed(() => {
 const filteredConversations = computed(() => {
   if (!conversationStore.conversations) return []
   let conversations = [...conversationStore.conversations]
-
+  
   // Filtrar por rol
   if (selectedRole.value) {
     conversations = conversations.filter(conv =>
       interlocutor(conv)?.role === selectedRole.value
     )
   }
-
+  
   // Filtrar por búsqueda
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
@@ -327,7 +326,7 @@ const filteredConversations = computed(() => {
   // Filtrar solo online
   if (showOnlineOnly.value) {
     conversations = conversations.filter(conv =>
-      isUserOnline(interlocutor(conv)?.id)
+      isUserOnline(interlocutor(conv)?.id, interlocutor(conv)?.role)
     )
   }
 
@@ -350,8 +349,8 @@ const filteredConversations = computed(() => {
       break
     case 'online':
       conversations.sort((a, b) => {
-        const aOnline = isUserOnline(interlocutor(a)?.id)
-        const bOnline = isUserOnline(interlocutor(b)?.id)
+        const aOnline = isUserOnline(interlocutor(a)?.id, interlocutor(a)?.role)
+        const bOnline = isUserOnline(interlocutor(b)?.id, interlocutor(b)?.role)
         if (aOnline && !bOnline) return -1
         if (!aOnline && bOnline) return 1
         return 0
@@ -376,7 +375,7 @@ onMounted(() => {
   // Escuchar eventos de typing
   window.addEventListener('user_typing', handleTypingEvent)
   window.addEventListener('new_message', handleNewMessage)
-
+  
   // Escuchar actualizaciones de mensajes
   window.addEventListener('message_delivered', handleMessageDelivered)
   window.addEventListener('message_read', handleMessageRead)
@@ -397,6 +396,9 @@ watch(() => authStore.token, (newToken) => {
     socketStore.init()
   }
 })
+
+// ✅ CORREGIDO: Watcher eliminado - ya no modifica other_participant.is_online
+// El estado online viene únicamente de onlineUsersStore.users
 
 /* ------------------------------------
  * Methods
@@ -479,9 +481,10 @@ function getMessageTypeIcon(type) {
 /* ------------------------------------
  * Online Presence
  * ------------------------------------ */
-function isUserOnline(userId) {
+// ✅ CORREGIDO: Recibe y pasa role a onlineUsersStore
+function isUserOnline(userId, role) {
   if (!userId) return false
-  return onlineUsersStore.isUserOnline(userId)
+  return onlineUsersStore.isUserOnline(userId, role)
 }
 
 /* ------------------------------------
@@ -490,7 +493,7 @@ function isUserOnline(userId) {
 function handleTypingEvent(event) {
   const { from, isTyping } = event.detail
   typingStatus.value.set(from, { isTyping, timestamp: Date.now() })
-
+  
   // Limpiar después de 3 segundos si no hay más eventos
   setTimeout(() => {
     const current = typingStatus.value.get(from)
@@ -535,7 +538,7 @@ function markAsRead(conversation) {
   const unreadMessageIds = conversationStore.messages?.[conversation.id]
     ?.filter(m => !m.is_read && m.sender !== authStore.user?.role)
     .map(m => m.id) || []
-
+  
   if (unreadMessageIds.length > 0) {
     conversationStore.markAsRead(conversation.id, unreadMessageIds)
     showToast('Conversación marcada como leída', 'success')
@@ -556,7 +559,7 @@ function markAllAsRead() {
     }
     return Promise.resolve()
   })
-
+  
   Promise.all(promises).then(() => {
     showToast('Todas las conversaciones marcadas como leídas', 'success')
   })
