@@ -1,4 +1,3 @@
-<!-- src/pages/admin/SystemSettings.vue - VERSIÓN COMPLETA CON FEATURES -->
 <template>
   <div class="admin-system-settings">
     <!-- Loading State -->
@@ -103,6 +102,34 @@
                 <div class="form-group">
                   <label class="form-label"><span class="label-icon">📍</span>Dirección de la Empresa</label>
                   <input type="text" v-model="systemConfig.company_address" @input="markAsChanged" placeholder="Dirección completa" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">📧</span>Email de la Empresa</label>
+                  <input type="email" v-model="systemConfig.company_email" @input="markAsChanged" placeholder="info@empresa.com" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">📱</span>Teléfono de la Empresa</label>
+                  <input type="text" v-model="systemConfig.company_phone" @input="markAsChanged" placeholder="+58 412-1234567" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">🎯</span>Misión</label>
+                  <textarea v-model="systemConfig.company_mission" @input="markAsChanged" placeholder="Nuestra misión..." class="form-textarea" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">🔮</span>Visión</label>
+                  <textarea v-model="systemConfig.company_vision" @input="markAsChanged" placeholder="Nuestra visión..." class="form-textarea" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">📅</span>Años de experiencia</label>
+                  <input type="text" v-model="systemConfig.company_years" @input="markAsChanged" placeholder="5+" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">🎂</span>Año de fundación</label>
+                  <input type="text" v-model="systemConfig.company_founded" @input="markAsChanged" placeholder="2020" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><span class="label-icon">👥</span>Clientes satisfechos</label>
+                  <input type="number" v-model="systemConfig.company_clients" @input="markAsChanged" placeholder="150" class="form-input">
                 </div>
               </div>
             </div>
@@ -381,7 +408,7 @@
           </div>
         </div>
 
-        <!-- ✅ Pestaña 5: Funcionalidades -->
+        <!-- Pestaña 5: Funcionalidades -->
         <div v-if="activeTab === 'features'" class="tab-panel">
           <div class="section-card">
             <div class="section-header">
@@ -469,6 +496,54 @@
             </div>
           </div>
         </div>
+
+        <!-- Pestaña 6: Hitos de la Empresa -->
+        <div v-if="activeTab === 'milestones'" class="tab-panel">
+          <div class="section-card">
+            <div class="section-header">
+              <h2>📅 Hitos de la Empresa</h2>
+              <p>Gestiona la línea de tiempo que aparece en la página "Nuestra Empresa"</p>
+              <button class="btn-add" @click="addMilestone">+ Agregar Hito</button>
+            </div>
+            <div class="section-content">
+              <div v-if="milestones.length === 0" class="empty-state">
+                <p>No hay hitos registrados. Agrega el primero.</p>
+              </div>
+              <div v-else class="milestones-list">
+                <div v-for="(m, i) in milestones" :key="m.id || i" class="milestone-item">
+                  <div class="milestone-header">
+                    <span class="milestone-icon">{{ m.icon || '📅' }}</span>
+                    <input v-model="m.year" placeholder="Año" class="milestone-year" @change="markAsChanged">
+                    <input v-model="m.title" placeholder="Título" class="milestone-title" @change="markAsChanged">
+                    <div class="milestone-actions">
+                      <button class="btn-sm" @click="toggleMilestone(m)" :title="m.is_active ? 'Desactivar' : 'Activar'">
+                        {{ m.is_active ? '👁️' : '🚫' }}
+                      </button>
+                      <button class="btn-sm btn-danger" @click="deleteMilestone(m, i)">🗑️</button>
+                    </div>
+                  </div>
+                  <textarea v-model="m.description" placeholder="Descripción del hito" class="milestone-desc" rows="2" @change="markAsChanged"></textarea>
+                  <div class="milestone-footer">
+                    <label>Icono:</label>
+                    <select v-model="m.icon" @change="markAsChanged">
+                      <option value="🚀">🚀 Lanzamiento</option>
+                      <option value="👥">👥 Clientes</option>
+                      <option value="📦">📦 Expansión</option>
+                      <option value="💡">💡 Innovación</option>
+                      <option value="🏆">🏆 Logro</option>
+                      <option value="📅">📅 General</option>
+                    </select>
+                    <label>Orden:</label>
+                    <input type="number" v-model.number="m.sort_order" min="0" class="milestone-order" @change="markAsChanged">
+                  </div>
+                </div>
+                <button class="btn-save" @click="saveMilestones" :disabled="savingMilestones">
+                  {{ savingMilestones ? 'Guardando...' : '💾 Guardar Hitos' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer con acciones -->
@@ -515,6 +590,8 @@ const systemConfig = ref({
   id: 1, system_name: 'TapClic', system_host: '', system_active: 1, system_version: '1.0.0',
   system_logo: '', system_favicon: '', default_language: 'es', timezone: 'UTC', currency: 'USD',
   support_email: '', support_phone: '', company_name: '', company_address: '',
+  company_phone: '', company_email: '', company_mission: '', company_vision: '',
+  company_years: '5+', company_founded: '2020', company_clients: 150,
   maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
   session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
   allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
@@ -530,7 +607,8 @@ const tabs = [
   { id: 'appearance', name: 'Apariencia', icon: '🎨' },
   { id: 'regional', name: 'Regional', icon: '🌍' },
   { id: 'security', name: 'Seguridad', icon: '🔒' },
-  { id: 'features', name: 'Funcionalidades', icon: '🧩' }
+  { id: 'features', name: 'Funcionalidades', icon: '🧩' },
+  { id: 'milestones', name: 'Hitos', icon: '📅' }
 ]
 
 const hasChanges = computed(() =>
@@ -557,6 +635,7 @@ async function loadSystemConfig() {
   } catch (error) {
     showError('Error al cargar la configuración del sistema')
   } finally {
+    await loadMilestones()
     loading.value = false
   }
 }
@@ -574,6 +653,8 @@ function resetToDefaults() {
       system_name: 'TapClic', system_host: '', system_active: 1, system_version: '1.0.0',
       system_logo: '', system_favicon: '', default_language: 'es', timezone: 'UTC', currency: 'USD',
       support_email: '', support_phone: '', company_name: '', company_address: '',
+      company_phone: '', company_email: '', company_mission: '', company_vision: '',
+      company_years: '5+', company_founded: '2020', company_clients: 150,
       maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
       session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
       allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
@@ -649,6 +730,72 @@ function formatFileSize(bytes) {
 function handleImageError(e) { e.target.src = '/img/default-image.png' }
 function showSuccess(msg) { successMessage.value = msg; setTimeout(() => successMessage.value = '', 5000) }
 function showError(msg) { errorMessage.value = msg; setTimeout(() => errorMessage.value = '', 8000) }
+
+// ========== HITOS (MILESTONES) ==========
+const milestones = ref([])
+const savingMilestones = ref(false)
+
+async function loadMilestones() {
+  try {
+    const response = await api.get('/admin/milestones', {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    milestones.value = response.data || []
+  } catch (error) {
+    console.error('Error cargando hitos:', error)
+  }
+}
+
+function addMilestone() {
+  milestones.value.push({
+    id: null,
+    year: new Date().getFullYear().toString(),
+    title: '',
+    description: '',
+    icon: '📅',
+    sort_order: milestones.value.length,
+    is_active: 1
+  })
+}
+
+function toggleMilestone(m) {
+  m.is_active = m.is_active ? 0 : 1
+  markAsChanged()
+}
+
+async function deleteMilestone(m, index) {
+  if (!confirm('¿Eliminar este hito?')) return
+  if (m.id) {
+    await api.delete(`/admin/milestones/${m.id}`, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+  }
+  milestones.value.splice(index, 1)
+}
+
+async function saveMilestones() {
+  savingMilestones.value = true
+  try {
+    for (const m of milestones.value) {
+      if (m.id) {
+        await api.put(`/admin/milestones/${m.id}`, m, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+      } else {
+        const res = await api.post('/admin/milestones', m, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        m.id = res.data.id
+      }
+    }
+    showSuccess('Hitos guardados correctamente')
+  } catch (error) {
+    showError('Error al guardar hitos')
+  } finally {
+    savingMilestones.value = false
+  }
+}
+
 </script>
 
 
@@ -1462,5 +1609,527 @@ function showError(msg) { errorMessage.value = msg; setTimeout(() => errorMessag
     gap: 12px;
     align-items: flex-start;
   }
+}
+
+/* ========== ESTILOS FALTANTES ========== */
+
+/* Page Header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.system-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2d3436;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.title-icon {
+  font-size: 2rem;
+}
+
+.system-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.version-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.system-host {
+  color: #636e72;
+  font-size: 0.9rem;
+}
+
+.page-subtitle {
+  color: #636e72;
+  margin-top: 8px;
+  font-size: 1rem;
+}
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+/* Botones principales */
+.btn-save-all {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-save-all:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-save-all:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  padding: 12px 20px;
+  background: #f1f5f9;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-refresh:hover {
+  background: #e2e8f0;
+}
+
+/* Mensajes */
+.message-success {
+  background: #d4edda;
+  color: #155724;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #c3e6cb;
+}
+
+.message-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #f5c6cb;
+}
+
+.message-icon {
+  font-size: 1.2rem;
+}
+
+.message-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.message-close:hover {
+  opacity: 1;
+}
+
+/* Section Card */
+.section-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 24px;
+  border: 2px solid #e2e8f0;
+}
+
+.section-header {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section-header h2 {
+  font-size: 1.3rem;
+  color: #2d3436;
+  margin: 0;
+}
+
+.section-header p {
+  color: #636e72;
+  margin: 0;
+  flex: 1;
+}
+
+.section-content {
+  /* contenedor */
+}
+
+/* Toggle Grid (Funcionalidades) */
+.toggle-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toggle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  gap: 20px;
+}
+
+.toggle-info h4 {
+  margin: 0 0 4px 0;
+  color: #2d3436;
+}
+
+.toggle-info p {
+  margin: 0;
+  color: #636e72;
+  font-size: 0.9rem;
+}
+
+.toggle-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+}
+
+.toggle-switch.large {
+  width: 60px;
+  height: 32px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.3s;
+  border-radius: 28px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch.large .toggle-slider:before {
+  height: 26px;
+  width: 26px;
+}
+
+input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-switch.large input:checked + .toggle-slider:before {
+  transform: translateX(28px);
+}
+
+.toggle-text {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.toggle-text.active { color: #00b894; }
+.toggle-text.inactive { color: #ff7675; }
+.toggle-text.maintenance { color: #ff9e00; }
+.toggle-text.normal { color: #667eea; }
+
+/* Form textarea */
+.form-textarea {
+  padding: 14px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: white;
+  resize: vertical;
+  font-family: inherit;
+  transition: all 0.3s;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Loading */
+.loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #636e72;
+}
+
+/* Footer */
+.action-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 2px solid #e2e8f0;
+  padding: 20px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.changes-indicator {
+  color: #ff9e00;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-right {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-discard {
+  padding: 12px 24px;
+  background: #f1f5f9;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-discard:hover {
+  background: #e2e8f0;
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-save:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-loading {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+/* ========== HITOS (MILESTONES) ========== */
+.btn-add {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: auto;
+}
+.btn-add:hover { background: #5a6fd6; }
+
+.milestones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.milestone-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+.milestone-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.milestone-icon {
+  font-size: 24px;
+}
+.milestone-year {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  text-align: center;
+}
+.milestone-title {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-width: 200px;
+}
+.milestone-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.btn-sm {
+  background: #e2e8f0;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-sm:hover { background: #cbd5e1; }
+.btn-danger { background: #fee2e2; }
+.btn-danger:hover { background: #fecaca; }
+.milestone-desc {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+}
+.milestone-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #64748b;
+}
+.milestone-footer select {
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+.milestone-order {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* Hide scrollbar */
+.admin-system-settings {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.label-icon {
+  font-size: 1.1rem;
 }
 </style>

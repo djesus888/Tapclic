@@ -6,7 +6,6 @@ namespace Services;
 use Exception;
 use PDO;
 
-
 // Cargar .env si no está cargado
 if (!getenv('WS_URL') && file_exists(__DIR__ . '/../.env')) {
     $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -24,7 +23,6 @@ if (!getenv('WS_URL') && file_exists(__DIR__ . '/../.env')) {
     }
     error_log("🔧 [WS] .env cargado manualmente");
 }
-
 
 class WebSocketService
 {
@@ -249,7 +247,6 @@ class WebSocketService
                         $result['message'] = "Error CURL ($curlErrno): $curlError";
                 }
                 error_log("❌ [WS] Error de conexión: {$result['message']}");
-
             } elseif ($httpCode >= 200 && $httpCode < 300) {
                 // Éxito
                 $result['success'] = true;
@@ -262,20 +259,17 @@ class WebSocketService
                 }
 
                 error_log("✅ [WS] Evento '$event' enviado correctamente (HTTP $httpCode)");
-
             } elseif ($httpCode >= 500) {
                 // Error del servidor Node.js
                 $result['message'] = "Error interno del servidor WebSocket (HTTP $httpCode)";
                 error_log("❌ [WS] {$result['message']}");
                 error_log("📦 [WS] Respuesta: $responseBody");
-
             } elseif ($httpCode >= 400) {
                 // Error del cliente (payload mal formado, etc.)
                 $result['message'] = "Error en la petición al WebSocket (HTTP $httpCode)";
                 error_log("❌ [WS] {$result['message']}");
                 error_log("📦 [WS] Data enviada: " . substr($jsonData, 0, 500));
                 error_log("📦 [WS] Respuesta: $responseBody");
-
             } else {
                 // Código inesperado (3xx, etc.)
                 $result['message'] = "Respuesta inesperada del WebSocket (HTTP $httpCode)";
@@ -379,36 +373,47 @@ class WebSocketService
      * @return array Resultado con éxito, mensaje y código HTTP
      */
     public static function sendNotification(
-        string $receiverRole,
-        int $receiverId,
-        string $title,
-        string $message,
-        array $data = []
-    ): array {
-        $payload = [
-            'event' => $data['event'] ?? 'status_changed',
-            'title' => $title,
-            'message' => $message,
+    string $receiverRole,
+    int $receiverId,
+    string $title,
+    string $message,
+    array $data = []
+): array {
+    $payload = [
+        'id' => $data['notification_id'] ?? null,           // ⭐ ID real de BD
+        'title' => $title,
+        'message' => $message,
+        'notification_type' => $data['notification_type'] ?? 'general',
+        'url' => $data['url'] ?? null,
+        'action' => $data['action'] ?? null,
+        'request_id' => $data['request_id'] ?? null,
+        'service_id' => $data['service_id'] ?? null,
+        'conversation_id' => $data['conversation_id'] ?? null,
+        'sender_name' => $data['sender_name'] ?? null,
+        // ✅ CAMPOS CRÍTICOS PARA EL FRONTEND
+        'is_read' => 0,
+        'created_at' => date('Y-m-d H:i:s'),
+        'data_json' => json_encode([
             'notification_type' => $data['notification_type'] ?? 'general',
             'url' => $data['url'] ?? null,
             'action' => $data['action'] ?? null,
-            'conversation_id' => $data['conversation_id'] ?? null,
-            'sender_name' => $data['sender_name'] ?? null,
             'request_id' => $data['request_id'] ?? null,
             'service_id' => $data['service_id'] ?? null,
-            'timestamp' => time()
-        ];
+            'type' => $data['notification_type'] ?? 'general'
+        ]),
+        'timestamp' => time()
+    ];
 
-        error_log("📢 [WS] Enviando notificación a {$receiverRole}_{$receiverId}: $title");
+    error_log("📢 [WS] Enviando notificación a {$receiverRole}_{$receiverId}: $title");
 
-        $result = self::emitToUser($receiverRole, $receiverId, 'new-notification', $payload);
+    $result = self::emitToUser($receiverRole, $receiverId, 'new-notification', $payload);
 
-        if (!$result['success']) {
-            error_log("⚠️ [WS] Notificación no enviada a {$receiverRole}_{$receiverId}: {$result['message']}");
-        }
-
-        return $result;
+    if (!$result['success']) {
+        error_log("⚠️ [WS] Notificación no enviada a {$receiverRole}_{$receiverId}: {$result['message']}");
     }
+
+    return $result;
+}
 
     /**
      * Verificar estado del servidor WebSocket

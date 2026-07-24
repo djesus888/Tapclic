@@ -59,6 +59,78 @@ public function getAdmins() {
     ]);
 }
 
+public function updateUser() {
+    header('Content-Type: application/json');
+    $this->requireAdmin();
+    
+    $id = $_GET['id'] ?? null;
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ID requerido']);
+        return;
+    }
+    
+    // Procesar multipart/form-data
+    $data = $_POST;
+    $avatarFileName = null;
+    
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $basePath = __DIR__ . '/../public/uploads';
+        $protocol = isset($_SERVER['HTTPS']) ? 'https://' : 'http://';
+        $baseUrl = $protocol . $_SERVER['HTTP_HOST'] . '/uploads';
+        $uploader = new \Utils\Uploader($basePath, $baseUrl);
+        try {
+            $avatarUrl = $uploader->saveFile($_FILES['avatar'], \Utils\Uploader::CAT_AVATARS);
+            $avatarFileName = basename($avatarUrl);
+        } catch (\RuntimeException $e) {
+            error_log("Error subiendo avatar: " . $e->getMessage());
+        }
+    }
+    
+    $userModel = new User();
+    $userModel->updateProfile($id, [
+        'name' => $data['name'] ?? '',
+        'email' => $data['email'] ?? '',
+        'phone' => $data['phone'] ?? '',
+        'address' => $data['address'] ?? '',
+        'business_address' => $data['business_address'] ?? '',
+        'service_categories' => $data['service_categories'] ?? '',
+        'coverage_area' => $data['coverage_area'] ?? '',
+        'preferences' => $data['preferences'] ?? '',
+        'bio' => $data['bio'] ?? '',
+        'linkedin_url' => $data['linkedin_url'] ?? '',
+        'twitter_url' => $data['twitter_url'] ?? ''
+    ]);
+    
+    // Actualizar position directamente
+    if (isset($data['position'])) {
+        $stmt = $this->conn->prepare("UPDATE users SET position = :pos WHERE id = :id");
+        $stmt->execute([':pos' => $data['position'], ':id' => $id]);
+    }
+    
+    if ($avatarFileName) {
+        $userModel->updateAvatar($id, $avatarFileName);
+    }
+    
+    echo json_encode(['success' => true]);
+}
+
+public function deleteUser() {
+    header('Content-Type: application/json');
+    $this->requireAdmin();
+    
+    $id = $_GET['id'] ?? null;
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ID requerido']);
+        return;
+    }
+    
+    $stmt = $this->db->prepare("DELETE FROM users WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    
+    echo json_encode(['success' => true]);
+}
 
     /* ---------- Métodos Helper para Analytics ---------- */
     private function getDateRange(string $period): array
@@ -1031,7 +1103,7 @@ public function getAnalyticsOverview(): void
         $total = (int)$stmt->fetchColumn();
 
         $stmt = $this->conn->prepare(
-            "SELECT id, name, email, phone, role, avatar_url, active
+            "SELECT id, name, email, phone, role, avatar_url, active, position, bio, linkedin_url, twitter_url, address, business_address, service_categories, coverage_area
                FROM users
                $sqlWhere
                ORDER BY id DESC
@@ -1845,8 +1917,10 @@ public function getAnalyticsOverview(): void
     {
         $this->requireAdmin();
         $input = json_decode(file_get_contents('php://input'), true);
-       $fields = [
+  $fields = [
     'system_name','system_host','company_name','company_address',
+    'company_phone','company_email','company_mission','company_vision',
+    'company_years','company_founded','company_clients',
     'support_email','support_phone','default_language','timezone','currency',
     'theme_color','items_per_page','max_login_attempts','session_timeout_minutes',
     'password_expiration_days','system_active','maintenance_mode','allow_user_registration',
@@ -1863,6 +1937,77 @@ public function getAnalyticsOverview(): void
         header('Content-Type: application/json');
         echo json_encode(['message' => 'Configuración actualizada']);
     }
+
+// ========== GESTIÓN DE HITOS (MILESTONES) ==========
+
+public function getMilestones(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+    
+    $stmt = $this->conn->query("SELECT * FROM company_milestones ORDER BY sort_order ASC");
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+public function createMilestone(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $stmt = $this->conn->prepare("
+        INSERT INTO company_milestones (year, title, description, icon, sort_order, is_active)
+        VALUES (:year, :title, :description, :icon, :sort_order, :is_active)
+    ");
+    $stmt->execute([
+        ':year' => $input['year'] ?? date('Y'),
+        ':title' => $input['title'] ?? '',
+        ':description' => $input['description'] ?? '',
+        ':icon' => $input['icon'] ?? '📅',
+        ':sort_order' => (int)($input['sort_order'] ?? 0),
+        ':is_active' => (int)($input['is_active'] ?? 1)
+    ]);
+    
+    echo json_encode(['success' => true, 'id' => $this->conn->lastInsertId()]);
+}
+
+public function updateMilestone(int $id): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $stmt = $this->conn->prepare("
+        UPDATE company_milestones 
+        SET year = :year, title = :title, description = :description, 
+            icon = :icon, sort_order = :sort_order, is_active = :is_active
+        WHERE id = :id
+    ");
+    $stmt->execute([
+        ':year' => $input['year'] ?? date('Y'),
+        ':title' => $input['title'] ?? '',
+        ':description' => $input['description'] ?? '',
+        ':icon' => $input['icon'] ?? '📅',
+        ':sort_order' => (int)($input['sort_order'] ?? 0),
+        ':is_active' => (int)($input['is_active'] ?? 1),
+        ':id' => $id
+    ]);
+    
+    echo json_encode(['success' => true]);
+}
+
+public function deleteMilestone(int $id): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+    
+    $stmt = $this->conn->prepare("DELETE FROM company_milestones WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    
+    echo json_encode(['success' => true]);
+}
 
 private function saveUpload(array $file, string $prefix): string
 {

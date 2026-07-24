@@ -22,7 +22,7 @@ require_once __DIR__ . '/../controllers/BillingController.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
 require_once __DIR__ . '/../controllers/MonetizationController.php';
 require_once __DIR__ . "/../controllers/FavoritesController.php";
-
+require_once __DIR__ . '/../controllers/CompanyController.php';
 
 //$request = $_SERVER['REQUEST_URI'];
 $request = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -218,7 +218,11 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
     (new AdminController())->stats();
-} elseif (preg_match('~/api/admin/users~', $request)) {
+} elseif (preg_match('~/api/admin/users\.php~', $request) && $method === 'POST') {
+    (new AdminController())->updateUser();
+} elseif (preg_match('~/api/admin/users\.php~', $request) && $method === 'DELETE') {
+    (new AdminController())->deleteUser();
+} elseif (preg_match('~/api/admin/users~', $request) && $method === 'GET') {
     (new AdminController())->users();
 } elseif (preg_match('~/api/admin/users/admins~', $request) && $method === 'GET') {
     (new AdminController())->getAdmins();
@@ -309,6 +313,26 @@ if (preg_match('~/api/login~', $request)) {
     } elseif ($method === 'PUT') {
         (new AdminController())->updateSystemConfig();
     }
+
+// --- RUTAS ADMIN (HITOS DE EMPRESA) ---
+} elseif (preg_match('~/api/admin/milestones/(\d+)$~', $request, $m) && $method === 'PUT') {
+    (new AdminController())->updateMilestone((int)$m[1]);
+} elseif (preg_match('~/api/admin/milestones/(\d+)$~', $request, $m) && $method === 'DELETE') {
+    (new AdminController())->deleteMilestone((int)$m[1]);
+} elseif (preg_match('~/api/admin/milestones~', $request) && $method === 'GET') {
+    (new AdminController())->getMilestones();
+} elseif (preg_match('~/api/admin/milestones~', $request) && $method === 'POST') {
+    (new AdminController())->createMilestone();
+
+// --- RUTAS ADMIN (HITOS DE EMPRESA) ---
+} elseif (preg_match('~/api/admin/milestones/(\d+)$~', $request, $m) && $method === 'PUT') {
+    (new AdminController())->updateMilestone((int)$m[1]);
+} elseif (preg_match('~/api/admin/milestones/(\d+)$~', $request, $m) && $method === 'DELETE') {
+    (new AdminController())->deleteMilestone((int)$m[1]);
+} elseif (preg_match('~/api/admin/milestones~', $request) && $method === 'GET') {
+    (new AdminController())->getMilestones();
+} elseif (preg_match('~/api/admin/milestones~', $request) && $method === 'POST') {
+    (new AdminController())->createMilestone();
 
 // --- RUTAS ADMIN (ACTUALIZACIÓN) ---
 } elseif (preg_match('~/api/admin/update/upload~', $request) && $method === 'POST') {
@@ -475,6 +499,10 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->getTicketReplies((int)$m[1]);
 } elseif (preg_match('~/api/admin/tickets/(\d+)/reopen~', $request, $m) && $method === 'POST') {
     (new AdminController())->reopenTicket((int)$m[1]);
+
+// --- RUTAS EMPRESA (PÚBLICO) ---
+} elseif ($request === '/api/company' && $method === 'GET') {
+    (new CompanyController())->index();
 
 // --- RUTAS FAVORITOS ---
 } elseif ($request === "/api/favorites" && $method === "GET") {

@@ -2,20 +2,17 @@
 import { defineStore } from 'pinia';
 import api from '@/axios';
 import { useAuthStore } from './authStore';
-import { useSocketStore } from './socketStore';  // ✅ CORREGIDO: una sola llave
+import { useSocketStore } from './socketStore';
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
     notifications: [],
     _initialized: false,
-    // Cache de notificaciones leídas
     _readCache: new Set(),
-    // Tipos de notificaciones que requieren sonido
     _soundEnabledTypes: ['new_message', 'request_updated', 'payment_received'],
-    // ✅ NUEVO: Evitar duplicados por procesamiento simultáneo
-    _processingIds: new Set(),
-    // ✅ NUEVO: Polling de respaldo
-    _pollingInterval: null
+    _pollingInterval: null,
+    // ✅ NUEVO: Referencia a la función cleanup del listener
+    _notificationListenerCleanup: null
   }),
 
   actions: {
@@ -28,8 +25,16 @@ export const useNotificationStore = defineStore('notification', {
       const socketStore = useSocketStore();
       socketStore.init();
 
-      // Escuchar notificaciones del sistema
-      socketStore.on('new-notification', (notification) => {
+      // ============================================================
+      // ✅ CORREGIDO: Limpiar listener anterior antes de registrar
+      // uno nuevo para evitar acumulación en reconexiones
+      // ============================================================
+      if (this._notificationListenerCleanup) {
+        this._notificationListenerCleanup();
+      }
+
+      // Registrar listener y guardar función de limpieza
+      this._notificationListenerCleanup = socketStore.on('new-notification', (notification) => {
         console.log('📬 Notificación recibida:', notification);
 
         // Verificar si es una notificación de mensaje
@@ -50,49 +55,25 @@ export const useNotificationStore = defineStore('notification', {
         this.addNotification(notification);
       });
 
-      // Escuchar específicamente mensajes nuevos
-      socketStore.on('new_message', (data) => {
-        // Crear notificación de mensaje si no viene del sistema de notificaciones
-        if (data.message && !data.notification) {
-          const messageNotification = {
-            id: `msg_${data.message.id}`,
-            type: 'new_message',
-            title: 'Nuevo mensaje',
-            message: data.message.text || 'Has recibido un mensaje',
-            data: {
-              conversation_id: data.conversation_id,
-              message_id: data.message.id,
-              url: `/chat/${data.conversation_id}`
-            },
-            created_at: new Date().toISOString(),
-            is_read: false
-          };
-          this.addNotification(messageNotification, false); // false = no reproducir sonido
-        }
-      });
-
       // ✅ NUEVO: Iniciar polling de respaldo
       this._startPolling();
     },
 
-    // ✅ NUEVO: Polling de respaldo para cuando WebSocket falla
     _startPolling() {
       if (this._pollingInterval) clearInterval(this._pollingInterval);
 
       this._pollingInterval = setInterval(async () => {
         try {
           const socketStore = useSocketStore();
-          // Solo hacer polling si el socket no está conectado
           if (!socketStore.isConnected) {
             await this.loadNotificationsFromAPI();
           }
         } catch (err) {
           // Silencioso, solo respaldo
         }
-      }, 30000); // Cada 30 segundos
+      }, 30000);
     },
 
-    // ✅ NUEVO: Detener polling
     _stopPolling() {
       if (this._pollingInterval) {
         clearInterval(this._pollingInterval);
@@ -110,10 +91,9 @@ export const useNotificationStore = defineStore('notification', {
         const list = Array.isArray(response.data)
           ? response.data
           : Array.isArray(response.data?.data)
-          ? response.data.data
-          : response.data?.notifications || [];
+            ? response.data.data
+            : response.data?.notifications || [];
 
-        // ✅ CORREGIDO: Merge inteligente para no perder notificaciones locales
         const existingIds = new Set(this.notifications.map(n => n.id));
         const newNotifications = list.filter(n => !existingIds.has(n.id));
 
@@ -121,7 +101,6 @@ export const useNotificationStore = defineStore('notification', {
           this.notifications = [...newNotifications, ...this.notifications];
         }
 
-        // Actualizar cache de leídas
         list.forEach(n => {
           if (n.is_read) this._readCache.add(n.id);
         });
@@ -132,87 +111,87 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     addNotification(notification, playSound = true) {
-      // ✅ NUEVO: Evitar procesar la misma notificación dos veces simultáneamente
-      const dedupeKey = notification.id ||
-        `${notification.title}_${notification.message}_${notification.created_at || notification.timestamp}`;
+      // ✅ CORREGIDO: Convertir ID a string (el frontend espera string)
+      if (notification.id !== undefined && notification.id !== null) {
+        notification.id = String(notification.id);
+      }
 
-      if (this._processingIds.has(dedupeKey)) {
-        console.log('🔄 Notificación ya en procesamiento, omitiendo:', dedupeKey);
+      // ✅ CORREGIDO: Si no tiene ID, generar uno único
+      if (!notification.id) {
+        notification.id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      // ✅ CORREGIDO: Agregar created_at si no viene pero hay timestamp
+      if (!notification.created_at && notification.timestamp) {
+        notification.created_at = new Date(notification.timestamp * 1000).toISOString();
+      }
+
+      // ✅ CORREGIDO: Verificar duplicados SOLO por ID (más simple y efectivo)
+      const exists = this.notifications.some((n) => String(n.id) === String(notification.id));
+
+      if (exists) {
+        console.log('🔇 Notificación duplicada por ID, omitiendo:', notification.id);
         return;
       }
 
-      this._processingIds.add(dedupeKey);
+      // ✅ Agregar la notificación al inicio de la lista
+      this.notifications.unshift(notification);
 
-      // Limpiar la clave después de un tiempo
-      setTimeout(() => {
-        this._processingIds.delete(dedupeKey);
-      }, 5000);
-
-      // ✅ CORREGIDO: Verificar duplicados por id, título y timestamp
-      const exists = this.notifications.find((n) => {
-        // Si tiene id, comparar por id
-        if (notification.id && n.id === notification.id) return true;
-        // Si no, comparar por título + mensaje + timestamp cercano
-        if (notification.title === n.title &&
-            notification.message === n.message &&
-            Math.abs((notification.timestamp || 0) - (n.timestamp || 0)) < 2000) {
-          return true;
-        }
-        return false;
-      });
-
-      if (!exists) {
-        // Asegurar que tenga un id único
-        if (!notification.id) {
-          notification.id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        }
-        this.notifications.unshift(notification);
-
-        // Limitar número de notificaciones en memoria
-        if (this.notifications.length > 100) {
-          this.notifications = this.notifications.slice(0, 100);
-        }
-
-        // Reproducir sonido si está permitido
-        if (playSound && this._shouldPlaySound(notification)) {
-          this.playSound();
-        }
+      // Limitar número de notificaciones en memoria
+      if (this.notifications.length > 100) {
+        this.notifications = this.notifications.slice(0, 100);
       }
+
+      // Reproducir sonido si está permitido
+      if (playSound && this._shouldPlaySound(notification)) {
+        this.playSound();
+      }
+
+      console.log('✅ Notificación agregada:', notification.id, notification.title);
     },
 
     _shouldPlaySound(notification) {
       return this._soundEnabledTypes.includes(notification.type);
     },
 
-    markAsRead(id) {
-      const idx = this.notifications.findIndex((n) => n.id === id);
+    async markAsRead(id) {
+      // ✅ CORREGIDO: Convertir id a string para comparación consistente
+      const strId = String(id);
+      const idx = this.notifications.findIndex((n) => String(n.id) === strId);
       if (idx !== -1) {
         this.notifications[idx].is_read = true;
-        this._readCache.add(id);
+        this._readCache.add(strId);
+      }
+      try {
+        await api.post('/notifications/read', { id: strId }, {
+          headers: { Authorization: `Bearer ${useAuthStore().token}` }
+        });
+      } catch (e) {
+        console.error('Error marcando notificación como leída:', e);
       }
     },
 
     markAsReadLocally(id) {
-      const idx = this.notifications.findIndex((n) => n.id === id);
+      const strId = String(id);
+      const idx = this.notifications.findIndex((n) => String(n.id) === strId);
       if (idx !== -1) {
         this.notifications[idx].is_read = true;
-        this._readCache.add(id);
+        this._readCache.add(strId);
       }
     },
 
-   // ✅ CORREGIDO: Marcar todas como leídas sin causar error de DOM
-markAllAsRead() {
-  const len = this.notifications.length;
-  // Marcar en lotes pequeños para no saturar el Virtual DOM
-  for (let i = 0; i < len; i++) {
-    this.notifications[i].is_read = true;
-    this._readCache.add(this.notifications[i].id);
-  }
-},
+    markAllAsRead() {
+      const len = this.notifications.length;
+      for (let i = 0; i < len; i++) {
+        this.notifications[i].is_read = true;
+        this._readCache.add(this.notifications[i].id);
+      }
+    },
 
     removeNotification(id) {
-      this.notifications = this.notifications.filter((n) => n.id !== id);
-      this._readCache.delete(id);
+      const strId = String(id);
+      this.notifications = this.notifications.filter((n) => String(n.id) !== strId);
+      this._readCache.delete(strId);
     },
 
     getUnreadNotifications() {
@@ -252,10 +231,14 @@ markAllAsRead() {
       }
     },
 
-    // ✅ NUEVO: Limpiar al destruir
+    // ✅ Limpiar al destruir
     cleanup() {
       this._stopPolling();
-      this._processingIds.clear();
+      // Limpiar listener de socket
+      if (this._notificationListenerCleanup) {
+        this._notificationListenerCleanup();
+        this._notificationListenerCleanup = null;
+      }
     }
   },
 

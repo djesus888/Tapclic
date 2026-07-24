@@ -179,8 +179,8 @@
   v-if="reviewRequest"
   :modelValue="{ rating: 0, comment: '', tags: [], photos: [] }"
   mode="new"
-  :targetRole="authStore.user?.role === 'provider' ? 'user' : 'provider'"
-  :reviewType="authStore.user?.role === 'provider' ? 'user' : 'service'"
+  :targetRole="reviewTargetRole"
+  :reviewType="reviewTargetType"
   :serviceHistoryId="reviewRequest.id"
   :authToken="authStore.token"
   @close="reviewRequest = null"
@@ -237,6 +237,21 @@ const tabs = computed(() => [
   { key: 'busy',       label: t('busy') },
   { key: 'rejected',   label: t('rejected') }
 ])
+
+
+const reviewTargetRole = computed(() => {
+  const role = authStore.user?.role
+  if (role === 'provider') return 'user'
+  if (role === 'admin') return 'provider'
+  return 'provider'
+})
+
+const reviewTargetType = computed(() => {
+  const role = authStore.user?.role
+  if (role === 'provider') return 'user'
+  return 'service'
+})
+
 
 onMounted(() => fetchRequests())
 

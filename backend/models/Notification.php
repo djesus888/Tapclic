@@ -55,12 +55,11 @@ class Notification {
     }
 
     public function getForUser($userId, $role) {
-        $query = "SELECT id, title, message, data_json, is_read, created_at
-                  FROM {$this->table}
-                  WHERE receiver_id = :id AND receiver_role = :role
-                  ORDER BY created_at DESC
-                  LIMIT 50"; // ✅ Añadido límite para mejor rendimiento
-
+        $query = "SELECT id, sender_id, title, message, data_json, is_read, created_at
+          FROM {$this->table}
+          WHERE receiver_id = :id AND receiver_role = :role
+          ORDER BY created_at DESC
+          LIMIT 50";
         $stmt = $this->conn->prepare($query);
         $stmt->execute([
             ':id'   => $userId,

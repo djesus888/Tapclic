@@ -308,13 +308,7 @@ export const useSocketStore = defineStore('socket', {
       const onlineUsersStore = useOnlineUsersStore();
       const notificationStore = useNotificationStore();
       const conversationStore = useConversationStore();
-
-      socket.on('new-notification', (notification) => {
-        console.log('📢 [SOCKET] Notificación recibida:', notification);
-        notificationStore.addNotification(notification);
-        this.playNotificationSound();
-        this._emitToHandlers('new-notification', notification);
-      });
+      
 
       // ✅ CORREGIDO: Normalizar users_online antes de merge
       socket.on('users_online', (users) => {

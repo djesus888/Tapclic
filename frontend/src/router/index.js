@@ -35,13 +35,14 @@ const routes = [
       { path: 'wallet', component: () => import('@/pages/Wallet.vue') },
       { path: 'config', component: () => import('@/pages/Config.vue') },
       { path: 'orders', component: () => import('@/pages/Orders.vue') },
+      { path: 'orders/:id', component: () => import('@/pages/OrderDetail.vue') },  // ← NUEVA
       { path: 'services/new', component: () => import('@/pages/services/NewServices.vue') },
       { path: 'chats', component: () => import('@/pages/ChatList.vue') },
       { path: 'chat/:id', component: () => import('@/pages/ChatView.vue') },
       { path: 'services', component: () => import('@/pages/services/Services.vue') },
       { path: 'routes', component: () =>  import('@/pages/Routes.vue') },
       { path: 'myservices', component: () => import('@/pages/services/MyServices.vue') },     
-      { path: 'payment', component: () => import('@/pages/PaymentMethod.vue') },
+      { path: 'payment', component: () => import('@/pages/PaymentMethod.vue'), meta: { role: 'provider' } },
       { path: 'admin/users', component: () => import('@/pages/AdminUser.vue') },
       { path: 'provider', component: () => import('@/pages/AdminProviders.vue'), meta: { role: 'admin' } },
       { path: 'service/:id/publish', component: () => import('@/pages/services/ServicePublish.vue'), meta: { role: 'provider' } },
@@ -68,6 +69,8 @@ const routes = [
       { path: 'admin/tickets', component: () => import('@/pages/AdminTickets.vue') },
       { path: 'provider/staff', component: () => import('@/pages/ProviderStaff.vue'), meta: { role: 'provider' } },
       { path: 'delivery/orders', component: () => import('@/pages/DeliveryOrders.vue') },
+      { path: 'company', component: () => import('@/pages/CompanyView.vue') },
+
 
       /* Dashboards por rol */
       { path: 'dashboard/user',     component: () => import('@/components/DashboardUser.vue'),    meta: { role: 'user' } },

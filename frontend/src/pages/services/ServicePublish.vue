@@ -1,6 +1,3 @@
-Aquí tienes el archivo completo y corregido listo para copiar y pegar:
-
-```vue
 <template>
   <div class="service-publish-container">
     <!-- Loading -->

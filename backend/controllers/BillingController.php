@@ -377,7 +377,7 @@ class BillingController
         // WebSocket
         WebSocketService::sendNotification('provider', $providerId, $title, $message, [
             'notification_type' => 'billing',
-            'url' => '/dashboard/provider',
+            'url' => '/provider/billing',
             'action' => 'view_billing'
         ]);
     }

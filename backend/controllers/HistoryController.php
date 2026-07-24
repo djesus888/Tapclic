@@ -870,7 +870,7 @@ class HistoryController
 
         if ($decoded->role === 'admin') {
             $stmt = $this->conn->prepare("SELECT * FROM service_history WHERE id = :hid");
-            $stmt->execute([':hid' => $historyId]);
+            $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
         } else {
             $stmt = $this->conn->prepare("SELECT * FROM service_history WHERE id = :hid AND user_id = :uid");
             $stmt->execute([':hid' => $historyId, ':uid' => $decoded->id]);
@@ -1279,7 +1279,7 @@ class HistoryController
 
         if ($reviewerRole === 'admin') {
             $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid");
-            $stmt->execute([':hid' => $historyId]);
+            $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
         } else {
             $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid AND provider_id = :pid");
             $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
@@ -1292,8 +1292,8 @@ class HistoryController
 
         $userId = (int)$history['user_id'];
 
-        $stmt = $this->conn->prepare("SELECT id FROM user_reviews WHERE service_history_id = :hid");
-        $stmt->execute([':hid' => $historyId]);
+        $stmt = $this->conn->prepare("SELECT id FROM user_reviews WHERE service_history_id = :hid AND provider_id = :pid");
+        $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
         if ($stmt->fetch()) {
             $this->send(409, ['message' => 'Ya evaluaste a este usuario']);
         }

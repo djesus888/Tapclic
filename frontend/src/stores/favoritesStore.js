@@ -37,7 +37,7 @@ export const useFavoritesStore = defineStore('favorites', () => {
   const removeFromFavorites = async (serviceId) => {
     try {
       await api.delete(`/favorites/${serviceId}`)
-      favorites.value = favorites.value.filter(fav => fav.serviceId !== serviceId)
+      favorites.value = favorites.value.filter(fav => fav.service_id !== serviceId)
     } catch (err) {
       error.value = err.message
       throw err
@@ -55,7 +55,7 @@ export const useFavoritesStore = defineStore('favorites', () => {
   }
 
   const isFavorite = (serviceId) => {
-    return favorites.value.some(fav => fav.serviceId === serviceId)
+    return favorites.value.some(fav => fav.service_id === serviceId)
   }
 
   return {

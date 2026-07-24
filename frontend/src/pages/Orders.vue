@@ -513,10 +513,11 @@ const canDispute = (order) => {
 const getReviewType = () => {
   const userRole = authStore.user?.role
   const reviewTypes = {
+    user: { endpoint: '/history/rate', type: 'service_review' },
     client: { endpoint: '/history/rate', type: 'service_review' },
     provider: { endpoint: '/history/rate-user', type: 'user_review' },
-    admin: { endpoint: '/history/admin-rate', type: 'admin_review' },
-    moderator: { endpoint: '/history/moderator-rate', type: 'moderator_review' }
+    admin: { endpoint: '/history/rate', type: 'admin_review' },
+    moderator: { endpoint: '/history/rate', type: 'moderator_review' }
   }
   return reviewTypes[userRole] || null
 }

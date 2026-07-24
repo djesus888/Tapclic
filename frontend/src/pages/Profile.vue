@@ -278,6 +278,48 @@
               />
               <div class="form-hint">{{ $t('addressHint') }}</div>
             </div>
+           
+<!-- Redes Sociales y Bio (para todos los usuarios) -->
+<div class="section-divider">
+    <span class="divider-text">🌐 Redes Sociales y Biografía</span>
+</div>
+
+<div class="form-group">
+    <label class="form-label">
+        <span class="label-icon">📝</span> Biografía
+    </label>
+    <textarea
+        v-model="form.bio"
+        placeholder="Cuéntanos sobre ti..."
+        class="form-textarea"
+        rows="3"
+    />
+    <div class="form-hint">Esta biografía aparecerá en la página de la empresa si eres directivo</div>
+</div>
+
+<div class="form-group">
+    <label class="form-label">
+        <span class="label-icon">🔗</span> LinkedIn
+    </label>
+    <input
+        v-model="form.linkedin_url"
+        type="url"
+        placeholder="https://linkedin.com/in/tu-perfil"
+        class="form-input"
+    />
+</div>
+
+<div class="form-group">
+    <label class="form-label">
+        <span class="label-icon">🐦</span> Twitter / X
+    </label>
+    <input
+        v-model="form.twitter_url"
+        type="url"
+        placeholder="https://twitter.com/tu-usuario"
+        class="form-input"
+    />
+</div>
 
             <!-- Business Info (only for admin/provider) -->
             <template v-if="user?.role === 'admin' || user?.role === 'provider'">
@@ -502,16 +544,19 @@ export default {
     const { t, locale } = useI18n()
 
     const user = ref(null)
-    const form = ref({
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      business_address: '',
-      service_categories: '',
-      coverage_area: '',
-      preferences: ''
-    })
+   const form = ref({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    business_address: '',
+    service_categories: '',
+    coverage_area: '',
+    bio: '',
+    linkedin_url: '',
+    twitter_url: '',
+    preferences: ''
+})
 
     const avatarFile = ref(null)
     const previewAvatar = ref(null)
@@ -609,15 +654,18 @@ export default {
         }
 
         form.value = {
-          name: user.value.name || '',
-          email: user.value.email || '',
-          phone: user.value.phone || '',
-          address: user.value.address || '',
-          business_address: user.value.business_address || '',
-          service_categories: user.value.service_categories || '',
-          coverage_area: user.value.coverage_area || '',
-          preferences: user.value.preferences || ''
-        }
+    name: user.value.name || '',
+    email: user.value.email || '',
+    phone: user.value.phone || '',
+    address: user.value.address || '',
+    business_address: user.value.business_address || '',
+    service_categories: user.value.service_categories || '',
+    coverage_area: user.value.coverage_area || '',
+    bio: user.value.bio || '',                    // ✅ AGREGAR
+    linkedin_url: user.value.linkedin_url || '',  // ✅ AGREGAR
+    twitter_url: user.value.twitter_url || '',    // ✅ AGREGAR
+    preferences: user.value.preferences || ''
+}
 
         if (user.value.preferences) {
           try {
@@ -714,7 +762,9 @@ export default {
         payload.append('email', form.value.email.trim().toLowerCase())
         payload.append('phone', form.value.phone.trim())
         payload.append('address', form.value.address.trim())
-        
+        payload.append('bio', form.value.bio?.trim() || '')
+        payload.append('linkedin_url', form.value.linkedin_url?.trim() || '')
+        payload.append('twitter_url', form.value.twitter_url?.trim() || '')        
         if (!isStaff.value) {
           payload.append('business_address', form.value.business_address.trim())
           payload.append('service_categories', form.value.service_categories.trim())
@@ -1091,15 +1141,18 @@ export default {
     const resetForm = () => {
       if (user.value) {
         form.value = {
-          name: user.value.name || '',
-          email: user.value.email || '',
-          phone: user.value.phone || '',
-          address: user.value.address || '',
-          business_address: user.value.business_address || '',
-          service_categories: user.value.service_categories || '',
-          coverage_area: user.value.coverage_area || '',
-          preferences: user.value.preferences || ''
-        }
+    name: user.value.name || '',
+    email: user.value.email || '',
+    phone: user.value.phone || '',
+    address: user.value.address || '',
+    business_address: user.value.business_address || '',
+    service_categories: user.value.service_categories || '',
+    coverage_area: user.value.coverage_area || '',
+    bio: user.value.bio || '',
+    linkedin_url: user.value.linkedin_url || '',
+    twitter_url: user.value.twitter_url || '',
+    preferences: user.value.preferences || ''
+}
       }
       avatarFile.value = null
       previewAvatar.value = null

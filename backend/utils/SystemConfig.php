@@ -16,4 +16,3 @@ class SystemConfig
         return $key === null ? self::$cache : (self::$cache['extra_json'][$key] ?? $default);
     }
 }
-

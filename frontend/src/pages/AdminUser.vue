@@ -64,9 +64,9 @@
             @change="fetchUsers"
           >
             <option value="">Todos los roles</option>
-            <option value="client">Cliente</option>
+            <option value="user">Cliente</option>
             <option value="provider">Proveedor</option>
-            <option value="driver">Conductor</option>
+            <option value="admin">Administrador</option>
           </select>
         </div>
 
@@ -288,11 +288,26 @@
                 v-model="form.role"
                 required
               >
-                <option value="client">Cliente</option>
+                <option value="user">Cliente</option>
                 <option value="provider">Proveedor</option>
-                <option value="driver">Conductor</option>
+                <option value="admin">Administrador</option>
               </select>
             </div>
+
+<div class="form-group">
+    <label for="edit-position">Posición en la empresa</label>
+    <select
+        id="edit-position"
+        v-model="form.position"
+    >
+        <option value="">Sin asignar</option>
+        <option value="team">Miembro del equipo</option>
+        <option value="founder">Fundador</option>
+        <option value="director">Director</option>
+        <option value="subdirector">Subdirector</option>
+    </select>
+</div>
+
 
             <div class="form-group full-width">
               <label for="edit-address">Dirección personal</label>
@@ -551,7 +566,7 @@ const goToPage = page => {
 // ✅ Corregido: openModal con getImageUrl
 const openModal = (user) => {
   form.value = { ...user }
-  preview.value = user?.avatar_url ? getImageUrlHelper(user.avatar_url) : null
+  preview.value = user?.avatar_url ? getImageUrlHelper(user.avatar_url, 'avatars') : null
   modalOpen.value = true
 }
 

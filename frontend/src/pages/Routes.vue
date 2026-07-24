@@ -128,7 +128,7 @@
               >
               <button
                 class="remove-favorite"
-                @click="removeFromFavorites(service.id)"
+                @click="removeFromFavorites(service.service_id)"
                 :title="`Quitar ${service.name} de favoritos`"
               >
                 ❌
@@ -334,13 +334,13 @@ function contactProvider(providerId) {
 }
 
 async function removeFromFavorites(serviceId) {
-  try {
-    await favoritesStore.removeFromFavorites(serviceId)
-    favoriteServices.value = favoriteServices.value.filter(s => s.id !== serviceId)
-    showToast('Eliminado de favoritos', 'success')
-  } catch (error) {
-    showToast('Error al eliminar favorito', 'error')
-  }
+    try {
+        await favoritesStore.removeFromFavorites(serviceId)
+        favoriteServices.value = favoriteServices.value.filter(s => s.service_id !== serviceId)
+        showToast('Eliminado de favoritos', 'success')
+    } catch (error) {
+        showToast('Error al eliminar favorito', 'error')
+    }
 }
 
 async function clearAllFavorites() {

@@ -140,10 +140,10 @@ $stmt->execute([$gatewayName, $paymentId]);
             'message' => $method === 'efectivo'
                 ? 'El cliente pagará en efectivo'
                 : 'Cliente subió comprobante – verifica el pago',
-            'data_json' => json_encode([
+                'data_json' => json_encode([
                 'type' => 'payment',
                 'notification_type' => 'payment_received',
-                'url' => '/dashboard/provider',
+                'url' => '/orders/' . $requestId,
                 'action' => 'verify_payment',
                 'request_id' => (int)$requestId,
                 'payment_id' => $paymentId
@@ -159,7 +159,7 @@ $stmt->execute([$gatewayName, $paymentId]);
             [
                 'event' => 'payment_received',
                 'notification_type' => 'payment_received',
-                'url' => '/dashboard/provider',
+                'url' => '/orders/' . $requestId,
                 'action' => 'verify_payment',
                 'request_id' => (int)$requestId,
                 'payment_id' => $paymentId

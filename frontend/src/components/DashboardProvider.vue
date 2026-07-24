@@ -164,7 +164,6 @@ export default {
       authStore: useAuthStore(), lastPullRefresh_: 0, pullRefreshCooldown_: 5000,
       socketHandlers_: [], initialized_: false,
       lastFetch_: { support: 0, history: 0, faq: 0 }, CACHE_TTL_: 5000,
-      // Asignación de delivery
       showAssignModal: false, assignRequestId: null, staffList: [], selectedStaffId: null, assigning: false
     };
   },
@@ -186,21 +185,48 @@ export default {
   },
   beforeUnmount() { this.cleanupSocketHandlers(); this.resetModals(); document.removeEventListener('visibilitychange', this.onVisibilityChange); window.removeEventListener('refresh-provider-dashboard', this.handleProviderRefresh); },
   methods: {
-    getTabIcon(tab) { const i = { 'available': '📋', 'in-progress': '⚡', 'support': '🛠️', 'history': '📅' }; return i[tab] || '📄'; },
+    getTabIcon(tab) { const i = { 'available': '📋', 'in-progress': '⚡', 'support': '🛠️', 'history': '📅' }; return i[tab] || ' 📄'; },
     getTabCount(tab) { switch(tab) { case 'available': return this.availableRequests.length; case 'in-progress': return this.inProgressRequests.length; case 'history': return this.historyRequests.length; case 'support': return this.tickets.length; default: return 0; } },
     async onVisibilityChange() { if (!document.hidden && this.initialized_) { this.lastPullRefresh_ = 0; await this.syncRequests(); } },
-    // ========== ASIGNAR DELIVERY ==========
     async openAssignDeliveryModal(requestId) { this.assignRequestId = requestId; this.selectedStaffId = null; await this.fetchStaffList(); this.showAssignModal = true; },
     async fetchStaffList() { try { const { data } = await api.get('/provider/staff', { headers: { Authorization: `Bearer ${this.authStore.token}` } }); this.staffList = (data.staff || []).filter(s => s.role === 'delivery'); } catch (err) { console.error('Error cargando staff:', err); } },
     async assignDeliveryToRequest() { if (!this.selectedStaffId || !this.assignRequestId) return; this.assigning = true; try { await api.post('/requests/assign-delivery', { request_id: this.assignRequestId, staff_id: this.selectedStaffId }, { headers: { Authorization: `Bearer ${this.authStore.token}` } }); this.showAssignModal = false; await this.fetchActiveRequests(); } catch (err) { alert('Error al asignar delivery'); } finally { this.assigning = false; } },
-    // ========== FIN ASIGNAR DELIVERY ==========
     async handleOpenTicket(ticket) { try { const auth = useAuthStore(); const { data } = await api.get(`/support/tickets/${ticket.id}/replies`, { headers: { Authorization: `Bearer ${auth.token}` } }); this.ticketHistoryData = { ...this.ticketHistoryData, [ticket.id]: data.replies || [] }; } catch (e) { console.error("Error cargando replies:", e); } },
     handleReplyTicket(ticket) { console.log('🔵 Proveedor quiere responder al ticket:', ticket.id); },
     async handleSendReply(payload) { try { const auth = useAuthStore(); const response = await api.post('/support/tickets/reply', { ticket_id: payload.ticket.id, message: payload.message }, { headers: { Authorization: `Bearer ${auth.token}` } }); if (response.data.success) { this.ticketHistoryData = { ...this.ticketHistoryData, [payload.ticket.id]: [] }; await this.handleOpenTicket(payload.ticket); this.$swal?.fire({ icon: 'success', title: 'Respuesta enviada', text: 'Tu mensaje ha sido enviado correctamente', timer: 2000, showConfirmButton: false }); } } catch (error) { this.$swal?.fire({ icon: 'error', title: 'Error', text: error.response?.data?.message || 'Error al enviar la respuesta' }); } },
     async handleCloseTicket(ticket) { try { const auth = useAuthStore(); const response = await api.put('/support/tickets/close', { ticket_id: ticket.id }, { headers: { Authorization: `Bearer ${auth.token}` } }); if (response.data.success) { this.lastFetch_.support = 0; await this.fetchTickets(); this.$swal?.fire({ icon: 'success', title: 'Ticket cerrado', text: 'El ticket se ha cerrado correctamente', timer: 2000, showConfirmButton: false }); } } catch (error) { this.$swal?.fire({ icon: 'error', title: 'Error', text: error.response?.data?.message || 'Error al cerrar el ticket' }); } },
     handleCopyTicketId(ticket) { console.log('ID del ticket copiado:', ticket.id); },
     handleChatWithTicket(ticket) { this.chatTarget = { id: -ticket.id, name: `Soporte - Ticket #${ticket.id}`, role: 'support', context: { ticket_id: ticket.id, subject: ticket.subject, last_message: ticket.last_message } }; },
-    setupSocketHandlers(socketStore) { /* ... mismo código ... */ },
+
+    setupSocketHandlers(socketStore) {
+      const onNewRequest = () => {
+        this.fetchAvailableRequests();
+      };
+
+      const onRequestUpdated = (data) => {
+        const request = data.request || data;
+        if (request && request.id) {
+          this.handleRequestUpdate(request);
+        }
+      };
+
+      const onPaymentUpdated = (data) => {
+        if (data.request_id) {
+          this.handlePaymentUpdate(data.request_id, data.payment_status);
+        }
+      };
+
+      socketStore.on('new_request_created', onNewRequest);
+      socketStore.on('request_updated', onRequestUpdated);
+      socketStore.on('payment_updated', onPaymentUpdated);
+
+      this.socketHandlers_ = [
+        { event: 'new_request_created', handler: onNewRequest },
+        { event: 'request_updated', handler: onRequestUpdated },
+        { event: 'payment_updated', handler: onPaymentUpdated },
+      ];
+    },
+
     cleanupSocketHandlers() { const socketStore = useSocketStore(); this.socketHandlers_.forEach(({ event, handler }) => { socketStore.off(event, handler); }); this.socketHandlers_ = []; },
     async initializeTabs() { this.tabs = [{ value: 'available', label: this.$t('requests') }, { value: 'in-progress', label: this.$t('active') }, { value: 'support', label: this.$t('support') }, { value: 'history', label: this.$t('history') }]; },
     handleProviderRefresh() { this.syncRequests(); },
@@ -213,7 +239,7 @@ export default {
     updateHistory(request) { const i = this.historyRequests.findIndex(h => h.id === request.id); const n = this.normalizeHistory(request); if (i >= 0) this.historyRequests[i] = n; else this.historyRequests.unshift(n); },
     resetModals() { this.chatTarget = null; this.showNewTicket = false; this.openDropdown = null; this.showProofModal = false; this.proofModalRequestId = null; this.historyModal = false; this.selectedHistory = {}; this.showAssignModal = false; },
     normalizeHistory(h) { const pm = h.payment_methods || []; return { ...h, payment_methods: (() => { try { if (Array.isArray(pm)) return pm; if (typeof pm === 'string') return JSON.parse(pm); return []; } catch { return []; } })() }; },
-    normalizeRequest(r) { /* ... mismo código ... */ return { ...r, service_title: r.service_title || r.title || 'Servicio', service_price: Number(r.service_price || r.price || 0), status: r.status || 'pending', payment_status: r.payment_status || 'pending' }; },
+    normalizeRequest(r) { return { ...r, service_title: r.service_title || r.title || 'Servicio', service_price: Number(r.service_price || r.price || 0), status: r.status || 'pending', payment_status: r.payment_status || 'pending' }; },
     formatDate(d, onlyTime = false) { if (!d) return ''; const l = this.$i18n.locale.value || 'es'; const o = onlyTime ? { hour: '2-digit', minute: '2-digit', second: '2-digit' } : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }; try { return new Date(d).toLocaleString(l, o); } catch { return d; } },
     formatCurrency(amount) { return new Intl.NumberFormat(this.$i18n.locale.value || 'es', { style: 'currency', currency: 'USD' }).format(amount || 0); },
     statusLabel(status) { const m = { completed: 'Completado', completado: 'Completado', cancelled: 'Cancelado', cancelado: 'Cancelado', pending: 'Pendiente', pendiente: 'Pendiente' }; return m[status] || status; },
@@ -237,7 +263,7 @@ export default {
     async acceptRequest(id) { await this.executeRequestAction(id, '/requests/accept', 'Solicitud aceptada'); },
     async rejectRequest(id) { await this.executeRequestAction(id, '/requests/reject', 'Solicitud rechazada'); },
     async busyRequest(id) { await this.executeRequestAction(id, '/requests/busy', 'Estado ocupado establecido'); },
-    async setStatus(requestId, newStatus) { try { const a = useAuthStore(); const r = await api.post(`/requests/${newStatus}`, { id: requestId }, { headers: { Authorization: `Bearer ${a.token}` } }); if (r.data.success) { this.updateRequestStatus(requestId, newStatus, r.data.updated_at || new Date().toISOString()); if (newStatus === 'finalized') { const req = this.inProgressRequests.find(r => r.id === requestId); if (req) { window.dispatchEvent(new CustomEvent('open-rating-modal', { detail: { request_id: req.id, from_id: this.providerId, from_role: 'provider', targetRole: 'user', message: '¿Quieres calificar a este cliente?' } })); } } this.openDropdown = null; useSocketStore().playNotificationSound(); } else { this.$swal?.fire({ icon: 'error', title: 'Error', text: r.data.message }); } } catch (e) { this.$swal?.fire({ icon: 'error', title: 'Error', text: e.response?.data?.message || e.message }); } },
+    async setStatus(requestId, newStatus) { try { const a = useAuthStore(); const r = await api.post(`/requests/${newStatus}`, { id: requestId }, { headers: { Authorization: `Bearer ${a.token}` } }); if (r.data.success) { this.updateRequestStatus(requestId, newStatus, r.data.updated_at || new Date().toISOString()); this.openDropdown = null; useSocketStore().playNotificationSound(); } else { this.$swal?.fire({ icon: 'error', title: 'Error', text: r.data.message }); } } catch (e) { this.$swal?.fire({ icon: 'error', title: 'Error', text: e.response?.data?.message || e.message }); } },
     async confirmPayment(requestId) { try { const a = useAuthStore(); const r = await api.post('/requests/confirm-payment', { id: requestId }, { headers: { Authorization: `Bearer ${a.token}` } }); if (r.data.success) { const i = this.inProgressRequests.findIndex(r => r.id === requestId); if (i !== -1) this.inProgressRequests[i].payment_status = 'paid'; useSocketStore().playNotificationSound(); } } catch (e) { this.$swal?.fire({ icon: 'error', title: 'Error', text: this.$t('error_confirming_payment') || 'Error confirmando pago' }); } },
     onTicketCreated() { this.showNewTicket = false; this.lastFetch_.support = 0; this.fetchTickets(); }
   }

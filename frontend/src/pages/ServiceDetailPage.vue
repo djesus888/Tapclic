@@ -36,7 +36,16 @@
                 <p>{{ $t('no_image_available') }}</p>
               </div>
             </div>
+            <!-- Badge izquierdo: Imagen del servicio -->
             <div class="image-badge">🖼️ {{ $t('service_image') }}</div>
+            <!-- ✅ NUEVO: Badge dinámico de estado (derecha) - Solo si hay solicitud -->
+            <div
+              v-if="requestStatus"
+              class="request-status-badge"
+              :class="statusColor(requestStatus)"
+            >
+              {{ statusLabel(requestStatus) }}
+            </div>
           </div>
 
           <!-- Información básica -->
@@ -74,7 +83,6 @@
                 <span class="rating-value">{{ Number(service.provider_rating || 0).toFixed(1) }}</span>
               </div>
             </div>
-
             <div class="provider-info">
               <div class="provider-avatar">
                 <img
@@ -144,7 +152,6 @@
               <h3 class="payment-title">{{ $t('payment_methods') }}</h3>
               <span class="payment-icon">💳</span>
             </div>
-
             <div class="payment-methods">
               <!-- Transferencia -->
               <div v-if="service.provider.paymentInfo.transferencia" class="method-item">
@@ -221,7 +228,7 @@
       v-if="modalService"
       v-model:is-open="showServiceDetails"
       :request="modalService"
-      @on-request-service="goToRequestConfirmation"
+      @on-request-service="onConfirmRequest"
       @on-open-change="(v) => (showServiceDetails = v)"
       @on-start-chat="openChat"
     />
@@ -275,9 +282,6 @@
 </template>
 
 <script setup lang="ts">
-/* -------------------------------------------------- */
-/*  Imports (MANTENIDOS EXACTAMENTE IGUAL)           */
-/* -------------------------------------------------- */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -285,6 +289,7 @@ import api from '@/axios'
 import { useAuthStore } from '@/stores/authStore'
 import { sanitize } from '@/utils/sanitize'
 import { formatDate } from '@/utils/formatDate'
+import { getImageUrl } from '@/utils/imageHelper'
 
 /* modales (MANTENIDOS EXACTAMENTE IGUAL) */
 import ServiceDetailsModal from '@/components/ServiceDetailsModal.vue'
@@ -313,6 +318,56 @@ const liveOrder = ref(null)
 const lastSpecDetails = ref('')
 const requestId = ref<number | null>(null)
 const loading = ref(false)
+
+// ✅ NUEVO: Estado de la solicitud para este servicio
+const requestStatus = ref<string | null>(null)
+
+/* ---------- NUEVO: Labels y colores de estado ---------- */
+const statusLabel = (s: string) => {
+  const labels: Record<string, string> = {
+    pending: 'Pendiente',
+    accepted: 'Aceptado',
+    in_progress: 'En progreso',
+    on_the_way: 'En camino',
+    arrived: 'Llegó',
+    completed: 'Completado',
+    cancelled: 'Cancelado',
+    rejected: 'Rechazado'
+  }
+  return labels[s] || s
+}
+
+const statusColor = (s: string) => {
+  const colors: Record<string, string> = {
+    pending: 'status-pending',
+    accepted: 'status-accepted',
+    in_progress: 'status-progress',
+    on_the_way: 'status-progress',
+    arrived: 'status-progress',
+    completed: 'status-completed',
+    cancelled: 'status-cancelled',
+    rejected: 'status-cancelled'
+  }
+  return colors[s] || ''
+}
+
+/* ---------- NUEVO: Obtener estado de solicitud ---------- */
+const fetchRequestStatus = async () => {
+  try {
+    const res = await api.get('/requests/mine', {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    const requests = res.data?.data || []
+    const found = requests.find((r: any) => r.service_id == route.params.id)
+    if (found) {
+      requestStatus.value = found.status
+      requestId.value = found.id
+    }
+  } catch (e) {
+    // Si falla, simplemente no mostramos el badge
+    console.error('Error obteniendo estado de solicitud:', e)
+  }
+}
 
 /* mensaje profesional (MANTENIDO EXACTAMENTE IGUAL) */
 const msg     = ref('')
@@ -365,7 +420,7 @@ function normalizeService(s: any) {
   }
 }
 
-/* ---------- carga inicial (MANTENIDO EXACTAMENTE IGUAL) ---------- */
+/* ---------- carga inicial ---------- */
 onMounted(async () => {
   try {
     const res = await api.get(`/api/services/${route.params.id}`, {
@@ -373,6 +428,8 @@ onMounted(async () => {
     })
     service.value = normalizeService(res.data?.data || {})
     modalService.value = service.value
+    // ✅ Consultar estado de solicitud
+    await fetchRequestStatus()
   } catch (e: any) {
     console.error('Error al cargar servicio:', e)
     setMessage(e?.response?.data?.error || t('service_not_found'), 'error')
@@ -393,20 +450,17 @@ async function requestService() {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
 
-    /* ➜ Si el backend devolvió success:false, mostramos su texto */
     if (!res.data?.success) {
       const msg = res.data?.error || t('request_failed')
       setMessage(msg, 'error')
-      return   // ← salimos sin entrar al catch
+      return
     }
 
     requestId.value = res.data.requestId
     modalService.value = { ...service.value, requestId: res.data.requestId, status: res.data.status || 'pending' }
     setMessage(t('request_created_confirm'), 'success')
     showRequestConfirmation.value = true
-
   } catch (e: any) {
-    /* ➜ Errores de red o 500: mostramos lo que venga del backend */
     const msg = e?.response?.data?.error || t('error_creating_request')
     setMessage(msg, 'error')
   } finally {
@@ -489,7 +543,6 @@ function avatar(url?: string) {
   return getImageUrl(url, 'avatar')
 }
 
-/* ---------- nuevo helper para manejar errores de imagen ---------- */
 function handleImageError(event: Event) {
   const img = event.target as HTMLImageElement
   img.src = '/img/default-service.png'
@@ -664,6 +717,7 @@ const defaultTranslations = {
   opacity: 0.5;
 }
 
+/* Badge izquierdo: Imagen del servicio */
 .image-badge {
   position: absolute;
   top: 16px;
@@ -675,6 +729,31 @@ const defaultTranslations = {
   font-size: 0.9rem;
   font-weight: 600;
 }
+
+/* ✅ NUEVO: Badge de estado de solicitud (esquina superior derecha) */
+.request-status-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  animation: fadeInRight 0.4s ease-out;
+}
+
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.status-pending { background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%); }
+.status-accepted { background: linear-gradient(135deg, #00b894 0%, #00a085 100%); }
+.status-progress { background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%); }
+.status-completed { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); }
+.status-cancelled { background: linear-gradient(135deg, #d63031 0%, #ff7675 100%); }
 
 .basic-info-card {
   background: white;
@@ -1070,34 +1149,34 @@ const defaultTranslations = {
   .service-detail-page {
     padding: 10px;
   }
-  
+
   .detail-grid {
     padding: 20px;
     gap: 20px;
   }
-  
+
   .image-container {
     height: 300px;
   }
-  
+
   .info-header {
     flex-direction: column;
     gap: 16px;
   }
-  
+
   .provider-info {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .secondary-actions {
     flex-direction: column;
   }
-  
+
   .action-features {
     grid-template-columns: 1fr;
   }
-  
+
   .provider-stats {
     grid-template-columns: 1fr;
   }
@@ -1110,15 +1189,15 @@ const defaultTranslations = {
     align-items: stretch;
     text-align: center;
   }
-  
+
   .back-button {
     align-self: flex-start;
   }
-  
+
   .detail-title {
     font-size: 1.5rem;
   }
-  
+
   .basic-info-card,
   .provider-card,
   .action-card,

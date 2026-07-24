@@ -294,6 +294,8 @@ export default {
         { key: 'accepted', label: 'accepted' },
         { key: 'in_progress', label: 'in_progress' },
         { key: 'on_the_way', label: 'on_the_way' },
+        { key: 'arrived', label: 'arrived' },
+        { key: 'finalized', label: 'finalized' },
         { key: 'completed', label: 'completed' }
       ],
       requestUpdatedHandler: null,
@@ -311,8 +313,8 @@ export default {
         case 'accepted': return 'accepted'
         case 'in_progress': return 'in_progress'
         case 'on_the_way': return 'on_the_way'
-        case 'arrived': return 'on_the_way'
-        case 'finalized': return 'completed'
+        case 'arrived': return 'arrived'
+        case 'finalized': return 'finalized'
         case 'completed': return 'completed'
         default: return 'accepted'
       }
@@ -418,7 +420,7 @@ export default {
 
     async geocodeAddresses() {
       this.mapLoading = true
-      
+
       try {
         const providerAddr = this.localOrder.provider?.current_address || ''
         const deliveryAddr = this.localOrder.address || this.localOrder.service_location || ''
@@ -628,9 +630,16 @@ export default {
     },
 
     getStepIcon(stepKey) {
-      const icons = { accepted: '✓', in_progress: '⚙️', on_the_way: '🚗', completed: '🎉' }
+      const icons = {
+        accepted: '✓',
+        in_progress: '⚙️',
+        on_the_way: '🚗',
+        arrived: '📍',
+        finalized: '✅',
+        completed: '🎉'
+      }
       return icons[stepKey] || '○'
-    },
+    }
   }
 }
 </script>
@@ -655,6 +664,8 @@ export default {
 .status-accepted { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4); }
 .status-in_progress { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4); }
 .status-on_the_way { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%) !important; box-shadow: 0 4px 15px rgba(67, 233, 123, 0.4); }
+.status-arrived { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4); }
+.status-finalized { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%) !important; box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4); }
 .status-completed { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%) !important; box-shadow: 0 4px 15px rgba(250, 112, 154, 0.4); }
 .modal-content-scrollable { padding: 28px; overflow-y: auto; max-height: calc(90vh - 120px); background: #f8f9fa; }
 .modal-content-scrollable::-webkit-scrollbar { width: 8px; }

@@ -185,52 +185,49 @@ class ServiceRequest
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getByStaffId(int $staffId): array {
+        $stmt = $this->conn->prepare("
+            SELECT sr.*, s.title as service_title, s.location as service_location,
+                   u.name as user_name, u.phone as user_phone
+            FROM {$this->table} sr
+            JOIN services s ON sr.service_id = s.id
+            JOIN users u ON sr.user_id = u.id
+            WHERE sr.assigned_staff_id = :sid
+            AND sr.status NOT IN ('completed', 'cancelled', 'finalized')
+            ORDER BY sr.created_at DESC
+        ");
+        $stmt->execute([':sid' => $staffId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-public function getByStaffId(int $staffId): array {
-    $stmt = $this->conn->prepare("
-        SELECT sr.*, s.title as service_title, s.location as service_location,
-               u.name as user_name, u.phone as user_phone
-        FROM {$this->table} sr
-        JOIN services s ON sr.service_id = s.id
-        JOIN users u ON sr.user_id = u.id
-        WHERE sr.assigned_staff_id = :sid
-        AND sr.status NOT IN ('completed', 'cancelled', 'finalized')
-        ORDER BY sr.created_at DESC
-    ");
-    $stmt->execute([':sid' => $staffId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    public function getCompletedByStaffId(int $staffId): array {
+        $stmt = $this->conn->prepare("
+            SELECT sr.*, s.title as service_title, s.location as service_location,
+                   u.name as user_name, u.phone as user_phone
+            FROM {$this->table} sr
+            JOIN services s ON sr.service_id = s.id
+            JOIN users u ON sr.user_id = u.id
+            WHERE sr.assigned_staff_id = :sid
+            AND sr.status IN ('completed', 'cancelled', 'finalized')
+            ORDER BY sr.updated_at DESC
+            LIMIT 50
+        ");
+        $stmt->execute([':sid' => $staffId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-public function getCompletedByStaffId(int $staffId): array {
-    $stmt = $this->conn->prepare("
-        SELECT sr.*, s.title as service_title, s.location as service_location,
-               u.name as user_name, u.phone as user_phone
-        FROM {$this->table} sr
-        JOIN services s ON sr.service_id = s.id
-        JOIN users u ON sr.user_id = u.id
-        WHERE sr.assigned_staff_id = :sid
-        AND sr.status IN ('completed', 'cancelled', 'finalized')
-        ORDER BY sr.updated_at DESC
-        LIMIT 50
-    ");
-    $stmt->execute([':sid' => $staffId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-
-public function getHistoryByStaffId(int $staffId): array {
-    $stmt = $this->conn->prepare("
-        SELECT sh.*, u.name as user_name, u.phone as user_phone
-        FROM service_history sh
-        JOIN users u ON sh.user_id = u.id
-        WHERE sh.assigned_staff_id = :sid
-        ORDER BY sh.finished_at DESC
-        LIMIT 50
-    ");
-    $stmt->execute([':sid' => $staffId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
+    public function getHistoryByStaffId(int $staffId): array {
+        $stmt = $this->conn->prepare("
+            SELECT sh.*, u.name as user_name, u.phone as user_phone
+            FROM service_history sh
+            JOIN users u ON sh.user_id = u.id
+            WHERE sh.assigned_staff_id = :sid
+            ORDER BY sh.finished_at DESC
+            LIMIT 50
+        ");
+        $stmt->execute([':sid' => $staffId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
     public function getActiveByProvider(int $providerId): array
     {
@@ -301,15 +298,12 @@ public function getHistoryByStaffId(int $staffId): array {
         ]);
     }
 
+    public function assignStaff(int $requestId, int $staffId): bool {
+        $stmt = $this->conn->prepare("UPDATE {$this->table} SET assigned_staff_id = :sid WHERE id = :rid");
+        return $stmt->execute([':sid' => $staffId, ':rid' => $requestId]);
+    }
 
-public function assignStaff(int $requestId, int $staffId): bool {
-    $stmt = $this->conn->prepare("UPDATE {$this->table} SET assigned_staff_id = :sid WHERE id = :rid");
-    return $stmt->execute([':sid' => $staffId, ':rid' => $requestId]);
-}
-
-
-
-    // ✅ CORREGIDO: saveNotification con verificación anti-duplicados
+    // ✅ saveNotification con verificación anti-duplicados
     public function saveNotification($data)
     {
         // Verificar duplicado antes de insertar (misma notificación en los últimos 10 segundos)
@@ -347,6 +341,49 @@ public function assignStaff(int $requestId, int $staffId): bool {
             ':message' => $data['message'],
             ':data_json' => $data['data_json'] ?? null
         ]);
+    }
+
+    /**
+     * Guarda notificación y retorna el ID insertado (para vincular con WebSocket)
+     */
+    public function saveNotificationReturnId($data)
+    {
+        // Verificar duplicado
+        $checkQuery = "SELECT COUNT(*) as count FROM notifications
+                       WHERE receiver_id = :receiver_id
+                       AND receiver_role = :receiver_role
+                       AND title = :title
+                       AND message = :message
+                       AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND)";
+
+        $checkStmt = $this->conn->prepare($checkQuery);
+        $checkStmt->execute([
+            ':receiver_id'   => $data['receiver_id'],
+            ':receiver_role' => $data['receiver_role'],
+            ':title'         => $data['title'],
+            ':message'       => $data['message']
+        ]);
+
+        if ($checkStmt->fetch(PDO::FETCH_ASSOC)['count'] > 0) {
+            error_log("Notificación duplicada, omitiendo");
+            return null; // Retornar null para indicar que no se insertó
+        }
+
+        $query = "INSERT INTO notifications
+                  (sender_id, receiver_id, receiver_role, title, message, data_json, is_read, created_at)
+                  VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, :data_json, 0, NOW())";
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':sender_id' => $data['sender_id'] ?? null,
+            ':receiver_id' => $data['receiver_id'],
+            ':receiver_role' => $data['receiver_role'],
+            ':title' => $data['title'],
+            ':message' => $data['message'],
+            ':data_json' => $data['data_json'] ?? null
+        ]);
+
+        return (int)$this->conn->lastInsertId();
     }
 
     public function updatePaymentStatus(int $requestId, string $status, ?string $proofUrl = null): bool
@@ -454,16 +491,17 @@ public function assignStaff(int $requestId, int $staffId): bool {
             $finStatus = $payRow['payment_status'] ?? 'pending';
             $finMethod = $payRow['payment_method'] ?? null;
 
-          $sql = "INSERT INTO service_history
+            $sql = "INSERT INTO service_history
           (user_id, service_id, request_id, service_title, service_price,
            provider_name, status, finished_at, provider_id,
            payment_status, payment_method, assigned_staff_id)
-           SELECT r.user_id, r.service_id, r.id,
+            SELECT r.user_id, r.service_id, r.id,
                s.title, s.price, s.provider_name, :st, NOW(), r.provider_id,
                :payStatus, :payMethod, r.assigned_staff_id
           FROM {$this->table} r
           JOIN services s ON s.id = r.service_id
-          WHERE r.id = :id";            $stmt = $pdo->prepare($sql);
+          WHERE r.id = :id";
+            $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':id'         => $reqId,
                 ':st'         => $status,
@@ -489,7 +527,7 @@ public function assignStaff(int $requestId, int $staffId): bool {
      */
     public function getServiceDetailsForRequest($serviceId)
     {
-        $sql = "SELECT id, title, description, price, image_url, location, provider_id
+        $sql = "SELECT id, title, description, price, image_url, location
                 FROM services
                 WHERE id = :id
                 LIMIT 1";

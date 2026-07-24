@@ -171,6 +171,22 @@ window.addEventListener('show-notification-toast', (e) => {
   })
 })
 
+
+// ✅ Escuchar evento open_rating_modal desde WebSocket
+const socketStore2 = useSocketStore()
+socketStore2.on('open_rating_modal', (data) => {
+  console.log('⭐ Modal de calificación desde WebSocket:', data)
+  window.dispatchEvent(new CustomEvent('open-rating-modal', {
+    detail: {
+      request_id: data.request_id || (data.url || '').split('/').pop(),
+      targetRole: data.target_role || (authStore.user?.role === 'provider' ? 'user' : 'provider'),
+      from_role: data.from_role || 'provider',
+      message: data.message || '¿Quieres calificar este servicio?'
+    }
+  }))
+})
+
+
 // ✅ CORREGIDO: Modal de rating - ahora busca history_id correctamente
 window.addEventListener('open-rating-modal', async (e) => {
   try {

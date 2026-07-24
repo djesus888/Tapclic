@@ -911,27 +911,16 @@ export default {
         console.log('🔔 Evento payment_updated recibido:', data);
         if (data.request_id && data.payment_status) this.handleRealTimePaymentUpdate(data.request_id, data.payment_status);
       };
-      const newNotificationHandler = (notification) => {
-        console.log('🔔 Notificación recibida:', notification.event);
-        switch(notification.event) {
-          case 'status_changed': case 'request_updated':
-            this.lastFetch.activeRequests = 0; this.lastFetch.history = 0; this.fetchActiveRequests(); break;
-          case 'payment_updated':
-            this.lastFetch.activeRequests = 0; this.fetchActiveRequests(); break;
-        }
-      };
       const openRatingModalHandler = (data) => {
         this.handleOpenRatingModal(data);
       };
 
       socketStore.on('request_updated', requestUpdatedHandler);
       socketStore.on('payment_updated', paymentUpdatedHandler);
-      socketStore.on('new-notification', newNotificationHandler);
       socketStore.on('open_rating_modal', openRatingModalHandler);
       this.socketHandlers = [
         { event: 'request_updated', handler: requestUpdatedHandler },
         { event: 'payment_updated', handler: paymentUpdatedHandler },
-        { event: 'new-notification', handler: newNotificationHandler },
         { event: 'open_rating_modal', handler: openRatingModalHandler }
       ];
     },

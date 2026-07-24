@@ -74,6 +74,9 @@ if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
         $service_categories = trim($data['service_categories'] ?? '');
         $coverage_area = trim($data['coverage_area'] ?? '');
         $preferences = trim($data['preferences'] ?? '');
+        $bio = trim($data['bio'] ?? '');
+        $linkedin_url = trim($data['linkedin_url'] ?? '');
+        $twitter_url = trim($data['twitter_url'] ?? '');
 
         if ($email !== '' && !$this->isValidEmail($email)) {
             http_response_code(400);
@@ -106,15 +109,18 @@ if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
         }
 
         $ok = $this->userModel->updateProfile($auth->id, [
-            'name' => $name,
-            'email' => $email,
-            'phone' => $phone,
-            'address' => $address,
-            'business_address' => $business_address,
-            'service_categories' => $service_categories,
-            'preferences' => $preferences,
-            'coverage_area' => $coverage_area
-        ]);
+    'name' => $name,
+    'email' => $email,
+    'phone' => $phone,
+    'address' => $address,
+    'business_address' => $business_address,
+    'service_categories' => $service_categories,
+    'preferences' => $preferences,
+    'coverage_area' => $coverage_area,
+    'bio' => $bio,                    // ✅ NUEVO
+    'linkedin_url' => $linkedin_url,  // ✅ NUEVO
+    'twitter_url' => $twitter_url     // ✅ NUEVO
+]);
 
         if ($avatarFileName) {
             $this->userModel->updateAvatar($auth->id, $avatarFileName);
@@ -689,6 +695,25 @@ public function registerDevice($userId, $refreshToken) {
                   WHERE user_id = ? AND refresh_token != ?";
         $stmt = $this->db->prepare($query);
         $stmt->execute([$userId, $refreshToken]);
+
+// ✅ NUEVO: Registrar en sessions para el panel de seguridad
+// Eliminar sesiones anteriores del mismo usuario
+$stmt = $this->db->prepare("DELETE FROM sessions WHERE user_id = ?");
+$stmt->execute([$userId]);
+
+// Insertar nueva sesión (ID único)
+$sessionId = bin2hex(random_bytes(32));
+$stmt = $this->db->prepare("
+    INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity)
+    VALUES (?, ?, ?, ?, ?, UNIX_TIMESTAMP())
+");
+$stmt->execute([
+    $sessionId,
+    $userId,
+    $ipAddress,
+    $userAgent,
+    json_encode(['refresh_token' => $refreshToken])
+]);
         
         error_log("=== FIN REGISTER DEVICE ===\n");
         

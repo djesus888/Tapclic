@@ -5,22 +5,20 @@ const http = require('http');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 
 const app = express();
 
-// Configuración UTF-8 para tildes
 app.use(express.json({
   limit: '50mb',
   type: 'application/json'
 }));
 
-// Middleware para forzar UTF-8 en todas las respuestas
 app.use((req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
 
-// CORS con origen específico
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
@@ -38,7 +36,6 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
-// Mapa de sockets por usuario
 const userSockets = new Map();
 const pendingEvents = new Map();
 const typingUsers = new Map();
@@ -58,17 +55,13 @@ const emitLimiter = rateLimit({
 app.use('/emit', emitLimiter);
 app.use('/emit-event', emitLimiter);
 
-// ✅ Función helper para generar userKey de forma consistente
-// Usa un delimitador que no aparece en roles (:: en lugar de _)
 function buildUserKey(id, role) {
   return `${role}::${id}`;
 }
 
-// ✅ Función helper para parsear userKey
 function parseUserKey(key) {
   const separatorIndex = key.indexOf('::');
   if (separatorIndex === -1) {
-    // Fallback para claves antiguas con _
     const parts = key.split('_');
     return { role: parts[0], id: parts.slice(1).join('_') };
   }
@@ -78,7 +71,6 @@ function parseUserKey(key) {
   };
 }
 
-// ✅ Función helper para formatear usuario online (estructura consistente)
 function formatOnlineUser(key, socket) {
   const parsed = parseUserKey(key);
   return {
@@ -91,12 +83,35 @@ function formatOnlineUser(key, socket) {
   };
 }
 
-// ✅ Función para obtener lista completa de usuarios online
 function getOnlineUsersList() {
   return Array.from(userSockets.keys()).map(key => {
     const socket = userSockets.get(key);
     return formatOnlineUser(key, socket);
   });
+}
+
+function generateStableNotificationId(data) {
+  const content = JSON.stringify({
+    receiver_id: data.receiver_id,
+    receiver_role: data.receiver_role,
+    title: data.title,
+    message: data.message,
+    type: data.notification_type || 'general'
+  });
+  return crypto.createHash('md5').update(content).digest('hex');
+}
+
+// ✅ Helper seguro para remover listener sin fallar si no existe
+// En Node.js v24+, socket.off('evento') sin callback lanza error
+// si no hay listeners previos registrados
+function safeOff(socket, event) {
+  try {
+    if (socket && socket.listeners && socket.listeners(event).length > 0) {
+      socket.off(event);
+    }
+  } catch (e) {
+    // Ignorar error silenciosamente
+  }
 }
 
 function addPendingEvent(room, event, payload, reqBody = {}) {
@@ -118,7 +133,6 @@ function addPendingEvent(room, event, payload, reqBody = {}) {
   pendingEvents.set(room, filtered);
 }
 
-// Middleware de autenticación con más validación
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
 
@@ -130,7 +144,6 @@ io.use((socket, next) => {
   try {
     socket.user = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Validar que el usuario tiene id y role
     if (!socket.user.id || !socket.user.role) {
       console.error('❌ Token inválido: falta id o role');
       return next(new Error('Invalid token data'));
@@ -145,11 +158,9 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   const { id, role } = socket.user;
-  // ✅ Usar buildUserKey para consistencia
   const userKey = buildUserKey(id, role);
   const room = `${role}_${id}`;
 
-  // Manejo de conexiones duplicadas - CERRAR CONEXIÓN VIEJA
   if (userSockets.has(userKey)) {
     console.log(`⚠️ Conexión duplicada para ${userKey}, cerrando conexión vieja`);
     const oldSocket = userSockets.get(userKey);
@@ -157,18 +168,15 @@ io.on('connection', (socket) => {
     userSockets.delete(userKey);
   }
 
-  // Guardar socket
   userSockets.set(userKey, socket);
   socket.join(room);
   const roomSize = io.sockets.adapter.rooms.get(room)?.size || 0;
   console.log(`🔌 Conectado: ${id} (${role}) | UserKey: ${userKey} | Room '${room}' size: ${roomSize}`);
 
-  // ✅ Unirse a sala de rol para broadcast
   const roleRoom = `role_${role}`;
   socket.join(roleRoom);
   console.log(`🔌 ${id} también unido a sala de rol: ${roleRoom}`);
 
-  // ✅ Emitir presencia a todos los clientes
   io.emit('user_online', {
     user_id: id,
     role: role,
@@ -177,12 +185,10 @@ io.on('connection', (socket) => {
   });
   console.log(`📡 Emitido user_online: ${id} (${role})`);
 
-  // ✅ NUEVO: Emitir lista completa de usuarios online al nuevo usuario conectado
   const usersOnline = getOnlineUsersList();
   socket.emit('users_online', usersOnline);
   console.log(`📡 Emitido users_online a ${userKey}: ${usersOnline.length} usuarios`);
 
-  // Enviar eventos pendientes al conectar
   if (pendingEvents.has(room)) {
     const events = pendingEvents.get(room);
     const now = Date.now();
@@ -200,7 +206,11 @@ io.on('connection', (socket) => {
     pendingEvents.set(room, []);
   }
 
-  // Manejar typing con mejor validación
+  // =====================================================
+  // ✅ safeOff() verifica que haya listeners antes de remover
+  // =====================================================
+
+  safeOff(socket, 'typing');
   socket.on('typing', (data) => {
     if (!data) {
       console.error('❌ Evento typing recibido sin datos');
@@ -267,13 +277,12 @@ io.on('connection', (socket) => {
     console.log(`✍️ Typing: ${id} (${role}) → ${targetRoom} : ${is_typing ? 'escribiendo' : 'detenido'}`);
   });
 
+  safeOff(socket, 'heartbeat');
   socket.on('heartbeat', () => {
     socket.emit('heartbeat_ack', { timestamp: Date.now() });
   });
 
-  // ✅ message_read y message_delivered SOLO reenvían al conversation_room
-  // El backend ya notifica a los remitentes individualmente vía HTTP → emitToUser
-  // Estos listeners son para cuando un cliente emite directamente (legacy support)
+  safeOff(socket, 'message_read');
   socket.on('message_read', (data) => {
     const { conversation_id, message_ids } = data;
 
@@ -294,6 +303,7 @@ io.on('connection', (socket) => {
     console.log(`👁️ Mensajes marcados como leídos: ${message_ids.length} mensajes en conversación ${conversation_id} por ${role}:${id}`);
   });
 
+  safeOff(socket, 'message_delivered');
   socket.on('message_delivered', (data) => {
     const { conversation_id, message_ids } = data;
 
@@ -314,6 +324,7 @@ io.on('connection', (socket) => {
     console.log(`📬 Mensajes marcados como entregados: ${message_ids.length} mensajes en conversación ${conversation_id} por ${role}:${id}`);
   });
 
+  safeOff(socket, 'refresh-token');
   socket.on('refresh-token', (newToken, callback) => {
     try {
       const user = jwt.verify(newToken, process.env.JWT_SECRET);
@@ -340,6 +351,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  safeOff(socket, 'join-room');
   socket.on('join-room', (roomName, callback) => {
     try {
       if (!roomName.startsWith('conversation_')) {
@@ -364,6 +376,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  safeOff(socket, 'leave-room');
   socket.on('leave-room', (roomName, callback) => {
     try {
       socket.leave(roomName);
@@ -380,6 +393,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  safeOff(socket, 'mark_notification_read');
   socket.on('mark_notification_read', (data) => {
     const { notification_id } = data;
     if (notification_id) {
@@ -387,21 +401,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ✅ disconnect y error SIN safeOff: son eventos terminales,
+  // se ejecutan UNA sola vez cuando la conexión muere
   socket.on('disconnect', (reason) => {
-    // ✅ Emitir presencia offline antes de eliminar
     io.emit('user_offline', {
       user_id: id,
       role: role
     });
     console.log(`📡 Emitido user_offline: ${id} (${role})`);
 
-    // ✅ Usar el userKey del closure para eliminar correctamente
     if (userSockets.get(userKey) === socket) {
       userSockets.delete(userKey);
       console.log(`🗑️ Socket eliminado de userSockets: ${userKey}`);
     }
 
-    // Limpiar typing con sus timeouts
     for (const [key, value] of typingUsers.entries()) {
       if (value.userId === id) {
         if (value.timeout) {
@@ -419,21 +432,24 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ Endpoint /emit con soporte para broadcast_role
+// ============================================================
+// Endpoint /emit
+// ============================================================
 app.post('/emit', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   const {
     receiver_id,
     receiver_role,
-    title,
-    message,
     event,
     payload,
     conversation_id,
     room,
     broadcast_role
   } = req.body;
+
+  const title = req.body.title || payload?.title || null;
+  const message = req.body.message || payload?.message || null;
 
   console.log("📥 [EMIT] BODY RECIBIDO:", JSON.stringify({
     event,
@@ -443,18 +459,16 @@ app.post('/emit', (req, res) => {
     room,
     conversation_id,
     hasPayload: !!payload,
-    hasTitle: !!title,
-    hasMessage: !!message
+    hasTitle: !!(req.body.title || payload?.title),
+    hasMessage: !!(req.body.message || payload?.message)
   }));
 
   if (event && typeof event !== 'string') {
     return res.status(400).json({ error: 'Invalid event' });
   }
 
-  // Usar Set para evitar salas duplicadas
   const rooms = new Set();
 
-  // Soporte para broadcast_role (emitToRole)
   if (broadcast_role) {
     const roleRoom = `role_${broadcast_role}`;
     rooms.add(roleRoom);
@@ -498,29 +512,13 @@ app.post('/emit', (req, res) => {
       }
     });
 
-    // SOLO enviar notificación tradicional si hay title Y message
-    if (title && message) {
-      const notificationPayload = {
-        id: Date.now(),
-        receiver_id,
-        receiver_role,
-        title,
-        message,
-        is_read: 0,
-        created_at: new Date().toISOString(),
-      };
+    // Solo retransmitir new-notification si ya viene formada desde PHP
+    // (PHP ya la guardó en BD y nos la manda lista para emitir)
+    const esNotificacionFromPHP = event === 'new-notification' && payload && payload.id;
 
-      roomsArray.forEach(room => {
-        const socketsInRoom = io.sockets.adapter.rooms.get(room);
-
-        if (socketsInRoom && socketsInRoom.size > 0) {
-          io.to(room).emit('new-notification', notificationPayload);
-          console.log(`📡 [EMIT] Notificación → ${room}: ${title}`);
-        } else {
-          addPendingEvent(room, 'new-notification', notificationPayload);
-          console.log(`🕒 [EMIT] Notificación guardada (offline) → ${room}: ${title}`);
-        }
-      });
+    if (esNotificacionFromPHP) {
+      console.log(`📡 [EMIT] Notificación desde PHP → retransmitiendo: ${payload.title} (id: ${payload.id})`);
+      // No generamos nada, solo se emite el evento tal cual arriba
     }
   }
 
@@ -582,10 +580,9 @@ app.post('/emit-event', (req, res) => {
   });
 });
 
-// ✅ CORREGIDO: Endpoint /status usa la estructura correcta
 app.get('/status', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  
+
   const usersOnline = getOnlineUsersList();
 
   res.json({
@@ -599,7 +596,6 @@ app.get('/status', (req, res) => {
   });
 });
 
-// ✅ Endpoint para notificar presencia (staff online/offline)
 app.post('/presence', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -611,15 +607,13 @@ app.post('/presence', (req, res) => {
 
   const userRole = role || broadcast_role || 'unknown';
 
-  // Emitir a todos los conectados
   io.emit('user_presence', {
     user_id: parseInt(user_id),
     role: userRole,
-    status: status, // 'online' o 'offline'
+    status: status,
     timestamp: Date.now()
   });
 
-  // También emitir eventos específicos con la estructura correcta
   if (status === 'online') {
     io.emit('user_online', {
       user_id: parseInt(user_id),
@@ -639,7 +633,6 @@ app.post('/presence', (req, res) => {
   res.json({ success: true });
 });
 
-// Limpieza periódica de eventos pendientes (cada 10 minutos)
 setInterval(() => {
   const now = Date.now();
   let cleanedCount = 0;
@@ -659,7 +652,7 @@ setInterval(() => {
   if (cleanedCount > 0) {
     console.log(`🧹 Limpieza de eventos: ${cleanedCount} rooms procesadas`);
   }
-}, 600000); // 10 minutos
+}, 600000);
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
