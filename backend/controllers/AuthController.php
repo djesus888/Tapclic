@@ -8,66 +8,97 @@ require_once __DIR__ . '/UserController.php';
 class AuthController
 {
     private User $userModel;
+    private $conn;
 
     public function __construct()
     {
         $this->userModel = new User();
+        $this->conn = (new Database())->getConnection();
     }
 
     /* ---------- LOGIN ---------- */
-    public function login(): void
-    {
-        header('Content-Type: application/json');
+/* ---------- LOGIN ---------- */
+public function login(): void
+{
+    header('Content-Type: application/json');
 
-        $data = json_decode(file_get_contents("php://input"), true);
-        $identifier = trim($data['identifier'] ?? '');
-        $password = $data['password'] ?? '';
+    $data = json_decode(file_get_contents("php://input"), true);
+    $identifier = trim($data['identifier'] ?? '');
+    $password = $data['password'] ?? '';
 
-        if (empty($identifier) || empty($password)) {
-            http_response_code(400);
-            echo json_encode(["message" => "Faltan el identificador o la contraseña."]);
-            return;
-        }
-
-        $user = $this->userModel->findByEmailOrPhone($identifier);
-
-        if (!$user || !isset($user['password'])) {
-            http_response_code(401);
-            echo json_encode(["message" => "Credenciales incorrectas"]);
-            return;
-        }
-
-        if (!password_verify($password, $user['password'])) {
-            http_response_code(401);
-            echo json_encode(["message" => "Credenciales incorrectas"]);
-            return;
-        }
-
-        // Actualizar última actividad
-        $this->userModel->updateLastSeen($user['id']);
-
-        $payload = [
-            "id"   => $user['id'],
-            "role" => $user['role'],
-            "exp"  => time() + (3600 * 24 * 7) // 7 días
-        ];
-
-        $token = JwtHandler::encode($payload);
-        unset($user['password']);
-
-        // --- NUEVO: Registrar el dispositivo ---
-        $userController = new UserController();
-        $userController->registerDevice($user['id'], $token);
-
-        // ✅ LOG: Inicio de sesión exitoso
-        AuditLogger::log($user['id'], 'login', 'Inicio de sesión', "Usuario: {$user['name']} ({$user['email']}) - Rol: {$user['role']}");
-
-        echo json_encode([
-            "success" => true,
-            "token"   => $token,
-            "user"    => $user
-        ]);
+    if (empty($identifier) || empty($password)) {
+        http_response_code(400);
+        echo json_encode(["message" => "Faltan el identificador o la contraseña."]);
+        return;
     }
+
+    // ✅ Rate limiting configurable desde system_config
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $stmt = $this->conn->prepare("SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND success = 0 AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+    $stmt->execute([$ip]);
+    $failedAttempts = (int)$stmt->fetchColumn();
+
+    // ✅ Obtener límite configurable desde system_config
+    $configStmt = $this->conn->query("SELECT max_login_attempts FROM system_config WHERE id = 1");
+    $maxAttempts = (int)($configStmt->fetchColumn() ?: 5);
+
+    if ($failedAttempts >= $maxAttempts) {
+        http_response_code(429);
+        echo json_encode(["message" => "Demasiados intentos. Espere 15 minutos. (Límite: $maxAttempts)"]);
+        return;
+    }
+
+    $user = $this->userModel->findByEmailOrPhone($identifier);
+
+    if (!$user || !isset($user['password'])) {
+        // ✅ Registrar intento fallido
+        $stmt = $this->conn->prepare("INSERT INTO login_attempts (user_id, email, identifier, ip_address, user_agent, success) VALUES (?, ?, ?, ?, ?, 0)");
+        $stmt->execute([null, $identifier, $identifier, $ip, $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido']);
+
+        http_response_code(401);
+        echo json_encode(["message" => "Credenciales incorrectas"]);
+        return;
+    }
+
+    if (!password_verify($password, $user['password'])) {
+        // ✅ Registrar intento fallido
+        $stmt = $this->conn->prepare("INSERT INTO login_attempts (user_id, email, identifier, ip_address, user_agent, success) VALUES (?, ?, ?, ?, ?, 0)");
+        $stmt->execute([$user['id'], $user['email'], $identifier, $ip, $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido']);
+
+        http_response_code(401);
+        echo json_encode(["message" => "Credenciales incorrectas"]);
+        return;
+    }
+
+    // ✅ Registrar intento exitoso
+    $stmt = $this->conn->prepare("INSERT INTO login_attempts (user_id, email, identifier, ip_address, user_agent, success) VALUES (?, ?, ?, ?, ?, 1)");
+    $stmt->execute([$user['id'], $user['email'], $identifier, $ip, $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido']);
+
+    // Actualizar última actividad
+    $this->userModel->updateLastSeen($user['id']);
+
+    $payload = [
+        "id"   => $user['id'],
+        "role" => $user['role'],
+        "exp"  => time() + (3600 * 24 * 7) // 7 días
+    ];
+
+    $token = JwtHandler::encode($payload);
+    unset($user['password']);
+
+    // Registrar el dispositivo
+    $userController = new UserController();
+    $userController->registerDevice($user['id'], $token);
+
+    // LOG: Inicio de sesión exitoso
+    AuditLogger::log($user['id'], 'login', 'Inicio de sesión', "Usuario: {$user['name']} ({$user['email']}) - Rol: {$user['role']}");
+
+    echo json_encode([
+        "success" => true,
+        "token"   => $token,
+        "user"    => $user
+    ]);
+}
 
     /* ---------- REGISTRO ---------- */
     public function register(): void
@@ -134,11 +165,11 @@ class AuthController
         $token = JwtHandler::encode($payload);
         unset($user['password']);
 
-        // --- NUEVO: Registrar el dispositivo después del registro ---
+        // Registrar el dispositivo después del registro
         $userController = new UserController();
         $userController->registerDevice($userId, $token);
 
-        // ✅ LOG: Registro exitoso
+        // LOG: Registro exitoso
         AuditLogger::log($userId, 'register', 'Nuevo registro', "Usuario: {$user['name']} ({$user['email']}) - Rol: {$user['role']}");
 
         echo json_encode([
@@ -174,7 +205,7 @@ class AuthController
         // Actualizar última actividad
         $this->userModel->updateLastSeen($userId);
 
-        // --- NUEVO: Actualizar último acceso del dispositivo ---
+        // Actualizar último acceso del dispositivo
         $userController = new UserController();
         $userController->registerDevice($userId, $token);
 
@@ -209,7 +240,6 @@ class AuthController
             ? $this->userModel->findByEmail($value)
             : $this->userModel->findByPhone($value);
 
-        // No revelar si el usuario existe o no
         if (!$user) {
             echo json_encode([
                 "success" => true,
@@ -218,13 +248,11 @@ class AuthController
             return;
         }
 
-        // Generar token seguro y expiración
         $token = bin2hex(random_bytes(32));
         $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
 
         $this->userModel->setResetToken($user['id'], $token, $expires_at);
 
-        // Enviar correo o SMS
         if ($method === 'email') {
             $reset_link = "https://tusitio.com/reset-password?token=$token";
             $subject = "Recupera tu contraseña";
@@ -276,8 +304,6 @@ class AuthController
         }
 
         $this->userModel->updatePassword($user['id'], $newPassword);
-
-        // Limpiar token
         $this->userModel->setResetToken($user['id'], null, null);
 
         echo json_encode([
@@ -316,20 +342,17 @@ class AuthController
             return;
         }
 
-        // Actualizar última actividad
         $this->userModel->updateLastSeen($userId);
 
-        // Generar nuevo token
         $payload = [
             "id"   => $user['id'],
             "role" => $user['role'],
-            "exp"  => time() + (3600 * 24 * 7) // 7 días
+            "exp"  => time() + (3600 * 24 * 7)
         ];
 
         $newToken = JwtHandler::encode($payload);
         unset($user['password']);
 
-        // --- NUEVO: Actualizar dispositivo con nuevo token ---
         $userController = new UserController();
         $userController->registerDevice($userId, $newToken);
 
@@ -341,29 +364,28 @@ class AuthController
     }
 
     /* ---------- LOGOUT ---------- */
-public function logout(): void {
-    header('Content-Type: application/json');
-    $headers = getallheaders();
-    $auth = $headers['Authorization'] ?? '';
-    
-    if (str_starts_with($auth, "Bearer ")) {
-        $token = str_replace("Bearer ", "", $auth);
-        $decoded = JwtHandler::decode($token);
-        
-        // ✅ AÑADE ESTO
-        if ($decoded && isset($decoded->exp)) {
-            Auth::addToBlacklist($token, date('Y-m-d H:i:s', $decoded->exp));
+    public function logout(): void {
+        header('Content-Type: application/json');
+        $headers = getallheaders();
+        $auth = $headers['Authorization'] ?? '';
+
+        if (str_starts_with($auth, "Bearer ")) {
+            $token = str_replace("Bearer ", "", $auth);
+            $decoded = JwtHandler::decode($token);
+
+            if ($decoded && isset($decoded->exp)) {
+                Auth::addToBlacklist($token, date('Y-m-d H:i:s', $decoded->exp));
+            }
+
+            if ($decoded && isset($decoded->id)) {
+                $this->userModel->updateLastSeen($decoded->id);
+            }
         }
-        
-        if ($decoded && isset($decoded->id)) {
-            $this->userModel->updateLastSeen($decoded->id);
-        }
+
+        http_response_code(200);
+        echo json_encode([
+            "success" => true,
+            "message" => "Sesión cerrada correctamente"
+        ]);
     }
-    
-    http_response_code(200);
-    echo json_encode([
-        "success" => true,
-        "message" => "Sesión cerrada correctamente"
-    ]);
-}
 }

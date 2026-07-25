@@ -4,8 +4,8 @@
 class Database {
     private $host = "127.0.0.1";
     private $db_name = "tapclic_db";
-    private $username = "root";
-    private $password = "";
+    private $username = "admin_tapclic_db_2026";
+    private $password = "Dvja_2530_tapclic_db_30_no_1987";
     public $conn;
 
     public function getConnection(){

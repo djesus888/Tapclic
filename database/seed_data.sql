@@ -17,26 +17,6 @@
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
 --
--- Dumping data for table `users`
---
-
-LOCK TABLES `users` WRITE;
-/*!40000 ALTER TABLE `users` DISABLE KEYS */;
-set autocommit=0;
-INSERT INTO `users` VALUES
-(1,'Jesús Admin',NULL,'admin@example.com','04120761886','','$2y$12$WqOP3xcaqC/4CMNJXhTohOZVS/KRr2Q8Fi8NgUYE8eEXA6qpqUg76','admin','2025-08-06 02:27:23','avatar_1755006875.jpg',0.0,'','','','',1,'2026-07-23 18:58:32','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'founder',NULL,NULL,1),
-(2,'Jesús Díaz Villegas',NULL,'divijeal@gmail.com','04125048497','','$2y$12$/4gCdLLdSzDPtycV9yjLC.W2B1ls5XdcWBPnaxbcTx.YNOwFJy8qG','user','2025-08-05 02:36:22','2f3e50b31d534b30.jpg',0.0,'','','','',1,'2026-07-22 16:40:39','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,'cc9762ca6f6ade9d39e246b4e14043b7475860dfef8862cbb932dcd0f1d8891a','2026-04-28 14:13:17',0,NULL,NULL,0,0,NULL,NULL,NULL,NULL,1),
-(4,'Jesús diaz',NULL,'divina@gmail.com','04120761887',NULL,'$2y$12$crK52/FINTXytwHaK/hZduSShsh3y53nxosv3KRPAXXyCUr4Ny71G','user','2025-08-05 02:36:49',NULL,0.0,NULL,NULL,NULL,NULL,1,NULL,'pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'team',NULL,NULL,1),
-(6,'María Villegas',NULL,'maria@gmail.com','04120761889','Dirección 1','$2y$12$ZgEhIEHYgLS/kK/lXYGbbe4uekhkYODGMIMTFVTYCPcxDxq7NWRzK','provider','2025-08-05 14:59:16','597afbe3297e667b.jpg',3.0,'{\"language\":\"es\",\"dark\":true,\"notifications\":{\"email\":true,\"sms\":true}}','Dirección 2','Acompañamiento','Cuidad central .',1,'2026-07-23 13:03:41','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'team',NULL,NULL,1),
-(8,'Pedro Perez',NULL,'pedro@gmail.com','04125048499',NULL,'$2y$12$pf1whO0Jjw3x0mDBvTX.FOfKZ5tZ1rmF6EKftPJDKxDgX29fFzG2a','provider','2025-08-26 03:42:27',NULL,0.0,NULL,NULL,NULL,NULL,1,NULL,'pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'team',NULL,NULL,1),
-(9,'Viviana Alvarado ',NULL,'vivianaalvarado233@gmail.com','04160761886',NULL,'$2y$12$YzDhzEGEjKz8eju2FBwyueOJvXJV.UbsBJiBGvsctWZEPcmY6p5ry','provider','2025-09-11 11:22:10',NULL,0.0,NULL,NULL,NULL,NULL,1,NULL,'pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'team',NULL,NULL,1),
-(10,'Angie Gutiérrez',NULL,'angie@gmail.com','04120761881','','$2y$12$uQx7VCmTA/QmZC.WyKkv7uT.omsCct0CXQgOoSiS5iIswF9DuGCUe','provider','2026-05-22 01:48:50','3c59e8fd8a81e09f.jpg',0.0,'','','','',1,'2026-06-22 11:45:03','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'team',NULL,NULL,1),
-(11,'Yeximar Escalona',NULL,'yeximar@gmail.com','04125048490','null','$2y$12$SgEsqdEKKevzui/wWWWf7uEE661ewQQcxjn17T6rnkfjnVJhOaId2','user','2026-06-10 13:58:16',NULL,0.0,'','null','null','null',1,'2026-06-10 13:59:00','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'subdirector',NULL,NULL,1);
-/*!40000 ALTER TABLE `users` ENABLE KEYS */;
-UNLOCK TABLES;
-commit;
-
---
 -- Dumping data for table `system_config`
 --
 
@@ -44,7 +24,7 @@ LOCK TABLES `system_config` WRITE;
 /*!40000 ALTER TABLE `system_config` DISABLE KEYS */;
 set autocommit=0;
 INSERT INTO `system_config` VALUES
-(1,'TapClic','http://192.168.177.12.6:5173','http://192.168.177.12:3001',1,'1.0.0','/assets/logo.png','/assets/favicon.ico','es','America/Caracas','USD','soporte@tapclic.com','+58 123 456 7890','smtp.gmail.com',587,'tls',NULL,NULL,'notificaciones@tapclic.com','TapClic',NULL,NULL,NULL,'TapClic C.A.','info@tapclic.com','+58 4120761886','Yaracuy, Venezuela',0,5,90,30,20,'#409EFF',1,0,1,1,1,1,NULL,'2025-08-17 21:44:41','2026-07-23 10:11:49',2.00,0.00,NULL,5.00,30,'both','Misión papa','Visión papa ','5+','2026',150);
+(1,'TapClic','https://tapclic.com','https://ws.tapclic.com',1,'1.0.0','/assets/logo.png','/assets/favicon.ico','es','America/Caracas','USD','soporte@tapclic.com','+58 123 456 7890','smtp.gmail.com',587,'tls',NULL,NULL,'notificaciones@tapclic.com','TapClic',NULL,NULL,NULL,'TapClic C.A.','info@tapclic.com','+58 4120761886','Yaracuy, Venezuela',0,5,90,30,20,'#409EFF',1,0,1,1,1,1,NULL,'2025-08-17 21:44:41','2026-07-25 05:33:46',2.00,0.00,NULL,5.00,30,'both','Misión papa','Visión papa ','5+','2026',150);
 /*!40000 ALTER TABLE `system_config` ENABLE KEYS */;
 UNLOCK TABLES;
 commit;
@@ -96,6 +76,99 @@ INSERT INTO `categories` VALUES
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 commit;
+
+--
+-- Dumping data for table `payment_gateways`
+--
+
+LOCK TABLES `payment_gateways` WRITE;
+/*!40000 ALTER TABLE `payment_gateways` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `payment_gateways` VALUES
+(1,'paypal','PayPal','Pagos seguros con PayPal',0,1,1,'18673920','djesus888',NULL,'divijeal@gmail.com',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,5.00,3.00,0,0.00,0.00,NULL,'🅿️',1,'2026-02-04 18:00:19','2026-05-24 17:46:53'),
+(2,'mercadopago','MercadoPago','Pagos en Latinoamérica',0,1,1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,0.00,0.00,0,0.00,0.00,NULL,'🇦🇷',0,'2026-02-04 18:00:19','2026-05-24 17:46:48'),
+(3,'bank_transfer','Transferencia Bancaria','Transferencia directa a cuenta bancaria',0,1,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,0.00,0.00,0,0.00,0.00,NULL,'🏦',0,'2026-02-04 18:00:19','2026-05-24 17:46:42'),
+(4,'mobile_payment','Pago Móvil','Pago desde tu teléfono móvil',1,1,0,NULL,NULL,NULL,NULL,NULL,'Banco de Venezuela (0102)',NULL,NULL,NULL,'18673920','04120761886','digitel',NULL,5.00,3.00,0,0.00,0.00,NULL,'📱',0,'2026-02-04 18:00:19','2026-05-24 19:29:20'),
+(5,'zelle','Zelle','Transferencias bancarias en USA',1,1,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'divijeal@gmail.com',0.00,0.00,0,0.00,0.00,NULL,'🇺🇸',0,'2026-02-04 18:00:19','2026-04-28 09:49:38');
+/*!40000 ALTER TABLE `payment_gateways` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
+
+--
+-- Dumping data for table `payment_methods`
+--
+
+LOCK TABLES `payment_methods` WRITE;
+/*!40000 ALTER TABLE `payment_methods` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `payment_methods` VALUES
+(1,'transferencia','🏦 Transferencia bancaria','🏦 Datos para transferencia','{\"Banco\": \"Banco de Venezuela\", \"Titular\": \"Tapclic Services C.A.\", \"RIF\": \"J-123456789\", \"Cuenta Corriente\": \"0102-0123-45-12345678\", \"CI\": \"V-12345678\"}','RECARGA',1,'2026-02-14 03:27:59','2026-02-14 03:27:59'),
+(2,'pago_movil','📱 Pago móvil','📱 Datos para Pago Móvil','{\"Banco\": \"Banesco\", \"Cédula/RIF\": \"V-12345678\", \"Teléfono\": \"0412-1234567\", \"Banco receptor\": \"Banesco\"}','RECARGA',1,'2026-02-14 03:27:59','2026-04-28 09:42:00'),
+(3,'paypal','🌐 PayPal','🌐 Datos de PayPal','{\"Email\": \"pagos@tapclic.com\", \"Nombre\": \"Tapclic Services\"}','RECARGA',1,'2026-02-14 03:27:59','2026-02-14 03:27:59'),
+(4,'zelle','💵 Zelle','💵 Datos para Zelle','{\"Email\": \"pagos@tapclic.com\", \"Nombre\": \"Tapclic Services\", \"Banco\": \"Bank of America\"}','RECARGA',1,'2026-02-14 03:27:59','2026-02-14 03:27:59'),
+(5,'binance','🪙 Binance','🪙 Datos de Binance','{\"ID\": \"123456789\", \"Email\": \"binance@tapclic.com\"}','RECARGA',1,'2026-02-14 03:27:59','2026-02-14 03:27:59'),
+(6,'efectivo','💵 Efectivo','💵 Pago en efectivo','{\"Punto de pago\": \"Consultar con administrador\"}','RECARGA',1,'2026-02-14 03:27:59','2026-02-14 03:27:59');
+/*!40000 ALTER TABLE `payment_methods` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
+
+--
+-- Dumping data for table `provider_payment_methods`
+--
+
+LOCK TABLES `provider_payment_methods` WRITE;
+/*!40000 ALTER TABLE `provider_payment_methods` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `provider_payment_methods` VALUES
+(2,6,'transferencia','Bicentenario ','Jesús Diaz ','18673920','','01029876542345764567','','',1,'2025-09-07 14:45:18','2026-05-28 22:17:12'),
+(3,6,'paypal','','Jesús Diaz ','18673920','','','divijeal@gmail.com','',1,'2025-09-07 14:59:01','2026-05-28 22:17:11'),
+(4,6,'zelle',NULL,'18673920','18673920',NULL,NULL,'divijeal@gmail.com',NULL,1,'2025-09-07 14:59:31','2026-05-28 22:17:14'),
+(6,6,'pago_movil','Bicentenario ','Jesús Diaz ','18673920','04120761886','','','',1,'2026-05-28 21:31:48','2026-05-28 22:17:08'),
+(7,10,'pago_movil','Venezuela ','Jesús Diaz ','18673920','04120761886','','','',1,'2026-06-09 00:42:29','2026-06-09 00:42:29');
+/*!40000 ALTER TABLE `provider_payment_methods` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
+
+--
+-- Dumping data for table `faqs`
+--
+
+LOCK TABLES `faqs` WRITE;
+/*!40000 ALTER TABLE `faqs` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `faqs` VALUES
+(1,'¿Cómo solicito un servicio?','Busca el servicio que necesitas, revisa la disponibilidad y precio, luego haz clic en \"Solicitar\". Completa los detalles y espera la confirmación del proveedor.',1,1,'2025-08-28 17:31:43'),
+(2,'¿Qué métodos de pago aceptan?','Aceptamos efectivo, transferencia bancaria y tarjetas de crédito/débito. El pago se realiza después de que el proveedor confirme tu solicitud.',2,1,'2025-08-28 17:31:43'),
+(3,'¿Puedo cancelar una solicitud?','Sí, puedes cancelar desde la sección \"Solicitudes Activas\" antes de que el proveedor la acepte. Si ya fue aceptada, contacta al soporte.',3,1,'2025-08-28 17:31:43'),
+(4,'¿Cómo sé si mi solicitud fue aceptada?','Recibirás una notificación en la app y un email. También verás el estado cambiar a \"Aceptado\" en \"Solicitudes Activas\".',4,1,'2025-08-28 17:31:43'),
+(5,'¿Qué hago si el proveedor no llega?','Primero contacta al proveedor por el chat. Si no hay respuesta en 30 minutos, reporta el incidente en Soporte para que te ayudemos.',5,1,'2025-08-28 17:31:43'),
+(6,'¿Cómo dejo una reseña?','Después de que el servicio se complete, aparecerá la opción de calificar al proveedor en tu historial de servicios.',6,1,'2025-08-28 17:31:43'),
+(7,'¿Es seguro compartir mi ubicación?','Sí, tu ubicación solo se comparte con el proveedor una vez que acepta tu solicitud. No se almacena permanentemente.',7,1,'2025-08-28 17:31:43'),
+(8,'¿Puedo modificar una solicitud después de enviarla?','No puedes editar los detalles, pero puedes cancelarla y crear una nueva con la información correcta.',8,1,'2025-08-28 17:31:43'),
+(9,'¿Qué pasa si no estoy satisfecho con el servicio?','Contacta al soporte dentro de las 24 horas posteriores al servicio. Investigaremos el caso y aplicaremos nuestras políticas de garantía.',9,1,'2025-08-28 17:31:43'),
+(10,'¿Cómo me registro como proveedor?','Ve a Configuración > Convertirme en Proveedor. Completa tu perfil profesional, sube tus documentos y espera nuestra aprobación.',10,1,'2025-08-28 17:31:43'),
+(11,'¿Cómo registro mi servicio?','Para registrar tu servicio, inicia sesión y haz clic en \"Publicar Servicio\" en tu dashboard. Completa el formulario con los detalles de tu servicio.',1,1,'2026-01-31 21:35:05'),
+(12,'¿Cómo puedo pagar por un servicio?','Aceptamos múltiples métodos de pago: efectivo, transferencia bancaria, Pago Móvil, PayPal y Zelle.',2,1,'2026-01-31 21:35:05'),
+(13,'¿Qué hago si tengo un problema con un proveedor?','Puedes reportar el problema desde la sección de \"Mis Solicitudes\" o contactando a nuestro soporte.',3,1,'2026-01-31 21:35:05'),
+(14,'¿Puedo cancelar un servicio contratado?','Sí, puedes cancelar siempre que el proveedor no haya iniciado el servicio. Consulta nuestros términos para más detalles.',4,1,'2026-01-31 21:35:05');
+/*!40000 ALTER TABLE `faqs` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
+
+--
+-- Dumping data for table `content_blocks`
+--
+
+LOCK TABLES `content_blocks` WRITE;
+/*!40000 ALTER TABLE `content_blocks` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `content_blocks` VALUES
+(1,'Banner Principal','home_banner','banner','{\"title\": \"Encuentra el servicio que necesitas\", \"subtitle\": \"Profesionales confiables a tu alcance\", \"button_text\": \"Explorar Servicios\", \"button_link\": \"/services\"}','{\"background\": \"#667eea\", \"text_color\": \"#ffffff\"}',1,'2026-02-01 01:35:00','2026-02-01 01:35:00'),
+(2,'Texto de Bienvenida','welcome_text','text','<h2>Bienvenido a TapClic</h2><p>La plataforma que conecta a usuarios con profesionales confiables.</p>','\"{\\\"alignment\\\": \\\"center\\\"}\"',1,'2026-02-01 01:35:00','2026-02-03 23:40:52'),
+(3,'Footer Info','footer_info','text','<p>© 2024 TapClic. Todos los derechos reservados.</p>','{}',1,'2026-02-01 01:35:00','2026-02-01 01:35:00');
+/*!40000 ALTER TABLE `content_blocks` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -105,4 +178,45 @@ commit;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-07-23 20:46:49
+-- Dump completed on 2026-07-25  1:46:15
+/*M!999999\- enable the sandbox mode */ 
+-- MariaDB dump 10.19-12.0.2-MariaDB, for Android (aarch64)
+--
+-- Host: localhost    Database: tapclic_db
+-- ------------------------------------------------------
+-- Server version	12.0.2-MariaDB
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
+
+--
+-- Dumping data for table `users`
+--
+-- WHERE:  id=1
+
+LOCK TABLES `users` WRITE;
+/*!40000 ALTER TABLE `users` DISABLE KEYS */;
+set autocommit=0;
+INSERT INTO `users` VALUES
+(1,'Jesús Diaz',NULL,'divijeal@gmail.com','04120761886','','$2y$12$WqOP3xcaqC/4CMNJXhTohOZVS/KRr2Q8Fi8NgUYE8eEXA6qpqUg76','admin','2025-08-06 02:27:23','avatar_1755006875.jpg',0.0,'','','','',1,'2026-07-23 18:58:32','pending',NULL,NULL,NULL,NULL,0,0,0,NULL,NULL,NULL,NULL,0,NULL,NULL,0,0,NULL,'founder',NULL,NULL,1);
+/*!40000 ALTER TABLE `users` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
+
+-- Dump completed on 2026-07-25  1:46:15

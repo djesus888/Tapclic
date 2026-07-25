@@ -65,11 +65,37 @@ public function updateUser() {
     
     $id = $_GET['id'] ?? null;
     if (!$id) {
+
+$authUser = $this->getAuthUser();
+if ((int)$id === 1 && $authUser['id'] != 1) {
+    http_response_code(403);
+    echo json_encode(['error' => 'No puedes modificar al administrador principal']);
+    return;
+}
+
+if (isset($data['role']) && $data['role'] === 'admin' && $authUser['id'] != 1) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Solo el superadmin puede asignar rol de administrador']);
+    return;
+}
+
+if ((int)$id === 1 && isset($data['role']) && $data['role'] !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['error' => 'No se puede cambiar el rol del superadmin']);
+    return;
+}
+
         http_response_code(400);
         echo json_encode(['error' => 'ID requerido']);
         return;
     }
-    
+$authUser = $this->getAuthUser();
+if ((int)$id === 1 && $authUser['id'] != 1) {
+    http_response_code(403);
+    echo json_encode(['error' => 'No puedes modificar al superadministrador']);
+    return;
+}
+
     // Procesar multipart/form-data
     $data = $_POST;
     $avatarFileName = null;
@@ -88,6 +114,26 @@ public function updateUser() {
     }
     
     $userModel = new User();
+
+if (isset($data['role']) && $data['role'] !== $user['role']) {
+    $authUser = $this->getAuthUser();
+    
+    if ($data['role'] === 'admin' && $authUser['id'] != 1) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Solo el superadmin puede asignar rol de administrador']);
+        return;
+    }
+    
+    if ((int)$id === 1 && $data['role'] !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['error' => 'No se puede cambiar el rol del superadmin']);
+        return;
+    }
+    
+    $stmt = $this->conn->prepare("UPDATE users SET role = :role WHERE id = :id");
+    $stmt->execute([':role' => $data['role'], ':id' => $id]);
+}
+
     $userModel->updateProfile($id, [
         'name' => $data['name'] ?? '',
         'email' => $data['email'] ?? '',

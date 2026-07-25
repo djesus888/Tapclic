@@ -302,7 +302,9 @@ DROP TABLE IF EXISTS `login_attempts`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `login_attempts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
   `email` varchar(255) NOT NULL,
+  `identifier` varchar(255) DEFAULT NULL,
   `ip_address` varchar(45) NOT NULL,
   `user_agent` text DEFAULT NULL,
   `success` tinyint(1) DEFAULT 0,
@@ -396,7 +398,7 @@ CREATE TABLE `notifications` (
   `is_read` tinyint(1) DEFAULT 0,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -523,10 +525,13 @@ CREATE TABLE `provider_billing` (
   `provider_id` int(11) NOT NULL,
   `period_start` date NOT NULL,
   `period_end` date NOT NULL,
+  `due_date` date DEFAULT NULL,
   `total_commission` decimal(10,2) DEFAULT 0.00,
   `total_services` int(11) DEFAULT 0,
   `total_transactions` int(11) DEFAULT 0,
   `status` enum('pending','reported','paid','overdue') DEFAULT 'pending',
+  `payment_method` varchar(50) DEFAULT NULL,
+  `payment_reference` varchar(255) DEFAULT NULL,
   `payment_proof` varchar(255) DEFAULT NULL,
   `reported_at` timestamp NULL DEFAULT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
@@ -1189,4 +1194,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-07-23 20:46:01
+-- Dump completed on 2026-07-25  1:46:15
