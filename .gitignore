@@ -55,3 +55,9 @@ ios/Flutter/Flutter.podspec
 *.apk
 *.aab
 backend/vendor/
+
+# Environment files
+.env
+backend/.env
+frontend/.env
+websocket/.env

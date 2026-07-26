@@ -32,7 +32,7 @@ export const useSocketStore = defineStore('socket', {
     _reconnectMaxDelay: 30000,
     _isReconnecting: false,
   }),
-  
+
   actions: {
     connect(token) {
       const authStore = useAuthStore();
@@ -53,7 +53,7 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Token inválido para conectar socket');
         return null;
       }
-      
+
       if (this.socket?.connected) {
         console.log('🔌 Socket ya conectado, reutilizando');
         return this.socket;
@@ -80,7 +80,7 @@ export const useSocketStore = defineStore('socket', {
           }, 100);
         });
       }
-      
+
       if (!this.notificationSound) {
         this.initNotificationSound();
       }
@@ -90,7 +90,7 @@ export const useSocketStore = defineStore('socket', {
         this.socket.disconnect();
         this.socket = null;
       }
-      
+
       let wsUrl = import.meta.env.VITE_WS_URL;
       if (wsUrl && wsUrl.startsWith('https://')) {
         wsUrl = wsUrl.replace('https://', 'wss://');
@@ -115,7 +115,7 @@ export const useSocketStore = defineStore('socket', {
             reject(new Error('Connection timeout'));
           }
         }, 10000);
-        
+
         const connectHandler = () => {
           clearTimeout(connectionTimeout);
           this._reconnectAttempts = 0;
@@ -127,20 +127,20 @@ export const useSocketStore = defineStore('socket', {
           this._isDisconnecting = false;
           this._shouldReconnect = true;
           this._disconnectedByServer = false;
-          
+
           console.log('✅ Socket conectado, ID:', socket.id);
 
           const roomsToRejoin = new Set(this._joinedRooms);
           this._joinedRooms.clear();
           console.log('🧹 Salas unidas limpiadas tras reconexión, reuniendo:', [...roomsToRejoin]);
-          
+
           const currentPath = window.location.pathname;
           const chatMatch = currentPath.match(/\/chat\/(\d+)/);
           if (chatMatch) {
             const conversationId = chatMatch[1];
             this.joinConversationRoom(conversationId);
           }
-          
+
           roomsToRejoin.forEach(room => {
             socket.emit('join-room', room, (response) => {
               if (response?.success) {
@@ -170,17 +170,17 @@ export const useSocketStore = defineStore('socket', {
               }
             }
           }
-          
+
           this.socket = socket;
           this._flushPendingEvents();
           this.startHeartbeat();
           this.startHttpHeartbeat();
 
           this._emitToHandlers('connect', { socketId: socket.id });
-          
+
           resolve(socket);
         };
-        
+
         const connectErrorHandler = (err) => {
           clearTimeout(connectionTimeout);
           console.error(`❌ connect_error:`, err.message);
@@ -229,7 +229,7 @@ export const useSocketStore = defineStore('socket', {
         };
 
         this._setupStoreListeners(socket);
-        
+
         socket
           .on('connect', connectHandler)
           .on('connect_error', connectErrorHandler)
@@ -243,7 +243,7 @@ export const useSocketStore = defineStore('socket', {
 
       return this._creating;
     },
-    
+
     _scheduleReconnect() {
       if (!this._shouldReconnect || this._disconnectedByServer || this._isReconnecting) {
         console.log('⏸️ Reconexión no permitida');
@@ -263,7 +263,7 @@ export const useSocketStore = defineStore('socket', {
         this._attemptReconnect();
       }, delay);
     },
-    
+
     async _attemptReconnect() {
       if (this._isReconnecting) return;
       this._isReconnecting = true;
@@ -286,7 +286,7 @@ export const useSocketStore = defineStore('socket', {
         return;
       }
       console.log(`🔄 Intentando reconexión ${this._reconnectAttempts}...`);
-      
+
       try {
         await this.connectWithToken(authStore.token, authStore.user);
         console.log('✅ Reconexión exitosa');
@@ -303,17 +303,17 @@ export const useSocketStore = defineStore('socket', {
         this._isReconnecting = false;
       }
     },
-    
+
     _setupStoreListeners(socket) {
       const onlineUsersStore = useOnlineUsersStore();
       const notificationStore = useNotificationStore();
       const conversationStore = useConversationStore();
-      
+
 
       // ✅ CORREGIDO: Normalizar users_online antes de merge
       socket.on('users_online', (users) => {
         console.log('👥 Usuarios online actualizados:', users.length);
-        
+
         const normalized = users.map(u => ({
           userId: u.userId || u.id,
           role: u.role,
@@ -322,7 +322,7 @@ export const useSocketStore = defineStore('socket', {
           socketId: u.socketId,
           connectedAt: u.connectedAt
         }));
-        
+
         onlineUsersStore.mergeOnlineUsers(normalized);
       });
 
@@ -339,12 +339,12 @@ export const useSocketStore = defineStore('socket', {
         const userId = data?.user_id || data?.userId || data?.id || data;
         const role = data?.role;
         console.log('🔴 Usuario desconectado:', userId, role);
-        
+
         // Verificar que el backend envíe siempre user_id y role
         if (!role) {
           console.warn('⚠️ user_offline recibido sin role, la eliminación puede ser incorrecta');
         }
-        
+
         onlineUsersStore.removeOnlineUser(userId, role);
       });
 
@@ -398,7 +398,7 @@ export const useSocketStore = defineStore('socket', {
         const authStore = useAuthStore();
         messageData.is_mine = String(messageData.sender_id) === String(authStore.user?.id) &&
                               messageData.sender === authStore.user?.role;
-        
+
         const conversationId = messageData.conversation_id;
         if (!conversationId) {
           console.error('❌ [SOCKET] No se pudo obtener conversation_id');
@@ -409,13 +409,13 @@ export const useSocketStore = defineStore('socket', {
         if (!this._joinedRooms.has(room) && this.socket?.connected) {
           this.joinConversationRoom(conversationId);
         }
-        
+
         const existingMessages = conversationStore?.messages?.[conversationId] || [];
         const messageExists = existingMessages.some(m =>
           m.id === messageData.id ||
           (messageData.temp_id && m.temp_id === messageData.temp_id)
         );
-        
+
         if (messageExists) {
           console.log('📨 [SOCKET] Mensaje ya existe, omitiendo duplicado:', messageData.id);
           return;
@@ -484,7 +484,7 @@ export const useSocketStore = defineStore('socket', {
         }
         this._emitToHandlers('message_delivered', normalizedData);
       });
-      
+
       socket.on('typing_indicator', (data) => {
         console.log('⌨️ Indicador de escritura:', data);
         const normalizedData = this._normalizeEventData(data);
@@ -518,7 +518,7 @@ export const useSocketStore = defineStore('socket', {
         temp_id
       });
     },
-    
+
     sendTyping(conversation_id, receiver_id, receiver_role, is_typing) {
       return this.emit('typing', {
         conversation_id,
@@ -533,14 +533,22 @@ export const useSocketStore = defineStore('socket', {
     },
 
     async init() {
+      // ✅ CORREGIDO: Definir authStore al inicio del método
+      const authStore = useAuthStore();
+
       if (this._initialized) {
         console.log('⚠️ SocketStore ya inicializado, omitiendo...');
         return;
       }
+
+      // ✅ CORREGIDO: No marcar como inicializado hasta verificar token
+      if (!authStore.token) {
+        console.log('⏸️ Sin token, no se inicializa socket');
+        return;
+      }
+
       this._initialized = true;
 
-      const authStore = useAuthStore();
-      
       if (!authStore.user && authStore.token && typeof authStore.loadUser === 'function') {
         try {
           await authStore.loadUser();
@@ -578,10 +586,10 @@ export const useSocketStore = defineStore('socket', {
         document.addEventListener('visibilitychange', visibilityHandler);
         this._visibilityListenerAdded = true;
       }
-      
+
       this.initNotificationSound();
     },
-    
+
     initNotificationSound() {
       try {
         this.notificationSound = new Audio();
@@ -613,7 +621,7 @@ export const useSocketStore = defineStore('socket', {
           console.error('❌ Heartbeat error:', response.status, errorData);
           return;
         }
-        
+
         const data = await response.json();
         if (data.online_users) {
           const onlineUsersStore = useOnlineUsersStore();
@@ -692,7 +700,7 @@ export const useSocketStore = defineStore('socket', {
         console.log(`🎧 Handler registrado para evento: ${event}`);
       }
     },
-    
+
     off(event, handler) {
       if (!event || typeof event !== 'string') {
         console.warn('⚠️ Evento inválido para socket.off()');
@@ -731,7 +739,7 @@ export const useSocketStore = defineStore('socket', {
         }
       }
     },
-    
+
     cleanupComponentHandlers(componentId) {
       if (!componentId) return;
       for (const [event, handlers] of this._componentHandlers) {
@@ -754,7 +762,7 @@ export const useSocketStore = defineStore('socket', {
         console.warn('⚠️ Evento inválido para socket.emit()');
         return;
       }
-      
+
       if (!this.socket) {
         console.log(`📤 Socket no disponible, encolando evento: ${event}`);
         this._queueEvent(event, payload);
@@ -794,7 +802,7 @@ export const useSocketStore = defineStore('socket', {
         this._queueEvent(event, safePayload);
       }
     },
-    
+
     _queueEvent(event, payload) {
       this._pendingEvents.push({
         event,
@@ -835,7 +843,7 @@ export const useSocketStore = defineStore('socket', {
       }
       this._pendingEvents = stillPending;
     },
-    
+
     async playNotificationSound() {
       if (!this._soundEnabled) {
         console.log('🔇 Sonido deshabilitado');
@@ -871,7 +879,7 @@ export const useSocketStore = defineStore('socket', {
         }
       }
     },
-    
+
     disconnect() {
       if (this._isDisconnecting) {
         console.warn('⚠️ Desconexión ya en progreso');
@@ -904,7 +912,7 @@ export const useSocketStore = defineStore('socket', {
       this._reconnectAttempts = 0;
       this._shouldReconnect = true;
       this._disconnectedByServer = false;
-      
+
       if (this._stopAuthWatch) {
         this._stopAuthWatch();
         this._stopAuthWatch = null;
@@ -957,7 +965,7 @@ export const useSocketStore = defineStore('socket', {
         timestamp: new Date().toISOString()
       });
     },
-    
+
     markMessagesAsDelivered(conversationId, messageIds) {
       if (!conversationId || !messageIds?.length) return;
       this.emit('message_delivered', {
@@ -996,7 +1004,7 @@ export const useSocketStore = defineStore('socket', {
         });
       });
     },
-    
+
     leaveConversationRoom(conversationId) {
       if (!this.socket?.connected || !conversationId) return;
       const room = `conversation_${conversationId}`;
@@ -1004,7 +1012,7 @@ export const useSocketStore = defineStore('socket', {
       this._joinedRooms.delete(room);
       console.log(`👋 Salido de sala: ${room}`);
     },
-    
+
     isInRoom(room) {
       return this._joinedRooms.has(room);
     },
@@ -1017,16 +1025,16 @@ export const useSocketStore = defineStore('socket', {
     getPendingEventsCount() {
       return this._pendingEvents.length;
     },
-    
+
     clearPendingEvents() {
       this._pendingEvents = [];
     },
-    
+
     resendPendingMessages() {
       this._flushPendingEvents();
     },
   },
-  
+
   getters: {
     isConnected: (state) => state.socket?.connected ?? false,
     pendingEvents: (state) => state._pendingEvents,

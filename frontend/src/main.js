@@ -105,7 +105,7 @@ const systemStore = useSystemStore()
 const notificationStore = useNotificationStore()
 
 // ✅ Activa el listener visibilitychange
-socketStore.init()
+// socketStore.init() se ejecuta en initializeApp
 
 // ✅ INICIALIZACIÓN PRINCIPAL (solo con token válido)
 async function initializeApp() {
