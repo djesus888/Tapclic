@@ -272,13 +272,15 @@ window.addEventListener('payment-updated', (e) => {
 // ============================================================
 
 // ✅ Firebase Cloud Messaging
-const { requestPermission, onNotification } = useFCM()
-requestPermission()
-onNotification((payload) => {
-  console.log('📲 Notificación FCM recibida:', payload)
-  // El notificationStore ya maneja las notificaciones por WebSocket
-  // FCM es solo para cuando la app está en segundo plano
-})
+try {
+  const { requestPermission, onNotification } = useFCM()
+  requestPermission().catch(() => {})
+  onNotification((payload) => {
+    console.log("📲 Notificación FCM recibida:", payload)
+  })
+} catch (e) {
+  console.log("🔕 FCM no disponible")
+}
 
 app.mount('#app')
 

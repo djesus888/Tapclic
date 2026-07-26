@@ -1,5 +1,4 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAXVjm18tqnaOi6Wfhgt-l8vDSxSNA49wY",
@@ -10,7 +9,14 @@ const firebaseConfig = {
   appId: "1:765132899419:web:f82e32e26861250f7fab7e"
 };
 
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+let app, messaging;
 
-export { messaging, getToken, onMessage };
+try {
+  app = initializeApp(firebaseConfig);
+  const { getMessaging } = require('firebase/messaging');
+  messaging = getMessaging(app);
+} catch (e) {
+  console.log('🔕 Firebase Messaging no soportado en este navegador');
+}
+
+export { messaging };
