@@ -412,6 +412,10 @@ class WebSocketService
         error_log("⚠️ [WS] Notificación no enviada a {$receiverRole}_{$receiverId}: {$result['message']}");
     }
 
+// ✅ Enviar también por FCM para notificaciones push
+require_once __DIR__ . '/../controllers/FCMController.php';
+\FCMController::sendToUser($receiverId, $title, $message, $data);
+
     return $result;
 }
 

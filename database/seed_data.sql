@@ -169,6 +169,17 @@ INSERT INTO `content_blocks` VALUES
 /*!40000 ALTER TABLE `content_blocks` ENABLE KEYS */;
 UNLOCK TABLES;
 commit;
+
+--
+-- Dumping data for table `fcm_tokens`
+--
+
+LOCK TABLES `fcm_tokens` WRITE;
+/*!40000 ALTER TABLE `fcm_tokens` DISABLE KEYS */;
+set autocommit=0;
+/*!40000 ALTER TABLE `fcm_tokens` ENABLE KEYS */;
+UNLOCK TABLES;
+commit;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -178,7 +189,7 @@ commit;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-07-25  1:46:15
+-- Dump completed on 2026-07-26  6:09:31
 /*M!999999\- enable the sandbox mode */ 
 -- MariaDB dump 10.19-12.0.2-MariaDB, for Android (aarch64)
 --
@@ -219,4 +230,4 @@ commit;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-07-25  1:46:15
+-- Dump completed on 2026-07-26  6:09:31

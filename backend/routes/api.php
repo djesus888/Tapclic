@@ -538,6 +538,14 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($request === '/api/staff/change-password' && $method === 'POST') {
     (new ProviderStaffController())->changePassword();
 
+// --- RUTAS FCM ---
+} elseif ($request === '/api/fcm/register' && $method === 'POST') {
+    require_once __DIR__ . '/../controllers/FCMController.php';
+    (new FCMController())->register();
+} elseif ($request === '/api/fcm/unregister' && $method === 'POST') {
+    require_once __DIR__ . '/../controllers/FCMController.php';
+    (new FCMController())->unregister();
+
 // --- RUTA POR DEFECTO ---
 } else {
     http_response_code(404);

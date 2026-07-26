@@ -9,6 +9,7 @@ import api from '@/axios'
 // 🔔 Notificaciones
 import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
+import { useFCM } from '@/composables/useFCM'
 
 // 💬 SweetAlert2
 import VueSweetalert2 from 'vue-sweetalert2'
@@ -266,10 +267,19 @@ window.addEventListener('payment-updated', (e) => {
   })
 })
 
-
 // ============================================================
 // ✅ MONTAR APP
 // ============================================================
+
+// ✅ Firebase Cloud Messaging
+const { requestPermission, onNotification } = useFCM()
+requestPermission()
+onNotification((payload) => {
+  console.log('📲 Notificación FCM recibida:', payload)
+  // El notificationStore ya maneja las notificaciones por WebSocket
+  // FCM es solo para cuando la app está en segundo plano
+})
+
 app.mount('#app')
 
 // Configuración inicial
