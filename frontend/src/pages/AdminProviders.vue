@@ -95,7 +95,7 @@
           <div class="card-header">
             <div class="avatar-container">
               <img :src="avatarUrl(provider?.avatar_url || '')" :alt="provider?.name" class="provider-avatar" @error="handleAvatarError">
-              <div class="status-indicator" :class="{ active: provider.active == 1 }"></div>
+              <div class="status-indicator" :class="{ active: provider.is_online == 1 }"></div>
             </div>
             <div class="provider-info">
               <h3 class="provider-name">{{ provider?.name }}</h3>

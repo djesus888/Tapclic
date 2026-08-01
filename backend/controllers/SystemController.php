@@ -238,26 +238,36 @@ class SystemController {
     /**
      * Obtener estado de los servicios
      */
-    public function getStatus() {
-        $config = $this->system->getConfig();
+public function getStatus() {
+    $config = $this->system->getConfig();
+    
+    // Manejar posibles errores en Mailer/SMS
+    $emailConfigured = false;
+    $smsConfigured = false;
+    
+    try { $emailConfigured = Mailer::isConfigured(); } catch (\Throwable $e) {}
+    try { $smsConfigured = SMS::isConfigured(); } catch (\Throwable $e) {}
 
-        echo json_encode([
-            'success' => true,
-            'email_configured' => Mailer::isConfigured(),
-            'sms_configured' => SMS::isConfigured(),
-            'mail_config' => [
-                'host' => $config['mail_host'] ?? null,
-                'port' => $config['mail_port'] ?? null,
-                'encryption' => $config['mail_encryption'] ?? null,
-                'from' => $config['mail_from'] ?? null,
-                'has_username' => !empty($config['mail_username']),
-                'has_password' => !empty($config['mail_password'])
-            ],
-            'twilio_config' => [
-                'has_sid' => !empty($config['twilio_sid']),
-                'has_token' => !empty($config['twilio_token']),
-                'phone' => $config['twilio_phone'] ?? null
-            ]
-        ]);
-    }
+    echo json_encode([
+        'success' => true,
+        'system_active' => (int)($config['system_active'] ?? 1),
+        'maintenance_mode' => (int)($config['maintenance_mode'] ?? 0),
+        'system_name' => $config['system_name'] ?? 'TapClic',
+        'email_configured' => $emailConfigured,
+        'sms_configured' => $smsConfigured,
+        'mail_config' => [
+            'host' => $config['mail_host'] ?? null,
+            'port' => $config['mail_port'] ?? null,
+            'encryption' => $config['mail_encryption'] ?? null,
+            'from' => $config['mail_from'] ?? null,
+            'has_username' => !empty($config['mail_username']),
+            'has_password' => !empty($config['mail_password'])
+        ],
+        'twilio_config' => [
+            'has_sid' => !empty($config['twilio_sid']),
+            'has_token' => !empty($config['twilio_token']),
+            'phone' => $config['twilio_phone'] ?? null
+        ]
+    ]);
+  }
 }

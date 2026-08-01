@@ -36,6 +36,13 @@
         class="service-card"
         @click="openEditModal(s)"
       >
+
+<!-- Cinta de DESTACADO -->
+<div v-if="s.is_featured == 1" class="featured-ribbon">
+  <span>⭐ DESTACADO</span>
+</div>
+<!-- Badge Estado -->
+
         <!-- Badge Estado -->
         <div class="card-badge" :class="statusBadgeClass(s.status)">
           {{ getStatusLabel(s.status) }}
@@ -84,6 +91,16 @@
                 title="Pagar publicación"
               >
                 💳 Pagar
+              </button>
+
+              <!-- ✅ Botón para renovar servicio próximo a vencer -->
+              <button
+                v-if="s.status === 'active' && s.expires_at && isExpiringSoon(s.expires_at)"
+                class="btn-renew"
+                @click.stop="goToPay(s.id)"
+                :title="'Renovar publicación'"
+              >
+                🔄 Renovar ({{ daysUntil(s.expires_at) }} días)
               </button>
 
               <button
@@ -358,6 +375,19 @@ const statusBadgeClass = (status) => {
   }
 }
 
+// ✅ Utilidades para vencimiento
+const daysUntil = (dateStr) => {
+  if (!dateStr) return 0
+  const diff = new Date(dateStr) - new Date()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+const isExpiringSoon = (expiresAt) => {
+  if (!expiresAt) return false
+  const days = daysUntil(expiresAt)
+  return days <= 7 && days > 0
+}
+
 const handleImageError = (event) => {
   event.target.src = 'https://via.placeholder.com/400x250?text=Imagen+No+Disponible'
 }
@@ -369,7 +399,7 @@ const showToast = (message, type = 'info') => {
   }, 3000)
 }
 
-// ✅ Ir a la página de pago
+// ✅ Ir a la página de pago (sirve para pago inicial y renovación)
 const goToPay = (serviceId) => {
   router.push(`/service/${serviceId}/publish`)
 }
@@ -482,8 +512,10 @@ const checkPaymentMethods = async () => {
 }
 
 
-onMounted(loadServices)
-checkPaymentMethods()
+onMounted(() => {
+  loadServices()
+  checkPaymentMethods()
+})
 </script>
 
 <style scoped>
@@ -605,6 +637,31 @@ checkPaymentMethods()
   font-size: 0.8rem;
   font-weight: 600;
   z-index: 2;
+}
+
+/* Cinta de DESTACADO */
+.featured-ribbon {
+  position: absolute;
+  top: 12px;
+  right: -8px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 6px 16px 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px 0 0 6px;
+  box-shadow: 2px 2px 8px rgba(245, 158, 11, 0.4);
+  z-index: 3;
+  letter-spacing: 0.5px;
+}
+
+.featured-ribbon::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 100%;
+  border-right: 8px solid transparent;
+  border-top: 6px solid #92400e;
 }
 
 .status-pending {

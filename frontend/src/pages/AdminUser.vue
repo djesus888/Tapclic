@@ -145,7 +145,7 @@
                 class="user-avatar"
                 @error="handleAvatarError"
               >
-              <div class="status-indicator" :class="{ active: user.active == 1 }"></div>
+              <div class="status-indicator" :class="{ active: user.is_online == 1 }"></div>
             </div>
 
             <div class="user-info">

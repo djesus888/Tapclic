@@ -1,3 +1,4 @@
+
 <template>
   <div class="services-page-container">
     <!-- Header con estadísticas -->
@@ -78,6 +79,10 @@
 
       <div v-if="filteredServices.length > 0" class="services-grid">
         <div v-for="service in paginatedServices" :key="service.id" class="service-card-modern" @click="openServiceDetails(service)">
+        <!-- Cinta de DESTACADO -->
+        <div v-if="service.is_featured == 1" class="featured-ribbon">
+         <span>⭐ DESTACADO</span>
+          </div>
           <div class="card-badge" :class="getAvailabilityClass(service)">
             {{ getAvailabilityText(service) }}
           </div>
@@ -357,6 +362,32 @@ if (service.provider?.avatar_url) {
 </script>
 
 <style scoped>
+
+/* Cinta de DESTACADO */
+.featured-ribbon {
+  position: absolute;
+  top: 12px;
+  right: -8px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 6px 16px 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px 0 0 6px;
+  box-shadow: 2px 2px 8px rgba(245, 158, 11, 0.4);
+  z-index: 3;
+  letter-spacing: 0.5px;
+}
+
+.featured-ribbon::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 100%;
+  border-right: 8px solid transparent;
+  border-top: 6px solid #92400e;
+}
+
 .card-badge.offline { background: linear-gradient(135deg, #95a5a6, #7f8c8d); color: white; }
 .card-badge.available { background: linear-gradient(135deg, #00b894, #00a085); color: white; }
 .card-badge.unavailable { background: linear-gradient(135deg, #ff7675, #d63031); color: white; }

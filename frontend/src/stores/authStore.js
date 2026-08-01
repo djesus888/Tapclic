@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', {
               active: parsed.active,
               created_at: parsed.created_at,
               avatar_url: parsed.avatar_url || null,
-              is_online: parsed.is_online ?? true  // ✅ Usar valor guardado o true por defecto
+              is_online: parsed.is_online ?? true
             }
           }
         } catch {
@@ -115,7 +115,7 @@ export const useAuthStore = defineStore('auth', {
           active: user.active,
           created_at: user.created_at,
           avatar_url: user.avatar_url || null,
-          is_online: user.is_online ?? true  // ✅ Guardar estado online
+          is_online: user.is_online ?? true
         }))
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -202,14 +202,12 @@ export const useAuthStore = defineStore('auth', {
             if (staffData) {
               const parsed = JSON.parse(staffData)
 
-              // ✅ Intentar obtener estado online real del backend
               let isOnline = parsed.is_online ?? true
               try {
                 const { data } = await api.get('/staff/profile', {
                   headers: { Authorization: `Bearer ${staffToken}` }
                 })
                 if (data?.staff) {
-                  // Actualizar localStorage con datos frescos
                   const updatedStaff = {
                     ...parsed,
                     ...data.staff,
@@ -277,11 +275,16 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         const { i18nInstance } = this._getDependencies()
         const $t = i18nInstance.global.t
-        Swal.fire(
-          $t('error'),
-          error.response?.data?.message || error.message || $t('registration_failed'),
-          'error'
-        )
+        const message = error.response?.data?.message || error.message || $t('registration_failed')
+        const isMaintenance = error.response?.status === 503
+
+        Swal.fire({
+          icon: isMaintenance ? 'warning' : 'error',
+          title: isMaintenance ? '🔧 Mantenimiento' : $t('error'),
+          text: message,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#667eea'
+        })
         throw error
       } finally {
         this.loading = false
@@ -328,11 +331,16 @@ export const useAuthStore = defineStore('auth', {
         })
       } catch (error) {
         const $t = i18nInstance.global.t
-        Swal.fire(
-          $t('error'),
-          error.response?.data?.message || error.message || $t('invalid_credentials'),
-          'error'
-        )
+        const message = error.response?.data?.message || error.message || $t('invalid_credentials')
+        const isMaintenance = error.response?.data?.maintenance || error.response?.status === 503
+
+        Swal.fire({
+          icon: isMaintenance ? 'warning' : 'error',
+          title: isMaintenance ? '🔧 Sistema no disponible' : $t('error'),
+          text: message,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#667eea'
+        })
         return false
       } finally {
         this.loading = false
@@ -350,7 +358,6 @@ export const useAuthStore = defineStore('auth', {
           throw new Error('Respuesta inválida del servidor al iniciar sesión.')
         }
 
-        // ✅ Construir objeto de usuario para staff con is_online real
         const user = {
           id: staff.id,
           name: staff.name,
@@ -361,7 +368,7 @@ export const useAuthStore = defineStore('auth', {
           active: staff.active,
           created_at: staff.created_at,
           avatar_url: staff.avatar_url || null,
-          is_online: staff.is_online ?? true  // ✅ Usar valor del backend
+          is_online: staff.is_online ?? true
         }
 
         this._saveAuthData({ token, user, role: user.role })
@@ -389,11 +396,16 @@ export const useAuthStore = defineStore('auth', {
         return staff
       } catch (error) {
         const $t = i18nInstance.global.t
-        Swal.fire(
-          $t('error'),
-          error.response?.data?.message || error.message || 'Credenciales inválidas',
-          'error'
-        )
+        const message = error.response?.data?.message || error.message || 'Credenciales inválidas'
+        const isMaintenance = error.response?.status === 503
+
+        Swal.fire({
+          icon: isMaintenance ? 'warning' : 'error',
+          title: isMaintenance ? '🔧 Sistema no disponible' : $t('error'),
+          text: message,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#667eea'
+        })
         return false
       } finally {
         this.loading = false
@@ -484,7 +496,6 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // ✅ CORREGIDO: Actualizar is_online en localStorage al hacer logout
     async staffLogout() {
       if (!this.isStaff || !this.token) return
       const { apiInstance } = this._getDependencies()
@@ -505,7 +516,6 @@ export const useAuthStore = defineStore('auth', {
 
       const wasStaff = this.isStaff || localStorage.getItem('staff_token')
 
-      // ✅ Si es staff, intentar hacer logout en el backend
       if (wasStaff && this.token) {
         api.post('/provider/staff/logout', {}, {
           headers: { Authorization: `Bearer ${this.token}` }

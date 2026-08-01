@@ -395,9 +395,9 @@
       "description": "Gateway description...",
       "holderId": "Ex: V-12345678",
       "idNumber": "Ex: V-12345678",
-      "paypalEmail": "example@paypal.com",
+      "paypalEmail": "example{'@'}paypal.com",
       "phoneNumber": "Ex: 0412-1234567",
-      "zelleEmail": "example@gmail.com"
+      "zelleEmail": "example{'@'}gmail.com"
     },
     "stats": {
       "activeGateways": "Active Gateways",
@@ -658,7 +658,7 @@
   "staff_login_subtitle": "Enter your delivery credentials",
   "staff_back_to_login": "Are you a customer or provider?",
   "staff_panel_footer": "Exclusive panel for delivery partners",
-  "email_placeholder": "your@email.com",
+  "email_placeholder": "your{'@'}email.com",
   "terms_and_conditions": "Terms and Conditions",
   "privacy_policy": "Privacy Policy"
 }

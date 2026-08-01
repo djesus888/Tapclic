@@ -3137,4 +3137,204 @@ input:checked + .toggle-slider:before {
   padding: 0 8px;
 }
 
+/* ========== TABLE HEADERS ========== */
+.table-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: #f8f9fa;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #636e72;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 8px 8px 0 0;
+}
+
+.table-header .table-col {
+  font-weight: 700;
+  color: #636e72;
+}
+
+/* Línea separadora después del header */
+.table-header + .sessions-list,
+.table-header + .ips-list,
+.table-header + .logs-list {
+  border-top: none;
+}
+
+/* Alternar colores en filas */
+.session-item:nth-child(even),
+.ip-item:nth-child(even),
+.log-item:nth-child(even) {
+  background: #fafbfc;
+}
+
+.session-item:nth-child(even):hover,
+.ip-item:nth-child(even):hover,
+.log-item:nth-child(even):hover {
+  background: #f1f5f9;
+}
+
+/* Security Score */
+.score-label { font-size: 0.85rem; color: #636e72; }
+.score-value { font-size: 1.5rem; font-weight: 800; }
+
+/* Alert Icon */
+.alert-icon { font-size: 1.5rem; }
+
+/* Tablas de sesiones, IPs, logs */
+.table-col { padding: 12px 16px; display: flex; align-items: center; }
+.table-col.user { flex: 2; min-width: 180px; }
+.table-col.ip { flex: 1; min-width: 120px; }
+.table-col.device { flex: 1.5; min-width: 140px; }
+.table-col.last-active { flex: 1; min-width: 120px; }
+.table-col.actions { flex: 1; min-width: 140px; justify-content: flex-end; gap: 6px; }
+.table-col.time { flex: 1; min-width: 140px; }
+.table-col.type { flex: 0.8; min-width: 100px; }
+.table-col.action { flex: 1; min-width: 120px; }
+.table-col.details { flex: 1.5; min-width: 120px; }
+.table-col.reason { flex: 2; min-width: 150px; }
+.table-col.blocked-by { flex: 1; min-width: 100px; }
+.table-col.created { flex: 1; min-width: 100px; }
+.table-col.expires { flex: 1; min-width: 120px; }
+.table-col.status { flex: 0.8; min-width: 90px; }
+
+/* Listas */
+.sessions-list, .ips-list, .logs-list, .blocked-ips-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.session-item, .ip-item, .log-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f2f6;
+  transition: background 0.2s;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.session-item:hover, .ip-item:hover, .log-item:hover {
+  background: #f8fafc;
+}
+
+/* Estados vacíos */
+.empty-sessions, .empty-ips, .empty-logs {
+  text-align: center;
+  padding: 40px;
+  color: #b2bec3;
+}
+
+/* Check items (SSL/Dominio) */
+.check-icon { font-size: 1.2rem; min-width: 24px; }
+.check-text { color: #2d3436; font-weight: 500; }
+
+/* Domain form */
+.domain-form { margin-top: 16px; }
+
+/* Form select */
+.form-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #dfe6e9;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+}
+
+/* Stat cards (auditoría, IPs) */
+.stat-card {
+  background: #f8f9fa;
+  padding: 16px 20px;
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  background: #f1f2f6;
+  transform: translateY(-2px);
+}
+
+.stat-card .stat-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #636e72;
+  margin-bottom: 4px;
+}
+
+.stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d3436;
+}
+
+/* Paginación */
+.page-numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-info {
+  font-weight: 600;
+  color: #2d3436;
+}
+
+.total-info {
+  font-size: 0.85rem;
+  color: #b2bec3;
+}
+
+.btn-next, .btn-prev {
+  padding: 8px 16px;
+  border: 1px solid #dfe6e9;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.btn-next:hover:not(:disabled), .btn-prev:hover:not(:disabled) {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.btn-next:disabled, .btn-prev:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* User role badge */
+.user-role {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f1f2f6;
+  color: #636e72;
+  font-weight: 500;
+}
+
+/* Responsive para tablas */
+@media (max-width: 768px) {
+  .session-item, .ip-item, .log-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .table-col {
+    min-width: 100% !important;
+  }
+  
+  .table-col.actions {
+    justify-content: flex-start;
+  }
+}
 </style>

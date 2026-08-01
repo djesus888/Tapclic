@@ -65,11 +65,9 @@ class MonetizationController
                 'monetization_model' => $config['monetization_model'],
                 'commission_percentage' => (float)$config['payment_default_commission'],
                 'commission_min' => (float)$config['payment_min_commission'],
-                 'publish_cost' => (float)$config['service_publish_cost'],
-                 'publish_duration_days' => (int)$config['service_publish_duration'],
-                 'featured_cost' => (float)($config['featured_cost'] ?? 5.00),
-                 'featured_duration_days' => (int)($config['featured_duration_days'] ?? 7),
-                 'platform_earnings' => $this->getTotalEarnings()
+                'publish_cost' => (float)$config['service_publish_cost'],
+                'publish_duration_days' => (int)$config['service_publish_duration'],
+                'platform_earnings' => $this->getTotalEarnings()
             ]
         ]);
     }
@@ -87,37 +85,82 @@ public function getPublishCost(): void
     ]);
 }
 
-
-    // PUT /api/admin/monetization/config
-public function updateConfig(): void
+/**
+ * Enviar notificaciones de servicios próximos a vencer
+ * Se llama desde un cron job o manualmente
+ * GET /api/admin/notify-expiring-services
+ */
+public function notifyExpiringServices(): void
 {
     $this->requireAdmin();
-    $input = json_decode(file_get_contents('php://input'), true);
 
-    $stmt = $this->conn->prepare("
-        UPDATE system_config SET
-            monetization_model = :model,
-            payment_default_commission = :commission,
-            payment_min_commission = :min_commission,
-            service_publish_cost = :publish_cost,
-            service_publish_duration = :duration,
-            featured_cost = :featured_cost,
-            featured_duration_days = :featured_duration
-        WHERE id = 1
+    $stmt = $this->conn->query("
+        SELECT s.id, s.title, s.expires_at, s.user_id as provider_id, u.name as provider_name, u.email
+        FROM services s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.status = 'active'
+          AND s.expires_at IS NOT NULL
+          AND s.expires_at <= DATE_ADD(NOW(), INTERVAL 3 DAY)
+          AND s.expires_at > NOW()
+          AND s.notified_expiry = 0
     ");
+    $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt->execute([
-        ':model' => $input['monetization_model'] ?? 'commission',
-        ':commission' => $input['commission_percentage'] ?? 10,
-        ':min_commission' => $input['commission_min'] ?? 1,
-        ':publish_cost' => $input['publish_cost'] ?? 0,
-        ':duration' => $input['publish_duration_days'] ?? 30,
-        ':featured_cost' => $input['featured_cost'] ?? 5.00,
-        ':featured_duration' => $input['featured_duration_days'] ?? 7
+    $notified = 0;
+    foreach ($services as $service) {
+        $daysLeft = ceil((strtotime($service['expires_at']) - time()) / 86400);
+        
+        // Notificar al proveedor
+        $stmt = $this->conn->prepare("
+            INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+            VALUES (?, 'provider', ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $service['provider_id'],
+            '⏰ Publicación por vencer',
+            "Tu servicio '{$service['title']}' vence en {$daysLeft} días. Renuévalo para mantenerlo activo.",
+            json_encode(['url' => '/myservices', 'action' => 'renew', 'service_id' => $service['id']])
+        ]);
+
+        // Marcar como notificado
+        $this->conn->prepare("UPDATE services SET notified_expiry = 1 WHERE id = ?")->execute([$service['id']]);
+        $notified++;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'notified' => $notified,
+        'message' => "Se notificó a {$notified} proveedores"
     ]);
-
-    echo json_encode(['success' => true, 'message' => 'Configuración actualizada']);
 }
+
+    // PUT /api/admin/monetization/config
+    public function updateConfig(): void
+    {
+        $this->requireAdmin();
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        $stmt = $this->conn->prepare("
+            UPDATE system_config SET
+                monetization_model = :model,
+                payment_default_commission = :commission,
+                payment_min_commission = :min_commission,
+                service_publish_cost = :publish_cost,
+                service_publish_duration = :duration
+            WHERE id = 1
+        ");
+
+        $stmt->execute([
+            ':model' => $input['monetization_model'] ?? 'commission',
+            ':commission' => $input['commission_percentage'] ?? 10,
+            ':min_commission' => $input['commission_min'] ?? 1,
+            ':publish_cost' => $input['publish_cost'] ?? 0,
+            ':duration' => $input['publish_duration_days'] ?? 30
+        ]);
+
+        echo json_encode(['success' => true, 'message' => 'Configuración actualizada']);
+    }
+
     /* ========== PAGO POR PUBLICAR ========== */
 
     // POST /api/services/{id}/publish-external - Pago con comprobante externo
@@ -444,72 +487,7 @@ public function getExpiringServices(): void
     echo json_encode(['success' => true, 'services' => $services, 'count' => count($services)]);
 }
 
-/**
- * Pagar para destacar un servicio
- * POST /api/monetization/feature
- */
-public function payToFeature(): void
-{
-    $this->requireAuth();
-    $input = json_decode(file_get_contents('php://input'), true);
-    $serviceId = $input['service_id'] ?? null;
 
-    $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ? AND user_id = ?");
-    $stmt->execute([$serviceId, $this->user->id]);
-    $service = $stmt->fetch();
-
-    if (!$service) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Servicio no encontrado']);
-        return;
-    }
-
-    $config = $this->getSystemConfig();
-    $amount = (float)($config['featured_cost'] ?? 5.00);
-    $duration = (int)($config['featured_duration_days'] ?? 7);
-    $method = $input['payment_method'] ?? 'transferencia';
-    $reference = $input['reference'] ?? '';
-
-    // Guardar comprobante
-    $stmt = $this->conn->prepare("
-        INSERT INTO service_payment_proofs (service_id, provider_id, amount, payment_method, reference, proof_url, status, payment_type)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', 'featured')
-    ");
-    $stmt->execute([$serviceId, $this->user->id, $amount, $method, $reference, $input['proof_url'] ?? null]);
-// Notificar al admin
-$stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
-$stmt->execute([$this->user->id]);
-$provider = $stmt->fetch();
-
-$stmt = $this->conn->prepare("
-    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
-    SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin' LIMIT 1
-");
-$stmt->execute([
-    '⭐ Nuevo pago de destacado',
-    "{$provider['name']} pagó para destacar '{$service['title']}' - \${$amount} por {$duration} días",
-    json_encode(['url' => '/admin/service-payments', 'action' => 'review_featured', 'service_id' => $serviceId])
-]);
-
-    echo json_encode([
-        'success' => true,
-        'message' => "Comprobante de destacado enviado. El administrador verificará tu pago y destacará tu servicio por {$duration} días."
-    ]);
-}
-
-/**
- * Obtener costo de destacado (público)
- * GET /api/monetization/feature-cost
- */
-public function getFeatureCost(): void
-{
-    $config = $this->getSystemConfig();
-    echo json_encode([
-        'success' => true,
-        'featured_cost' => (float)($config['featured_cost'] ?? 5.00),
-        'featured_duration_days' => (int)($config['featured_duration_days'] ?? 7)
-    ]);
-}
 
     public function getEarnings(): void
     {

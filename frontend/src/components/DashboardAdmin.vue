@@ -132,6 +132,9 @@
         </div>
       </div>
     </div>
+
+    <!-- ✅ NUEVO: Broadcast de notificaciones -->
+    <AdminBroadcast />
   </div>
 </template>
 
@@ -151,6 +154,8 @@ import {
   DollarSign,
   Star,
 } from "lucide-vue-next";
+// ✅ NUEVO: Importar componente de broadcast
+import AdminBroadcast from '@/components/admin/AdminBroadcast.vue'
 
 export default {
   name: "DashboardAdmin",
@@ -164,6 +169,8 @@ export default {
     UserCheck,
     DollarSign,
     Star,
+    // ✅ NUEVO: Registrar componente
+    AdminBroadcast
   },
   setup() {
     const { t } = useI18n();
@@ -183,7 +190,7 @@ export default {
     ]);
     const activities = reactive([]);
     const loading = reactive({ value: false });
-    
+
     // ✅ NUEVO: Timer para auto-actualización cada 30 segundos
     let autoRefreshTimer = null;
 
@@ -203,7 +210,7 @@ export default {
         statCards[6].value = data.totalServices || 0;
         statCards[7].value = data.totalNotifications || 0;
         statCards[8].value = data.settings ?? "-";
-        
+
         // ✅ CORREGIDO: Reemplazar array manteniendo reactividad
         activities.splice(0, activities.length, ...(data.latestActivities || []));
       } catch (err) {

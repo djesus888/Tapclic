@@ -80,11 +80,11 @@
               <div class="form-group">
                 <label class="form-label"><span class="label-icon">🌐</span>{{ $t('config.language') }}</label>
                 <div class="language-selector">
-                  <div v-for="lang in languages" :key="lang.value" @click="form.language = lang.value; markUnsavedChanges()"
-                    :class="['language-option', { active: form.language === lang.value }]">
+                  <div v-for="lang in languages" :key="lang.value" @click="changeLanguage(lang.value)"
+                    :class="['language-option', { active: currentLocale === lang.value }]">
                     <span class="language-flag">{{ lang.flag }}</span>
                     <span class="language-name">{{ lang.name }}</span>
-                    <span v-if="form.language === lang.value" class="language-check">✅</span>
+                    <span v-if="currentLocale === lang.value" class="language-check">✅</span>
                   </div>
                 </div>
               </div>
@@ -93,7 +93,7 @@
                 <div class="notifications-settings">
                   <div class="notification-option">
                     <label class="checkbox-label">
-                      <input v-model="form.notifications" type="checkbox" class="checkbox-input" @change="markUnsavedChanges" />
+                      <input v-model="form.notifications" type="checkbox" class="checkbox-input" @change="saveNotificationPreference" />
                       <span class="checkbox-custom"></span>
                       <span class="checkbox-text">Recibir notificaciones</span>
                     </label>
@@ -122,18 +122,69 @@
                 <div class="security-icon">📱</div>
                 <div class="security-content">
                   <h3>Dispositivos</h3>
-                  <p>Gestiona tus sesiones activas</p>
+                  <p>{{ devices.length }} dispositivo(s) activo(s)</p>
                 </div>
-                <button class="btn-security-action" @click="viewDevices">📊 Ver dispositivos</button>
+                <button class="btn-security-action" @click="showDevices = !showDevices">📊 {{ showDevices ? 'Ocultar' : 'Ver' }}</button>
               </div>
               <div class="security-card">
                 <div class="security-icon">📋</div>
                 <div class="security-content">
                   <h3>Actividad</h3>
-                  <p>Ver registros de tu cuenta</p>
+                  <p>Últimos accesos a tu cuenta</p>
                 </div>
-                <button class="btn-security-action" @click="viewActivityLog">📊 Ver actividad</button>
+                <button class="btn-security-action" @click="showActivity = !showActivity">📊 {{ showActivity ? 'Ocultar' : 'Ver' }}</button>
               </div>
+            </div>
+
+            <!-- Devices List -->
+            <div v-if="showDevices" class="devices-section">
+              <h3>📱 Dispositivos Conectados</h3>
+              <div v-if="loadingDevices" class="loading-mini">Cargando...</div>
+              <div v-else-if="devices.length === 0" class="empty-mini">No hay dispositivos registrados</div>
+              <div v-else class="devices-list">
+                <div v-for="device in devices" :key="device.id" :class="['device-item', { current: device.is_current }]">
+                  <div class="device-icon">{{ getDeviceIcon(device.device_type) }}</div>
+                  <div class="device-info">
+                    <strong>{{ device.device_name || 'Dispositivo' }}</strong>
+                    <p>{{ device.browser }} on {{ device.platform }}</p>
+                    <span class="device-ip">{{ device.ip_address }}</span>
+                  </div>
+                  <div class="device-meta">
+                    <span v-if="device.is_current" class="current-badge">Actual</span>
+                    <span class="device-date">{{ formatDate(device.last_active) }}</span>
+                  </div>
+                  <button v-if="!device.is_current" @click="revokeDevice(device.id)" class="btn-revoke" title="Cerrar sesión">🔓</button>
+                </div>
+                <button v-if="devices.length > 1" @click="revokeAllDevices" class="btn-revoke-all">🚫 Cerrar todas las demás sesiones</button>
+              </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div v-if="showActivity" class="activity-section">
+              <h3>📋 Actividad Reciente</h3>
+              <div v-if="loadingActivity" class="loading-mini">Cargando...</div>
+              <div v-else-if="activities.length === 0" class="empty-mini">No hay actividad reciente</div>
+              <div v-else class="activity-list">
+                <div v-for="act in activities.slice(0, 10)" :key="act.id" class="activity-item">
+                  <span class="activity-icon">{{ getActivityIcon(act.action_type) }}</span>
+                  <div class="activity-info">
+                    <span class="activity-action">{{ act.action }}</span>
+                    <span class="activity-date">{{ formatDate(act.created_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Delete Account -->
+            <div class="delete-account-section">
+              <div class="delete-warning">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-content">
+                  <h3>Zona de peligro</h3>
+                  <p>Una vez eliminada tu cuenta, no hay vuelta atrás. Todos tus datos serán eliminados permanentemente.</p>
+                </div>
+              </div>
+              <button @click="deleteAccount" class="btn-delete-account">🗑️ Eliminar mi cuenta</button>
             </div>
           </div>
 
@@ -181,7 +232,7 @@
               <div class="admin-action-card">
                 <div class="action-icon">📊</div>
                 <div class="action-content"><h3>Estadísticas</h3><p>Ver métricas y reportes</p></div>
-                <button class="btn-admin-action" @click="$router.push('/admin/analytics')">→ Ir</button>
+                <button class="btn-admin-action" @click="$router.push('/admin/reports')">→ Ir</button>
               </div>
               <div class="admin-action-card">
                 <div class="action-icon">💾</div>
@@ -216,7 +267,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/axios'
 import Swal from 'sweetalert2'
@@ -226,15 +277,23 @@ import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { t, locale } = useI18n()
+const { locale } = useI18n()
 
 const loading = ref(false)
 const showChangePassword = ref(false)
+const showDevices = ref(false)
+const showActivity = ref(false)
 const user = ref(null)
 const hasUnsavedChanges = ref(false)
 const activeSection = ref('account')
 const newCategory = ref('')
 const originalForm = ref({})
+const loadingDevices = ref(false)
+const loadingActivity = ref(false)
+const devices = ref([])
+const activities = ref([])
+
+const currentLocale = ref(localStorage.getItem('userLocale') || 'es')
 
 const sections = computed(() => [
   { id: 'account', label: 'Cuenta', icon: '👤' },
@@ -256,7 +315,6 @@ const form = reactive({
 })
 
 const errors = reactive({ name: '', email: '', phone: '' })
-
 const isAdmin = computed(() => user.value?.role === 'admin')
 const isProvider = computed(() => user.value?.role === 'provider')
 
@@ -267,6 +325,11 @@ const categories = computed({
 
 const getRoleBadgeClass = (role) => ({ admin: 'role-admin', provider: 'role-provider', user: 'role-user' }[role] || 'role-default')
 const getUserRoleLabel = (role) => ({ admin: 'Administrador', provider: 'Proveedor', user: 'Usuario' }[role] || 'Usuario')
+
+const getDeviceIcon = (type) => ({ mobile: '📱', tablet: '📱', desktop: '💻', laptop: '💻' }[type] || '💻')
+const getActivityIcon = (type) => ({ login: '🔑', logout: '🚪', register: '👤', password_changed: '🔒', profile_updated: '✏️' }[type] || '📋')
+
+const formatDate = (d) => d ? new Date(d).toLocaleString('es-ES') : 'N/A'
 
 const addCategory = () => { if (newCategory.value.trim()) { categories.value = [...categories.value, newCategory.value.trim()]; newCategory.value = '' } }
 const removeCategory = (index) => { const c = [...categories.value]; c.splice(index, 1); categories.value = c }
@@ -286,7 +349,26 @@ const discardChanges = async () => {
   if (isConfirmed) { Object.assign(form, originalForm.value); hasUnsavedChanges.value = false; newCategory.value = '' }
 }
 
-// ✅ CORREGIDO: Guardar perfil con endpoint real
+// ✅ Cambio de idioma inmediato
+const changeLanguage = async (lang) => {
+  currentLocale.value = lang
+  locale.value = lang
+  localStorage.setItem('userLocale', lang)
+  form.language = lang
+  try {
+    await authStore.updateUserLocale(lang)
+  } catch {}
+}
+
+// ✅ Guardar preferencia de notificaciones
+const saveNotificationPreference = async () => {
+  try {
+    await api.post('/profile/preferences', { notifications: form.notifications }, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+  } catch {}
+}
+
 const saveConfig = async () => {
   if (!validate()) { Swal.fire('Error', 'Corrige los errores', 'error'); return }
   loading.value = true
@@ -298,7 +380,10 @@ const saveConfig = async () => {
       payload.service_categories = form.service_categories.trim()
     }
     await api.post('/profile/update', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
-    if (form.language !== originalForm.value.language) { locale.value = form.language; localStorage.setItem('userLocale', form.language) }
+    if (form.language !== originalForm.value.language) {
+      locale.value = form.language
+      localStorage.setItem('userLocale', form.language)
+    }
     Object.assign(originalForm.value, { ...form })
     hasUnsavedChanges.value = false
     Swal.fire({ icon: 'success', title: 'Guardado', timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
@@ -307,7 +392,6 @@ const saveConfig = async () => {
   } finally { loading.value = false }
 }
 
-// ✅ CORREGIDO: Obtener perfil real del backend
 const fetchProfile = async () => {
   try {
     const { data } = await api.get('/profile', { headers: { Authorization: `Bearer ${authStore.token}` } })
@@ -321,6 +405,7 @@ const fetchProfile = async () => {
     }
     Object.assign(form, ud)
     originalForm.value = { ...ud }
+    currentLocale.value = ud.language
     if (isAdmin.value) activeSection.value = 'admin'
     else if (isProvider.value) activeSection.value = 'provider'
   } catch (error) {
@@ -328,20 +413,103 @@ const fetchProfile = async () => {
   }
 }
 
-// ✅ CORREGIDO: Redirige a páginas reales en vez de simular
-const viewDevices = () => router.push('/profile')
-const viewActivityLog = () => router.push('/admin/logs')
+// ✅ Cargar dispositivos
+const loadDevices = async () => {
+  loadingDevices.value = true
+  try {
+    const { data } = await api.get('/profile/devices', { headers: { Authorization: `Bearer ${authStore.token}` } })
+    devices.value = data.devices || []
+  } catch { devices.value = [] }
+  finally { loadingDevices.value = false }
+}
+
+// ✅ Cargar actividad
+const loadActivity = async () => {
+  loadingActivity.value = true
+  try {
+    const { data } = await api.get('/admin/security/audit-logs', {
+      params: { search: user.value?.email, limit: 10 },
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    activities.value = data.logs || []
+  } catch { activities.value = [] }
+  finally { loadingActivity.value = false }
+}
+
+// ✅ Revocar un dispositivo
+const revokeDevice = async (deviceId) => {
+  const { isConfirmed } = await Swal.fire({
+    title: '¿Cerrar sesión?',
+    text: 'Este dispositivo se desconectará.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, cerrar'
+  })
+  if (!isConfirmed) return
+  try {
+    await api.post('/profile/revoke-device', { device_id: deviceId }, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    loadDevices()
+    Swal.fire({ icon: 'success', title: 'Dispositivo desconectado', timer: 2000, showConfirmButton: false })
+  } catch {
+    Swal.fire('Error', 'No se pudo cerrar la sesión', 'error')
+  }
+}
+
+// ✅ Revocar todos los demás dispositivos
+const revokeAllDevices = async () => {
+  const { isConfirmed } = await Swal.fire({
+    title: '¿Cerrar todas las sesiones?',
+    text: 'Todos los demás dispositivos se desconectarán.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, cerrar todas'
+  })
+  if (!isConfirmed) return
+  try {
+    await api.post('/profile/revoke-all-devices', {}, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    loadDevices()
+    Swal.fire({ icon: 'success', title: 'Todas las sesiones cerradas', timer: 2000, showConfirmButton: false })
+  } catch {
+    Swal.fire('Error', 'No se pudo cerrar las sesiones', 'error')
+  }
+}
+
+// ✅ Eliminar cuenta
+const deleteAccount = async () => {
+  const { isConfirmed } = await Swal.fire({
+    title: '⚠️ ¿Eliminar tu cuenta?',
+    html: '<p style="color:#dc3545;font-weight:600;">Esta acción es PERMANENTE y no se puede deshacer.</p><p>Todos tus datos, servicios, mensajes y configuraciones serán eliminados.</p>',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: '🗑️ Sí, eliminar mi cuenta',
+    confirmButtonColor: '#dc3545',
+    cancelButtonText: 'Cancelar',
+    showLoaderOnConfirm: true,
+    preConfirm: async () => {
+      try {
+        await api.post('/profile/delete-account', {}, { headers: { Authorization: `Bearer ${authStore.token}` } })
+      } catch (error) {
+        Swal.showValidationMessage(error.response?.data?.message || 'Error al eliminar')
+      }
+    }
+  })
+  if (isConfirmed) {
+    authStore.logout()
+    router.push('/login')
+  }
+}
 
 const onPasswordChanged = () => {
   showChangePassword.value = false
   Swal.fire({ icon: 'success', title: 'Contraseña actualizada', timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
 }
 
-onMounted(fetchProfile)
+// Watch para mostrar/ocultar dispositivos y actividad
+import { watch } from 'vue'
+watch(showDevices, (val) => { if (val) loadDevices() })
+watch(showActivity, (val) => { if (val) loadActivity() })
 
-watch(() => ({ ...form }), (newVal) => {
-  if (JSON.stringify(newVal) !== JSON.stringify(originalForm.value)) hasUnsavedChanges.value = true
-}, { deep: true })
+onMounted(fetchProfile)
 </script>
 
 <style scoped>

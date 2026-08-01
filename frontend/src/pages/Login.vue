@@ -30,6 +30,14 @@
 
     <!-- Contenido principal con fondo gradient -->
     <div class="login-container">
+      <!-- ✅ Panel lateral con logo y promoción (solo visible en pantallas grandes) -->
+      <div class="login-side-panel">
+        <div class="side-panel-content">
+          <ContentBlock identifier="login-side-logo" class="side-logo-block" />
+          <ContentBlock identifier="login-side-promo" class="side-promo-block" />
+        </div>
+      </div>
+
       <div class="login-card">
         <!-- Logo animado -->
         <div class="logo-container">
@@ -61,6 +69,24 @@
           <p class="form-subtitle">
             {{ $t('login_prompt') }}
           </p>
+        </div>
+
+        <!-- ✅ Mensaje de sistema en mantenimiento -->
+        <div v-if="systemStatus.maintenance_mode == 1" class="system-status-message maintenance">
+          <span class="status-icon">🔧</span>
+          <div>
+            <strong>{{ systemStore.systemName }} en mantenimiento</strong>
+            <p>Estamos realizando mejoras. Solo administradores pueden acceder.</p>
+          </div>
+        </div>
+
+        <!-- ✅ Mensaje de sistema inactivo -->
+        <div v-else-if="systemStatus.system_active == 0" class="system-status-message inactive">
+          <span class="status-icon">⚠️</span>
+          <div>
+            <strong>Sistema inactivo</strong>
+            <p>La plataforma no está disponible en este momento.</p>
+          </div>
         </div>
 
         <!-- Formulario -->
@@ -151,6 +177,9 @@
           </div>
         </form>
 
+        <!-- ✅ Promoción dinámica debajo del formulario (administrable) -->
+        <ContentBlock identifier="login-promo" class="login-promo-block" />
+
         <!-- Enlace a registro -->
         <div class="register-link">
           <p class="register-text">
@@ -163,14 +192,14 @@
               {{ $t('register_here') }}
             </router-link>
           </p>
-<div class="staff-link">
-  <p class="staff-text">
-    ¿Eres repartidor?
-    <router-link to="/staff/login" class="staff-button">
-      🛵 Ingresa aquí
-    </router-link>
-  </p>
-</div>
+          <div class="staff-link">
+            <p class="staff-text">
+              ¿Eres repartidor?
+              <router-link to="/staff/login" class="staff-button">
+                🛵 Ingresa aquí
+              </router-link>
+            </p>
+          </div>
         </div>
 
         <!-- Footer decorativo -->
@@ -190,17 +219,20 @@
       </div>
     </div>
   </div>
-
 </template>
 
 <script>
 import { useAuthStore } from '@/stores/authStore'
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSystemStore } from '@/stores/systemStore'
-import Swal from 'sweetalert2' 
+import ContentBlock from '@/components/shared/ContentBlock.vue'
+import api from '@/axios'
 
 export default {
+  components: {
+    ContentBlock
+  },
   setup() {
     const auth = useAuthStore()
     const router = useRouter()
@@ -212,8 +244,29 @@ export default {
     })
     const showPassword = ref(false)
 
+    // ✅ Estado del sistema desde la API
+    const systemStatus = ref({
+      system_active: 1,
+      maintenance_mode: 0
+    })
+
+    const loadSystemStatus = async () => {
+      try {
+        const { data } = await api.get('/system/status')
+        if (data.success) {
+          systemStatus.value = data
+        }
+      } catch (_) {
+        // Si falla, asumimos que el sistema está activo
+      }
+    }
+
+    onMounted(() => {
+      loadSystemStatus()
+    })
+
     const handleLogin = () => {
-      auth.login(form.value) // ✅ Lógica exactamente igual
+      auth.login(form.value)
     }
 
     const goToForgotPassword = () => {
@@ -232,7 +285,9 @@ export default {
       showPassword,
       goToForgotPassword,
       systemStore,
-      changeLocale
+      changeLocale,
+      ContentBlock,
+      systemStatus
     }
   }
 }
@@ -344,6 +399,156 @@ export default {
   padding: 40px 20px;
   position: relative;
   z-index: 1;
+}
+
+/* ========== PANEL LATERAL (pantallas grandes) ========== */
+.login-side-panel {
+  display: none;
+  flex: 1;
+  max-width: 500px;
+  padding: 60px 40px;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  .login-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 40px;
+  }
+
+  .login-side-panel {
+    display: flex;
+  }
+
+  .login-card {
+    flex-shrink: 0;
+  }
+}
+
+.side-panel-content {
+  text-align: center;
+  width: 100%;
+}
+
+.side-logo-block {
+  margin-bottom: 32px;
+}
+
+.side-logo-block :deep(.block-image) {
+  max-width: 200px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.side-logo-block :deep(.block-banner) {
+  color: white;
+}
+
+.side-logo-block :deep(.block-banner h2) {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.side-logo-block :deep(.block-banner p) {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.9);
+  line-height: 1.6;
+}
+
+.side-promo-block {
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.side-promo-block :deep(.block-banner h3) {
+  color: white;
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+}
+
+.side-promo-block :deep(.block-banner p) {
+  color: rgba(255,255,255,0.85);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.side-promo-block :deep(.block-text) {
+  color: rgba(255,255,255,0.85);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* ========== MENSAJE DE ESTADO DEL SISTEMA ========== */
+.system-status-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.system-status-message.maintenance {
+  background: #fff3cd;
+  border: 1px solid #fdcb6e;
+  color: #856404;
+}
+
+.system-status-message.inactive {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.system-status-message .status-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+}
+
+.system-status-message strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.95rem;
+}
+
+.system-status-message p {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+/* ========== BLOQUE DE PROMOCIÓN EN LOGIN ========== */
+.login-promo-block {
+  margin: 20px 0;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.login-promo-block :deep(.block-banner) {
+  text-align: center;
+}
+
+.login-promo-block :deep(.block-banner h3) {
+  color: #667eea;
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.login-promo-block :deep(.block-banner p) {
+  color: #4a5568;
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 .login-card {
@@ -725,6 +930,29 @@ export default {
   transform: rotate(15deg);
 }
 
+.staff-link {
+  margin-top: 12px;
+}
+
+.staff-text {
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
+.staff-button {
+  color: #f59e0b;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.staff-button:hover {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
+}
+
 /* Footer decorativo */
 .login-footer {
   text-align: center;
@@ -757,7 +985,38 @@ export default {
   font-weight: 500;
 }
 
-/* Responsive */
+.footer-legal-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.legal-link {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 11px;
+  transition: color 0.2s;
+}
+
+.legal-link:hover {
+  color: #667eea;
+  text-decoration: underline;
+}
+
+.legal-sep {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 1023px) {
+  .login-side-panel {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   .login-header {
     padding: 12px 20px;
@@ -809,30 +1068,5 @@ export default {
   .form-input {
     padding: 14px 48px 14px 48px;
   }
-}
-
-.footer-legal-links {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.legal-link {
-  color: #94a3b8;
-  text-decoration: none;
-  font-size: 11px;
-  transition: color 0.2s;
-}
-
-.legal-link:hover {
-  color: #667eea;
-  text-decoration: underline;
-}
-
-.legal-sep {
-  color: #cbd5e1;
-  font-size: 11px;
 }
 </style>

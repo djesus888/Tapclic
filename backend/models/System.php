@@ -17,7 +17,7 @@ class System {
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         } else {
             // Solo registros activos
-            $query = "SELECT * FROM {$this->table} WHERE system_active = 1 ORDER BY id DESC LIMIT 1";
+            $query = "SELECT * FROM {$this->table} ORDER BY id DESC LIMIT 1";
             $stmt = $this->conn->prepare($query);
         }
 

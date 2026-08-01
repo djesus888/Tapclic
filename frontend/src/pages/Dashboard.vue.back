@@ -1,0 +1,117 @@
+<template>
+  <!-- ✅ Banner de bienvenida con animación (se oculta al hacer scroll) -->
+  <Transition name="welcome-fade">
+    <ContentBlock 
+      v-if="showWelcome"
+      identifier="dashboard-welcome" 
+      class="dashboard-welcome-banner"
+    />
+  </Transition>
+  
+  <component :is="dashboardComponent" />
+</template>
+
+<script>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useAuthStore } from '@/stores/authStore'
+import ContentBlock from '@/components/shared/ContentBlock.vue'
+import DashboardUser from '@/components/DashboardUser.vue'
+import DashboardAdmin from '@/components/DashboardAdmin.vue'
+import DashboardProvider from '@/components/DashboardProvider.vue'
+import DashboardDelivery from '@/components/DashboardDelivery.vue'
+
+export default {
+  components: { ContentBlock, DashboardUser, DashboardAdmin, DashboardProvider, DashboardDelivery },
+  setup() {
+    const showWelcome = ref(true)
+    let hideTimer = null
+
+    const handleScroll = () => {
+      if (window.scrollY > 50) {
+        showWelcome.value = false
+      }
+    }
+
+    onMounted(() => {
+      // Ocultar después de 8 segundos
+      hideTimer = setTimeout(() => {
+        showWelcome.value = false
+      }, 8000)
+
+      // Ocultar al hacer scroll
+      window.addEventListener('scroll', handleScroll, { passive: true })
+    })
+
+    onBeforeUnmount(() => {
+      clearTimeout(hideTimer)
+      window.removeEventListener('scroll', handleScroll)
+    })
+
+    return { showWelcome }
+  },
+  computed: {
+    dashboardComponent() {
+      const staffToken = localStorage.getItem('staff_token')
+      if (staffToken) return 'DashboardDelivery'
+
+      const role = useAuthStore().user?.role
+      if (role === 'admin') return 'DashboardAdmin'
+      if (role === 'provider') return 'DashboardProvider'
+      return 'DashboardUser'
+    }
+  }
+}
+</script>
+
+<style scoped>
+/* ✅ Banner de bienvenida tipo marca de agua */
+.dashboard-welcome-banner {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: 600px;
+  width: 90%;
+  animation: welcomeSlideDown 0.6s ease-out;
+}
+
+@keyframes welcomeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Transición de salida */
+.welcome-fade-enter-active {
+  transition: all 0.5s ease-out;
+}
+
+.welcome-fade-leave-active {
+  transition: all 0.8s ease-in;
+}
+
+.welcome-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+.welcome-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-50px) scale(0.9);
+  filter: blur(8px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard-welcome-banner {
+    top: 60px;
+    max-width: 95%;
+  }
+}
+</style>

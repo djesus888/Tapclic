@@ -11,7 +11,29 @@ class CompanyController
         $this->conn = $database->getConnection();
     }
 
-    // GET /api/company
+// GET /api/public/stats
+public function publicStats(): void
+{
+    header("Content-Type: application/json; charset=UTF-8");
+    
+    try {
+        $totalUsers = (int) $this->conn->query("SELECT COUNT(*) FROM users WHERE is_active = 1")->fetchColumn();
+        $totalProviders = (int) $this->conn->query("SELECT COUNT(*) FROM users WHERE role = 'provider' AND is_active = 1")->fetchColumn();
+        $totalServices = (int) $this->conn->query("SELECT COUNT(*) FROM services WHERE status = 'active'")->fetchColumn();
+        
+        echo json_encode([
+            'success' => true,
+            'total_users' => $totalUsers,
+            'total_providers' => $totalProviders,
+            'total_services' => $totalServices
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al obtener estadísticas']);
+    }
+}   
+
+
     public function index(): void
     {
         header("Content-Type: application/json; charset=UTF-8");

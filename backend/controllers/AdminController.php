@@ -222,7 +222,6 @@ public function deleteUser() {
     }
 
     /* ---------- SEGURIDAD: verificar SSL ---------- */
-/* ---------- SEGURIDAD: verificar SSL ---------- */
 private function checkSSLStatus($domain): array
 {
     if (!$domain) {
@@ -367,7 +366,27 @@ private function checkSSLStatus($domain): array
         return null;
     }
 
-
+// GET /api/admin/broadcast-history
+public function broadcastHistory(): void {
+    $this->requireAdmin();
+    header('Content-Type: application/json');
+    
+    $stmt = $this->conn->query(
+        "SELECT id, title, message, data_json, created_at 
+         FROM notifications 
+         WHERE data_json LIKE '%\"broadcast\":true%' 
+         ORDER BY created_at DESC LIMIT 20"
+    );
+    $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($history as &$item) {
+        $data = json_decode($item['data_json'], true);
+        $item['target_role'] = $data['target_role'] ?? null;
+        $item['notification_type'] = $data['notification_type'] ?? 'broadcast';
+    }
+    
+    echo json_encode($history);
+}
 
 /**
  * Obtener todos los tickets de soporte (admin)
@@ -1149,8 +1168,10 @@ public function getAnalyticsOverview(): void
         $total = (int)$stmt->fetchColumn();
 
         $stmt = $this->conn->prepare(
-            "SELECT id, name, email, phone, role, avatar_url, active, position, bio, linkedin_url, twitter_url, address, business_address, service_categories, coverage_area
-               FROM users
+        "SELECT id, name, email, phone, role, avatar_url, active, position, bio, linkedin_url, twitter_url, address, business_address, service_categories, coverage_area,
+        (COALESCE(last_seen_at, '2000-01-01') >= NOW() - INTERVAL 5 MINUTE) as is_online,
+        last_seen_at
+        FROM users
                $sqlWhere
                ORDER BY id DESC
                LIMIT :limit OFFSET :offset"
@@ -1172,79 +1193,65 @@ public function getAnalyticsOverview(): void
     }
 
     /* ---------- SEGURIDAD: SESIONES ACTIVAS ---------- */
-    public function getActiveSessions(): void
-    {
-        $this->requireAdmin();
-        header('Content-Type: application/json');
+public function getActiveSessions(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
 
-        $db = $this->conn;
+    $db = $this->conn;
 
-        // Obtener sesiones activas (últimas 24 horas)
-        $stmt = $db->prepare("
-            SELECT
-                s.id,
-                s.user_id,
-                u.name as user_name,
-                u.email,
-                u.role,
-                s.ip_address,
-                s.user_agent,
-                s.last_activity,
-                s.created_at,
-                TIMESTAMPDIFF(MINUTE, s.last_activity, NOW()) as minutes_inactive
-            FROM sessions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.last_activity >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            ORDER BY s.last_activity DESC
-            LIMIT 100
-        ");
+    $stmt = $db->prepare("
+        SELECT
+            d.id,
+            d.user_id,
+            u.name as user_name,
+            u.email,
+            u.role,
+            d.ip_address,
+            CONCAT(d.device_name, ' - ', d.browser, ' on ', d.platform) as user_agent,
+            d.device_type,
+            d.browser,
+            d.platform,
+            d.last_active as last_activity,
+            d.created_at,
+            TIMESTAMPDIFF(MINUTE, d.last_active, NOW()) as minutes_inactive
+        FROM user_devices d
+        JOIN users u ON u.id = d.user_id
+        WHERE d.is_current = 1
+        ORDER BY d.last_active DESC
+        LIMIT 100
+    ");
+    $stmt->execute();
+    $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt->execute();
-        $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        echo json_encode([
-            'sessions' => $sessions,
-            'total' => count($sessions),
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
-    }
-
+    echo json_encode([
+        'sessions' => $sessions,
+        'total' => count($sessions),
+        'timestamp' => date('Y-m-d H:i:s')
+    ]);
+}
     /* ---------- SEGURIDAD: TERMINAR SESIÓN ---------- */
     public function terminateSession(): void
-    {
-        $this->requireAdmin();
-        header('Content-Type: application/json');
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $sessionId = $input['session_id'] ?? null;
-        $userId = $input['user_id'] ?? null;
+    $input = json_decode(file_get_contents('php://input'), true);
+    $sessionId = $input['session_id'] ?? null;
+    $userId = $input['user_id'] ?? null;
 
-        if (!$sessionId && !$userId) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Se requiere session_id o user_id']);
-            return;
-        }
+    $db = $this->conn;
 
-        $db = $this->conn;
-
-        if ($sessionId) {
-            // Terminar sesión específica
-            $stmt = $db->prepare("DELETE FROM sessions WHERE id = ?");
-            $stmt->execute([$sessionId]);
-            $affected = $stmt->rowCount();
-        } else {
-            // Terminar todas las sesiones de un usuario
-            $stmt = $db->prepare("DELETE FROM sessions WHERE user_id = ?");
-            $stmt->execute([$userId]);
-            $affected = $stmt->rowCount();
-        }
-
-        echo json_encode([
-            'success' => true,
-            'message' => "Sesión(es) terminadas: $affected",
-            'affected' => $affected
-        ]);
+    if ($sessionId) {
+        $stmt = $db->prepare("DELETE FROM user_devices WHERE id = ?");
+        $stmt->execute([$sessionId]);
+    } elseif ($userId) {
+        $stmt = $db->prepare("DELETE FROM user_devices WHERE user_id = ?");
+        $stmt->execute([$userId]);
     }
+
+    echo json_encode(['success' => true, 'message' => 'Sesión(es) terminada(s)']);
+}
 
     /* ---------- SEGURIDAD: LOGS DE AUDITORÍA ---------- */
     public function getAuditLogs(): void
@@ -1480,8 +1487,9 @@ public function getAnalyticsOverview(): void
         ]);
     }
 
-    /* ---------- SEGURIDAD: CONFIGURACIÓN SSL/DOMINIO ---------- */
-  public function getSecurityConfig(): void
+ 
+/* ---------- SEGURIDAD: CONFIGURACIÓN SSL/DOMINIO ---------- */
+public function getSecurityConfig(): void
 {
     $this->requireAdmin();
     header('Content-Type: application/json');
@@ -1494,6 +1502,9 @@ public function getAnalyticsOverview(): void
             system_host,
             ws_host,
             allow_user_registration,
+            email_verification,
+            strong_passwords,
+            multiple_sessions,
             max_login_attempts,
             session_timeout_minutes,
             password_expiration_days
@@ -1507,79 +1518,91 @@ public function getAnalyticsOverview(): void
     $sslCheckDomain = $config['ws_host'] ?? $config['system_host'] ?? '';
     $sslStatus = $this->checkSSLStatus($sslCheckDomain);
 
-        // Estadísticas de seguridad
-        $failedLogins = (int) $db->query("
-            SELECT COUNT(*) FROM login_attempts
-            WHERE success = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        ")->fetchColumn();
+    // Estadísticas de seguridad
+    $failedLogins = (int) $db->query("
+        SELECT COUNT(*) FROM login_attempts
+        WHERE success = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ") ->fetchColumn();
 
-        $blockedUsers = (int) $db->query("
-            SELECT COUNT(*) FROM users
-            WHERE login_attempts >= (SELECT max_login_attempts FROM system_config WHERE id = 1)
-            AND active = 1
-        ")->fetchColumn();
+    $blockedUsers = (int) $db->query("
+        SELECT COUNT(*) FROM users
+        WHERE login_attempts >= (SELECT max_login_attempts FROM system_config WHERE id = 1)
+        AND active = 1
+    ") ->fetchColumn();
 
-        echo json_encode([
-            'ssl_status' => $sslStatus,
-            'security_config' => $config,
-            'stats' => [
-                'failed_logins_7d' => $failedLogins,
-                'blocked_users' => $blockedUsers,
-                'active_sessions' => (int) $db->query("SELECT COUNT(*) FROM sessions WHERE last_activity >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)")->fetchColumn()
-            ],
-            'checks' => [
-                'ssl_enabled' => $sslStatus['valid'],
-                'https_redirect' => strpos($config['system_host'] ?? '', 'https://') === 0,
-                'strong_passwords' => true, // Asumir que sí por ahora
-                'session_secure' => true
-            ]
-        ]);
-    }
+    // Convertir a tipos correctos
+    $config['allow_user_registration'] = (int)($config['allow_user_registration'] ?? 1);
+    $config['email_verification'] = (int)($config['email_verification'] ?? 0);
+    $config['strong_passwords'] = (int)($config['strong_passwords'] ?? 1);
+    $config['multiple_sessions'] = (int)($config['multiple_sessions'] ?? 1);
+    $config['max_login_attempts'] = (int)($config['max_login_attempts'] ?? 5);
+    $config['session_timeout_minutes'] = (int)($config['session_timeout_minutes'] ?? 30);
+    $config['password_expiration_days'] = (int)($config['password_expiration_days'] ?? 90);
+
+    echo json_encode([
+        'ssl_status' => $sslStatus,
+        'security_config' => $config,
+        'stats' => [
+            'failed_logins_7d' => $failedLogins,
+            'blocked_users' => $blockedUsers,
+            'active_sessions' => (int) $db->query("SELECT COUNT(*) FROM sessions WHERE last_activity >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)")->fetchColumn()
+        ],
+        'checks' => [
+            'ssl_enabled' => $sslStatus['valid'],
+            'https_redirect' => strpos($config['system_host'] ?? '', 'https://') === 0,
+            'strong_passwords' => (int)($config['strong_passwords'] ?? 1) == 1,
+            'session_secure' => true
+        ]
+    ]);
+}
 
     /* ---------- SEGURIDAD: ACTUALIZAR CONFIGURACIÓN ---------- */
-    public function updateSecurityConfig(): void
-    {
-        $this->requireAdmin();
-        header('Content-Type: application/json');
+public function updateSecurityConfig(): void
+{
+    $this->requireAdmin();
+    header('Content-Type: application/json');
 
-        $input = json_decode(file_get_contents('php://input'), true);
+    $input = json_decode(file_get_contents('php://input'), true);
 
-        $allowedFields = [
-            'max_login_attempts',
-            'session_timeout_minutes',
-            'password_expiration_days',
-            'allow_user_registration'
-        ];
+    $allowedFields = [
+        'max_login_attempts',
+        'session_timeout_minutes',
+        'password_expiration_days',
+        'allow_user_registration',
+        'email_verification',
+        'strong_passwords',
+        'multiple_sessions'
+    ];
 
-        $updates = [];
-        $params = [];
+    $updates = [];
+    $params = [];
 
-        foreach ($allowedFields as $field) {
-            if (isset($input[$field])) {
-                $updates[] = "$field = ?";
-                $params[] = $input[$field];
-            }
+    foreach ($allowedFields as $field) {
+        if (isset($input[$field])) {
+            $updates[] = "$field = ?";
+            $params[] = $input[$field];
         }
-
-        if (empty($updates)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'No hay campos para actualizar']);
-            return;
-        }
-
-        $params[] = 1; // WHERE id = 1
-
-        $db = $this->conn;
-        $sql = "UPDATE system_config SET " . implode(', ', $updates) . " WHERE id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Configuración de seguridad actualizada',
-            'affected' => $stmt->rowCount()
-        ]);
     }
+
+    if (empty($updates)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No hay campos para actualizar']);
+        return;
+    }
+
+    $params[] = 1; // WHERE id = 1
+
+    $db = $this->conn;
+    $sql = "UPDATE system_config SET " . implode(', ', $updates) . " WHERE id = ?";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Configuración de seguridad actualizada',
+        'affected' => $stmt->rowCount()
+    ]);
+}
 
     /* ---------- Métodos para pasarelas de pago ---------- */
     public function getPaymentGateways(): void {
@@ -1971,7 +1994,8 @@ public function getAnalyticsOverview(): void
     'theme_color','items_per_page','max_login_attempts','session_timeout_minutes',
     'password_expiration_days','system_active','maintenance_mode','allow_user_registration',
     'wallet_enabled','reviews_enabled','chat_enabled','tickets_enabled','analytics_enabled',
-    'system_logo','system_favicon'
+    'system_logo','system_favicon',
+    'mail_host','mail_port','mail_username','mail_password','mail_from','mail_encryption'
 ];
         $sets = implode(' = ?, ', $fields) . ' = ?';
         $values = array_map(fn($f) => $input[$f] ?? null, $fields);
@@ -3117,10 +3141,34 @@ $stmt = $this->conn->prepare("
     VALUES ('service_publish', ?, ?, ?, NOW())
 ");
 $stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
+// ✅ Si es pago de destacado, activar destacado
+if (($payment['payment_type'] ?? '') === 'featured') {
+    $featuredDays = (int)($config['featured_duration_days'] ?? 7);
+    $featuredExpires = date('Y-m-d H:i:s', strtotime("+{$featuredDays} days"));
+    $stmt = $this->conn->prepare("UPDATE services SET is_featured = 1, featured_at = NOW(), featured_expires_at = ? WHERE id = ?");
+    $stmt->execute([$featuredExpires, $payment['service_id']]);
 
+    // Notificar al proveedor
+    $stmt = $this->conn->prepare("
+        INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+        VALUES (?, 'provider', ?, ?, ?, NOW())
+    ");
+    $stmt->execute([
+        $payment['provider_id'],
+        '⭐ Destacado activado',
+        "Tu servicio '{$payment['title']}' ahora está DESTACADO por {$featuredDays} días. Aparecerá en los primeros lugares.",
+        json_encode(['url' => '/myservices', 'action' => 'view_featured', 'service_id' => $payment['service_id']])
+    ]);
+
+    // Registrar ganancia por destacado
+    $stmt = $this->conn->prepare("
+        INSERT INTO platform_earnings (type, amount, reference_id, user_id, created_at)
+        VALUES ('service_featured', ?, ?, ?, NOW())
+    ");
+    $stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
+}
 echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
 
-        echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
     } else {
         // Rechazar comprobante
         $stmt = $this->conn->prepare("UPDATE service_payment_proofs SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW() WHERE id = ?");

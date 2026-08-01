@@ -101,6 +101,23 @@
           </div>
         </div>
 
+<!-- Featured Settings -->
+<div v-if="config.monetization_model === 'featured' || config.monetization_model === 'both'" class="sub-config">
+  <h3>⭐ Publicaciones Destacadas</h3>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Costo por destacar ($)</label>
+      <input type="number" v-model.number="config.featured_cost" min="0" step="0.01" class="form-input" />
+      <p class="form-hint">Monto que paga el proveedor por destacar su servicio</p>
+    </div>
+    <div class="form-group">
+      <label>Duración del destacado (días)</label>
+      <input type="number" v-model.number="config.featured_duration_days" min="1" max="365" class="form-input" />
+      <p class="form-hint">Tiempo que el servicio aparece en los primeros lugares</p>
+    </div>
+  </div>
+</div>
+
         <div class="config-actions">
           <span v-if="saved" class="saved-msg">✅ Guardado</span>
           <button class="btn-save" @click="saveConfig" :disabled="saving">
@@ -159,7 +176,9 @@ const config = reactive({
   commission_percentage: 10,
   commission_min: 1,
   publish_cost: 0,
-  publish_duration_days: 30
+  publish_duration_days: 30,
+  featured_cost: 5,
+  featured_duration_days: 7
 })
 
 const earnings = reactive({
@@ -175,8 +194,9 @@ const toast = ref({ show: false, message: '', type: 'success' })
 const models = [
   { value: 'commission', label: 'Solo Comisiones', icon: '📊', desc: 'Cobra un % de cada transacción entre usuario y proveedor' },
   { value: 'publish', label: 'Pago por Publicar', icon: '📦', desc: 'Los proveedores pagan por publicar sus servicios' },
-  { value: 'both', label: 'Ambos modelos', icon: '💵', desc: 'Combina comisiones por transacción + pago por publicar' }
-]
+  { value: 'both', label: 'Ambos modelos', icon: '💵', desc: 'Combina comisiones por transacción + pago por publicar' },
+  { value: 'featured', label: 'Publicaciones Destacadas', icon: '⭐', desc: 'Los proveedores pagan por destacar sus servicios en los primeros lugares' },
+];
 
 const formatCurrency = (v) => Number(v || 0).toFixed(2)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : ''

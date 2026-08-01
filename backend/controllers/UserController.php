@@ -372,6 +372,89 @@ public function revokeDevice() {
 }
 
 /**
+ * Cerrar sesiones anteriores y notificar al dispositivo
+ */
+public function closeOtherSessions($userId, $currentToken, $userName) {
+    try {
+        // Obtener dispositivos anteriores
+        $query = "SELECT id, refresh_token, device_name, device_type, browser, platform
+                  FROM user_devices
+                  WHERE user_id = ? AND refresh_token != ? AND refresh_token IS NOT NULL";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([$userId, $currentToken]);
+        $oldDevices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($oldDevices)) {
+            return; // No hay sesiones anteriores
+        }
+
+        foreach ($oldDevices as $device) {
+            // 1. Enviar notificación por WebSocket antes de cerrar
+            $this->notifySessionClosed($userId, $device);
+
+            // 2. Marcar dispositivo como inactivo (NO eliminar)
+            $query = "UPDATE user_devices SET is_current = 0 WHERE id = ? AND user_id = ?";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([$device['id'], $userId]);
+
+            // 3. Blacklist del token
+            if ($device['refresh_token']) {
+                $decoded = JwtHandler::decode($device['refresh_token']);
+                $expires_at = null;
+                if ($decoded && isset($decoded->exp)) {
+                    $expires_at = date('Y-m-d H:i:s', $decoded->exp);
+                }
+                Auth::addToBlacklist($device['refresh_token'], $expires_at);
+            }
+        }
+
+        error_log("✅ {$userName}: " . count($oldDevices) . " sesiones anteriores cerradas");
+    } catch (Exception $e) {
+        error_log("Error en closeOtherSessions: " . $e->getMessage());
+    }
+}
+
+/**
+ * Notificar al dispositivo que su sesión será cerrada
+ */
+private function notifySessionClosed($userId, $device) {
+    try {
+        $systemModel = new System();
+        $config = $systemModel->getConfig();
+        $wsUrl = rtrim($config['ws_host'] ?? 'http://localhost:3001', '/');
+
+        $payload = [
+            'event' => 'session_closed',
+            'receiver_id' => $userId,
+            'receiver_role' => 'user',
+            'payload' => [
+                'title' => '🔒 Sesión cerrada',
+                'message' => 'Tu cuenta ha sido abierta en otro dispositivo. Esta sesión ha sido cerrada por seguridad.',
+                'device_name' => $device['device_name'] ?? 'Dispositivo desconocido',
+                'browser' => $device['browser'] ?? '',
+                'platform' => $device['platform'] ?? '',
+                'notification_type' => 'session_closed',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]
+        ];
+
+        $ch = curl_init($wsUrl . '/emit');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_exec($ch);
+        curl_close($ch);
+
+        error_log("📡 Notificación de sesión cerrada enviada a usuario {$userId}");
+    } catch (Exception $e) {
+        error_log("Error notificando cierre de sesión: " . $e->getMessage());
+    }
+}
+
+
+/**
  * Añadir token a lista negra para invalidación inmediata
  */
 private function addToBlacklist($token) {
@@ -563,165 +646,90 @@ public function revokeAllDevices() {
 /**
  * Registrar un nuevo dispositivo usando fingerprint
  */
-public function registerDevice($userId, $refreshToken) {
+
+public function registerDevice($userId, $refreshToken, $sessionCleanupDone = false) {
     try {
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido';
         $ipAddress = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        
+
         // Generar fingerprint único del dispositivo
         $fingerprintData = $userAgent . $ipAddress;
-        // Incluir headers adicionales si existen para mejor precisión
         if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
             $fingerprintData .= $_SERVER['HTTP_ACCEPT_LANGUAGE'];
         }
         if (isset($_SERVER['HTTP_ACCEPT_ENCODING'])) {
             $fingerprintData .= $_SERVER['HTTP_ACCEPT_ENCODING'];
         }
-        
+
         $deviceFingerprint = md5($fingerprintData);
-        
+
         // Detectar información del dispositivo
         $deviceInfo = $this->parseUserAgent($userAgent);
-        
-        // Log para depuración
-        error_log("=== REGISTER DEVICE FINGERPRINT ===");
-        error_log("UserID: " . $userId);
-        error_log("Fingerprint: " . $deviceFingerprint);
-        error_log("IP: " . $ipAddress);
-        
-        // Buscar por fingerprint primero (más preciso)
-        $query = "SELECT id FROM user_devices 
-                  WHERE user_id = ? AND device_fingerprint = ?";
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([$userId, $deviceFingerprint]);
-        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($existing) {
-            // Mismo dispositivo - actualizar
-            error_log("Dispositivo existente encontrado por fingerprint. Actualizando ID: " . $existing['id']);
-            
-            $query = "UPDATE user_devices 
-                      SET last_active = NOW(), 
-                          ip_address = ?, 
-                          refresh_token = ?, 
-                          is_current = 1,
-                          device_name = ?,
-                          browser = ?,
-                          platform = ?,
-                          device_type = ?
-                      WHERE id = ?";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                $ipAddress,
-                $refreshToken,
-                $deviceInfo['device_name'],
-                $deviceInfo['browser'],
-                $deviceInfo['platform'],
-                $deviceInfo['device_type'],
-                $existing['id']
-            ]);
-        } else {
-            // Buscar por combinación de IP y UserAgent como respaldo
-            $query = "SELECT id FROM user_devices 
-                      WHERE user_id = ? AND ip_address = ? AND device_name = ?";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([$userId, $ipAddress, $deviceInfo['device_name']]);
-            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($existing) {
-                // Mismo dispositivo detectado por IP/Name - actualizar y agregar fingerprint
-                error_log("Dispositivo existente encontrado por IP/Name. Actualizando ID: " . $existing['id']);
-                
-                $query = "UPDATE user_devices 
-                          SET last_active = NOW(),
-                              refresh_token = ?,
-                              is_current = 1,
-                              device_fingerprint = ?,
-                              browser = ?,
-                              platform = ?,
-                              device_type = ?
-                          WHERE id = ?";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([
-                    $refreshToken,
-                    $deviceFingerprint,
-                    $deviceInfo['browser'],
-                    $deviceInfo['platform'],
-                    $deviceInfo['device_type'],
-                    $existing['id']
-                ]);
-            } else {
-                // Nuevo dispositivo - crear registro
-                error_log("Nuevo dispositivo detectado. Creando registro...");
-                
-                // Limitar número de dispositivos (ej: máximo 10)
-                $query = "SELECT COUNT(*) as count FROM user_devices WHERE user_id = ?";
-                $stmt = $this->db->prepare($query);
+
+        // ✅ CORRECCIÓN: Solo hacer limpieza si NO se hizo ya en AuthController
+        if (!$sessionCleanupDone) {
+            // Verificar configuración de sesiones múltiples
+            $multiStmt = $this->db->query("SELECT multiple_sessions FROM system_config WHERE id = 1");
+            $multipleSessions = (int)($multiStmt->fetchColumn() ?: 0);
+
+            if ($multipleSessions == 0) {
+                // ===== MODO UNA SOLA SESIÓN =====
+                // Eliminar TODOS los dispositivos anteriores del usuario
+                $stmt = $this->db->prepare("DELETE FROM user_devices WHERE user_id = ?");
                 $stmt->execute([$userId]);
-                $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-                
-                if ($count >= 10) {
-                    // Eliminar el dispositivo más antiguo (no actual)
-                    $query = "DELETE FROM user_devices 
-                              WHERE user_id = ? AND is_current = 0 
-                              ORDER BY last_active ASC LIMIT 1";
-                    $stmt = $this->db->prepare($query);
-                    $stmt->execute([$userId]);
-                }
-                
-                // Insertar nuevo dispositivo
-                $query = "INSERT INTO user_devices 
-                          (user_id, device_name, device_type, browser, platform, 
-                           device_fingerprint, ip_address, refresh_token, is_current)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([
-                    $userId,
-                    $deviceInfo['device_name'],
-                    $deviceInfo['device_type'],
-                    $deviceInfo['browser'],
-                    $deviceInfo['platform'],
-                    $deviceFingerprint,
-                    $ipAddress,
-                    $refreshToken
-                ]);
-                
-                error_log("Nuevo dispositivo creado con ID: " . $this->db->lastInsertId());
+
+                // Eliminar TODAS las sesiones anteriores
+                $stmt = $this->db->prepare("DELETE FROM sessions WHERE user_id = ?");
+                $stmt->execute([$userId]);
+
+                error_log("✅ Todos los dispositivos y sesiones anteriores eliminados para usuario {$userId}");
             }
+        } else {
+            error_log("ℹ️ Limpieza de sesiones ya realizada en AuthController para usuario {$userId}");
         }
-        
-        // Marcar este dispositivo como actual y los demás como no actuales
-        $query = "UPDATE user_devices SET is_current = 0 
-                  WHERE user_id = ? AND refresh_token != ?";
+
+        // Insertar nuevo dispositivo (siempre)
+        $query = "INSERT INTO user_devices
+                  (user_id, device_name, device_type, browser, platform,
+                   device_fingerprint, ip_address, refresh_token, is_current)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)";
         $stmt = $this->db->prepare($query);
-        $stmt->execute([$userId, $refreshToken]);
+        $stmt->execute([
+            $userId,
+            $deviceInfo['device_name'],
+            $deviceInfo['device_type'],
+            $deviceInfo['browser'],
+            $deviceInfo['platform'],
+            $deviceFingerprint,
+            $ipAddress,
+            $refreshToken
+        ]);
 
-// ✅ NUEVO: Registrar en sessions para el panel de seguridad
-// Eliminar sesiones anteriores del mismo usuario
-$stmt = $this->db->prepare("DELETE FROM sessions WHERE user_id = ?");
-$stmt->execute([$userId]);
+        error_log("Nuevo dispositivo creado con ID: " . $this->db->lastInsertId());
 
-// Insertar nueva sesión (ID único)
-$sessionId = bin2hex(random_bytes(32));
-$stmt = $this->db->prepare("
-    INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity)
-    VALUES (?, ?, ?, ?, ?, UNIX_TIMESTAMP())
-");
-$stmt->execute([
-    $sessionId,
-    $userId,
-    $ipAddress,
-    $userAgent,
-    json_encode(['refresh_token' => $refreshToken])
-]);
-        
+        // Insertar nueva sesión (siempre se ejecuta)
+        $sessionId = bin2hex(random_bytes(32));
+        $stmt = $this->db->prepare("
+            INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity)
+            VALUES (?, ?, ?, ?, ?, UNIX_TIMESTAMP())
+        ");
+        $stmt->execute([
+            $sessionId,
+            $userId,
+            $ipAddress,
+            $userAgent,
+            json_encode(['refresh_token' => $refreshToken])
+        ]);
+
         error_log("=== FIN REGISTER DEVICE ===\n");
-        
+
     } catch (Exception $e) {
         error_log("ERROR CRÍTICO en registerDevice: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
     }
 }
+
+
 
 /**
  * Parsear User Agent para obtener información del dispositivo (VERSIÓN MEJORADA)

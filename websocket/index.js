@@ -54,6 +54,7 @@ const emitLimiter = rateLimit({
 
 app.use('/emit', emitLimiter);
 app.use('/emit-event', emitLimiter);
+app.use('/broadcast-all', emitLimiter); // ✅ NUEVO: Rate limit para broadcast global
 
 function buildUserKey(id, role) {
   return `${role}::${id}`;
@@ -176,6 +177,11 @@ io.on('connection', (socket) => {
   const roleRoom = `role_${role}`;
   socket.join(roleRoom);
   console.log(`🔌 ${id} también unido a sala de rol: ${roleRoom}`);
+
+  // ✅ NUEVO: Unir a sala de broadcast global para notificaciones masivas
+  const broadcastRoom = 'broadcast_all';
+  socket.join(broadcastRoom);
+  console.log(`🔌 ${id} también unido a sala de broadcast global: ${broadcastRoom}`);
 
   io.emit('user_online', {
     user_id: id,
@@ -580,10 +586,60 @@ app.post('/emit-event', (req, res) => {
   });
 });
 
+// ============================================================
+// ✅ NUEVO: Endpoint /broadcast-all - Notificación masiva a TODOS
+// ============================================================
+app.post('/broadcast-all', (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  const { event, payload, title, message, notification_type } = req.body;
+
+  if (!event || typeof event !== 'string') {
+    return res.status(400).json({ error: 'Event requerido y debe ser string' });
+  }
+
+  console.log("📢 [BROADCAST-ALL] Enviando a TODOS:", JSON.stringify({
+    event,
+    title: title || payload?.title,
+    message: message || payload?.message,
+    notification_type: notification_type || 'broadcast'
+  }));
+
+  const broadcastPayload = {
+    ...(payload || {}),
+    title: title || payload?.title || null,
+    message: message || payload?.message || null,
+    notification_type: notification_type || 'broadcast',
+    broadcast: true,
+    timestamp: Date.now()
+  };
+
+  const socketsInRoom = io.sockets.adapter.rooms.get('broadcast_all');
+
+  if (socketsInRoom && socketsInRoom.size > 0) {
+    io.to('broadcast_all').emit(event, broadcastPayload);
+    console.log(`📡 [BROADCAST-ALL] Evento '${event}' entregado a ${socketsInRoom.size} usuarios conectados`);
+  } else {
+    console.log('⚠️ [BROADCAST-ALL] No hay usuarios conectados');
+  }
+
+  // También guardar como evento pendiente para usuarios offline
+  addPendingEvent('broadcast_all', event, broadcastPayload);
+
+  res.json({
+    status: 'enviado',
+    room: 'broadcast_all',
+    connected_users: socketsInRoom ? socketsInRoom.size : 0,
+    event,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/status', (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   const usersOnline = getOnlineUsersList();
+  const broadcastRoomSize = io.sockets.adapter.rooms.get('broadcast_all')?.size || 0;
 
   res.json({
     status: 'online',
@@ -592,7 +648,8 @@ app.get('/status', (req, res) => {
     users_online: usersOnline,
     typing_users: typingUsers.size,
     pending_events: pendingEvents.size,
-    active_sockets: userSockets.size
+    active_sockets: userSockets.size,
+    broadcast_all_users: broadcastRoomSize  // ✅ NUEVO: Reportar usuarios en sala broadcast
   });
 });
 

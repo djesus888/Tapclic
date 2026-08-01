@@ -1,7 +1,5 @@
 <?php
 require_once __DIR__ . "/../middleware/Auth.php";
-// controllers/NotificationController.php
-
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/System.php';
@@ -40,6 +38,10 @@ class NotificationController {
         elseif ($method === 'GET' && preg_match('/\/api\/notifications\/unread-count/', $uri)) {
             $this->unreadCount($auth);
         }
+        // ✅ NUEVA RUTA: Broadcast masivo a todos los usuarios
+        elseif ($method === 'POST' && preg_match('/\/api\/notifications\/broadcast/', $uri)) {
+            $this->broadcastToAll($auth);
+        }
         // --- RUTAS REALES DE PRODUCCIÓN ---
         elseif ($method === 'POST' && preg_match('/\/api\/notifications\/email/', $uri)) {
             $this->sendEmailNotification($auth);
@@ -71,20 +73,20 @@ class NotificationController {
     }
 
     private function mine($auth) {
-    $userId = $auth->staff_id ?? $auth->id;
-    $result = $this->model->getForUser($userId, $auth->role);
-    echo json_encode($result);
+        $userId = $auth->staff_id ?? $auth->id;
+        $result = $this->model->getForUser($userId, $auth->role);
+        echo json_encode($result);
     }
 
     // ✅ NUEVO: Endpoint para obtener solo el contador de no leídas
     private function unreadCount($auth) {
-    $userId = $auth->staff_id ?? $auth->id;
-    $count = $this->model->getUnreadCount($userId, $auth->role);
-    echo json_encode([
-        'success' => true,
-        'unread_count' => $count
-    ]);
-}
+        $userId = $auth->staff_id ?? $auth->id;
+        $count = $this->model->getUnreadCount($userId, $auth->role);
+        echo json_encode([
+            'success' => true,
+            'unread_count' => $count
+        ]);
+    }
 
     private function markAsRead($auth) {
         $data = json_decode(file_get_contents("php://input"), true);
@@ -107,6 +109,251 @@ class NotificationController {
 
     private function index($auth) {
         $this->mine($auth);
+    }
+
+    // ================================================================
+    // ✅ NUEVO: Broadcast masivo a TODOS los usuarios
+    // ================================================================
+    private function broadcastToAll($auth) {
+        // Solo administradores pueden enviar broadcast
+        if (!$auth || ($auth->role !== 'admin' && $auth->role !== 'super_admin')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'No autorizado. Solo administradores pueden enviar notificaciones masivas.']);
+            return;
+        }
+
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        // Validar campos obligatorios
+        if (!isset($data['title']) || !isset($data['message'])) {
+            http_response_code(400);
+            echo json_encode(["error" => "Faltan campos obligatorios: title, message"]);
+            return;
+        }
+
+        $title = trim($data['title']);
+        $message = trim($data['message']);
+        $notificationType = $data['notification_type'] ?? 'broadcast';
+        $targetRole = $data['target_role'] ?? null; // null = todos, 'user', 'worker', etc.
+        $sendEmail = $data['send_email'] ?? false;
+        $sendSms = $data['send_sms'] ?? false;
+
+        // Validar longitud
+        if (strlen($title) > 255) {
+            http_response_code(400);
+            echo json_encode(["error" => "El título no puede exceder 255 caracteres"]);
+            return;
+        }
+
+        if (strlen($message) > 2000) {
+            http_response_code(400);
+            echo json_encode(["error" => "El mensaje no puede exceder 2000 caracteres"]);
+            return;
+        }
+
+        $senderId = $auth->staff_id ?? $auth->id;
+        $senderName = $auth->name ?? 'Administrador';
+
+        try {
+            // 1. Guardar notificación en BD para TODOS los usuarios
+            $notificationId = $this->model->broadcastToAll([
+                'sender_id' => $senderId,
+                'title' => $title,
+                'message' => $message,
+                'notification_type' => $notificationType,
+                'target_role' => $targetRole,
+                'data_json' => json_encode([
+                    'broadcast' => true,
+                    'sent_by' => $senderName,
+                    'sent_at' => date('Y-m-d H:i:s')
+                ])
+            ]);
+
+            // 2. Emitir por WebSocket a usuarios conectados
+            $wsPayload = [
+                'id' => $notificationId,
+                'title' => $title,
+                'message' => $message,
+                'notification_type' => $notificationType,
+                'broadcast' => true,
+                'sent_by' => $senderName,
+                'created_at' => date('Y-m-d H:i:s'),
+                'data_json' => json_encode([
+                    'broadcast' => true,
+                    'sent_by' => $senderName,
+                    'target_role' => $targetRole
+                ])
+            ];
+
+            // Determinar endpoint de WebSocket
+            if ($targetRole) {
+                // Si es para un rol específico, usar /emit con broadcast_role
+                $this->emitToWebSocket('/emit', [
+                    'event' => 'new-notification',
+                    'broadcast_role' => $targetRole,
+                    'payload' => $wsPayload
+                ]);
+                $wsLog = "Broadcast a rol: {$targetRole}";
+            } else {
+                // Si es para todos, usar /broadcast-all
+                $this->emitToWebSocket('/broadcast-all', [
+                    'event' => 'new-notification',
+                    'payload' => $wsPayload,
+                    'title' => $title,
+                    'message' => $message,
+                    'notification_type' => $notificationType
+                ]);
+                $wsLog = "Broadcast a TODOS los usuarios";
+            }
+
+            // 3. Enviar emails si se solicita
+            $emailResults = [];
+            if ($sendEmail) {
+                $emailResults = $this->sendBroadcastEmails($targetRole, $title, $message, $senderName);
+            }
+
+            // 4. Enviar SMS si se solicita
+            $smsResults = [];
+            if ($sendSms) {
+                $smsResults = $this->sendBroadcastSms($targetRole, $message);
+            }
+
+            $response = [
+                'success' => true,
+                'notification_id' => $notificationId,
+                'websocket' => $wsLog,
+                'timestamp' => date('Y-m-d H:i:s')
+            ];
+
+            if ($sendEmail) {
+                $response['email'] = [
+                    'sent' => $emailResults['sent'] ?? 0,
+                    'failed' => $emailResults['failed'] ?? 0
+                ];
+            }
+
+            if ($sendSms) {
+                $response['sms'] = [
+                    'sent' => $smsResults['sent'] ?? 0,
+                    'failed' => $smsResults['failed'] ?? 0
+                ];
+            }
+
+            echo json_encode($response);
+
+        } catch (Exception $e) {
+            error_log("Error en broadcastToAll: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Error al enviar broadcast: ' . $e->getMessage()]);
+        }
+    }
+
+    // ✅ NUEVO: Enviar emails masivos para broadcast
+    private function sendBroadcastEmails($targetRole, $title, $message, $senderName) {
+        $sent = 0;
+        $failed = 0;
+
+        try {
+            // Obtener usuarios según el rol objetivo
+            $users = $targetRole 
+                ? $this->userModel->getUsersByRole($targetRole)
+                : $this->userModel->getAllUsers();
+
+            if (!$users || count($users) === 0) {
+                return ['sent' => 0, 'failed' => 0];
+            }
+
+            foreach ($users as $user) {
+                if (!empty($user['email']) && filter_var($user['email'], FILTER_VALIDATE_EMAIL)) {
+                    try {
+                        $htmlMessage = $this->formatEmailMessage(
+                            "📢 {$title}\n\n{$message}\n\nEnviado por: {$senderName}",
+                            $user['name'] ?? 'Usuario'
+                        );
+                        $result = Mailer::sendWithResponse($user['email'], $title, $htmlMessage);
+                        if ($result['success']) {
+                            $sent++;
+                        } else {
+                            $failed++;
+                        }
+                    } catch (Exception $e) {
+                        $failed++;
+                        error_log("Error enviando email broadcast a {$user['email']}: " . $e->getMessage());
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Error en sendBroadcastEmails: " . $e->getMessage());
+        }
+
+        return ['sent' => $sent, 'failed' => $failed];
+    }
+
+    // ✅ NUEVO: Enviar SMS masivos para broadcast
+    private function sendBroadcastSms($targetRole, $message) {
+        $sent = 0;
+        $failed = 0;
+
+        try {
+            $users = $targetRole
+                ? $this->userModel->getUsersByRole($targetRole)
+                : $this->userModel->getAllUsers();
+
+            if (!$users || count($users) === 0) {
+                return ['sent' => 0, 'failed' => 0];
+            }
+
+            foreach ($users as $user) {
+                if (!empty($user['phone']) && SMS::validatePhoneNumber($user['phone'])) {
+                    try {
+                        $result = SMS::sendWithResponse($user['phone'], $message);
+                        if ($result['success']) {
+                            $sent++;
+                        } else {
+                            $failed++;
+                        }
+                    } catch (Exception $e) {
+                        $failed++;
+                        error_log("Error enviando SMS broadcast a {$user['phone']}: " . $e->getMessage());
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Error en sendBroadcastSms: " . $e->getMessage());
+        }
+
+        return ['sent' => $sent, 'failed' => $failed];
+    }
+
+    // ✅ NUEVO: Helper para emitir al WebSocket
+    private function emitToWebSocket($endpoint, $data) {
+        try {
+            $wsUrl = $this->systemModel->getConfig()['ws_host'] ?? 'http://localhost:3001';
+            $wsUrl = rtrim($wsUrl, '/') . $endpoint;
+
+            $ch = curl_init($wsUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Accept: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                error_log("WebSocket emit falló [{$httpCode}] a {$endpoint}: {$response}");
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            error_log("Error emitiendo a WebSocket {$endpoint}: " . $e->getMessage());
+            return null;
+        }
     }
 
     // --- MÉTODOS REALES DE PRODUCCIÓN CON INTEGRACIÓN COMPLETA ---

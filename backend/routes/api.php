@@ -139,7 +139,8 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/notifications/email~', $request) ||
     preg_match('~/api/notifications/sms~', $request) ||
     preg_match('~/api/notifications/preferences~', $request) ||
-    preg_match('~/api/notifications/?$~', $request)
+    preg_match('~/api/notifications/?$~', $request) ||
+    preg_match('~/api/notifications/broadcast~', $request)
 ) {
     (new NotificationController())->handle($method);
 
@@ -195,6 +196,12 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/payment-methods/([a-zA-Z_]+)$~', $request, $m) && $method === 'GET') {
     (new PaymentMethodController())->show($m[1]);
 
+
+// --- RUTAS PÚBLICAS DE CONTENIDO ---
+} elseif (preg_match('~/api/content/block/([a-zA-Z0-9_-]+)~', $request, $m) && $method === 'GET') {
+    (new ContentController())->getBlockByIdentifier($m[1]);
+
+
 // --- RUTAS ADMIN (GESTIÓN DE LA PLATAFORMA) ---
 } elseif ($request === '/api/admin/payment-methods' && $method === 'GET') {
     (new PaymentMethodController())->adminIndex();
@@ -218,6 +225,8 @@ if (preg_match('~/api/login~', $request)) {
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
     (new AdminController())->stats();
+} elseif (preg_match('~/api/admin/broadcast-history~', $request)) {
+    (new AdminController())->broadcastHistory();
 } elseif (preg_match('~/api/admin/users\.php~', $request) && $method === 'POST') {
     (new AdminController())->updateUser();
 } elseif (preg_match('~/api/admin/users\.php~', $request) && $method === 'DELETE') {
@@ -338,6 +347,10 @@ if (preg_match('~/api/login~', $request)) {
 } elseif (preg_match('~/api/admin/update/upload~', $request) && $method === 'POST') {
     (new AdminController())->uploadUpdate();
 
+// Notificar servicios por vencer
+} elseif (preg_match('~/api/admin/notify-expiring-services~', $request) && $method === 'POST') {
+    (new MonetizationController())->notifyExpiringServices();
+
 // --- RUTAS FACTURACIÓN (BILLING) ---
 } elseif (preg_match('~/api/admin/billing/generate~', $request) && $method === 'POST') {
     (new BillingController())->generateBilling();
@@ -421,6 +434,22 @@ if (preg_match('~/api/login~', $request)) {
     (new MonetizationController())->getEarnings();
 } elseif (preg_match('~/api/monetization/publish-cost~', $request) && $method === 'GET') {
     (new MonetizationController())->getPublishCost();
+} elseif (preg_match('~/api/monetization/feature~', $request) && $method === 'POST') {
+    (new MonetizationController())->payToFeature();
+} elseif (preg_match('~/api/monetization/feature-cost~', $request) && $method === 'GET') {
+    (new MonetizationController())->getFeatureCost();
+
+// Renovar publicación (proveedor)
+} elseif (preg_match('~/api/monetization/renew-publish~', $request) && $method === 'POST') {
+    (new MonetizationController())->renewPublish();
+} elseif (preg_match('~/api/monetization/feature~', $request) && $method === 'POST') {
+    (new MonetizationController())->payToFeature();
+} elseif (preg_match('~/api/monetization/feature-cost~', $request) && $method === 'GET') {
+    (new MonetizationController())->getFeatureCost();
+
+// Servicios por vencer (admin)
+} elseif (preg_match('~/api/admin/expiring-services~', $request) && $method === 'GET') {
+    (new MonetizationController())->getExpiringServices();
 
 // ========== RUTAS DE MENSAJERÍA Y CONVERSACIONES ==========
 // --- RUTAS MENSAJES / CHAT ---
@@ -546,7 +575,21 @@ if (preg_match('~/api/login~', $request)) {
     require_once __DIR__ . '/../controllers/FCMController.php';
     (new FCMController())->unregister();
 
+
+// --- RUTAS PÚBLICAS DE ESTADÍSTICAS ---
+} elseif ($request === '/api/public/stats' && $method === 'GET') {
+    (new CompanyController())->publicStats();
+
+// --- VERIFICACIÓN DE EMAIL ---
+} elseif (preg_match('~/api/verify-email~', $request) && $method === 'POST') {
+    (new AuthController())->verifyEmail();
+
+// --- RUTA PÚBLICA DE PÁGINAS DEL FOOTER ---
+} elseif ($request === '/api/public/pages' && $method === 'GET') {
+    (new ContentController())->getPublicPages();
+
 // --- RUTA POR DEFECTO ---
+
 } else {
     http_response_code(404);
     echo json_encode(["error" => "Ruta no encontrada"]);

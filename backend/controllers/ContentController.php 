@@ -423,7 +423,7 @@ class ContentController
 }
 
 /**
- * Obtener páginas para el footer (público)
+ * Obtener páginas para el footer (publico)
  */
 public function getPublicPages(): void
 {

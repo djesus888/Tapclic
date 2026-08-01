@@ -395,9 +395,9 @@
       "description": "Descripción de la pasarela...",
       "holderId": "Ej: V-12345678",
       "idNumber": "Ej: V-12345678",
-      "paypalEmail": "ejemplo@paypal.com",
+      "paypalEmail": "ejemplo{'@'}paypal.com",
       "phoneNumber": "Ej: 0412-1234567",
-      "zelleEmail": "ejemplo@gmail.com"
+      "zelleEmail": "ejemplo{'@'}gmail.com"
     },
     "stats": {
       "activeGateways": "Pasarelas activas",
@@ -658,7 +658,7 @@
   "staff_login_subtitle": "Ingresa con tus credenciales de repartidor",
   "staff_back_to_login": "¿Eres cliente o proveedor?",
   "staff_panel_footer": "Panel exclusivo para repartidores",
-  "email_placeholder": "tu@email.com",
+  "email_placeholder": "tu{'@'}email.com",
   "terms_and_conditions": "Términos y Condiciones",
   "privacy_policy": "Política de Privacidad"
 }

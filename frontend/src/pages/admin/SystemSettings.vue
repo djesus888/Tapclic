@@ -497,6 +497,47 @@
           </div>
         </div>
 
+<!-- Pestaña: Configuración de Correo SMTP -->
+<div v-if="activeTab === 'mail'" class="tab-panel">
+  <div class="section-card">
+    <div class="section-header">
+      <h2>📧 Configuración de Correo SMTP</h2>
+      <p>Credenciales para envío de emails del sistema</p>
+    </div>
+    <div class="section-content">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label"><span class="label-icon">👤</span>Usuario SMTP</label>
+          <input type="text" v-model="systemConfig.mail_username" @input="markAsChanged" placeholder="tu_correo@gmail.com" class="form-input">
+          <p class="form-help">Correo de Gmail para enviar emails</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label"><span class="label-icon">🔑</span>Contraseña de Aplicación</label>
+          <input type="password" v-model="systemConfig.mail_password" @input="markAsChanged" placeholder="Contraseña de aplicación de Gmail" class="form-input">
+          <p class="form-help">Generada en myaccount.google.com/apppasswords</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label"><span class="label-icon">📧</span>Email Remitente</label>
+          <input type="email" v-model="systemConfig.mail_from" @input="markAsChanged" placeholder="notificaciones@tapclic.com" class="form-input">
+        </div>
+      </div>
+      <div class="info-box">
+        <span class="info-icon">💡</span>
+        <div>
+          <strong>¿Cómo obtener la contraseña de aplicación?</strong>
+          <ol style="margin:8px 0 0 16px;font-size:0.9rem;">
+            <li>Ve a myaccount.google.com/apppasswords</li>
+            <li>Selecciona "Correo" y "Tu dispositivo"</li>
+            <li>Copia la contraseña generada (16 caracteres sin espacios)</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
         <!-- Pestaña 6: Hitos de la Empresa -->
         <div v-if="activeTab === 'milestones'" class="tab-panel">
           <div class="section-card">
@@ -593,6 +634,7 @@ const systemConfig = ref({
   company_phone: '', company_email: '', company_mission: '', company_vision: '',
   company_years: '5+', company_founded: '2020', company_clients: 150,
   maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
+  mail_username: '', mail_password: '', mail_from: '',
   session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
   allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
   chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1,
@@ -608,8 +650,9 @@ const tabs = [
   { id: 'regional', name: 'Regional', icon: '🌍' },
   { id: 'security', name: 'Seguridad', icon: '🔒' },
   { id: 'features', name: 'Funcionalidades', icon: '🧩' },
-  { id: 'milestones', name: 'Hitos', icon: '📅' }
-]
+  { id: 'milestones', name: 'Hitos', icon: '📅' },
+  { id: 'mail', name: 'Correo SMTP', icon: '📧' }  // ✅ Nueva pestaña
+];
 
 const hasChanges = computed(() =>
   JSON.stringify(systemConfig.value) !== JSON.stringify(originalConfig.value) || logoFile.value || faviconFile.value
@@ -656,6 +699,7 @@ function resetToDefaults() {
       company_phone: '', company_email: '', company_mission: '', company_vision: '',
       company_years: '5+', company_founded: '2020', company_clients: 150,
       maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
+     mail_username: '', mail_password: '', mail_from: '',  
       session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
       allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
       chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1, extra_json: '{}'
@@ -800,9 +844,6 @@ async function saveMilestones() {
 
 
 <style scoped>
-/* Estilos CSS completos - Mantengo los que ya tenía y agrego los nuevos */
-/* ... (mantengo todos los estilos CSS anteriores) ... */
-
 /* Tabs */
 .settings-tabs {
   display: flex;
@@ -811,6 +852,45 @@ async function saveMilestones() {
   border-bottom: 2px solid #e2e8f0;
   padding-bottom: 8px;
   overflow-x: auto;
+}
+/* ========== TABLE HEADERS ========== */
+.table-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: #f8f9fa;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #636e72;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 8px 8px 0 0;
+}
+
+.table-header .table-col {
+  font-weight: 700;
+  color: #636e72;
+}
+
+/* Línea separadora después del header */
+.table-header + .sessions-list,
+.table-header + .ips-list,
+.table-header + .logs-list {
+  border-top: none;
+}
+
+/* Alternar colores en filas */
+.session-item:nth-child(even),
+.ip-item:nth-child(even),
+.log-item:nth-child(even) {
+  background: #fafbfc;
+}
+
+.session-item:nth-child(even):hover,
+.ip-item:nth-child(even):hover,
+.log-item:nth-child(even):hover {
+  background: #f1f5f9;
 }
 
 .tab-button {

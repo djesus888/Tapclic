@@ -1,5 +1,4 @@
 <?php
-// models/User.php
 
 require_once __DIR__ . '/../config/database.php';
 
@@ -59,39 +58,73 @@ class User {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    // ================================================================
+    // ✅ NUEVO: Obtener todos los usuarios activos (para broadcast)
+    // ================================================================
+    public function getAllUsers() {
+        $query = "SELECT id, name, email, phone, role FROM {$this->table} WHERE is_active = 1 ORDER BY id ASC";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-public function updateProfile($id, $data) {
-    $query = "UPDATE {$this->table} SET
-        name = :name,
-        email = :email,
-        phone = :phone,
-        address = :address,
-        business_address = :business_address,
-        service_categories = :service_categories,
-        coverage_area = :coverage_area,
-        preferences = :preferences,
-        bio = :bio,
-        linkedin_url = :linkedin_url,
-        twitter_url = :twitter_url
-    WHERE id = :id";
+    // ✅ NUEVO: Obtener usuarios por rol específico (para broadcast)
+    public function getUsersByRole($role) {
+        $query = "SELECT id, name, email, phone, role FROM {$this->table} WHERE role = :role AND is_active = 1 ORDER BY id ASC";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([':role' => $role]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-    $stmt = $this->conn->prepare($query);
-    return $stmt->execute([
-        ':name' => $data['name'] ?? '',
-        ':email' => $data['email'] ?? '',
-        ':phone' => $data['phone'] ?? '',
-        ':address' => $data['address'] ?? '',
-        ':business_address' => $data['business_address'] ?? '',
-        ':service_categories' => $data['service_categories'] ?? '',
-        ':coverage_area' => $data['coverage_area'] ?? '',
-        ':preferences' => $data['preferences'] ?? '',
-        ':bio' => $data['bio'] ?? '',
-        ':linkedin_url' => $data['linkedin_url'] ?? '',
-        ':twitter_url' => $data['twitter_url'] ?? '',
-        ':id' => $id
-    ]);
-}
+    // ✅ NUEVO: Contar usuarios por rol
+    public function countByRole($role) {
+        $query = "SELECT COUNT(*) as count FROM {$this->table} WHERE role = :role AND is_active = 1";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([':role' => $role]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return (int) $result['count'];
+    }
 
+    // ✅ NUEVO: Contar todos los usuarios activos
+    public function countAll() {
+        $query = "SELECT COUNT(*) as count FROM {$this->table} WHERE is_active = 1";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return (int) $result['count'];
+    }
+
+    public function updateProfile($id, $data) {
+        $query = "UPDATE {$this->table} SET
+            name = :name,
+            email = :email,
+            phone = :phone,
+            address = :address,
+            business_address = :business_address,
+            service_categories = :service_categories,
+            coverage_area = :coverage_area,
+            preferences = :preferences,
+            bio = :bio,
+            linkedin_url = :linkedin_url,
+            twitter_url = :twitter_url
+        WHERE id = :id";
+
+        $stmt = $this->conn->prepare($query);
+        return $stmt->execute([
+            ':name' => $data['name'] ?? '',
+            ':email' => $data['email'] ?? '',
+            ':phone' => $data['phone'] ?? '',
+            ':address' => $data['address'] ?? '',
+            ':business_address' => $data['business_address'] ?? '',
+            ':service_categories' => $data['service_categories'] ?? '',
+            ':coverage_area' => $data['coverage_area'] ?? '',
+            ':preferences' => $data['preferences'] ?? '',
+            ':bio' => $data['bio'] ?? '',
+            ':linkedin_url' => $data['linkedin_url'] ?? '',
+            ':twitter_url' => $data['twitter_url'] ?? '',
+            ':id' => $id
+        ]);
+    }
 
     public function updateLastSeen(int $userId): void
     {
@@ -131,38 +164,40 @@ public function updateProfile($id, $data) {
         ]);
     }
 
-/* ---------- RESET PASSWORD ---------- */
+    /* ---------- RESET PASSWORD ---------- */
 
-public function setResetToken(int $userId, ?string $token, ?string $expiresAt): bool
-{
-    $sql = "UPDATE {$this->table} 
-            SET reset_password_token = :token, 
-                reset_password_expires_at = :expires 
-            WHERE id = :id";
+    public function setResetToken(int $userId, ?string $token, ?string $expiresAt): bool
+    {
+        $sql = "UPDATE {$this->table}
+                SET reset_password_token = :token,
+                    reset_password_expires_at = :expires
+                WHERE id = :id";
 
-    $stmt = $this->conn->prepare($sql);
-    return $stmt->execute([
-        ':token'   => $token,
-        ':expires' => $expiresAt,
-        ':id'      => $userId
-    ]);
+        $stmt = $this->conn->prepare($sql);
+        return $stmt->execute([
+            ':token'   => $token,
+            ':expires' => $expiresAt,
+            ':id'      => $userId
+        ]);
+    }
+
+    public function findByResetToken(string $token): ?array
+    {
+        $sql = "SELECT id, reset_password_expires_at
+                FROM {$this->table}
+                WHERE reset_password_token = :token
+                LIMIT 1";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([':token' => $token]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $user ?: null;
+    }
+
+    public function getDb() {
+        return $this->conn;
+    }
+
 }
-
-public function findByResetToken(string $token): ?array
-{
-    $sql = "SELECT id, reset_password_expires_at 
-            FROM {$this->table} 
-            WHERE reset_password_token = :token 
-            LIMIT 1";
-
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute([':token' => $token]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    return $user ?: null;
-}
-public function getDb() {
-    return $this->conn; 
-}
-
-}
+?>

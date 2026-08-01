@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import api from '@/axios';
 import { useAuthStore } from './authStore';
 import { useSocketStore } from './socketStore';
+import Swal from 'sweetalert2';
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -11,8 +12,8 @@ export const useNotificationStore = defineStore('notification', {
     _readCache: new Set(),
     _soundEnabledTypes: ['new_message', 'request_updated', 'payment_received'],
     _pollingInterval: null,
-    // ✅ NUEVO: Referencia a la función cleanup del listener
-    _notificationListenerCleanup: null
+    _notificationListenerCleanup: null,
+    _sessionClosedListenerCleanup: null
   }),
 
   actions: {
@@ -26,14 +27,13 @@ export const useNotificationStore = defineStore('notification', {
       socketStore.init();
 
       // ============================================================
-      // ✅ CORREGIDO: Limpiar listener anterior antes de registrar
-      // uno nuevo para evitar acumulación en reconexiones
+      // Limpiar listener anterior antes de registrar uno nuevo
       // ============================================================
       if (this._notificationListenerCleanup) {
         this._notificationListenerCleanup();
       }
 
-      // Registrar listener y guardar función de limpieza
+      // Registrar listener de notificaciones
       this._notificationListenerCleanup = socketStore.on('new-notification', (notification) => {
         console.log('📬 Notificación recibida:', notification);
 
@@ -42,7 +42,6 @@ export const useNotificationStore = defineStore('notification', {
           try {
             const data = JSON.parse(notification.data_json);
             if (data.notification_type === 'new_message') {
-              // Es una notificación de mensaje - no reproducir sonido (ya lo hace el chat)
               this.addNotification(notification, false);
               return;
             }
@@ -55,7 +54,36 @@ export const useNotificationStore = defineStore('notification', {
         this.addNotification(notification);
       });
 
-      // ✅ NUEVO: Iniciar polling de respaldo
+      // ============================================================
+      // Escuchar cierre de sesión remoto
+      // ============================================================
+      if (this._sessionClosedListenerCleanup) {
+        this._sessionClosedListenerCleanup();
+      }
+
+      this._sessionClosedListenerCleanup = socketStore.on('session_closed', (data) => {
+        console.warn('🔒 Sesión cerrada en otro dispositivo:', data);
+
+        const authStore = useAuthStore();
+
+        // Mostrar notificación
+        Swal.fire({
+          icon: 'warning',
+          title: '🔒 Sesión cerrada',
+          text: data?.message || 'Tu cuenta ha sido abierta en otro dispositivo. Esta sesión ha sido cerrada por seguridad.',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#667eea',
+          allowOutsideClick: false,
+          allowEscapeKey: false
+        }).then(() => {
+          // Cerrar sesión local
+          authStore.logout();
+          // Usar window.location en lugar de router
+          window.location.href = '/login';
+        });
+      });
+
+      // Iniciar polling de respaldo
       this._startPolling();
     },
 
@@ -111,22 +139,18 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     addNotification(notification, playSound = true) {
-      // ✅ CORREGIDO: Convertir ID a string (el frontend espera string)
       if (notification.id !== undefined && notification.id !== null) {
         notification.id = String(notification.id);
       }
 
-      // ✅ CORREGIDO: Si no tiene ID, generar uno único
       if (!notification.id) {
         notification.id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       }
 
-      // ✅ CORREGIDO: Agregar created_at si no viene pero hay timestamp
       if (!notification.created_at && notification.timestamp) {
         notification.created_at = new Date(notification.timestamp * 1000).toISOString();
       }
 
-      // ✅ CORREGIDO: Verificar duplicados SOLO por ID (más simple y efectivo)
       const exists = this.notifications.some((n) => String(n.id) === String(notification.id));
 
       if (exists) {
@@ -134,15 +158,12 @@ export const useNotificationStore = defineStore('notification', {
         return;
       }
 
-      // ✅ Agregar la notificación al inicio de la lista
       this.notifications.unshift(notification);
 
-      // Limitar número de notificaciones en memoria
       if (this.notifications.length > 100) {
         this.notifications = this.notifications.slice(0, 100);
       }
 
-      // Reproducir sonido si está permitido
       if (playSound && this._shouldPlaySound(notification)) {
         this.playSound();
       }
@@ -155,7 +176,6 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     async markAsRead(id) {
-      // ✅ CORREGIDO: Convertir id a string para comparación consistente
       const strId = String(id);
       const idx = this.notifications.findIndex((n) => String(n.id) === strId);
       if (idx !== -1) {
@@ -231,13 +251,16 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    // ✅ Limpiar al destruir
+    // Limpiar al destruir
     cleanup() {
       this._stopPolling();
-      // Limpiar listener de socket
       if (this._notificationListenerCleanup) {
         this._notificationListenerCleanup();
         this._notificationListenerCleanup = null;
+      }
+      if (this._sessionClosedListenerCleanup) {
+        this._sessionClosedListenerCleanup();
+        this._sessionClosedListenerCleanup = null;
       }
     }
   },

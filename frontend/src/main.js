@@ -25,56 +25,61 @@ import { useAuthStore, initializeAuthStore } from '@/stores/authStore.js'
 // Crear instancia de Vue
 const app = createApp(App)
 
-// Manejo global de errores
+// Manejo global de errores de Vue
 app.config.errorHandler = (err, instance, info) => {
-  console.error('>>> ERROR DE VUE:', err.message, '\n', err.stack, '\nInfo:', info)
-  app.config.globalProperties.$swal?.fire({
-    icon: 'error',
-    title: 'Error en la aplicación',
-    html: `<pre style="text-align:left">${err.message}\n${err.stack || ''}</pre>`,
-    width: 600,
-  })
+  console.error('>>> ERROR DE VUE:', err.message, '\nInfo:', info)
+  // No mostrar Swal para errores de red
+  if (err.isNetworkError || err.code === 'ERR_NETWORK') return
 }
 
+// Errores de JavaScript no capturados
 window.addEventListener('error', (e) => {
-  console.error('>>> ERROR CAPTURADO:', e.message, '\n', e.error?.stack || e.stack)
-  app.config.globalProperties.$swal?.fire({
-    icon: 'error',
-    title: 'Error de JavaScript',
-    html: `<pre style="text-align:left">${e.message}\n${e.error?.stack || e.stack}</pre>`,
-    width: 600,
-  })
+  // Ignorar errores de script externos (CDN, etc.)
+  if (e.target?.tagName === 'SCRIPT') return
+  console.error('>>> ERROR CAPTURADO:', e.message)
 })
 
+// ✅ Promesas rechazadas no manejadas (errores de red, etc.)
 window.addEventListener('unhandledrejection', (e) => {
-  console.error('>>> PROMESA RECHAZADA:', e.reason)
+  const reason = e.reason
 
-  // ✅ Mostrar mensaje según idioma para errores de red
-  if (e.reason?.isNetworkError) {
+  // Si es error de red o sin conexión, mostramos un mensaje amigable
+  if (reason?.isNetworkError || reason?.code === 'ERR_NETWORK' || reason?.code === 'ECONNABORTED') {
+    console.warn('📡 Error de red:', reason.userMessage || reason.message)
+
     let title = 'Problema de conexión'
+    let text = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+
     try {
       const savedLocale = localStorage.getItem('userLocale') || 'es'
       if (savedLocale === 'en') {
         title = 'Connection problem'
+        text = 'Could not connect to the server. Please check your internet connection.'
       }
     } catch {}
 
-    app.config.globalProperties.$swal?.fire({
-      icon: 'warning',
-      title: title,
-      text: e.reason.message,
-      confirmButtonText: 'OK',
-      width: 400,
-    })
+    // Solo mostrar un Swal si no hay otro visible
+    if (!Swal.isVisible()) {
+      Swal.fire({
+        icon: 'warning',
+        title: title,
+        text: text,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#667eea',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+      })
+    }
+
+    e.preventDefault()
     return
   }
 
-  app.config.globalProperties.$swal?.fire({
-    icon: 'error',
-    title: 'Error en Promesa',
-    html: `<pre style="text-align:left">${e.reason}</pre>`,
-    width: 600,
-  })
+  // Para otros errores de promesa, solo log
+  console.error('>>> PROMESA RECHAZADA:', reason?.message || reason)
+  e.preventDefault()
 })
 
 // Crear Pinia y usar plugins
@@ -103,9 +108,6 @@ const authStore = initializeAuthStore()
 const socketStore = useSocketStore()
 const systemStore = useSystemStore()
 const notificationStore = useNotificationStore()
-
-// ✅ Activa el listener visibilitychange
-// socketStore.init() se ejecuta en initializeApp
 
 // ✅ INICIALIZACIÓN PRINCIPAL (solo con token válido)
 async function initializeApp() {
@@ -161,7 +163,7 @@ watch(
 // Toast de notificaciones
 window.addEventListener('show-notification-toast', (e) => {
   const { title, message } = e.detail
-  app.config.globalProperties.$swal?.fire({
+  Swal.fire({
     icon: 'info',
     title,
     text: message,
@@ -171,7 +173,6 @@ window.addEventListener('show-notification-toast', (e) => {
     timer: 4000,
   })
 })
-
 
 // ✅ Escuchar evento open_rating_modal desde WebSocket
 const socketStore2 = useSocketStore()
@@ -187,23 +188,20 @@ socketStore2.on('open_rating_modal', (data) => {
   }))
 })
 
-
-// ✅ CORREGIDO: Modal de rating - ahora busca history_id correctamente
+// ✅ Modal de rating
 window.addEventListener('open-rating-modal', async (e) => {
   try {
     const { request_id, targetRole: eventTargetRole, from_role } = e.detail
     if (!authStore.token) return
 
-    // ✅ CORREGIDO: Obtener el history_id desde la respuesta correcta
     const { data } = await api.get(`/history/by-request/${request_id}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
     }).catch(() => ({ data: null }))
 
-    // ✅ CORREGIDO: El endpoint devuelve { success: true, history: { id, ... } }
     const historyId = data?.history?.id || data?.history_id || data?.id
 
     if (!historyId) {
-      console.warn('⚠️ No se encontró history_id para request:', request_id, 'Respuesta:', data)
+      console.warn('⚠️ No se encontró history_id para request:', request_id)
       Swal.fire('Aún no disponible', 'El servicio no está listo para reseñas.', 'info')
       return
     }
@@ -225,7 +223,6 @@ window.addEventListener('open-rating-modal', async (e) => {
     const { default: ReviewComp } = await import('@/components/ReviewModal.vue')
     const { createApp } = await import('vue')
 
-    // ✅ Determinar targetRole según quién califica
     const targetRole = eventTargetRole || (from_role === 'provider' ? 'user' : 'provider')
 
     const appModal = createApp(ReviewComp, {
@@ -256,7 +253,7 @@ window.addEventListener('open-rating-modal', async (e) => {
 // Pago actualizado
 window.addEventListener('payment-updated', (e) => {
   const { amount, status, request_id } = e.detail
-  app.config.globalProperties.$swal?.fire({
+  Swal.fire({
     icon: 'success',
     title: 'Pago actualizado',
     text: `Solicitud ${request_id}: ${status} (${amount})`,
@@ -268,10 +265,41 @@ window.addEventListener('payment-updated', (e) => {
 })
 
 // ============================================================
+// ✅ DETECCIÓN DE CONEXIÓN EN TIEMPO REAL
+// ============================================================
+window.addEventListener('online', () => {
+  console.log('🌐 Conexión restaurada')
+  Swal.fire({
+    icon: 'success',
+    title: '¡Conectado!',
+    text: 'La conexión a internet se ha restaurado.',
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+  })
+})
+
+window.addEventListener('offline', () => {
+  console.log('📡 Sin conexión a internet')
+  Swal.fire({
+    icon: 'warning',
+    title: 'Sin conexión',
+    text: 'Has perdido la conexión a internet. Algunas funciones no estarán disponibles.',
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 5000,
+    timerProgressBar: true,
+  })
+})
+
+// ============================================================
 // ✅ MONTAR APP
 // ============================================================
 
-// ✅ Firebase Cloud Messaging
+// Firebase Cloud Messaging
 try {
   const { requestPermission, onNotification } = useFCM()
   requestPermission().catch(() => {})

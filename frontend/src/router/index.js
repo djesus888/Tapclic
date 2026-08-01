@@ -9,7 +9,8 @@ const routes = [
   { path: '/forgot-password', component: () => import('@/pages/ForgotPassword.vue') },
   { path: '/reset-password',  component: () => import('@/pages/ResetPassword.vue') },
   { path: '/staff/login', component: () => import('@/pages/StaffLogin.vue') },
-
+  { path: '/maintenance', component: () => import('@/pages/Maintenance.vue') },
+  { path: '/error-500', component: () => import('@/pages/Error500.vue') },
   
 /* Ruta real para /dashboard que evita el doble redirect */
   {

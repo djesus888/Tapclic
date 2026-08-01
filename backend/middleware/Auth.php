@@ -70,7 +70,110 @@ class Auth {
         }
 
         error_log("Token decodificado exitosamente: " . json_encode($decoded));
+
+        // ✅ Verificar que la sesión y dispositivo sean válidos
+        $sessionCheck = self::isSessionValid($decoded, $token);
+        if (!$sessionCheck['valid']) {
+            error_log("Sesión o dispositivo no válido para usuario ID: " . ($decoded->id ?? 'desconocido') . " - Razón: " . $sessionCheck['reason']);
+            
+            // ✅ Establecer header con el motivo del rechazo
+            header('X-Session-Rejected: ' . $sessionCheck['reason']);
+            
+            return null;
+        }
+
+        // ✅ Verificar inactividad (session_timeout_minutes configurable)
+        $db = (new Database())->getConnection();
+        $stmt = $db->query("SELECT system_active, maintenance_mode, session_timeout_minutes FROM system_config WHERE id = 1");
+        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+        $userRole = $decoded->role ?? '';
+
+        // Verificar timeout de sesión por inactividad
+        $timeoutMinutes = (int)($config['session_timeout_minutes'] ?? 30);
+        if ($timeoutMinutes > 0 && isset($decoded->iat)) {
+            $elapsedMinutes = (time() - $decoded->iat) / 60;
+            if ($elapsedMinutes > $timeoutMinutes) {
+                error_log("Sesión expirada por inactividad: {$elapsedMinutes} min (límite: {$timeoutMinutes})");
+                return null;
+            }
+        }
+
+        // Sistema inactivo - solo admin puede acceder
+        if ($config && $config['system_active'] == 0) {
+            if ($userRole !== 'admin' && $userRole !== 'super_admin') {
+                error_log("Acceso denegado - Sistema inactivo. Rol: {$userRole}");
+                return null;
+            }
+            error_log("Acceso permitido - Sistema inactivo. Admin: {$userRole}");
+        }
+
+        // Modo mantenimiento - solo admin puede acceder
+        if ($config && $config['maintenance_mode'] == 1) {
+            if ($userRole !== 'admin' && $userRole !== 'super_admin') {
+                error_log("Acceso denegado - Modo mantenimiento activo. Rol: {$userRole}");
+                return null;
+            }
+            error_log("Acceso permitido en mantenimiento - Rol admin: {$userRole}");
+        }
+
         return $decoded;
+    }
+
+    // ✅ MODIFICADO: Ahora retorna array con ['valid' => bool, 'reason' => string]
+    private static function isSessionValid($decoded, $token): array
+    {
+        try {
+            $db = (new Database())->getConnection();
+            $userId = $decoded->id ?? null;
+
+            if (!$userId) {
+                error_log("isSessionValid: No se encontró ID de usuario en el token");
+                return ['valid' => false, 'reason' => 'invalid_token'];
+            }
+
+            // Verificar configuración de sesiones múltiples
+            $stmt = $db->query("SELECT multiple_sessions FROM system_config WHERE id = 1");
+            $multipleSessions = (int)($stmt->fetchColumn() ?: 0);
+
+            // Buscar el dispositivo asociado a este token
+            $stmt = $db->prepare("SELECT id, is_current FROM user_devices WHERE user_id = ? AND refresh_token = ?");
+            $stmt->execute([$userId, $token]);
+            $device = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$device) {
+                error_log("isSessionValid: Dispositivo no encontrado para usuario {$userId} con este token");
+                return ['valid' => false, 'reason' => 'device_not_found'];
+            }
+
+            // Si sesiones múltiples están desactivadas, verificar que sea el dispositivo actual
+            if ($multipleSessions == 0 && $device['is_current'] == 0) {
+                error_log("isSessionValid: Dispositivo ID {$device['id']} no es el actual (multiple_sessions = 0)");
+                // ✅ ESTA ES LA RAZÓN CLAVE: Sesión reemplazada por otro dispositivo
+                return ['valid' => false, 'reason' => 'session_replaced'];
+            }
+
+            // Verificar que exista al menos una sesión activa en la tabla sessions
+            $stmt = $db->prepare("SELECT id FROM sessions WHERE user_id = ? ORDER BY last_activity DESC LIMIT 1");
+            $stmt->execute([$userId]);
+            $session = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$session) {
+                error_log("isSessionValid: No hay sesiones activas para usuario {$userId}");
+                return ['valid' => false, 'reason' => 'no_active_session'];
+            }
+
+            // Actualizar última actividad de la sesión
+            $stmt = $db->prepare("UPDATE sessions SET last_activity = UNIX_TIMESTAMP() WHERE id = ?");
+            $stmt->execute([$session['id']]);
+
+            error_log("isSessionValid: Sesión válida para usuario {$userId}, dispositivo ID: {$device['id']}");
+            return ['valid' => true, 'reason' => 'ok'];
+
+        } catch (Exception $e) {
+            error_log("Error en isSessionValid: " . $e->getMessage());
+            // En caso de error de base de datos, permitir acceso para no bloquear el sistema
+            return ['valid' => true, 'reason' => 'error_failsafe'];
+        }
     }
 
     private static function isTokenBlacklisted($token): bool

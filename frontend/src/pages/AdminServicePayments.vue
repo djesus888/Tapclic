@@ -74,6 +74,11 @@
             <p><strong>Precio servicio:</strong> ${{ formatCurrency(payment.service_price) }}</p>
             <p><strong>Método:</strong> {{ getMethodLabel(payment.payment_method) }}</p>
             <p><strong>Referencia:</strong> {{ payment.reference || '—' }}</p>
+<p><strong>Tipo de pago:</strong> 
+  <span :class="'payment-type-badge ' + (payment.payment_type || 'publish')">
+    {{ getPaymentTypeLabel(payment.payment_type) }}
+  </span>
+</p>
             <p><strong>Fecha:</strong> {{ formatDate(payment.created_at) }}</p>
           </div>
 
@@ -135,6 +140,15 @@ const tabs = [
 const formatCurrency = (v) => Number(v || 0).toFixed(2)
 const formatDate = (d) => d ? new Date(d).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 const getMethodLabel = (m) => ({ transferencia: 'Transferencia', pago_movil: 'Pago Móvil', zelle: 'Zelle', paypal: 'PayPal', mercadopago: 'MercadoPago', bank_transfer: 'Transferencia', mobile_payment: 'Pago Móvil' }[m] || m)
+
+const getPaymentTypeLabel = (type) => {
+  const labels = {
+    'publish': '📦 Publicación',
+    'featured': '⭐ Destacado',
+    'renewal': '🔄 Renovación'
+  }
+  return labels[type] || '📦 Publicación'
+}
 
 const showToast = (msg, type = 'success') => {
   toast.value = { show: true, message: msg, type }
@@ -390,6 +404,28 @@ onMounted(fetchPayments)
 }
 
 .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+.payment-type-badge {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.payment-type-badge.publish {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.payment-type-badge.featured {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.payment-type-badge.renewal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
 
 /* Toast */
 .toast {

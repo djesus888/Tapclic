@@ -14,199 +14,212 @@
 
       <!-- Formulario de Registro -->
       <div class="register-form">
-        <form @submit.prevent="handleRegister" class="form-card">
-          <!-- Nombre -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">👤</span>
-              {{ $t('name') }}
-            </label>
-            <div class="input-group">
-              <input
-                v-model="form.name"
-                type="text"
-                required
-                placeholder="Ingresa tu nombre completo"
-                class="form-input"
-              >
-              <div class="input-icon">✓</div>
+        <div class="form-column">
+          <form @submit.prevent="handleRegister" class="form-card">
+            <!-- Nombre -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">👤</span>
+                {{ $t('name') }}
+              </label>
+              <div class="input-group">
+                <input
+                  v-model="form.name"
+                  type="text"
+                  required
+                  placeholder="Ingresa tu nombre completo"
+                  class="form-input"
+                >
+                <div class="input-icon">✓</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Email -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">✉️</span>
-              {{ $t('email') }}
-            </label>
-            <div class="input-group">
-              <input
-                v-model="form.email"
-                type="email"
-                required
-                placeholder="ejemplo@correo.com"
-                class="form-input"
-              >
-              <div class="input-icon">@</div>
+            <!-- Email -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">✉️</span>
+                {{ $t('email') }}
+              </label>
+              <div class="input-group">
+                <input
+                  v-model="form.email"
+                  type="email"
+                  required
+                  placeholder="ejemplo@correo.com"
+                  class="form-input"
+                >
+                <div class="input-icon">@</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Teléfono -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">📱</span>
-              {{ $t('phone') }}
-            </label>
-            <div class="input-group">
-              <input
-                v-model="form.phone"
-                type="tel"
-                required
-                placeholder="+123 456 7890"
-                class="form-input"
-              >
-              <div class="input-icon">📞</div>
+            <!-- Teléfono -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">📱</span>
+                {{ $t('phone') }}
+              </label>
+              <div class="input-group">
+                <input
+                  v-model="form.phone"
+                  type="tel"
+                  required
+                  placeholder="+123 456 7890"
+                  class="form-input"
+                >
+                <div class="input-icon">📞</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Contraseña -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">🔒</span>
-              {{ $t('password') }}
-            </label>
-            <div class="input-group">
-              <input
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                required
-                placeholder="••••••••"
-                class="form-input"
-              >
-              <div class="input-icon">🔐</div>
+            <!-- Contraseña -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">🔒</span>
+                {{ $t('password') }}
+              </label>
+              <div class="input-group">
+                <input
+                  v-model="form.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  placeholder="••••••••"
+                  class="form-input"
+                >
+                <div class="input-icon">🔐</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Confirmar contraseña -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">✅</span>
-              {{ $t('confirm_password') }}
-            </label>
-            <div class="input-group">
-              <input
-                v-model="form.confirmPassword"
-                :type="showPassword ? 'text' : 'password'"
-                required
-                placeholder="••••••••"
-                class="form-input"
-              >
-              <div class="input-icon">🔏</div>
+            <!-- Confirmar contraseña -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">✅</span>
+                {{ $t('confirm_password') }}
+              </label>
+              <div class="input-group">
+                <input
+                  v-model="form.confirmPassword"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  placeholder="••••••••"
+                  class="form-input"
+                >
+                <div class="input-icon">🔏</div>
+              </div>
             </div>
-          </div>
 
-          <!-- Mostrar contraseña -->
-          <div class="form-group checkbox-group">
-            <label class="checkbox-label">
-              <input
-                id="showPass"
-                v-model="showPassword"
-                type="checkbox"
-                class="checkbox-input"
-              >
-              <span class="checkbox-custom"></span>
-              <span class="checkbox-text">{{ $t('show_password') }}</span>
-            </label>
-          </div>
-
-          <!-- Rol -->
-          <div class="form-group">
-            <label class="form-label">
-              <span class="label-icon">🎯</span>
-              {{ $t('role') }}
-            </label>
-            <div class="select-group">
-              <select
-                v-model="form.role"
-                required
-                class="form-select"
-              >
-                <option value="" disabled>
-                  {{ $t('select_role') }}
-                </option>
-                <option value="user">
-                  👤 {{ $t('client') }}
-                </option>
-                <option value="provider">
-                  🛠️ {{ $t('provider') }}
-                </option>
-              </select>
-              <div class="select-arrow">▼</div>
+            <!-- Mostrar contraseña -->
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input
+                  id="showPass"
+                  v-model="showPassword"
+                  type="checkbox"
+                  class="checkbox-input"
+                >
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-text">{{ $t('show_password') }}</span>
+              </label>
             </div>
-          </div>
 
-          <!-- Botón de registro -->
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="register-button"
-            :class="{ 'loading': auth.loading }"
-          >
-            <span v-if="!auth.loading" class="button-content">
-              <span class="button-icon">🎉</span>
-              {{ $t('register') }}
-            </span>
-            <span v-else class="button-content">
-              <span class="spinner"></span>
-              {{ $t('registering') }}
-            </span>
-          </button>
+            <!-- Rol -->
+            <div class="form-group">
+              <label class="form-label">
+                <span class="label-icon">🎯</span>
+                {{ $t('role') }}
+              </label>
+              <div class="select-group">
+                <select
+                  v-model="form.role"
+                  required
+                  class="form-select"
+                >
+                  <option value="" disabled>
+                    {{ $t('select_role') }}
+                  </option>
+                  <option value="user">
+                    👤 {{ $t('client') }}
+                  </option>
+                  <option value="provider">
+                    🛠️ {{ $t('provider') }}
+                  </option>
+                </select>
+                <div class="select-arrow">▼</div>
+              </div>
+            </div>
 
-          <!-- Enlace a login -->
-          <div class="login-link">
-            <p>{{ $t('already_have_account') }}</p>
-            <router-link
-              to="/login"
-              class="login-link-button"
+            <!-- ✅ Promoción en formulario de registro -->
+            <ContentBlock identifier="register-promo" class="register-promo-block" />
+
+            <!-- Botón de registro -->
+            <button
+              type="submit"
+              :disabled="auth.loading"
+              class="register-button"
+              :class="{ 'loading': auth.loading }"
             >
-              <span class="link-icon">→</span>
-              {{ $t('login') }}
-            </router-link>
-          </div>
-        </form>
+              <span v-if="!auth.loading" class="button-content">
+                <span class="button-icon">🎉</span>
+                {{ $t('register') }}
+              </span>
+              <span v-else class="button-content">
+                <span class="spinner"></span>
+                {{ $t('registering') }}
+              </span>
+            </button>
 
-        <!-- Tarjeta informativa -->
-        <div class="info-card">
-          <div class="info-icon">💡</div>
-          <h3>Beneficios de registrarte</h3>
-          <ul class="benefits-list">
-            <li>
-              <span class="benefit-icon">⭐</span>
-              <span>Acceso a servicios exclusivos</span>
-            </li>
-            <li>
-              <span class="benefit-icon">🔒</span>
-              <span>Protección de datos garantizada</span>
-            </li>
-            <li>
-              <span class="benefit-icon">🚀</span>
-              <span>Proceso de contratación rápido</span>
-            </li>
-            <li>
-              <span class="benefit-icon">💬</span>
-              <span>Soporte personalizado 24/7</span>
-            </li>
-          </ul>
-          <div class="stats">
-            <div class="stat-item">
-              <h4>+500</h4>
-              <p>Usuarios activos</p>
+            <!-- Enlace a login -->
+            <div class="login-link">
+              <p>{{ $t('already_have_account') }}</p>
+              <router-link
+                to="/login"
+                class="login-link-button"
+              >
+                <span class="link-icon">→</span>
+                {{ $t('login') }}
+              </router-link>
             </div>
-            <div class="stat-item">
-              <h4>+100</h4>
-              <p>Proveedores</p>
+          </form>
+        </div>
+
+        <!-- Tarjeta informativa / Panel lateral -->
+        <div class="info-column">
+          <div class="info-card">
+            <div class="info-icon">💡</div>
+            <h3>Beneficios de registrarte</h3>
+            <ul class="benefits-list">
+              <li>
+                <span class="benefit-icon">⭐</span>
+                <span>Acceso a servicios exclusivos</span>
+              </li>
+              <li>
+                <span class="benefit-icon">🔒</span>
+                <span>Protección de datos garantizada</span>
+              </li>
+              <li>
+                <span class="benefit-icon">🚀</span>
+                <span>Proceso de contratación rápido</span>
+              </li>
+              <li>
+                <span class="benefit-icon">💬</span>
+                <span>Soporte personalizado 24/7</span>
+              </li>
+            </ul>
+            <!-- ✅ Stats dinámicas desde la API -->
+            <div class="stats">
+              <div class="stat-item">
+                <h4 v-if="!statsLoading">+{{ publicStats.total_users }}</h4>
+                <h4 v-else class="stat-loading">...</h4>
+                <p>Usuarios activos</p>
+              </div>
+              <div class="stat-item">
+                <h4 v-if="!statsLoading">+{{ publicStats.total_providers }}</h4>
+                <h4 v-else class="stat-loading">...</h4>
+                <p>Proveedores</p>
+              </div>
             </div>
           </div>
+
+          <!-- ✅ Bloque lateral de promoción (administrable) -->
+          <ContentBlock identifier="register-side-promo" class="register-side-block" />
         </div>
       </div>
     </div>
@@ -215,25 +228,33 @@
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
     </div>
-  </div>
 
-  <!-- Footer legal -->
-  <footer class="login-footer">
-    <div class="footer-links">
-      <a href="/page/terms" class="footer-link">Términos y Condiciones</a>
-      <span class="footer-sep">·</span>
-      <a href="/page/privacy" class="footer-link">Política de Privacidad</a>
-    </div>
-  </footer>
+    <!-- Footer legal -->
+    <footer class="login-footer">
+      <!-- ✅ Footer personalizado (administrable) -->
+      <ContentBlock identifier="register-footer" class="register-footer-block" />
+      <div class="footer-links">
+        <a href="/page/terms" class="footer-link">Términos y Condiciones</a>
+        <span class="footer-sep">·</span>
+        <a href="/page/privacy" class="footer-link">Política de Privacidad</a>
+      </div>
+    </footer>
+  </div>
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
+import ContentBlock from '@/components/shared/ContentBlock.vue'
+import api from '@/axios'
 
 export default {
+components: {
+   ContentBlock
+   },
+
   setup() {
     const auth = useAuthStore()
     const router = useRouter()
@@ -252,6 +273,31 @@ export default {
       show: false,
       message: '',
       type: 'success'
+    })
+
+    // ✅ Stats dinámicas
+    const publicStats = ref({
+      total_users: 0,
+      total_providers: 0,
+      total_services: 0
+    })
+    const statsLoading = ref(true)
+
+    const loadPublicStats = async () => {
+      try {
+        const { data } = await api.get('/public/stats')
+        if (data.success) {
+          publicStats.value = data
+        }
+      } catch (err) {
+        console.warn('No se pudieron cargar estadísticas públicas')
+      } finally {
+        statsLoading.value = false
+      }
+    }
+
+    onMounted(() => {
+      loadPublicStats()
     })
 
     const handleRegister = async () => {
@@ -301,7 +347,7 @@ export default {
       }
     }
 
-    return { form, handleRegister, auth, showPassword, toast }
+    return { form, handleRegister, auth, showPassword, toast, publicStats, statsLoading }
   }
 }
 </script>
@@ -314,6 +360,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  flex-direction: column;
 }
 
 .register-container {
@@ -519,6 +566,28 @@ export default {
   pointer-events: none;
 }
 
+/* ✅ Bloque de promoción en formulario */
+.register-promo-block {
+  margin: 20px 0;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  text-align: center;
+}
+
+.register-promo-block :deep(.block-banner h3) {
+  color: #667eea;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.register-promo-block :deep(.block-banner p) {
+  color: #4a5568;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .register-button {
   width: 100%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -613,6 +682,13 @@ export default {
   transform: translateX(3px);
 }
 
+/* Info Column */
+.info-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .info-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 40px;
@@ -665,6 +741,7 @@ export default {
   opacity: 0.9;
 }
 
+/* ✅ Stats dinámicas */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -691,11 +768,42 @@ export default {
   font-weight: 700;
 }
 
+.stat-loading {
+  opacity: 0.5;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
 .stat-item p {
   font-size: 0.9rem;
   opacity: 0.8;
 }
 
+/* ✅ Bloque lateral de promoción */
+.register-side-block {
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.register-side-block :deep(.block-banner h3) {
+  color: #667eea;
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+.register-side-block :deep(.block-banner p) {
+  color: #4a5568;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Toast */
 .toast {
   position: fixed;
   bottom: 24px;
@@ -732,56 +840,22 @@ export default {
   }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .register-container {
-    border-radius: 20px;
-  }
-  
-  .register-header {
-    padding: 30px 20px;
-  }
-  
-  .logo-section {
-    flex-direction: column;
-    text-align: center;
-    gap: 15px;
-  }
-  
-  .logo-text h1 {
-    font-size: 2rem;
-  }
-  
-  .register-form {
-    padding: 20px;
-    gap: 20px;
-  }
-  
-  .form-card,
-  .info-card {
-    padding: 30px 20px;
-  }
-  
-  .stats {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 480px) {
-  .register-page {
-    padding: 10px;
-  }
-  
-  .form-input,
-  .form-select {
-    padding: 14px 14px 14px 45px;
-  }
-
+/* Footer */
 .login-footer {
   text-align: center;
   padding: 16px 24px;
   margin-top: 24px;
-  border-top: 1px solid #e2e8f0;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.register-footer-block {
+  margin-bottom: 12px;
+}
+
+.register-footer-block :deep(.block-text) {
+  color: rgba(255,255,255,0.8);
+  font-size: 13px;
 }
 
 .footer-links {
@@ -792,26 +866,71 @@ export default {
 }
 
 .footer-link {
-  color: #94a3b8;
+  color: rgba(255,255,255,0.7);
   text-decoration: none;
   font-size: 12px;
   transition: color 0.2s;
 }
 
 .footer-link:hover {
-  color: #667eea;
+  color: white;
   text-decoration: underline;
 }
 
 .footer-sep {
-  color: #cbd5e1;
+  color: rgba(255,255,255,0.4);
   font-size: 12px;
 }
-  
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .register-container {
+    border-radius: 20px;
+  }
+
+  .register-header {
+    padding: 30px 20px;
+  }
+
+  .logo-section {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+
+  .logo-text h1 {
+    font-size: 2rem;
+  }
+
+  .register-form {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .form-card,
+  .info-card {
+    padding: 30px 20px;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-page {
+    padding: 10px;
+  }
+
+  .form-input,
+  .form-select {
+    padding: 14px 14px 14px 45px;
+  }
+
   .input-icon {
     left: 14px;
   }
-  
+
   .benefits-list li {
     padding: 12px;
   }

@@ -1,4 +1,3 @@
-<!-- src/layouts/MainLayout.vue -->
 <template>
   <div class="app-container bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen flex flex-col">
     <!-- ========== HEADER MEJORADO ========== -->
@@ -331,8 +330,8 @@
               @click="openConversation(conv)"
             >
               <div class="conversation-avatar">
-             <img 
-                  :src="getConversationAvatar(conv)"    
+             <img
+                  :src="getConversationAvatar(conv)"
                   :alt="getConversationName(conv)"
                   class="avatar-img"
                   loading="lazy"
@@ -492,28 +491,40 @@
 
     <!-- ========== CONTENIDO PRINCIPAL ========== -->
     <main class="main-content">
-      <div class="content-wrapper">
-        <RouterView />
+  <!-- ✅ Banner superior dinámico (administrable desde panel) -->
+  <ContentBlock identifier="global-header-banner" class="global-banner" />
+
+<div class="content-wrapper">
+
+  <!-- ✅ Bloque de bienvenida en Dashboard -->
+  <ContentBlock
+    v-if="showDashboardWelcome"
+    identifier="dashboard-welcome"
+    class="dashboard-welcome-block"
+  />
+
+  <RouterView />
 
     <!-- ========== FOOTER CON PÁGINAS LEGALES ========== -->
     <footer class="app-footer">
-      <div class="footer-content">
-        <div class="footer-links">
-          <RouterLink to="/page/terms" class="footer-link">Términos y Condiciones</RouterLink>
-          <span class="footer-separator">·</span>
-          <RouterLink to="/page/privacy" class="footer-link">Política de Privacidad</RouterLink>
-          <span class="footer-separator">·</span>
-          <RouterLink to="/page/about" class="footer-link">Acerca de</RouterLink>
-          <span class="footer-separator">·</span>
-          <RouterLink to="/page/help" class="footer-link">Ayuda</RouterLink>
-          <span class="footer-separator">·</span>
-          <RouterLink to="/page/contact" class="footer-link">Contacto</RouterLink>
+  <!-- ✅ Bloque de footer personalizado (administrable) -->
+  <ContentBlock identifier="global-footer-block" class="global-footer-block" />
+
+  <div class="footer-content">
+    <div class="footer-links">
+          <template v-for="(page, index) in footerPages" :key="page.slug">
+            <RouterLink :to="`/page/${page.slug}`" class="footer-link">{{ page.title }}</RouterLink>
+            <span v-if="index < footerPages.length - 1" class="footer-separator">·</span>
+          </template>
         </div>
         <p class="footer-copy">© {{ new Date().getFullYear() }} TapClic. Todos los derechos reservados.</p>
       </div>
     </footer>
       </div>
     </main>
+
+<!-- ✅ Banner de Cookies -->
+<CookieBanner />
 
     <!-- ========== MODAL DE NOTIFICACIÓN ========== -->
     <NotificationModal
@@ -526,9 +537,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import CookieBanner from '@/components/CookieBanner.vue'
 import DOMPurify from 'dompurify'
 import { getImageUrl } from '@/utils/imageHelper'
 import { useAuthStore } from '@/stores/authStore'
@@ -540,6 +552,7 @@ import { useSystemStore } from '@/stores/systemStore'
 import { formatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import NotificationModal from '@/layouts/NotificationModal.vue'
+import ContentBlock from '@/components/shared/ContentBlock.vue'
 import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 
 const onlineUsersStore = useOnlineUsersStore()
@@ -553,12 +566,36 @@ const conversationStore = useConversationStore()
 const socketStore = useSocketStore()
 const systemStore = useSystemStore()
 const router = useRouter()
+const route = useRoute()
 const { locale, t } = useI18n()
 const cache = useNotificationCacheStore()
+
+// ✅ Páginas del footer desde la BD
+const footerPages = ref([])
+
+const loadFooterPages = async () => {
+  try {
+    const { data } = await api.get('/public/pages')
+    if (data.pages) {
+      footerPages.value = data.pages
+    }
+  } catch {
+    // Si falla, usar páginas por defecto
+    footerPages.value = [
+      { title: 'Términos y Condiciones', slug: 'terms' },
+      { title: 'Política de Privacidad', slug: 'privacy' },
+      { title: 'Acerca de', slug: 'about' },
+      { title: 'Ayuda', slug: 'help' },
+      { title: 'Contacto', slug: 'contact' },
+      { title: 'Cookies', slug: 'cookies' }
+    ]
+  }
+}
 
 onMounted(() => {
   notificationStore.initialize()
   systemStore.fetchConfig()
+  loadFooterPages()
 })
 
 const showUserPanel = ref(false)
@@ -567,6 +604,22 @@ const langDropdownOpen = ref(false)
 const langDropdownRef = ref(null)
 const isExpanded = ref(false)
 const selectedNotification = ref(null)
+
+// ✅ Bloque de bienvenida (solo al iniciar sesión, no al recargar)
+const showDashboardWelcome = ref(false)
+
+watch(() => route.path, (path) => {
+  if (path === '/' || path.startsWith('/dashboard')) {
+    const splashShown = sessionStorage.getItem('tapclic_splash')
+    if (!splashShown) {
+      showDashboardWelcome.value = true
+      sessionStorage.setItem('tapclic_splash', '1')
+      setTimeout(() => { showDashboardWelcome.value = false }, 9000)
+    }
+  } else {
+    showDashboardWelcome.value = false
+  }
+}, { immediate: true })
 
 const availableLanguages = {
   es: '🇪🇸',
@@ -656,7 +709,7 @@ const adminMenuItems = [
   { to: '/admin/billing', label: 'billing', icon: '💳' },
   { to: '/admin/update', label: 'update', icon: '🔄' },
   { to: '/services', label: 'Services', icon: '📦' },
-  { to: '/orders', label: 'myOrders', icon: '📦' },  
+  { to: '/orders', label: 'myOrders', icon: '📦' },
   { to: '/chats', label: 'chats', icon: '💬', feature: 'chat' },
   { to: '/profile', label: 'profile', icon: '👤' },
   { to: '/wallet', label: 'wallet', icon: '💰', feature: 'wallet' },
@@ -749,7 +802,6 @@ const markAllAsRead = async () => {
     await api.post('/notifications/read-all', {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
-
     await notificationStore.loadNotificationsFromAPI()
 
     console.log('✅ Todas las notificaciones marcadas como leídas')
@@ -808,13 +860,10 @@ const openConversation = (conv) => {
   activePanel.value = null
 }
 
-// ✅ CORREGIDO: Usar la estructura real de la conversación normalizada
 const getConversationName = (conv) => {
-  // La conversación normalizada tiene other_participant.name
   return conv.other_participant?.name || conv.otherName || 'Usuario'
 }
 
-// ✅ CORREGIDO: Usar la estructura real para el avatar
 const getConversationAvatar = (conv) => {
   const avatarUrl = conv.other_participant?.avatar_url || conv.otherAvatar || null
   if (!avatarUrl) return '/img/default-avatar.png'
@@ -822,7 +871,6 @@ const getConversationAvatar = (conv) => {
   return getImageUrl(avatarUrl, 'avatar')
 }
 
-// ✅ CORREGIDO: Obtener el último mensaje de forma segura
 const getLastMessageText = (conv) => {
   return conv.lastMessage?.text || conv.last_message?.text || ''
 }
@@ -842,7 +890,6 @@ const logout = async () => {
     const staffToken = localStorage.getItem('staff_token')
 
     if (staffToken) {
-      // ✅ Logout de staff con endpoint correcto
       try {
         await api.post('/provider/staff/logout', {}, {
           headers: { Authorization: `Bearer ${staffToken}` }
@@ -853,8 +900,6 @@ const logout = async () => {
 
       localStorage.removeItem('staff_token')
       localStorage.removeItem('staff')
-      
-      // ✅ Limpiar lista de usuarios online
       onlineUsersStore.clearAll()
 
       if (socketStore) {
@@ -864,7 +909,6 @@ const logout = async () => {
       showUserPanel.value = false
       router.push('/staff/login')
     } else {
-      // Logout de usuario normal
       try {
         const token = authStore.token
         if (token) {
@@ -876,10 +920,9 @@ const logout = async () => {
         console.error('Error en logout:', err)
       }
 
-      // ✅ También limpiar para usuario normal
       onlineUsersStore.clearAll()
-      
       authStore.logout()
+      sessionStorage.removeItem('tapclic_splash')
       showUserPanel.value = false
       router.push('/login')
     }
@@ -905,7 +948,6 @@ let visibilityChangeListener = null
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
 
-  // ✅ Refrescar estado online del staff desde el backend
   if (localStorage.getItem('staff_token')) {
     try {
       const staffToken = localStorage.getItem('staff_token')
@@ -913,12 +955,10 @@ onMounted(async () => {
         headers: { Authorization: `Bearer ${staffToken}` }
       })
       if (data?.staff) {
-        // Actualizar authStore
         authStore.user = {
           ...authStore.user,
           is_online: data.staff.is_online ?? false
         }
-        // Actualizar localStorage
         const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
         staffData.is_online = data.staff.is_online ?? false
         localStorage.setItem('staff', JSON.stringify(staffData))
@@ -927,7 +967,6 @@ onMounted(async () => {
       console.warn('No se pudo refrescar estado online del staff:', err)
     }
   }
-
 
   clickOutsideListener = (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {
@@ -963,10 +1002,6 @@ onMounted(async () => {
       ])
 
       socketStore.init({ heartbeat: true, heartbeatInterval: 30000 })
-
-      // ✅ CORREGIDO: Usar 'new_message' (con guión bajo) en lugar de 'new-message'
-      // El socketStore ya maneja new_message y lo agrega al conversationStore
-      // No necesitamos duplicar la lógica aquí
 
       socketStore.on('conversation-updated', (payload) => conversationStore.updateConversation?.(payload))
 
@@ -1990,8 +2025,39 @@ onBeforeUnmount(() => {
     font-size: 16px;
   }
 }
+.dashboard-welcome-block {
+  max-width: 1400px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
 
 /* ========== FOOTER ========== */
+/* ========== BLOQUES DE CONTENIDO DINÁMICOS ========== */
+.global-banner {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.global-banner :deep(.block-banner) {
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.global-footer-block {
+  max-width: 1400px;
+  margin: 0 auto 16px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.global-footer-block :deep(.block-text) {
+  font-size: 14px;
+  color: #64748b;
+}
+
 .app-footer {
   background: white;
   border-top: 1px solid #e2e8f0;
