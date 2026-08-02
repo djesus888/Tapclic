@@ -252,12 +252,17 @@
             <div class="form-group half">
               <label>🔖 Número de referencia/operación</label>
               <input
-                type="text"
-                v-model="rechargeForm.reference"
-                class="form-input"
-                placeholder="Ej: 2025-02-15-12345"
-                @keyup.enter="submitRechargeRequest"
-              />
+  type="text"
+  inputmode="numeric"
+  pattern="[0-9]{6}"
+  maxlength="6"
+  v-model="rechargeForm.reference"
+  class="form-input"
+  placeholder="Ej: 123456"
+  required
+  title="Debe ser exactamente 6 dígitos numéricos"
+  @keyup.enter="submitRechargeRequest"
+/>
             </div>
           </div>
 

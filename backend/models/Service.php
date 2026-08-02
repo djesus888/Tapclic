@@ -111,7 +111,8 @@ public function findById(int $id): ?array
             FROM {$this->table} s
             JOIN users u ON u.id = s.user_id
             WHERE s.status     = 'active'
-              AND s.isAvailable = 1
+             AND s.isAvailable = 1
+             AND u.active = 1
             ORDER BY s.created_at DESC
         ";
 

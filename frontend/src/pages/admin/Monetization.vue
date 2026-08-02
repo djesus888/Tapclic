@@ -127,33 +127,39 @@
       </div>
     </div>
 
-    <!-- History -->
-    <div class="history-section">
-      <h2>📋 Historial de Ganancias</h2>
-      <div v-if="history.length === 0" class="empty">No hay registros aún</div>
-      <div v-else class="history-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Monto</th>
-              <th>Usuario</th>
-              <th>Ref. ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in history" :key="item.id">
-              <td>{{ formatDate(item.created_at) }}</td>
-              <td><span class="type-badge" :class="item.type">{{ getTypeLabel(item.type) }}</span></td>
-              <td class="amount">${{ formatCurrency(item.amount) }}</td>
-              <td>{{ item.user_name || '—' }}</td>
-              <td>{{ item.reference_id || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+<!-- History -->
+<div class="history-section">
+  <h2>📋 Historial de Ganancias</h2>
+  <div v-if="history.length === 0" class="empty">No hay registros aún</div>
+  <div v-else class="history-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Monto</th>
+          <th>Usuario</th>
+          <th>Ref. ID</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="item in history" :key="item.id">
+          <td>{{ formatDate(item.created_at) }}</td>
+          <td><span class="type-badge" :class="item.type">{{ getTypeLabel(item.type) }}</span></td>
+          <td class="amount">${{ formatCurrency(item.amount) }}</td>
+          <td>{{ item.user_name || '—' }}</td>
+          <td>{{ item.reference_id || '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- Paginación -->
+    <div class="pagination" v-if="pagination.pages > 1">
+      <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1">⬅ Anterior</button>
+      <span>Pág. {{ pagination.page }} de {{ pagination.pages }}</span>
+      <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= pagination.pages">Siguiente ➡</button>
     </div>
+  </div>
+</div>
 
     <!-- Toast -->
     <div v-if="toast.show" class="toast" :class="toast.type">{{ toast.message }}</div>
@@ -189,6 +195,7 @@ const earnings = reactive({
 })
 
 const history = ref([])
+const pagination = ref({ page: 1, limit: 20, total: 0, pages: 1 })
 const toast = ref({ show: false, message: '', type: 'success' })
 
 const models = [
@@ -215,11 +222,33 @@ const loadConfig = async () => {
     if (data?.config?.platform_earnings) Object.assign(earnings, data.config.platform_earnings)
 
     // Cargar historial
-    const earnRes = await api.get('/admin/monetization/earnings', { headers: { Authorization: `Bearer ${authStore.token}` } })
+    const earnRes = await api.get('/admin/monetization/earnings', { 
+  headers: { Authorization: `Bearer ${authStore.token}` },
+  params: { page: pagination.value.page }
+})
     if (earnRes.data?.summary) Object.assign(earnings, earnRes.data.summary)
     history.value = earnRes.data?.history || []
+if (earnRes.data?.pagination) pagination.value = earnRes.data.pagination
   } catch (e) {
     showToast('Error al cargar configuración', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+const changePage = async (page) => {
+  if (page < 1 || page > pagination.value.pages) return
+  pagination.value.page = page
+  loading.value = true
+  try {
+    const earnRes = await api.get('/admin/monetization/earnings', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      params: { page }
+    })
+    history.value = earnRes.data?.history || []
+    if (earnRes.data?.pagination) pagination.value = earnRes.data.pagination
+  } catch (e) {
+    showToast('Error al cargar historial', 'error')
   } finally {
     loading.value = false
   }

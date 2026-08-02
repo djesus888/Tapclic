@@ -564,18 +564,27 @@ class RequestController
         echo json_encode(["success" => $updated]);
     }
 
-    private function accept($auth)
-    {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $requestId = $data['id'] ?? null;
+private function accept($auth)
+{
+    $data = json_decode(file_get_contents("php://input"), true);
+    $requestId = $data['id'] ?? null;
 
-        if (!$requestId) {
-            echo json_encode(["success" => false, "message" => "Falta el ID"]);
-            return;
-        }
+    if (!$requestId) {
+        echo json_encode(["success" => false, "message" => "Falta el ID"]);
+        return;
+    }
 
-        $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
+    // Verificar que el proveedor no esté bloqueado
+    $stmt = $this->model->conn->prepare("SELECT active FROM users WHERE id = ? AND role = 'provider'");
+    $stmt->execute([$auth->id]);
+    $user = $stmt->fetch();
+    if (!$user || $user['active'] == 0) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Tu cuenta está bloqueada por cuotas vencidas.']);
+        return;
+    }
 
+    $ok = $this->model->updateStatus($requestId, $auth->id, 'accepted');
         if ($ok) {
             // ✅ LOG
             AuditLogger::log($auth->id, 'request_accepted', 'Solicitud aceptada', "Solicitud ID: {$requestId}");

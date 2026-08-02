@@ -51,6 +51,25 @@ class MonetizationController
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+/**
+ * Verificar si el proveedor autenticado está bloqueado por cuotas vencidas
+ */
+private function requireProviderActive(): void
+{
+    $stmt = $this->conn->prepare("SELECT active FROM users WHERE id = ? AND role = 'provider'");
+    $stmt->execute([$this->user->id]);
+    $user = $stmt->fetch();
+
+    if (!$user || $user['active'] == 0) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Tu cuenta está bloqueada por cuotas vencidas. Paga tus facturas para continuar.',
+            'code' => 'ACCOUNT_BLOCKED'
+        ]);
+        exit;
+    }
+}
+
     /* ========== CONFIGURACIÓN (ADMIN) ========== */
 
     // GET /api/admin/monetization/config
@@ -124,6 +143,7 @@ public function updateConfig(): void
     public function payToPublishExternal(int $serviceId): void
     {
         $this->requireAuth();
+        $this->requireProviderActive();
 
         $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ? AND user_id = ?");
         $stmt->execute([$serviceId, $this->user->id]);
@@ -451,10 +471,28 @@ public function getExpiringServices(): void
 public function payToFeature(): void
 {
     $this->requireAuth();
+    $this->requireProviderActive();
+
     $input = json_decode(file_get_contents('php://input'), true);
     $serviceId = $input['service_id'] ?? null;
 
-    $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ? AND user_id = ?");
+    // ==========================================
+    // VALIDACIONES
+    // ==========================================
+
+    // 1. Validar ID de servicio
+    if (!$serviceId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ID de servicio no válido']);
+        return;
+    }
+
+    // 2. Validar que el servicio exista, esté activo y sea del usuario
+    $stmt = $this->conn->prepare("
+        SELECT id, title, status, isAvailable, is_featured, user_id 
+        FROM services 
+        WHERE id = ? AND user_id = ?
+    ");
     $stmt->execute([$serviceId, $this->user->id]);
     $service = $stmt->fetch();
 
@@ -463,6 +501,62 @@ public function payToFeature(): void
         echo json_encode(['error' => 'Servicio no encontrado']);
         return;
     }
+
+    // 3. Validar que el servicio esté activo
+    if ($service['status'] !== 'active' || $service['isAvailable'] != 1) {
+        http_response_code(400);
+        echo json_encode(['error' => 'El servicio no está activo']);
+        return;
+    }
+
+    // 4. Validar que el servicio NO esté ya destacado
+    if ($service['is_featured'] == 1) {
+        http_response_code(400);
+        echo json_encode(['error' => 'El servicio ya está destacado actualmente']);
+        return;
+    }
+
+// 4.5 Validar que no exista un pago pendiente o aprobado para este servicio
+$stmt = $this->conn->prepare("
+    SELECT COUNT(*) as total
+    FROM service_payment_proofs
+    WHERE service_id = ? AND payment_type = 'featured' AND status IN ('pending', 'approved')
+");
+$stmt->execute([$serviceId]);
+$existingPayments = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+
+if ($existingPayments > 0) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Ya existe un pago registrado para destacar este servicio']);
+    return;
+}
+
+   // 5. Validar límite de destacados por usuario (máximo 3)
+    $stmt = $this->conn->prepare("
+        SELECT COUNT(*) as total 
+        FROM services 
+        WHERE user_id = ? 
+        AND is_featured = 1 
+        AND (featured_expires_at IS NULL OR featured_expires_at > NOW())
+    ");
+    $stmt->execute([$this->user->id]);
+    $userFeatured = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+
+    $maxPerUser = 3;
+    if ($userFeatured >= $maxPerUser) {
+        http_response_code(400);
+        echo json_encode([
+            'error' => "Ya tienes {$maxPerUser} servicios destacados. No puedes destacar más.",
+            'code' => 'MAX_USER_FEATURED',
+            'current' => $userFeatured,
+            'max' => $maxPerUser
+        ]);
+        return;
+    }
+
+    // ==========================================
+    // CONTINUAR CON EL PAGO
+    // ==========================================
 
     $config = $this->getSystemConfig();
     $amount = (float)($config['featured_cost'] ?? 5.00);
@@ -476,20 +570,21 @@ public function payToFeature(): void
         VALUES (?, ?, ?, ?, ?, ?, 'pending', 'featured')
     ");
     $stmt->execute([$serviceId, $this->user->id, $amount, $method, $reference, $input['proof_url'] ?? null]);
-// Notificar al admin
-$stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
-$stmt->execute([$this->user->id]);
-$provider = $stmt->fetch();
 
-$stmt = $this->conn->prepare("
-    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
-    SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin' LIMIT 1
-");
-$stmt->execute([
-    '⭐ Nuevo pago de destacado',
-    "{$provider['name']} pagó para destacar '{$service['title']}' - \${$amount} por {$duration} días",
-    json_encode(['url' => '/admin/service-payments', 'action' => 'review_featured', 'service_id' => $serviceId])
-]);
+    // Notificar al admin
+    $stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
+    $stmt->execute([$this->user->id]);
+    $provider = $stmt->fetch();
+
+    $stmt = $this->conn->prepare("
+        INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+        SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin' LIMIT 1
+    ");
+    $stmt->execute([
+        '⭐ Nuevo pago de destacado',
+        "{$provider['name']} pagó para destacar '{$service['title']}' - \${$amount} por {$duration} días",
+        json_encode(['url' => '/admin/service-payments', 'action' => 'review_featured', 'service_id' => $serviceId])
+    ]);
 
     echo json_encode([
         'success' => true,
@@ -511,25 +606,105 @@ public function getFeatureCost(): void
     ]);
 }
 
-    public function getEarnings(): void
-    {
-        $this->requireAdmin();
+public function getEarnings(): void
+{
+    $this->requireAdmin();
 
-        $earnings = $this->getTotalEarnings();
+    $earnings = $this->getTotalEarnings();
 
-        $stmt = $this->conn->query("
-            SELECT pe.*, u.name as user_name, u.email
-            FROM platform_earnings pe
-            LEFT JOIN users u ON u.id = pe.user_id
-            ORDER BY pe.created_at DESC
-            LIMIT 100
-        ");
-        $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $limit = 20;
+    $offset = ($page - 1) * $limit;
 
-        echo json_encode([
-            'success' => true,
-            'summary' => $earnings,
-            'history' => $history
-        ]);
-    }
+    // Total de registros
+    $stmt = $this->conn->query("SELECT COUNT(*) as total FROM platform_earnings");
+    $total = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+
+    $stmt = $this->conn->prepare("
+        SELECT pe.*, u.name as user_name, u.email
+        FROM platform_earnings pe
+        LEFT JOIN users u ON u.id = pe.user_id
+        ORDER BY pe.created_at DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->bindValue(1, (int)$limit, PDO::PARAM_INT);
+    $stmt->bindValue(2, (int)$offset, PDO::PARAM_INT);
+     $stmt->execute();
+    $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success' => true,
+        'summary' => $earnings,
+        'history' => $history,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'pages' => ceil($total / $limit)
+        ]
+    ]);
+}
+
+// GET /api/provider/earnings
+public function getProviderEarnings(): void
+{
+    $this->requireAuth();
+
+    $userId = $this->user->id;
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $limit = 20;
+    $offset = ($page - 1) * $limit;
+
+    // Summary del provider
+    $stmt = $this->conn->prepare("
+        SELECT 
+            COALESCE(SUM(amount), 0) as total_earnings,
+            COUNT(*) as total_transactions
+        FROM platform_earnings 
+        WHERE user_id = ?
+    ");
+    $stmt->execute([$userId]);
+    $summary = $stmt->fetch();
+
+    $stmt = $this->conn->prepare("
+        SELECT COALESCE(SUM(amount), 0) as total
+        FROM platform_earnings
+        WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    ");
+    $stmt->execute([$userId]);
+    $monthly = $stmt->fetch();
+
+    // History
+    $stmt = $this->conn->prepare("
+        SELECT pe.*, u.name as user_name, u.email
+        FROM platform_earnings pe
+        LEFT JOIN users u ON u.id = pe.user_id
+        WHERE pe.user_id = ?
+        ORDER BY pe.created_at DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->execute([$userId, $limit, $offset]);
+    $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = $this->conn->prepare("SELECT COUNT(*) FROM platform_earnings WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    $total = (int)$stmt->fetchColumn();
+
+    echo json_encode([
+        'success' => true,
+        'summary' => [
+            'total_earnings' => (float)$summary['total_earnings'],
+            'total_transactions' => (int)$summary['total_transactions'],
+            'this_month' => (float)$monthly['total']
+        ],
+        'history' => $history,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'pages' => ceil($total / $limit)
+        ]
+    ]);
+}
+
 }

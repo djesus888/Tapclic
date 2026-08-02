@@ -18,7 +18,7 @@ $stmt->execute();
 $overdue = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach ($overdue as $bill) {
     $db->prepare("UPDATE provider_billing SET status = 'overdue' WHERE id = ?")->execute([$bill['id']]);
-    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$bill['provider_id'], '🚫 Factura vencida', "Factura {$bill['period_end']} por \${$bill['total_commission']} vencida.", '{}']);
+    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$bill['provider_id'], '🚫 Factura vencida', "Factura {$bill['period_end']} por \${$bill['total_commission']} vencida.", json_encode(['url' => '/account-blocked', 'action' => 'view_blocked_info'])]);
 }
 echo "✅ " . count($overdue) . " vencidas\n";
 
@@ -28,7 +28,7 @@ $stmt->execute();
 $upcoming = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach ($upcoming as $bill) {
     $daysLeft = (new DateTime($bill['due_date']))->diff(new DateTime())->days;
-    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$bill['provider_id'], '⚠️ Próxima a vencer', "Vence en $daysLeft días: \${$bill['total_commission']}", '{}']);
+    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$bill['provider_id'], '⚠️ Próxima a vencer', "Vence en $daysLeft días: \${$bill['total_commission']}", json_encode(['url' => '/account-blocked', 'action' => 'view_blocked_info'])]);
 }
 echo "✅ " . count($upcoming) . " próximas\n";
 
@@ -38,7 +38,7 @@ $stmt->execute();
 $morosos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach ($morosos as $m) {
     $db->prepare("UPDATE users SET active = 0 WHERE id = ?")->execute([$m['provider_id']]);
-    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$m['provider_id'], '🚫 Cuenta bloqueada', "Deuda: \${$m['total']}", '{}']);
+    $db->prepare("INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at) VALUES (?, 'provider', ?, ?, ?, NOW())")->execute([$m['provider_id'], '🚫 Cuenta bloqueada', "Deuda: \${$m['total']}", json_encode(['url' => '/account-blocked', 'action' => 'view_blocked_info'])]);
 }
 echo "✅ " . count($morosos) . " bloqueados\n";
 

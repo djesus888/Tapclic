@@ -3,7 +3,6 @@
     <!-- Header -->
     <div class="header">
 
-
 <!-- ✅ Aviso para configurar métodos de pago -->
 <div v-if="!hasPaymentMethods" class="warning-banner">
   <div class="warning-icon">💳</div>
@@ -14,11 +13,10 @@
   </div>
 </div>
 
-
-      <div class="title-section">
-        <h1><span class="services-icon">📋</span> {{ $t('services.myServices') }}</h1>
-        <p>{{ $t('services.manageYourServices') }}</p>
-      </div>
+    <div class="title-section">
+      <h1><span class="services-icon">📋</span> {{ $t('services.myServices') }}</h1>
+      <p>{{ $t('services.manageYourServices') }}</p>
+    </div>
 
       <router-link
         to="/services/new"
@@ -36,85 +34,96 @@
         class="service-card"
         @click="openEditModal(s)"
       >
+      
+       <div v-if="s.is_featured == 1" class="featured-ribbon">
+    <span>⭐ DESTACADO</span>
+    <span v-if="s.featured_expires_at" class="expires-at">
+        (Expira: {{ formatDate(s.featured_expires_at) }})
+    </span>
+       </div>
 
-<!-- Cinta de DESTACADO -->
-<div v-if="s.is_featured == 1" class="featured-ribbon">
-  <span>⭐ DESTACADO</span>
-</div>
-<!-- Badge Estado -->
+      <!-- Badge Estado -->
+      <div class="card-badge" :class="statusBadgeClass(s.status)">
+        {{ getStatusLabel(s.status) }}
+      </div>
 
-        <!-- Badge Estado -->
-        <div class="card-badge" :class="statusBadgeClass(s.status)">
-          {{ getStatusLabel(s.status) }}
+      <!-- Imagen -->
+      <div class="card-image" v-if="s.image_url">
+        <img
+          :src="getImageUrl(s.image_url)"
+          :alt="$t('services.image')"
+          @error="handleImageError"
+        >
+      </div>
+      <div class="card-image placeholder" v-else>
+        <span class="placeholder-icon">📷</span>
+        <p>{{ $t('services.noImage') }}</p>
+      </div>
+
+      <!-- Contenido -->
+      <div class="card-content">
+        <div class="card-header">
+          <span class="service-category">{{ s.category }}</span>
+          <span class="service-location">📍 {{ s.location }}</span>
         </div>
 
-        <!-- Imagen -->
-        <div class="card-image" v-if="s.image_url">
-          <img
-            :src="getImageUrl(s.image_url)"
-            :alt="$t('services.image')"
-            @error="handleImageError"
-          >
-        </div>
-        <div class="card-image placeholder" v-else>
-          <span class="placeholder-icon">📷</span>
-          <p>{{ $t('services.noImage') }}</p>
+        <h3 class="service-title">{{ s.title }}</h3>
+        <p class="service-description">{{ (s.description || '').slice(0, 80) }}...</p>
+
+        <div class="service-details-preview" v-if="s.service_details">
+          <span class="details-icon">📝</span>
+          <span>{{ (s.service_details || '').slice(0, 40) }}...</span>
         </div>
 
-        <!-- Contenido -->
-        <div class="card-content">
-          <div class="card-header">
-            <span class="service-category">{{ s.category }}</span>
-            <span class="service-location">📍 {{ s.location }}</span>
+        <div class="card-footer">
+          <div class="price-section">
+            <span class="price">${{ s.price }}</span>
+            <span class="price-label">{{ $t('services.price') }}</span>
           </div>
 
-          <h3 class="service-title">{{ s.title }}</h3>
-          <p class="service-description">{{ (s.description || '').slice(0, 80) }}...</p>
+          <div class="card-actions">
+            <!-- ✅ Botón para pagar servicio pendiente -->
+            <button
+              v-if="s.status === 'pending' || s.status === 'pending_payment'"
+              class="btn-pay-now"
+              @click.stop="goToPay(s.id)"
+              title="Pagar publicación"
+            >
+              💳 Pagar
+            </button>
 
-          <div class="service-details-preview" v-if="s.service_details">
-            <span class="details-icon">📝</span>
-            <span>{{ (s.service_details || '').slice(0, 40) }}...</span>
-          </div>
+            <!-- ✅ NUEVO: Botón para destacar servicio activo -->
+            <button
+              v-if="s.status === 'active' && s.is_featured != 1"
+              class="btn-feature"
+              @click.stop="goToFeature(s.id)"
+              title="Destacar servicio"
+            >
+              ⭐ Destacar
+            </button>
 
-          <div class="card-footer">
-            <div class="price-section">
-              <span class="price">${{ s.price }}</span>
-              <span class="price-label">{{ $t('services.price') }}</span>
-            </div>
+            <!-- ✅ Botón para renovar servicio próximo a vencer -->
+            <button
+              v-if="s.status === 'active' && s.expires_at && isExpiringSoon(s.expires_at)"
+              class="btn-renew"
+              @click.stop="goToPay(s.id)"
+              :title="'Renovar publicación'"
+            >
+              🔄 Renovar ({{ daysUntil(s.expires_at) }} días)
+            </button>
 
-            <div class="card-actions">
-              <!-- ✅ Botón para pagar servicio pendiente -->
-              <button
-                v-if="s.status === 'pending' || s.status === 'pending_payment'"
-                class="btn-pay-now"
-                @click.stop="goToPay(s.id)"
-                title="Pagar publicación"
-              >
-                💳 Pagar
-              </button>
-
-              <!-- ✅ Botón para renovar servicio próximo a vencer -->
-              <button
-                v-if="s.status === 'active' && s.expires_at && isExpiringSoon(s.expires_at)"
-                class="btn-renew"
-                @click.stop="goToPay(s.id)"
-                :title="'Renovar publicación'"
-              >
-                🔄 Renovar ({{ daysUntil(s.expires_at) }} días)
-              </button>
-
-              <button
-                class="btn-delete"
-                @click.stop="deleteService(s.id)"
-                :title="$t('services.delete')"
-              >
-                🗑️
-              </button>
-            </div>
+            <button
+              class="btn-delete"
+              @click.stop="deleteService(s.id)"
+              :title="$t('services.delete')"
+            >
+              🗑️
+            </button>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
     <!-- Empty State -->
     <div v-else class="empty-state">
@@ -330,7 +339,6 @@ const authStore = useAuthStore()
 const router = useRouter()
 const services = ref([])
 const showModal = ref(false)
-
 const form = ref({
   id: null,
   title: '',
@@ -388,6 +396,19 @@ const isExpiringSoon = (expiresAt) => {
   return days <= 7 && days > 0
 }
 
+// Formatear fecha
+const formatDate = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 const handleImageError = (event) => {
   event.target.src = 'https://via.placeholder.com/400x250?text=Imagen+No+Disponible'
 }
@@ -399,9 +420,14 @@ const showToast = (message, type = 'info') => {
   }, 3000)
 }
 
-// ✅ Ir a la página de pago (sirve para pago inicial y renovación)
+// ✅ Ir a la página de pago (sirve para pago inicial, renovación y destacado)
 const goToPay = (serviceId) => {
-  router.push(`/service/${serviceId}/publish`)
+  router.push(`/service/${serviceId}/publish?type=publish`)
+}
+
+// ✅ Ir al pago de destacado
+const goToFeature = (serviceId) => {
+  router.push(`/service/${serviceId}/publish?type=feature`)
 }
 
 /* ----------  Cargar servicios  ---------- */
@@ -498,6 +524,7 @@ const updateService = async () => {
     Swal.fire(t('common.error'), err.response?.data?.error || t('services.updateError'), 'error')
   }
 }
+
 const hasPaymentMethods = ref(true)
 
 // Verificar métodos de pago al cargar
@@ -603,6 +630,13 @@ onMounted(() => {
   box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
 }
 
+.featured-ribbon .expires-at {
+    font-size: 0.7em;
+    opacity: 0.85;
+    margin-left: 6px;
+    font-weight: normal;
+}
+
 /* Services Grid */
 .services-grid {
   display: grid;
@@ -642,7 +676,8 @@ onMounted(() => {
 /* Cinta de DESTACADO */
 .featured-ribbon {
   position: absolute;
-  top: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   right: -8px;
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: white;
@@ -796,6 +831,63 @@ onMounted(() => {
 .price-label {
   color: #636e72;
   font-size: 0.8rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-pay-now {
+  background: linear-gradient(135deg, #00b894, #00a085);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-pay-now:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+}
+
+.btn-feature {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.btn-renew {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-renew:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .btn-delete {
@@ -1195,29 +1287,29 @@ onMounted(() => {
   .my-services-page {
     padding: 16px;
   }
-  
+
   .header {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .title-section h1 {
     font-size: 2rem;
   }
-  
+
   .services-grid {
     grid-template-columns: 1fr;
     gap: 24px;
   }
-  
+
   .form-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .modal {
     margin: 10px;
   }
-  
+
   .modal-header, .modal-form {
     padding: 20px;
   }
@@ -1227,16 +1319,16 @@ onMounted(() => {
   .title-section h1 {
     font-size: 1.8rem;
   }
-  
+
   .btn-create, .btn-primary {
     width: 100%;
     justify-content: center;
   }
-  
+
   .modal-actions {
     flex-direction: column;
   }
-  
+
   .btn-cancel, .btn-save {
     width: 100%;
     justify-content: center;

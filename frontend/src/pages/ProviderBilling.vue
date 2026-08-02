@@ -70,24 +70,30 @@
             <span class="status-badge" :class="bill.status">{{ getStatusLabel(bill.status) }}</span>
           </div>
 
-          <!-- Payment Info -->
-          <div v-if="bill.status === 'paid'" class="payment-info">
-            <p><strong>Pagado el:</strong> {{ formatDateTime(bill.paid_at) }}</p>
-            <p><strong>Método:</strong> {{ bill.payment_method || '—' }}</p>
-            <p><strong>Referencia:</strong> {{ bill.payment_reference || '—' }}</p>
-          </div>
+  <!-- Payment Info -->
+<div v-if="bill.status === 'paid'" class="payment-info">
+  <p><strong>Pagado el:</strong> {{ formatDateTime(bill.paid_at) }}</p>
+  <p><strong>Método:</strong> {{ bill.payment_method || '—' }}</p>
+  <p><strong>Referencia:</strong> {{ bill.payment_reference || '—' }}</p>
+</div>
 
-          <!-- Pay Button -->
-          <div v-if="bill.status === 'pending' || bill.status === 'overdue'" class="pay-section">
-            <button class="btn-pay" @click="openPayModal(bill)">
-              💳 Reportar Pago
-            </button>
-          </div>
+<!-- Verifying Notice -->
+<div v-if="bill.status === 'verifying'" class="verifying-notice">
+  ⏳ Pago en verificación. Un administrador revisará tu comprobante pronto.
+</div>
 
-          <!-- Proof Link -->
-          <div v-if="bill.payment_proof" class="proof-link">
-            <button class="btn-proof" @click="viewProof(bill.payment_proof)">📎 Ver comprobante</button>
-          </div>
+<!-- Pay Button -->
+<div v-if="bill.status === 'pending' || bill.status === 'overdue'" class="pay-section">
+  <button class="btn-pay" @click="openPayModal(bill)">
+    💳 Reportar Pago
+  </button>
+</div>
+
+<!-- Proof Link -->
+<div v-if="bill.payment_proof" class="proof-link">
+  <button class="btn-proof" @click="viewProof(bill.payment_proof)">📎 Ver comprobante</button>
+</div>
+          
         </div>
       </div>
     </div>
@@ -137,7 +143,7 @@
 
             <div class="form-group">
               <label>Número de referencia</label>
-              <input v-model="payForm.reference" type="text" placeholder="Ej: 12345678" required />
+              <input v-model="payForm.reference" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="Ej: 123456" required title="Debe ser exactamente 6 dígitos numéricos" />
             </div>
 
             <div class="form-group">
@@ -153,7 +159,7 @@
 
             <div class="modal-actions">
               <button type="button" class="btn-cancel" @click="showPayModal = false">Cancelar</button>
-              <button type="submit" class="btn-submit" :disabled="paying">
+               <button type="submit" class="btn-submit" :disabled="paying || !payForm.reference || payForm.reference.length !== 6 || !payForm.file">
                 {{ paying ? '⏳ Enviando...' : '📤 Enviar comprobante' }}
               </button>
             </div>
@@ -183,7 +189,7 @@ const fileInput = ref(null)
 const toast = ref({ show: false, message: '', type: 'success' })
 const paymentMethods = ref([])
 
-const stats = reactive({ pending: 0, paid: 0, overdue: 0 })
+const stats = reactive({ pending: 0, paid: 0, overdue: 0, verifying: 0 })
 
 const payForm = reactive({
   payment_method: '',
@@ -197,7 +203,7 @@ const selectedMethod = computed(() => paymentMethods.value.find(m => m.type === 
 const formatCurrency = (v) => Number(v || 0).toFixed(2)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 const formatDateTime = (d) => d ? new Date(d).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
-const getStatusLabel = (s) => ({ pending: 'Pendiente', paid: 'Pagada', overdue: 'Vencida', cancelled: 'Cancelada' }[s] || s)
+const getStatusLabel = (s) => ({ pending: 'Pendiente', paid: 'Pagada', overdue: 'Vencida', cancelled: 'Cancelada', verifying: 'En verificación' }[s] || s)
 
 const showToast = (msg, type = 'success') => {
   toast.value = { show: true, message: msg, type }
@@ -235,6 +241,7 @@ const fetchBills = async () => {
     stats.pending = data?.stats?.pending || 0
     stats.paid = data?.stats?.paid || 0
     stats.overdue = data?.stats?.overdue || 0
+    stats.verifying = data?.stats?.verifying || 0
   } catch (e) {
     showToast('Error al cargar facturas', 'error')
   } finally {

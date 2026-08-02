@@ -1986,16 +1986,22 @@ public function updateSecurityConfig(): void
     {
         $this->requireAdmin();
         $input = json_decode(file_get_contents('php://input'), true);
-  $fields = [
-    'system_name','system_host','company_name','company_address',
+$fields = [
+    'system_name','system_host','ws_host','company_name','company_address',
     'company_phone','company_email','company_mission','company_vision',
     'company_years','company_founded','company_clients',
     'support_email','support_phone','default_language','timezone','currency',
     'theme_color','items_per_page','max_login_attempts','session_timeout_minutes',
-    'password_expiration_days','system_active','maintenance_mode','allow_user_registration',
+    'session_timeout_enabled','password_expiration_days','system_active','maintenance_mode',
+    'allow_user_registration','email_verification','strong_passwords','multiple_sessions',
     'wallet_enabled','reviews_enabled','chat_enabled','tickets_enabled','analytics_enabled',
     'system_logo','system_favicon',
-    'mail_host','mail_port','mail_username','mail_password','mail_from','mail_encryption'
+    'mail_host','mail_port','mail_username','mail_password','mail_from','mail_encryption',
+    'mail_from_name',
+    'payment_default_commission','payment_min_commission','payment_currency',
+    'service_publish_cost','service_publish_duration',
+    'featured_cost','featured_duration_days',
+    'monetization_model'
 ];
         $sets = implode(' = ?, ', $fields) . ' = ?';
         $values = array_map(fn($f) => $input[$f] ?? null, $fields);
@@ -3129,36 +3135,14 @@ public function verifyServicePayment(int $id): void
         $auth = Auth::verify();
         $stmt->execute([$auth->id, $id]);
 
-        // Activar servicio
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
-        $stmt = $this->conn->prepare("UPDATE services SET status = 'active', isAvailable = 1, published_at = NOW(), expires_at = ? WHERE id = ?");
-        $stmt->execute([$expiresAt, $payment['service_id']]);
-
-        // Notificar al proveedor
-// Notificar al proveedor
-$stmt = $this->conn->prepare("
-    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
-    VALUES (?, 'provider', ?, ?, ?, NOW())
-");
-$stmt->execute([
-    $payment['provider_id'],
-    '✅ Pago aprobado',
-    "Tu comprobante para '{$payment['title']}' fue aprobado. El servicio ya está activo.",
-    json_encode(['url' => '/myservices', 'action' => 'view_services'])
-]);
-
-// ✅ Registrar ganancia de la plataforma
-$stmt = $this->conn->prepare("
-    INSERT INTO platform_earnings (type, amount, reference_id, user_id, created_at)
-    VALUES ('service_publish', ?, ?, ?, NOW())
-");
-$stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
 // ✅ Si es pago de destacado, activar destacado
 if (($payment['payment_type'] ?? '') === 'featured') {
-    $featuredDays = (int)($config['featured_duration_days'] ?? 7);
-    $featuredExpires = date('Y-m-d H:i:s', strtotime("+{$featuredDays} days"));
-    $stmt = $this->conn->prepare("UPDATE services SET is_featured = 1, featured_at = NOW(), featured_expires_at = ? WHERE id = ?");
-    $stmt->execute([$featuredExpires, $payment['service_id']]);
+    // No activar el servicio genéricamente, lo maneja el bloque de destacado
+} else {
+    // Activar servicio (solo para pagos de publicación)
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
+    $stmt = $this->conn->prepare("UPDATE services SET status = 'active', isAvailable = 1, published_at = NOW(), expires_at = ? WHERE id = ?");
+    $stmt->execute([$expiresAt, $payment['service_id']]);
 
     // Notificar al proveedor
     $stmt = $this->conn->prepare("
@@ -3167,19 +3151,182 @@ if (($payment['payment_type'] ?? '') === 'featured') {
     ");
     $stmt->execute([
         $payment['provider_id'],
-        '⭐ Destacado activado',
-        "Tu servicio '{$payment['title']}' ahora está DESTACADO por {$featuredDays} días. Aparecerá en los primeros lugares.",
-        json_encode(['url' => '/myservices', 'action' => 'view_featured', 'service_id' => $payment['service_id']])
+        '✅ Pago aprobado',
+        "Tu comprobante para '{$payment['title']}' fue aprobado. El servicio ya está activo.",
+        json_encode(['url' => '/myservices', 'action' => 'view_services'])
     ]);
 
-    // Registrar ganancia por destacado
+    // Registrar ganancia de la plataforma
     $stmt = $this->conn->prepare("
         INSERT INTO platform_earnings (type, amount, reference_id, user_id, created_at)
-        VALUES ('service_featured', ?, ?, ?, NOW())
+        VALUES ('service_publish', ?, ?, ?, NOW())
     ");
     $stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
 }
-echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
+
+// ✅ Si es pago de destacado, ejecutar bloque de destacado
+if (($payment['payment_type'] ?? '') === 'featured') {
+
+            // 1. VALIDAR QUE EL PAGO EXISTA Y ESTÉ PAGADO
+            $paymentId = $payment['id'] ?? 0;
+            if (!$paymentId) {
+                error_log("ERROR: Intento de activar destacado sin ID de pago");
+                echo json_encode(['error' => 'ID de pago no válido']);
+                exit;
+            }
+
+            $checkPayment = $this->conn->prepare("SELECT id, status FROM service_payment_proofs WHERE id = ? AND payment_type = 'featured'");
+            $checkPayment->execute([$paymentId]);
+            $validPayment = $checkPayment->fetch(PDO::FETCH_ASSOC);
+
+            if (!$validPayment) {
+                error_log("ERROR: Pago no encontrado. ID: {$paymentId}");
+                echo json_encode(['error' => 'El pago no existe']);
+                exit;
+            }
+
+            if ($validPayment['status'] !== 'approved') {
+
+                error_log("ERROR: Pago no está approved. ID: {$paymentId}, Status: {$validPayment['status']}");
+                echo json_encode([
+                    'error' => 'El pago no está aprobado',
+                    'status' => $validPayment['status']
+                ]);
+                exit;
+            }
+
+            // 1.5 VALIDAR QUE EL SERVICIO EXISTA Y ESTÉ ACTIVO
+            $serviceId = $payment['service_id'] ?? 0;
+            if (!$serviceId) {
+                error_log("ERROR: Intento de activar destacado sin ID de servicio");
+                echo json_encode(['error' => 'ID de servicio no válido']);
+                exit;
+            }
+
+            $checkService = $this->conn->prepare("
+                SELECT id, status, isAvailable, user_id, is_featured
+                FROM services
+                WHERE id = ? AND status = 'active' AND isAvailable = 1
+            ");
+            $checkService->execute([$serviceId]);
+            $validService = $checkService->fetch(PDO::FETCH_ASSOC);
+
+            if (!$validService) {
+                error_log("ERROR: Servicio no existe o no está activo. ID: {$serviceId}");
+                echo json_encode([
+                    'error' => 'El servicio no existe o no está activo',
+                    'code' => 'SERVICE_NOT_ACTIVE'
+                ]);
+                exit;
+            }
+
+            // Verificar que el pago corresponda al dueño del servicio
+            if ($payment['provider_id'] != $validService['user_id']) {
+                error_log("ERROR: El pago no corresponde al dueño del servicio. Payment user: {$payment['provider_id']}, Service user: {$validService['user_id']}");
+                echo json_encode([
+                    'error' => 'El pago no corresponde al servicio',
+                    'code' => 'PAYMENT_SERVICE_MISMATCH'
+                ]);
+                exit;
+            }
+
+            // 2.5 VALIDAR LÍMITE DE DESTACADOS ACTIVOS
+            $maxFeatured = (int)($config['max_featured_services'] ?? 10);
+
+            $countFeatured = $this->conn->prepare("
+                SELECT COUNT(*) as total
+                FROM services
+                WHERE is_featured = 1
+                AND (featured_expires_at IS NULL OR featured_expires_at > NOW())
+            ");
+            $countFeatured->execute();
+            $totalFeatured = $countFeatured->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+
+            if ($totalFeatured >= $maxFeatured) {
+                error_log("ERROR: Límite de destacados alcanzado. Actuales: {$totalFeatured}, Máximo: {$maxFeatured}");
+                echo json_encode([
+                    'error' => "Límite de {$maxFeatured} servicios destacados alcanzado. Actualmente hay {$totalFeatured} destacados.",
+                    'code' => 'MAX_FEATURED_REACHED',
+                    'current' => $totalFeatured,
+                    'max' => $maxFeatured
+                ]);
+                exit;
+            }
+
+            // 3.5 VALIDAR QUE EL SERVICIO NO ESTÉ YA DESTACADO
+            if ($validService['is_featured'] == 1) {
+                error_log("ERROR: El servicio ya está destacado. ID: {$serviceId}");
+                echo json_encode([
+                    'error' => 'El servicio ya está destacado actualmente',
+                    'code' => 'ALREADY_FEATURED'
+                ]);
+                exit;
+            }
+
+            // 2. ACTIVAR DESTACADO (CON TRANSACCIÓN Y AUDITORÍA)
+            $featuredDays = (int)($config['featured_duration_days'] ?? 7);
+            $featuredExpires = date('Y-m-d H:i:s', strtotime("+{$featuredDays} days"));
+
+            // Iniciar transacción
+            $this->conn->beginTransaction();
+
+            try {
+                // 2.1 Actualizar servicio
+                $stmt = $this->conn->prepare("UPDATE services SET is_featured = 1, featured_at = NOW(), featured_expires_at = ? WHERE id = ?");
+                $stmt->execute([$featuredExpires, $payment['service_id']]);
+
+                // 2.2 Notificar al proveedor
+                $stmt = $this->conn->prepare("
+                    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+                    VALUES (?, 'provider', ?, ?, ?, NOW())
+                ");
+                $stmt->execute([
+                    $payment['provider_id'],
+                    '⭐ Destacado activado',
+                    "Tu servicio '{$payment['title']}' ahora está DESTACADO por {$featuredDays} días. Aparecerá en los primeros lugares.",
+                    json_encode(['url' => '/myservices', 'action' => 'view_featured', 'service_id' => $payment['service_id']])
+                ]);
+
+                // 2.3 Registrar ganancia por destacado
+                $stmt = $this->conn->prepare("
+                    INSERT INTO platform_earnings (type, amount, reference_id, user_id, created_at)
+                    VALUES ('featured', ?, ?, ?, NOW())
+                ");
+                $stmt->execute([$payment['amount'], $payment['service_id'], $payment['provider_id']]);
+
+                // 2.4 REGISTRAR AUDITORÍA (quién activó el destacado)
+                $adminId = $auth->id ?? 0;
+                $stmt = $this->conn->prepare("
+                INSERT INTO audit_logs (user_id, action_type, action, details, created_at)
+                VALUES (?, 'featured', 'featured_activated', ?, NOW())
+               ");
+                $stmt->execute([
+                 $adminId,
+               "Servicio ID: {$payment['service_id']}. Destacado por {$featuredDays} días. Expira: {$featuredExpires}. Pago ID: {$paymentId}"
+                ]);
+
+                // Confirmar transacción
+                $this->conn->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Pago aprobado. Servicio destacado correctamente.',
+                    'expires_at' => $featuredExpires
+                ]);
+
+            } catch (Exception $e) {
+                // Revertir transacción en caso de error
+                $this->conn->rollBack();
+                error_log("ERROR en transacción de destacado: " . $e->getMessage());
+                echo json_encode([
+                    'error' => 'Error al activar el destacado: ' . $e->getMessage(),
+                    'code' => 'TRANSACTION_ERROR'
+                ]);
+                exit;
+            }
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activado.']);
 
     } else {
         // Rechazar comprobante
@@ -3192,16 +3339,16 @@ echo json_encode(['success' => true, 'message' => 'Pago aprobado. Servicio activ
         $stmt->execute([$payment['service_id']]);
 
         // Notificar al proveedor
-$stmt = $this->conn->prepare("
-    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
-    VALUES (?, 'provider', ?, ?, ?, NOW())
-");
-$stmt->execute([
-    $payment['provider_id'],
-    '❌ Comprobante rechazado',
-    "Tu comprobante para '{$payment['title']}' fue rechazado. Sube uno nuevo.",
-    json_encode(['url' => '/myservices', 'action' => 'view_services'])
-]);
+        $stmt = $this->conn->prepare("
+            INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+            VALUES (?, 'provider', ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $payment['provider_id'],
+            '❌ Comprobante rechazado',
+            "Tu comprobante para '{$payment['title']}' fue rechazado. Sube uno nuevo.",
+            json_encode(['url' => '/myservices', 'action' => 'view_services'])
+        ]);
         echo json_encode(['success' => true, 'message' => 'Comprobante rechazado. El proveedor puede subir otro.']);
     }
 }

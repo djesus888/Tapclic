@@ -64,6 +64,7 @@ const routes = [
       { path: 'admin/system-config', component: () => import('@/pages/admin/SystemConfig.vue'), meta: { role: 'admin' } },
       { path: 'earnings', component: () => import('@/pages/Earnings.vue') },
       { path: 'provider/billing', component: () => import('@/pages/ProviderBilling.vue'), meta: { role: 'provider' } },
+      { path: 'account-blocked', component: () => import('@/pages/AccountBlocked.vue') },
       { path: 'reviews', component: () => import('@/pages/Reviews.vue') },
       { path: 'requests', component: () => import('@/pages/Requests.vue') },
       { path: 'service/:id', component: () => import('@/pages/ServiceDetailPage.vue') },

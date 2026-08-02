@@ -75,7 +75,8 @@
               <th>Monto</th>
               <th>Servicios</th>
               <th>Transacciones</th>
-              <th>Estado</th>
+               <th>Referencia</th>
+               <th>Estado</th>
               <th>Comprobante</th>
               <th>Acciones</th>
             </tr>
@@ -94,7 +95,8 @@
               <td class="amount">${{ formatCurrency(bill.total_commission) }}</td>
               <td>{{ bill.total_services }}</td>
               <td>{{ bill.total_transactions }}</td>
-              <td>
+              <td>{{ bill.payment_reference || '—' }}</td>
+               <td>
                 <span class="status-badge" :class="bill.status">
                   {{ getStatusLabel(bill.status) }}
                 </span>
@@ -105,8 +107,8 @@
               </td>
               <td>
                 <div class="action-buttons">
-                  <button v-if="bill.status === 'pending' && bill.payment_proof" class="btn-approve" @click="verifyPayment(bill.id, 'approve')" title="Aprobar pago">✅</button>
-                  <button v-if="bill.status === 'pending' && bill.payment_proof" class="btn-reject" @click="verifyPayment(bill.id, 'reject')" title="Rechazar comprobante">❌</button>
+                  <button v-if="bill.status === 'pending' || bill.status === 'verifying' && bill.payment_proof" class="btn-approve" @click="verifyPayment(bill.id, 'approve')" title="Aprobar pago">✅</button>
+                  <button v-if="bill.status === 'pending' || bill.status === 'verifying' && bill.payment_proof" class="btn-reject" @click="verifyPayment(bill.id, 'reject')" title="Rechazar comprobante">❌</button>
                   <button class="btn-block" @click="toggleBlock(bill.provider_id)" :title="'Bloquear/Desbloquear proveedor'">🔒</button>
                 </div>
               </td>
@@ -189,7 +191,7 @@ const stats = reactive({
 
 const formatCurrency = (v) => Number(v || 0).toFixed(2)
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : ''
-const getStatusLabel = (s) => ({ pending: 'Pendiente', paid: 'Pagada', overdue: 'Vencida', cancelled: 'Cancelada' }[s] || s)
+const getStatusLabel = (s) => ({ pending: 'Pendiente', paid: 'Pagada', overdue: 'Vencida', cancelled: 'Cancelada', verifying: 'En verificación' }[s] || s)
 const getRowClass = (s) => s === 'overdue' ? 'row-overdue' : s === 'paid' ? 'row-paid' : ''
 
 const showToast = (msg, type = 'success') => {
@@ -270,8 +272,8 @@ const toggleBlock = async (providerId) => {
     })
     showToast(data?.message || 'Operación completada')
   } catch (e) {
-    showToast('Error al bloquear proveedor', 'error')
-  }
+  showToast(e.response?.data?.error || 'Error al bloquear proveedor', 'error')
+}
 }
 
 const viewProof = (url) => {
@@ -567,9 +569,27 @@ onMounted(fetchBills)
   border-radius: 8px;
   color: white;
   font-weight: 500;
-  z-index: 1000;
+  z-index: 9999;
 }
 
 .toast.success { background: #4caf50; }
 .toast.error { background: #f44336; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 14px 24px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 9999;
+  animation: slideUp 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
 </style>

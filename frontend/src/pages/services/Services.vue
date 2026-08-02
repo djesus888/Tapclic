@@ -366,7 +366,8 @@ if (service.provider?.avatar_url) {
 /* Cinta de DESTACADO */
 .featured-ribbon {
   position: absolute;
-  top: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   right: -8px;
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: white;

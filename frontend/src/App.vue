@@ -64,6 +64,7 @@ const titles = {
   '/admin/logs': 'Logs del Sistema',
   '/admin/adminwallet': 'Admin Wallet',
   '/admin/tickets': 'Tickets de Soporte',
+  '/account-blocked': 'Cuenta Bloqueada',
   '/provider': 'Proveedores',
   '/provider/billing': 'Facturación Proveedor',
   '/provider/staff': 'Mi Staff',

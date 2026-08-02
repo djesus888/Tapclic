@@ -679,9 +679,9 @@ async function loadSystemConfig() {
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
     const data = response.data
-    const booleanFields = ['system_active', 'maintenance_mode', 'allow_user_registration', 'wallet_enabled', 'reviews_enabled', 'chat_enabled', 'tickets_enabled', 'analytics_enabled']
+    const booleanFields = ['system_active', 'maintenance_mode', 'allow_user_registration', 'wallet_enabled', 'reviews_enabled', 'chat_enabled', 'tickets_enabled', 'analytics_enabled', 'session_timeout_enabled']
     const numericFields = ['max_login_attempts', 'password_expiration_days', 'session_timeout_minutes', 'items_per_page']
-    booleanFields.forEach(f => { if (data[f] !== undefined) data[f] = data[f] ? 1 : 0 })
+    booleanFields.forEach(f => { if (data[f] !== undefined) data[f] = data[f] == 1 ? true : false })
     numericFields.forEach(f => { if (data[f] !== undefined) data[f] = parseInt(data[f]) || 0 })
     if (data.extra_json && typeof data.extra_json === 'object') data.extra_json = JSON.stringify(data.extra_json)
     else if (!data.extra_json || data.extra_json.trim() === '') data.extra_json = '{}'
@@ -769,7 +769,13 @@ function removeFavicon() { if (confirm('¿Eliminar favicon?')) { systemConfig.va
 async function saveAllSettings() {
   try {
     saving.value = true
-    await api.put('/admin/system-config', { ...systemConfig.value }, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    const payload = { ...systemConfig.value }
+    // Convertir todos los booleanos a 1/0 para el backend
+    const boolFields = ['system_active', 'maintenance_mode', 'allow_user_registration', 'email_verification', 'strong_passwords', 'multiple_sessions', 'wallet_enabled', 'reviews_enabled', 'chat_enabled', 'tickets_enabled', 'analytics_enabled', 'session_timeout_enabled']
+    boolFields.forEach(f => {
+      if (typeof payload[f] === 'boolean') payload[f] = payload[f] ? 1 : 0
+    })
+    await api.put('/admin/system-config', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
     originalConfig.value = JSON.parse(JSON.stringify(systemConfig.value))
     showSuccess('Configuración guardada correctamente')
   } catch (error) {

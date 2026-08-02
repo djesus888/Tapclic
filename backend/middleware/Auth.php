@@ -91,14 +91,21 @@ $userRole = $decoded->role ?? '';
 // Verificar timeout de sesión por inactividad (solo si está activado)
 $timeoutEnabled = (int)($config['session_timeout_enabled'] ?? 1);
 $timeoutMinutes = (int)($config['session_timeout_minutes'] ?? 30);
-if ($timeoutEnabled && $timeoutMinutes > 0 && isset($decoded->iat)) {
-    $elapsedMinutes = (time() - $decoded->iat) / 60;
-    if ($elapsedMinutes > $timeoutMinutes) {
-        error_log("Sesión expirada por inactividad: {$elapsedMinutes} min (límite: {$timeoutMinutes})");
-        return null;
+if ($timeoutEnabled && $timeoutMinutes > 0 && isset($decoded->id)) {
+    // Usar last_activity de la tabla sessions en lugar de iat del JWT
+    $stmt = $db->prepare("SELECT last_activity FROM sessions WHERE user_id = ? ORDER BY last_activity DESC LIMIT 1");
+    $stmt->execute([$decoded->id]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($session && $session['last_activity']) {
+        $elapsedSeconds = time() - $session['last_activity'];
+        $elapsedMinutes = $elapsedSeconds / 60;
+        if ($elapsedMinutes > $timeoutMinutes) {
+            error_log("Sesión expirada por inactividad: {$elapsedMinutes} min (límite: {$timeoutMinutes})");
+            return null;
+        }
     }
 }
-
         // Sistema inactivo - solo admin puede acceder
         if ($config && $config['system_active'] == 0) {
             if ($userRole !== 'admin' && $userRole !== 'super_admin') {

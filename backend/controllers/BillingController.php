@@ -151,26 +151,29 @@ class BillingController
         $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Estadísticas
-        $stmt = $this->conn->prepare("
-            SELECT 
-                COALESCE(SUM(CASE WHEN status = 'pending' THEN total_commission END), 0) as pending,
-                COALESCE(SUM(CASE WHEN status = 'paid' THEN total_commission END), 0) as paid,
-                COALESCE(SUM(CASE WHEN status = 'overdue' THEN total_commission END), 0) as overdue
-            FROM provider_billing
-            WHERE provider_id = ?
-        ");
+    $stmt = $this->conn->prepare("
+    SELECT
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN total_commission END), 0) as pending,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN total_commission END), 0) as paid,
+        COALESCE(SUM(CASE WHEN status = 'overdue' THEN total_commission END), 0) as overdue,
+        COALESCE(SUM(CASE WHEN status = 'verifying' THEN total_commission END), 0) as verifying
+        FROM provider_billing
+        WHERE provider_id = ?
+         ");
         $stmt->execute([$this->user->id]);
         $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        echo json_encode([
-            'success' => true,
-            'bills' => $bills,
-            'stats' => [
-                'pending' => (float)$stats['pending'],
-                'paid' => (float)$stats['paid'],
-                'overdue' => (float)$stats['overdue']
-            ]
-        ]);
+echo json_encode([
+    'success' => true,
+    'bills' => $bills,
+    'stats' => [
+        'pending' => (float)$stats['pending'],
+        'paid' => (float)$stats['paid'],
+        'overdue' => (float)$stats['overdue'],
+        'verifying' => (float)$stats['verifying']
+    ]
+]);
+
     }
 
     /* ========== REPORTAR PAGO (PROVEEDOR) ========== */
@@ -329,60 +332,58 @@ class BillingController
         echo json_encode(['success' => true, 'message' => $action === 'approve' ? 'Pago aprobado' : 'Comprobante rechazado']);
     }
 
-    /* ========== BLOQUEAR / DESBLOQUEAR PROVEEDOR (ADMIN) ========== */
+/* ========== BLOQUEAR / DESBLOQUEAR PROVEEDOR (ADMIN) ========== */
 
-    // POST /api/admin/billing/block/{providerId}
-    public function toggleBlock(int $providerId): void
-    {
-        $this->requireAdmin();
+// POST /api/admin/billing/block/{providerId}
+public function toggleBlock(int $providerId): void
+{
+    $this->requireAdmin();
 
-        $stmt = $this->conn->prepare("SELECT active FROM users WHERE id = ? AND role = 'provider'");
+    $stmt = $this->conn->prepare("SELECT active FROM users WHERE id = ? AND role = 'provider'");
+    $stmt->execute([$providerId]);
+    $provider = $stmt->fetch();
+
+    if (!$provider) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Proveedor no encontrado']);
+        return;
+    }
+
+    // Si está bloqueado, verificar que no tenga facturas vencidas antes de desbloquear
+    if ($provider['active'] == 0) {
+$stmt = $this->conn->prepare("
+    SELECT COUNT(*) as total
+    FROM provider_billing
+    WHERE provider_id = ? AND status IN ('pending', 'overdue', 'verifying')
+");
         $stmt->execute([$providerId]);
-        $provider = $stmt->fetch();
+        $overdueCount = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
 
-        if (!$provider) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Proveedor no encontrado']);
+        if ($overdueCount > 0) {
+            http_response_code(400);
+            echo json_encode([
+                'error' => "No se puede desbloquear. El proveedor aún tiene {$overdueCount} factura(s) vencida(s).",
+                'code' => 'OVERDUE_BILLS'
+            ]);
             return;
         }
-
-        $newStatus = $provider['active'] ? 0 : 1;
-        $stmt = $this->conn->prepare("UPDATE users SET active = ? WHERE id = ?");
-        $stmt->execute([$newStatus, $providerId]);
-
-        $action = $newStatus ? 'desbloqueado' : 'bloqueado';
-        $this->sendNotification(
-            $providerId,
-            $newStatus ? '🔓 Cuenta desbloqueada' : '🚫 Cuenta bloqueada',
-            $newStatus ? 'Tu cuenta ha sido desbloqueada. Ya puedes seguir operando.' : 'Tu cuenta ha sido bloqueada por falta de pago. Regulariza tu situación para continuar.'
-        );
-
-        echo json_encode(['success' => true, 'message' => "Proveedor {$action}"]);
     }
 
-    /* ========== HELPER ========== */
+    $newStatus = $provider['active'] ? 0 : 1;
+    $stmt = $this->conn->prepare("UPDATE users SET active = ? WHERE id = ?");
+    $stmt->execute([$newStatus, $providerId]);
 
-    private function notifyProviderBilling(int $providerId, string $start, string $end, float $amount): void
-    {
-        $title = '💰 Nueva factura generada';
-        $message = "Se ha generado tu factura del período {$start} - {$end} por \${$amount}. Debes pagarla antes del vencimiento.";
+    $action = $newStatus ? 'desbloqueado' : 'bloqueado';
+    $this->sendNotification(
+        $providerId,
+        $newStatus ? '🔓 Cuenta desbloqueada' : '🚫 Cuenta bloqueada',
+        $newStatus ? 'Tu cuenta ha sido desbloqueada. Ya puedes seguir operando.' : 'Tu cuenta ha sido bloqueada por falta de pago. Regulariza tu situación para continuar.'
+    );
 
-        // Guardar notificación en BD
-        $stmt = $this->conn->prepare("
-            INSERT INTO notifications (user_id, title, message, type, is_admin, created_at)
-            VALUES (?, ?, ?, 'billing', 0, NOW())
-        ");
-        $stmt->execute([$providerId, $title, $message]);
+    echo json_encode(['success' => true, 'message' => "Proveedor {$action}"]);
+}
 
-        // WebSocket
-        WebSocketService::sendNotification('provider', $providerId, $title, $message, [
-            'notification_type' => 'billing',
-            'url' => '/provider/billing',
-            'action' => 'view_billing'
-        ]);
-    }
-
-    private function notifyAdminPayment(int $providerId, float $amount, int $billId): void
+private function notifyAdminPayment(int $providerId, float $amount, int $billId): void
     {
         $stmt = $this->conn->prepare("SELECT name FROM users WHERE id = ?");
         $stmt->execute([$providerId]);
@@ -392,10 +393,10 @@ class BillingController
         $message = "{$provider['name']} reportó un pago de \${$amount}. Verifica el comprobante.";
 
         $stmt = $this->conn->prepare("
-            INSERT INTO notifications (user_id, title, message, type, is_admin, created_at)
-            SELECT id, ?, ?, 'billing_payment', 1, NOW() FROM users WHERE role = 'admin'
-        ");
-        $stmt->execute([$title, $message]);
+    INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+    SELECT id, 'admin', ?, ?, ?, NOW() FROM users WHERE role = 'admin'
+     ");
+         $stmt->execute([$title, $message, json_encode(['url' => '/admin/billing', 'action' => 'review_payment', 'bill_id' => $billId])]);
 
         WebSocketService::emitToRole('admin', 'new-billing-payment', [
             'provider_id' => $providerId,
@@ -404,20 +405,21 @@ class BillingController
         ]);
     }
 
-    private function sendNotification(int $userId, string $title, string $message): void
-    {
-        $stmt = $this->conn->prepare("
-            INSERT INTO notifications (user_id, title, message, type, is_admin, created_at)
-            VALUES (?, ?, ?, 'system', 0, NOW())
-        ");
-        $stmt->execute([$userId, $title, $message]);
+private function sendNotification(int $userId, string $title, string $message): void
+{
+    $stmt = $this->conn->prepare("
+        INSERT INTO notifications (receiver_id, receiver_role, title, message, data_json, created_at)
+        VALUES (?, 'provider', ?, ?, ?, NOW())
+    ");
+    $stmt->execute([$userId, $title, $message, json_encode(['notification_type' => 'system'])]);
 
-        WebSocketService::sendNotification(
-            'provider',
-            $userId,
-            $title,
-            $message,
-            ['notification_type' => 'system']
-        );
-    }
+    WebSocketService::sendNotification(
+        'provider',
+        $userId,
+        $title,
+        $message,
+        ['notification_type' => 'system']
+    );
+  }
+
 }

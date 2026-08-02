@@ -432,6 +432,8 @@ if (preg_match('~/api/login~', $request)) {
     (new MonetizationController())->updateConfig();
 } elseif (preg_match('~/api/admin/monetization/earnings~', $request) && $method === 'GET') {
     (new MonetizationController())->getEarnings();
+} elseif (preg_match('~/api/provider/earnings~', $request) && $method === 'GET') {
+    (new MonetizationController())->getProviderEarnings();
 } elseif (preg_match('~/api/monetization/publish-cost~', $request) && $method === 'GET') {
     (new MonetizationController())->getPublishCost();
 } elseif (preg_match('~/api/monetization/feature~', $request) && $method === 'POST') {
