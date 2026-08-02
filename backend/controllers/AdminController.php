@@ -3072,18 +3072,30 @@ public function getServicePayments(): void
 
     $status = $_GET['status'] ?? 'pending';
 
-    $stmt = $this->conn->prepare("
-        SELECT spp.*, s.title as service_title, s.price as service_price,
-               u.name as provider_name, u.email as provider_email
-        FROM service_payment_proofs spp
-        JOIN services s ON s.id = spp.service_id
-        JOIN users u ON u.id = spp.provider_id
-        WHERE spp.status = ?
-        ORDER BY spp.created_at DESC
-    ");
-    $stmt->execute([$status]);
+    if ($status === 'all') {
+        $stmt = $this->conn->prepare("
+            SELECT spp.*, s.title as service_title, s.price as service_price,
+                   u.name as provider_name, u.email as provider_email
+            FROM service_payment_proofs spp
+            JOIN services s ON s.id = spp.service_id
+            JOIN users u ON u.id = spp.provider_id
+            ORDER BY spp.created_at DESC
+        ");
+        $stmt->execute();
+    } else {
+        $stmt = $this->conn->prepare("
+            SELECT spp.*, s.title as service_title, s.price as service_price,
+                   u.name as provider_name, u.email as provider_email
+            FROM service_payment_proofs spp
+            JOIN services s ON s.id = spp.service_id
+            JOIN users u ON u.id = spp.provider_id
+            WHERE spp.status = ?
+            ORDER BY spp.created_at DESC
+        ");
+        $stmt->execute([$status]);
+    }
+    
     $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     echo json_encode(['success' => true, 'payments' => $payments]);
 }
 

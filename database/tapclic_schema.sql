@@ -38,7 +38,7 @@ CREATE TABLE `audit_logs` (
   KEY `idx_action_type` (`action_type`),
   KEY `idx_created_at` (`created_at`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=911 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=942 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `blocked_ips`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -254,7 +254,7 @@ CREATE TABLE `login_attempts` (
   KEY `idx_ip_address` (`ip_address`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_success` (`success`)
-) ENGINE=InnoDB AUTO_INCREMENT=190 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `message_status`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -323,7 +323,7 @@ CREATE TABLE `notifications` (
   `is_read` tinyint(1) DEFAULT 0,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=50 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `payment_gateways`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -415,7 +415,7 @@ CREATE TABLE `platform_earnings` (
   PRIMARY KEY (`id`),
   KEY `idx_type` (`type`),
   KEY `idx_created` (`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=66 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=67 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `provider_billing`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -601,7 +601,7 @@ CREATE TABLE `service_payment_proofs` (
   KEY `idx_service` (`service_id`),
   KEY `idx_provider` (`provider_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `service_requests`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -682,7 +682,7 @@ CREATE TABLE `services` (
   `featured_expires_at` timestamp NULL DEFAULT NULL,
   `service_details` text DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `sessions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -781,6 +781,7 @@ CREATE TABLE `system_config` (
   `max_login_attempts` int(11) DEFAULT 5,
   `password_expiration_days` int(11) DEFAULT 90,
   `session_timeout_minutes` int(11) DEFAULT 30,
+  `session_timeout_enabled` tinyint(1) DEFAULT 1,
   `items_per_page` int(11) DEFAULT 20,
   `theme_color` varchar(20) DEFAULT '#409EFF',
   `allow_user_registration` tinyint(1) DEFAULT 1,
@@ -843,7 +844,7 @@ CREATE TABLE `token_blacklist` (
   PRIMARY KEY (`id`),
   KEY `idx_token` (`token`(255)),
   KEY `idx_expires` (`expires_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=257 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=278 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `user_devices`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -868,7 +869,7 @@ CREATE TABLE `user_devices` (
   KEY `idx_last_active` (`last_active`),
   KEY `idx_fingerprint` (`device_fingerprint`),
   CONSTRAINT `user_devices_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=183 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=197 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `user_reviews`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -944,7 +945,7 @@ CREATE TABLE `users` (
   UNIQUE KEY `phone` (`phone`),
   UNIQUE KEY `uniq_username` (`username`),
   KEY `idx_last_seen_at` (`last_seen_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `wallet_transactions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

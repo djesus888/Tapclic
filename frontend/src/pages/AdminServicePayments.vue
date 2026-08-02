@@ -186,6 +186,18 @@ const fetchPayments = async () => {
   }
 }
 
+const fetchStats = async () => {
+  try {
+    const { data } = await api.get('/admin/service-payments', {
+      params: { status: 'all' }
+    })
+    const all = data?.payments || []
+    stats.pending = all.filter(p => p.status === 'pending').length
+    stats.approved = all.filter(p => p.status === 'approved').length
+    stats.rejected = all.filter(p => p.status === 'rejected').length
+  } catch (e) { /* ignorar */ }
+}
+
 const verifyPayment = async (id, action) => {
   const msg = action === 'approve' ? '¿Aprobar y activar este servicio?' : '¿Rechazar este comprobante?'
   if (!confirm(msg)) return
@@ -197,12 +209,16 @@ const verifyPayment = async (id, action) => {
     )
     showToast(data?.message || 'Operación completada')
     fetchPayments()
+   fetchStats()
   } catch (e) {
     showToast('Error al procesar', 'error')
   }
 }
 
-onMounted(fetchPayments)
+onMounted(() => {
+  fetchPayments()
+  fetchStats()
+})
 </script>
 
 <style scoped>

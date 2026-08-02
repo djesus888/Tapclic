@@ -387,14 +387,25 @@
                   </div>
                   <p class="security-help">Intentos fallidos antes de bloquear la cuenta (1-10)</p>
                 </div>
-                <div class="security-item">
-                  <label class="security-label"><span class="label-icon">⏱️</span>Tiempo de Sesión</label>
-                  <div class="security-control">
-                    <input type="number" v-model.number="systemConfig.session_timeout_minutes" @input="markAsChanged" min="5" max="1440" class="security-input">
-                    <span class="security-unit">minutos</span>
-                  </div>
-                  <p class="security-help">Tiempo antes de expirar la sesión inactiva (5-1440 min)</p>
-                </div>
+<div class="security-item">
+  <label class="security-label"><span class="label-icon">⏱️</span>Tiempo de Sesión</label>
+  <div class="security-control">
+    <label class="toggle-switch">
+      <input type="checkbox" v-model="systemConfig.session_timeout_enabled" @change="markAsChanged">
+      <span class="toggle-slider"></span>
+    </label>
+    <span class="security-unit">{{ systemConfig.session_timeout_enabled ? 'Activado' : 'Desactivado' }}</span>
+  </div>
+  <p class="security-help">Activar expiración por inactividad</p>
+</div>
+<div class="security-item" v-if="systemConfig.session_timeout_enabled">
+  <label class="security-label"><span class="label-icon">🕐</span>Minutos de Inactividad</label>
+  <div class="security-control">
+    <input type="number" v-model.number="systemConfig.session_timeout_minutes" @input="markAsChanged" min="5" max="1440" class="security-input">
+    <span class="security-unit">minutos</span>
+  </div>
+  <p class="security-help">Tiempo antes de expirar la sesión inactiva (5-1440 min)</p>
+</div>
                 <div class="security-item">
                   <label class="security-label"><span class="label-icon">📅</span>Expiración de Contraseña</label>
                   <div class="security-control">
@@ -636,6 +647,7 @@ const systemConfig = ref({
   maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
   mail_username: '', mail_password: '', mail_from: '',
   session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
+  session_timeout_enabled: true, 
   allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
   chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1,
   extra_json: '{}', created_at: null, updated_at: null
@@ -699,8 +711,9 @@ function resetToDefaults() {
       company_phone: '', company_email: '', company_mission: '', company_vision: '',
       company_years: '5+', company_founded: '2020', company_clients: 150,
       maintenance_mode: 0, max_login_attempts: 5, password_expiration_days: 90,
-     mail_username: '', mail_password: '', mail_from: '',  
+      mail_username: '', mail_password: '', mail_from: '',  
       session_timeout_minutes: 30, items_per_page: 20, theme_color: '#409EFF',
+      session_timeout_enabled: true, 
       allow_user_registration: 1, wallet_enabled: 1, reviews_enabled: 1,
       chat_enabled: 1, tickets_enabled: 1, analytics_enabled: 1, extra_json: '{}'
     })

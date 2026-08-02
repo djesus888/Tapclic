@@ -243,9 +243,7 @@ export default {
         formData.append('service_type', form.value.service_type || 'fijo')
         if (imageFile.value) formData.append('image', imageFile.value)
 
-        const response = await api.post('/services', formData, {
-          headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'multipart/form-data' }
-        })
+        const response = await api.post('/services', formData)
 
         Swal.fire({ icon: 'success', title: t('services.successTitle'), text: t('services.successMessage'), timer: 2000, showConfirmButton: false, position: 'top-end', toast: true })
 

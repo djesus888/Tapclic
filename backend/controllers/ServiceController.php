@@ -61,6 +61,7 @@ class ServiceController
 
         $path = $_SERVER['REQUEST_URI'];
         match (true) {
+            $method === 'POST' && preg_match('#/api/services/create/?$#', $path) => $this->create($auth),
             $method === 'POST' && preg_match('#/api/services/?$#', $path)        => $this->create($auth),
             $method === 'GET'  && preg_match('#/api/services/mine/?$#', $path)   => $this->mine($auth),
             $method === 'GET'  && preg_match('#/api/services/all/?$#', $path)    => $this->all($auth),
@@ -225,6 +226,15 @@ class ServiceController
         try {
             $service = $this->model->findById((int)$id);
             $title = $service['title'] ?? 'Desconocido';
+
+// Eliminar imagen del servidor si existe
+if (!empty($service['image_url'])) {
+    $imagePath = __DIR__ . '/../public' . parse_url($service['image_url'], PHP_URL_PATH);
+    if (file_exists($imagePath)) {
+        unlink($imagePath);
+        error_log("Imagen eliminada: {$imagePath}");
+    }
+}
 
             $deleted = $this->model->delete((int)$id, $auth->id);
             if (!$deleted) {

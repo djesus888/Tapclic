@@ -82,21 +82,22 @@ class Auth {
             return null;
         }
 
-        // ✅ Verificar inactividad (session_timeout_minutes configurable)
-        $db = (new Database())->getConnection();
-        $stmt = $db->query("SELECT system_active, maintenance_mode, session_timeout_minutes FROM system_config WHERE id = 1");
-        $config = $stmt->fetch(PDO::FETCH_ASSOC);
-        $userRole = $decoded->role ?? '';
+    // ✅ Verificar inactividad (session_timeout_minutes configurable)
+$db = (new Database())->getConnection();
+$stmt = $db->query("SELECT system_active, maintenance_mode, session_timeout_enabled, session_timeout_minutes FROM system_config WHERE id = 1");
+$config = $stmt->fetch(PDO::FETCH_ASSOC);
+$userRole = $decoded->role ?? '';
 
-        // Verificar timeout de sesión por inactividad
-        $timeoutMinutes = (int)($config['session_timeout_minutes'] ?? 30);
-        if ($timeoutMinutes > 0 && isset($decoded->iat)) {
-            $elapsedMinutes = (time() - $decoded->iat) / 60;
-            if ($elapsedMinutes > $timeoutMinutes) {
-                error_log("Sesión expirada por inactividad: {$elapsedMinutes} min (límite: {$timeoutMinutes})");
-                return null;
-            }
-        }
+// Verificar timeout de sesión por inactividad (solo si está activado)
+$timeoutEnabled = (int)($config['session_timeout_enabled'] ?? 1);
+$timeoutMinutes = (int)($config['session_timeout_minutes'] ?? 30);
+if ($timeoutEnabled && $timeoutMinutes > 0 && isset($decoded->iat)) {
+    $elapsedMinutes = (time() - $decoded->iat) / 60;
+    if ($elapsedMinutes > $timeoutMinutes) {
+        error_log("Sesión expirada por inactividad: {$elapsedMinutes} min (límite: {$timeoutMinutes})");
+        return null;
+    }
+}
 
         // Sistema inactivo - solo admin puede acceder
         if ($config && $config['system_active'] == 0) {
