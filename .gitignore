@@ -61,3 +61,13 @@ backend/vendor/
 backend/.env
 frontend/.env
 websocket/.env
+
+# Backup files
+*.bak
+
+# User uploaded files
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# Test files
+evidence_test.txt
