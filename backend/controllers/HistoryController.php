@@ -948,7 +948,7 @@ class HistoryController
             'type' => 'review',
             'notification_type' => 'review_received',
             'route' => '/reviews',
-            'url' => '/dashboard/provider/reviews',
+            'url' => '/reviews',
             'action' => 'view_reviews'
         ]);
 
@@ -974,7 +974,7 @@ class HistoryController
                 [
                     'event' => 'review_received',
                     'notification_type' => 'review_received',
-                    'url' => '/dashboard/provider/reviews',
+                    'url' => '/reviews',
                     'action' => 'view_reviews',
                     'rating' => $stars
                 ]
@@ -1255,7 +1255,7 @@ class HistoryController
         $reviewerRole = $stmtRole->fetchColumn();
 
         if (!in_array($reviewerRole, ['provider', 'admin'])) {
-            $this->send(403, ['message' => 'Solo proveedores y administradores pueden calificar usuarios']);
+        $this->send(403, ['message' => 'Solo proveedores y administradores pueden calificar usuarios']);
         }
 
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -1281,8 +1281,8 @@ class HistoryController
             $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid");
             $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
         } else {
-            $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid AND provider_id = :pid");
-            $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
+        $stmt = $this->conn->prepare("SELECT user_id FROM service_history WHERE id = :hid AND provider_id = :pid");
+        $stmt->execute([':hid' => $historyId, ':pid' => $reviewerId]);
         }
         $history = $stmt->fetch(PDO::FETCH_ASSOC);
 

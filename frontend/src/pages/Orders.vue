@@ -78,9 +78,10 @@
               </div>
 
               <div class="order-details">
+                <!-- ✅ SIEMPRE mostrar al PROVEEDOR (son MIS pedidos como cliente) -->
                 <div class="detail-item">
-                  <span class="detail-icon">👤</span>
-                  <span class="detail-text">{{ o.providerName }}</span>
+                  <span class="detail-icon">🔧</span>
+                  <span class="detail-text">{{ o.providerName || 'Proveedor' }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="detail-icon">📅</span>
@@ -95,14 +96,25 @@
                 </div>
 
                 <div class="action-buttons">
+                  <!-- ✅ Botón de Live Tracking para todos -->
                   <button
-                    v-if="authStore.user?.role === 'provider' && o.status === 'in_progress'"
-                    class="btn-action btn-finalise"
-                    @click="finaliseOrder(o.id)"
+                    class="btn-action btn-track"
+                    @click="openLiveTracking(o)"
                   >
-                    <span class="btn-icon">✅</span>
-                    <span class="btn-text">{{ $t('finalized') }}</span>
+                    <span class="btn-icon">📍</span>
+                    <span class="btn-text">Seguimiento</span>
                   </button>
+
+                  <!-- ✅ Botón de chat para todos -->
+                  <button
+                    class="btn-action btn-chat"
+                    @click="openChat(o)"
+                  >
+                    <span class="btn-icon">💬</span>
+                    <span class="btn-text">Chat</span>
+                  </button>
+
+                  <!-- Ambos: Cancelar (solo en estados iniciales) -->
                   <button
                     v-if="['pending','accepted'].includes(o.status)"
                     class="btn-action btn-cancel"
@@ -111,6 +123,8 @@
                     <span class="btn-icon">❌</span>
                     <span class="btn-text">{{ $t('cancel') }}</span>
                   </button>
+
+                  <!-- Cliente: Abrir disputa -->
                   <button
                     v-if="canDispute(o)"
                     class="btn-action btn-dispute"
@@ -119,6 +133,8 @@
                     <span class="btn-icon">⚖️</span>
                     <span class="btn-text">Disputa</span>
                   </button>
+
+                  <!-- Calificar -->
                   <button
                     v-if="canReview(o)"
                     class="btn-action btn-review"
@@ -156,7 +172,7 @@
             class="order-card history-card"
           >
             <div class="card-badge completed">
-              Completado
+              {{ statusLabel(h.status) }}
             </div>
 
             <div class="card-content">
@@ -168,19 +184,20 @@
               </div>
 
               <div class="order-details">
+                <!-- ✅ SIEMPRE mostrar al PROVEEDOR -->
                 <div class="detail-item">
-                  <span class="detail-icon">👤</span>
-                  <span class="detail-text">{{ h.providerName }}</span>
+                  <span class="detail-icon">🔧</span>
+                  <span class="detail-text">{{ h.providerName || 'Proveedor' }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="detail-icon">📅</span>
-                  <span class="detail-text">{{ fmtDate(h.finishedAt) }}</span>
+                  <span class="detail-text">{{ fmtDate(h.finishedAt || h.createdAt) }}</span>
                 </div>
               </div>
 
               <div class="card-footer">
                 <div class="completion-info">
-                  <span class="completion-text">Finalizado {{ fmtDate(h.finishedAt) }}</span>
+                  <span class="completion-text">Finalizado {{ fmtDate(h.finishedAt || h.createdAt) }}</span>
                 </div>
 
                 <div class="action-buttons">
@@ -206,6 +223,36 @@
         </div>
       </section>
     </div>
+
+    <!-- ============================================ -->
+    <!-- MODALES -->
+    <!-- ============================================ -->
+
+    <!-- ✅ LiveOrderTracking Modal -->
+    <LiveOrderTracking
+      v-if="showLiveTracking"
+      :order="liveOrder"
+      @close="showLiveTracking = false"
+      @open-chat="openChatFromTracking"
+      @open-payment="openPaymentFromTracking"
+    />
+
+    <!-- ✅ ChatRoom Modal -->
+    <ChatRoomModal
+      v-if="chatTarget"
+      :target="chatTarget"
+      @close="chatTarget = null"
+    />
+
+    <!-- ✅ Payment Modal -->
+    <PaymentModal
+      v-if="showPayment && paymentOrder"
+      v-model:is-open="showPayment"
+      :is-open="showPayment"
+      :request="paymentOrder"
+      @on-payment-submit="handlePaymentSubmit"
+      @on-open-change="(val) => (showPayment = val)"
+    />
 
     <!-- Modal reseña -->
     <Teleport to="body">
@@ -369,7 +416,7 @@
       </div>
     </Teleport>
 
-    <!-- Modal disputa (NUEVO) -->
+    <!-- Modal disputa -->
     <Teleport to="body">
       <div
         v-if="disputeModal.open"
@@ -447,7 +494,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useSocketStore } from '@/stores/socketStore'
 import { useI18n } from 'vue-i18n'
@@ -457,6 +504,11 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/es'
 import axios from 'axios'
 
+// ✅ Importar modales necesarios
+import LiveOrderTracking from '@/components/LiveOrderTracking.vue'
+import ChatRoomModal from '@/components/ChatRoomModal.vue'
+import PaymentModal from '@/components/PaymentModal.vue'
+
 dayjs.extend(relativeTime)
 dayjs.locale('es')
 
@@ -465,10 +517,29 @@ const socketStore = useSocketStore()
 const { t } = useI18n()
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL })
 
+// ✅ Detectar rol
+const isProvider = computed(() => {
+  const role = authStore.user?.role
+  return role === 'provider' || role === 'proveedor'
+})
+
+const isAdmin = computed(() => {
+  const role = authStore.user?.role
+  return role === 'admin' || role === 'moderator'
+})
+
 const selectedTab = ref('active')
 const loading = ref(true)
 const activeOrders = ref([])
 const historyOrders = ref([])
+
+// ✅ Estados para modales
+const showLiveTracking = ref(false)
+const liveOrder = ref(null)
+const chatTarget = ref(null)
+const showPayment = ref(false)
+const paymentOrder = ref(null)
+
 const reviewModal = reactive({
   open: false,
   order: null,
@@ -479,7 +550,6 @@ const reviewModal = reactive({
   reviewType: null
 })
 
-// NUEVO: Modal de disputa
 const disputeModal = reactive({
   open: false,
   order: null,
@@ -493,42 +563,41 @@ const fileInput = ref()
 // ============ FUNCIONES DE PERMISOS Y ROLES ============
 
 const canReview = (order) => {
-  const userRole = authStore.user?.role
   const orderStatus = order.status
   if (orderStatus !== 'completed') return false
-  const allowedRoles = ['client', 'provider', 'admin', 'moderator']
-  return allowedRoles.includes(userRole)
+  return true // Todos pueden calificar en "Mis Pedidos"
 }
 
-// NUEVO: Verifica si se puede abrir disputa
 const canDispute = (order) => {
-  const userRole = authStore.user?.role
-  // Solo clientes pueden abrir disputa
-  if (userRole !== 'user' && userRole !== 'client') return false
-  // Solo en pedidos donde ya se pagó o está en progreso
+  // Solo en pedidos donde ya se aceptó o está en progreso
   const allowedStatuses = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'completed']
   return allowedStatuses.includes(order.status)
 }
 
-const getReviewType = () => {
-  const userRole = authStore.user?.role
-  const reviewTypes = {
-    user: { endpoint: '/history/rate', type: 'service_review' },
-    client: { endpoint: '/history/rate', type: 'service_review' },
-    provider: { endpoint: '/history/rate-user', type: 'user_review' },
-    admin: { endpoint: '/history/rate', type: 'admin_review' },
-    moderator: { endpoint: '/history/rate', type: 'moderator_review' }
+const getReviewType = (order) => {
+  const myId = authStore.user?.id
+  
+  // ✅ Si YO soy el cliente de esta orden → califico al PROVEEDOR
+  if (order.user_id == myId || order.client_id == myId) {
+    return { endpoint: '/history/rate', type: 'service_review' }
   }
-  return reviewTypes[userRole] || null
+  
+  // ✅ Si YO soy el proveedor de esta orden → califico al CLIENTE
+  if (order.provider_id == myId) {
+    return { endpoint: '/history/rate-user', type: 'user_review' }
+  }
+  
+  // Fallback: calificar como cliente
+  return { endpoint: '/history/rate', type: 'service_review' }
 }
 
 // ============ MÉTODOS DE ESTADO Y FORMATO ============
 
 const statusLabel = s =>
-  ({ pending: 'Pendiente', accepted: 'Aceptada', in_progress: 'En progreso', on_the_way: 'En camino', arrived: 'Llegó', completed: 'Completada', cancelled: 'Cancelada' }[s] || s)
+  ({ pending: 'Pendiente', accepted: 'Aceptada', in_progress: 'En progreso', on_the_way: 'En camino', arrived: 'Llegó', finalized: 'Finalizado', completed: 'Completada', cancelled: 'Cancelada' }[s] || s)
 
 const statusColor = s =>
-  ({ pending: 'status-yellow', accepted: 'status-green', in_progress: 'status-blue', on_the_way: 'status-indigo', arrived: 'status-purple', completed: 'status-green', cancelled: 'status-red' }[s] || 'status-gray')
+  ({ pending: 'status-yellow', accepted: 'status-green', in_progress: 'status-blue', on_the_way: 'status-indigo', arrived: 'status-purple', finalized: 'status-teal', completed: 'status-green', cancelled: 'status-red' }[s] || 'status-gray')
 
 const getStatusDescription = s => {
   const descriptions = {
@@ -537,7 +606,8 @@ const getStatusDescription = s => {
     in_progress: 'Trabajo en curso',
     on_the_way: 'Proveedor en camino',
     arrived: 'Proveedor llegó al lugar',
-    completed: 'Servicio finalizado',
+    finalized: 'Servicio finalizado, pendiente de pago',
+    completed: 'Servicio completado',
     cancelled: 'Pedido cancelado'
   }
   return descriptions[s] || 'Estado desconocido'
@@ -558,16 +628,23 @@ const formatPrice = (price) => {
 
 // ============ MÉTODOS DE ÓRDENES ============
 
-async function fetchOrders () {
+async function fetchOrders() {
   loading.value = true
   try {
+    const myId = authStore.user?.id
     const [activeRes, historyRes] = await Promise.all([
-      api.get('/requests/active', { headers: { Authorization: `Bearer ${authStore.token}` } }),
+      api.get('/requests/mine', { headers: { Authorization: `Bearer ${authStore.token}` } }),
       api.get('/history', { headers: { Authorization: `Bearer ${authStore.token}` } })
     ])
-    activeOrders.value = (activeRes.data?.data || []).map(mapRequest)
-    historyOrders.value = (historyRes.data?.history || []).map(mapHistory)
+    // ✅ Filtrar SOLO donde yo soy el cliente
+    activeOrders.value = (activeRes.data?.data || [])
+      .filter(r => (r.user_id || r.client_id) == myId)
+      .map(mapRequest)
+    historyOrders.value = (historyRes.data?.history || [])
+      .filter(h => (h.user_id || h.client_id) == myId)
+      .map(mapHistory)
   } catch (e) {
+    console.error('Error fetching orders:', e)
     Swal.fire(t('error'), t('orders.loadFailed'), 'error')
   } finally {
     loading.value = false
@@ -576,23 +653,46 @@ async function fetchOrders () {
 
 const mapRequest = r => ({
   id: r.id,
-  serviceTitle: r.service_title || 'Servicio',
-  providerName: r.service_provider_name || 'Proveedor',
+  serviceTitle: r.service_title || r.title || 'Servicio',
+  // ✅ SIEMPRE mostrar datos del proveedor
+  providerName: r.service_provider_name || r.provider_name || 'Proveedor',
+  clientName: r.user_name || r.client_name || 'Cliente',
   status: r.status,
-  createdAt: r.created_at,
-  price: r.price
+  createdAt: r.created_at || r.date,
+  price: r.service_price || r.price,
+  provider_id: r.provider_id || r.service_provider_id,
+  user_id: r.user_id || r.client_id,
+  service_description: r.service_description || r.description,
+  payment_method: r.payment_method,
+  payment_methods: r.payment_methods,
+  payment_status: r.payment_status,
+  provider_avatar_url: r.provider_avatar_url,
+  provider_phone: r.provider_phone,
+  provider_address: r.provider_address,
+  provider_rating: r.provider_rating,
+  user_avatar_url: r.user_avatar_url,
 })
 
 const mapHistory = h => ({
   id: h.id,
   serviceTitle: h.service_title || 'Servicio',
   providerName: h.provider_name || 'Proveedor',
-  status: h.status,
-  finishedAt: h.finished_at,
-  price: h.service_price
+  clientName: h.user_name || h.client_name || 'Cliente',
+  status: h.status || 'completed',
+  finishedAt: h.finished_at || h.completed_at,
+  createdAt: h.created_at,
+  price: h.service_price || h.price,
+  provider_id: h.provider_id,
+  user_id: h.user_id || h.client_id,
+  service_description: h.service_description || h.description,
+  payment_methods: h.payment_methods,
+  payment_status: h.payment_status,
+  provider_avatar_url: h.provider_avatar_url,
+  provider_rating: h.provider_rating,
+  user_avatar_url: h.user_avatar_url,
 })
 
-async function cancelOrder (id) {
+async function cancelOrder(id) {
   const { isConfirmed } = await Swal.fire({
     title: t('orders.cancelTitle'),
     text: t('orders.cancelText'),
@@ -611,19 +711,10 @@ async function cancelOrder (id) {
   }
 }
 
-async function finaliseOrder (id) {
-  try {
-    await api.post('/requests/finalized', { id }, { headers: { Authorization: `Bearer ${authStore.token}` } })
-    await fetchOrders()
-  } catch {
-    Swal.fire(t('error'), t('orders.finaliseFailed'), 'error')
-  }
-}
-
-async function repeatOrder (historyItem) {
+async function repeatOrder(historyItem) {
   try {
     const payload = { repeat_from: historyItem.id }
-    const { data } = await api.post('/api/requests/create', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
+    const { data } = await api.post('/requests/create', payload, { headers: { Authorization: `Bearer ${authStore.token}` } })
     Swal.fire(t('orders.repeated'), `ID ${data.requestId}`, 'success')
     selectedTab.value = 'active'
     await fetchOrders()
@@ -632,10 +723,71 @@ async function repeatOrder (historyItem) {
   }
 }
 
+// ============ MÉTODOS DE MODALES ============
+
+function openLiveTracking(order) {
+  liveOrder.value = {
+    id: order.id,
+    requestId: order.id,
+    serviceName: order.serviceTitle || 'Servicio',
+    description: order.service_description || 'Sin descripción',
+    price: Number(order.price || 0),
+    payment_method: order.payment_method || 'Efectivo',
+    created_at: order.createdAt,
+    address: order.provider_address || 'No especificada',
+    provider: {
+      name: order.providerName || 'Proveedor',
+      avatar_url: order.provider_avatar_url || '/img/default-provider.png',
+      rating: order.provider_rating || null,
+      phone: order.provider_phone || null,
+    },
+    provider_id: order.provider_id,
+    user_id: order.user_id,
+    status: order.status || 'accepted',
+    payment_methods: order.payment_methods || [],
+  }
+  showLiveTracking.value = true
+}
+
+function openChat(order) {
+  // ✅ SIEMPRE abrir chat con el PROVEEDOR
+  chatTarget.value = {
+    id: order.provider_id,
+    name: order.providerName || 'Proveedor',
+    role: 'provider',
+    avatarUrl: order.provider_avatar_url || null
+  }
+}
+
+function openChatFromTracking(target) {
+  chatTarget.value = target
+}
+
+function openPaymentFromTracking() {
+  if (liveOrder.value) {
+    paymentOrder.value = {
+      id: liveOrder.value.id,
+      requestId: liveOrder.value.requestId,
+      service_title: liveOrder.value.serviceName,
+      price: liveOrder.value.price,
+      payment_methods: liveOrder.value.payment_methods,
+      payment_status: liveOrder.value.payment_status,
+    }
+    showPayment.value = true
+  }
+}
+
+function handlePaymentSubmit(method) {
+  showPayment.value = false
+  paymentOrder.value = null
+  Swal.fire('Pago completado', `Método: ${method}`, 'success')
+  fetchOrders()
+}
+
 // ============ MÉTODOS DE RESEÑAS ============
 
-function openReviewModal (order) {
-  const reviewType = getReviewType()
+function openReviewModal(order) {
+  const reviewType = getReviewType(order)
   if (!reviewType) {
     Swal.fire('Error', 'No tienes permisos para hacer reseñas', 'error')
     return
@@ -649,7 +801,7 @@ function openReviewModal (order) {
   reviewModal.open = true
 }
 
-function toggleTag (tag) {
+function toggleTag(tag) {
   if (reviewModal.tags.includes(tag)) {
     reviewModal.tags = reviewModal.tags.filter(t => t !== tag)
   } else {
@@ -657,15 +809,15 @@ function toggleTag (tag) {
   }
 }
 
-function removePhoto (idx) {
+function removePhoto(idx) {
   reviewModal.photos.splice(idx, 1)
 }
 
-function openFilePicker () {
+function openFilePicker() {
   fileInput.value?.click()
 }
 
-async function handleFile (e) {
+async function handleFile(e) {
   const file = e.target.files?.[0]
   if (!file || reviewModal.photos.length >= 3) {
     e.target.value = ''
@@ -693,7 +845,7 @@ async function handleFile (e) {
   e.target.value = ''
 }
 
-async function sendReview () {
+async function sendReview() {
   if (reviewModal.stars === 0) return
   if (!reviewModal.reviewType) {
     Swal.fire('Error', 'No tienes permisos para hacer reseñas', 'error')
@@ -726,19 +878,19 @@ async function sendReview () {
   }
 }
 
-// ============ MÉTODOS DE DISPUTA (NUEVO) ============
+// ============ MÉTODOS DE DISPUTA ============
 
-function openDisputeModal (order) {
+function openDisputeModal(order) {
   disputeModal.order = order
   disputeModal.reason = ''
   disputeModal.description = ''
   disputeModal.open = true
 }
 
-async function sendDispute () {
+async function sendDispute() {
   if (!disputeModal.reason) return
   try {
-    await api.post('/api/payments/dispute', {
+    await api.post('/payments/dispute', {
       request_id: disputeModal.order.id,
       reason: disputeModal.reason,
       description: disputeModal.description
@@ -761,18 +913,48 @@ async function sendDispute () {
 
 // ============ LIFECYCLE ============
 
-let unsub = null
+let socketHandlers = []
+
 onMounted(() => {
-  unsub = socketStore.$onAction(({ name, args }) => {
-    if (name === 'pushNotification' && args[0]?.event === 'status_changed') {
-      const { request_id, status } = args[0]
-      const order = activeOrders.value.find(o => o.id === request_id)
-      if (order) order.status = status
+  const requestUpdatedHandler = (data) => {
+    const requestData = data.request || data
+    const requestId = requestData.id || requestData.request_id
+    const status = requestData.status
+    if (requestId && status) {
+      const order = activeOrders.value.find(o => o.id === requestId)
+      if (order) {
+        order.status = status
+        if (['completed', 'cancelled', 'rejected'].includes(status)) {
+          fetchOrders()
+        }
+      }
     }
-  })
+  }
+
+  const paymentUpdatedHandler = (data) => {
+    if (data.request_id && data.payment_status) {
+      const order = activeOrders.value.find(o => o.id === data.request_id)
+      if (order) order.payment_status = data.payment_status
+    }
+  }
+
+  socketStore.on('request_updated', requestUpdatedHandler)
+  socketStore.on('payment_updated', paymentUpdatedHandler)
+
+  socketHandlers = [
+    { event: 'request_updated', handler: requestUpdatedHandler },
+    { event: 'payment_updated', handler: paymentUpdatedHandler },
+  ]
+
   fetchOrders()
 })
-onUnmounted(() => unsub && unsub())
+
+onUnmounted(() => {
+  socketHandlers.forEach(({ event, handler }) => {
+    socketStore.off(event, handler)
+  })
+  socketHandlers = []
+})
 </script>
 
 <style scoped>
@@ -1129,8 +1311,13 @@ onUnmounted(() => unsub && unsub())
   transition: all 0.3s;
 }
 
-.btn-finalise {
-  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+.btn-track {
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+  color: white;
+}
+
+.btn-chat {
+  background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
   color: white;
 }
 
@@ -1149,7 +1336,6 @@ onUnmounted(() => unsub && unsub())
   color: white;
 }
 
-/* NUEVO: Botón disputa */
 .btn-dispute {
   background: linear-gradient(135deg, #e17055 0%, #d63031 100%);
   color: white;
@@ -1197,7 +1383,6 @@ onUnmounted(() => unsub && unsub())
   color: white;
 }
 
-/* NUEVO: Header de disputa */
 .dispute-header {
   background: linear-gradient(135deg, #d63031 0%, #e17055 100%);
 }
@@ -1237,7 +1422,6 @@ onUnmounted(() => unsub && unsub())
   color: #2d3436;
 }
 
-/* NUEVO: Select de disputa */
 .dispute-select {
   width: 100%;
   padding: 12px;
@@ -1427,7 +1611,6 @@ onUnmounted(() => unsub && unsub())
   color: white;
 }
 
-/* NUEVO: Botón confirmar disputa */
 .btn-dispute-confirm {
   background: linear-gradient(135deg, #d63031 0%, #e17055 100%);
   color: white;

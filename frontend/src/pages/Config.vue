@@ -427,11 +427,11 @@ const loadDevices = async () => {
 const loadActivity = async () => {
   loadingActivity.value = true
   try {
-    const { data } = await api.get('/admin/security/audit-logs', {
-      params: { search: user.value?.email, limit: 10 },
+    const { data } = await api.get('/user/activity', {
+      params: { limit: 10 },
       headers: { Authorization: `Bearer ${authStore.token}` }
     })
-    activities.value = data.logs || []
+    activities.value = data.activities || []
   } catch { activities.value = [] }
   finally { loadingActivity.value = false }
 }

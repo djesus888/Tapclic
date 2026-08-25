@@ -133,15 +133,66 @@
       </div>
     </div>
 
-    <!-- ✅ NUEVO: Broadcast de notificaciones -->
+    <!-- ✅ Broadcast de notificaciones -->
     <AdminBroadcast />
+
+    <!-- ============================================ -->
+    <!-- MODALES DE SOLICITUD DE SERVICIO (COMO CLIENTE) -->
+    <!-- ============================================ -->
+    <RequestConfirmationModal
+      v-if="modalService"
+      :is-open="showRequestConfirmation"
+      :service-details="modalService"
+      @confirm="onConfirmRequest"
+      @on-open-change="(val) => (showRequestConfirmation = val)"
+    />
+
+    <ProviderContactModal
+      v-if="showProviderContact && modalService"
+      :is-open="showProviderContact"
+      :provider-name="modalService.provider?.name"
+      :request-id="modalService.requestId"
+      @cancel="resetFlow"
+      @open-payment="openPaymentModal"
+      @retry-request="handleRetry"
+    />
+
+    <PaymentModal
+      v-if="modalService"
+      v-model:is-open="showPayment"
+      :is-open="showPayment"
+      :request="modalService"
+      @on-payment-submit="handlePaymentSubmit"
+      @on-open-change="(val) => (showPayment = val)"
+    />
+
+    <LiveOrderTracking
+      v-if="showLiveTracking"
+      :order="liveOrder"
+      @close="showLiveTracking = false"
+      @open-chat="openChat"
+      @open-payment="openPaymentModal"
+    />
+
+    <!-- ✅ ReviewModal para calificar (como cliente) -->
+    <ReviewModal
+      v-if="showReviewModal"
+      :model-value="reviewData"
+      mode="new"
+      target-role="provider"
+      :service-history-id="reviewServiceHistoryId"
+      :auth-token="authStore.token"
+      @close="showReviewModal = false"
+      @save="onReviewSaved"
+    />
   </div>
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount, reactive } from "vue";
+import { onMounted, onBeforeUnmount, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAuthStore } from "@/stores/authStore";
+import { useSocketStore } from "@/stores/socketStore";
 import api from "@/axios";
 import {
   Users,
@@ -154,8 +205,13 @@ import {
   DollarSign,
   Star,
 } from "lucide-vue-next";
-// ✅ NUEVO: Importar componente de broadcast
-import AdminBroadcast from '@/components/admin/AdminBroadcast.vue'
+import AdminBroadcast from '@/components/admin/AdminBroadcast.vue';
+import RequestConfirmationModal from '@/components/RequestConfirmationModal.vue';
+import ProviderContactModal from '@/components/ProviderContactModal.vue';
+import PaymentModal from '@/components/PaymentModal.vue';
+import LiveOrderTracking from '@/components/LiveOrderTracking.vue';
+import ReviewModal from '@/components/ReviewModal.vue';
+import { useServiceRequest } from '@/composables/useServiceRequest';
 
 export default {
   name: "DashboardAdmin",
@@ -169,14 +225,25 @@ export default {
     UserCheck,
     DollarSign,
     Star,
-    // ✅ NUEVO: Registrar componente
-    AdminBroadcast
+    AdminBroadcast,
+    RequestConfirmationModal,
+    ProviderContactModal,
+    PaymentModal,
+    LiveOrderTracking,
+    ReviewModal,
   },
   setup() {
     const { t } = useI18n();
     const authStore = useAuthStore();
+    const socketStore = useSocketStore();
 
-    // ✅ CORREGIDO: Estado reactivo accesible directamente
+    // ✅ Usar el composable COMPLETO
+    const serviceRequest = useServiceRequest();
+
+    // Estado reactivo para el chat (como cliente)
+    const chatTarget = ref(null);
+
+    // Estado reactivo accesible directamente
     const statCards = reactive([
       { title: "users", value: 0, icon: "Users" },
       { title: "onlineUsers", value: 0, icon: "Activity" },
@@ -191,8 +258,11 @@ export default {
     const activities = reactive([]);
     const loading = reactive({ value: false });
 
-    // ✅ NUEVO: Timer para auto-actualización cada 30 segundos
+    // Timer para auto-actualización cada 30 segundos
     let autoRefreshTimer = null;
+
+    // ✅ Socket handlers para cliente
+    let socketHandlers = [];
 
     const fetchStats = async () => {
       loading.value = true;
@@ -200,7 +270,6 @@ export default {
         const res = await api.get("/admin/stats");
         const data = res.data;
 
-        // Actualiza todas las tarjetas con datos reales del backend
         statCards[0].value = data.totalUsers || 0;
         statCards[1].value = data.onlineUsers || 0;
         statCards[2].value = data.pendingOrders || 0;
@@ -211,7 +280,6 @@ export default {
         statCards[7].value = data.totalNotifications || 0;
         statCards[8].value = data.settings ?? "-";
 
-        // ✅ CORREGIDO: Reemplazar array manteniendo reactividad
         activities.splice(0, activities.length, ...(data.latestActivities || []));
       } catch (err) {
         console.error("Error al cargar estadísticas", err);
@@ -220,12 +288,12 @@ export default {
       }
     };
 
-    // ✅ NUEVO: Iniciar auto-refresh cada 30 segundos
+    // Iniciar auto-refresh cada 30 segundos
     const startAutoRefresh = () => {
       stopAutoRefresh();
       autoRefreshTimer = setInterval(() => {
         fetchStats();
-      }, 30000); // 30 segundos
+      }, 30000);
     };
 
     const stopAutoRefresh = () => {
@@ -233,6 +301,27 @@ export default {
         clearInterval(autoRefreshTimer);
         autoRefreshTimer = null;
       }
+    };
+
+    // ✅ Configurar callbacks para el composable
+    serviceRequest.setRefreshCallbacks({
+      activeRequests: () => fetchStats(),
+      history: () => fetchStats(),
+      services: () => fetchStats(),
+    });
+
+    // ✅ Iniciar listeners de socket como cliente
+    const setupClientSocketHandlers = () => {
+      serviceRequest.setupClientSocketHandlers();
+    };
+
+    const cleanupClientSocketHandlers = () => {
+      serviceRequest.cleanupClientSocketHandlers();
+    };
+
+    // ✅ Método para abrir chat (admin como cliente)
+    const openChat = (target) => {
+      chatTarget.value = target;
     };
 
     // Formatear actividad con message_key y params reales
@@ -331,11 +420,13 @@ export default {
     onMounted(() => {
       fetchStats();
       startAutoRefresh();
+      setupClientSocketHandlers();
     });
 
-    // ✅ Limpiar timer al desmontar
+    // ✅ Limpiar timer y sockets al desmontar
     onBeforeUnmount(() => {
       stopAutoRefresh();
+      cleanupClientSocketHandlers();
     });
 
     return {
@@ -343,6 +434,8 @@ export default {
       activities,
       loading,
       t,
+      authStore,
+      chatTarget,
       fetchStats,
       formatValue,
       formatPrice,
@@ -352,6 +445,9 @@ export default {
       getStatusClass,
       getStatusText,
       calculateActivityRate,
+      openChat,
+      // ✅ Exponer todo el composable
+      ...serviceRequest,
     };
   },
 };

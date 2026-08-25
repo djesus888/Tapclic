@@ -43,10 +43,19 @@
             >
               {{ $t('close') }}
             </button>
-            
-            <!-- Botón para ir a la URL de la notificación -->
-            <button 
-              v-if="notificationUrl"
+
+            <!-- 🔥 CORRECCIÓN: Botón para ver detalles o abrir modal de verificación de pago -->
+            <button
+              v-if="isPaymentNotification && paymentRequestId"
+              class="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg"
+              @click="openPaymentProof"
+            >
+              💳 {{ $t('verifyPayment') || 'Verificar pago' }}
+            </button>
+
+            <!-- Botón para ir a la URL de la notificación (solo si NO es de pago) -->
+            <button
+              v-else-if="notificationUrl"
               class="px-4 py-2 bg-sky-600 text-white hover:bg-sky-700 rounded-lg"
               @click="goToUrl"
             >
@@ -73,7 +82,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'action'])
+const emit = defineEmits(['close', 'action', 'open-payment-proof'])
 
 const router = useRouter()
 const { t } = useI18n()
@@ -81,7 +90,7 @@ const { t } = useI18n()
 // Computed para extraer la URL del data_json
 const notificationUrl = computed(() => {
   if (!props.notification.data_json) return null
-  
+
   try {
     const data = JSON.parse(props.notification.data_json)
     // Extraer url o route, y limpiar barras escapadas
@@ -93,12 +102,49 @@ const notificationUrl = computed(() => {
   }
 })
 
+// 🔥 NUEVO: Detectar si es notificación de pago
+const isPaymentNotification = computed(() => {
+  if (!props.notification.data_json) return false
+
+  try {
+    const data = JSON.parse(props.notification.data_json)
+    return data.notification_type === 'payment_received' || 
+           data.type === 'payment' || 
+           data.action === 'verify_payment' ||
+           data.action === 'view_order'
+  } catch (e) {
+    return false
+  }
+})
+
+// 🔥 NUEVO: Extraer el request_id para el modal de verificación
+const paymentRequestId = computed(() => {
+  if (!props.notification.data_json) return null
+
+  try {
+    const data = JSON.parse(props.notification.data_json)
+    return data.request_id || props.notification.request_id || null
+  } catch (e) {
+    return null
+  }
+})
+
 const close = () => emit('close')
 
 const goToUrl = () => {
   if (notificationUrl.value) {
     router.push(notificationUrl.value)
     close() // Cerrar modal después de navegar
+  }
+}
+
+// 🔥 NUEVO: Abrir modal de verificación de pago
+const openPaymentProof = () => {
+  if (paymentRequestId.value) {
+    emit('open-payment-proof', {
+      request_id: paymentRequestId.value
+    })
+    close() // Cerrar el modal de notificación
   }
 }
 

@@ -137,7 +137,7 @@
               <!-- Avatar para mensajes recibidos -->
               <div v-if="!msg.is_mine" class="message-avatar-modern">
                 <img
-                 :src="msg.avatar_url ? getImageUrl(msg.avatar_url, 'avatar') : (target?.avatarUrl || '/img/default-avatar.png')"
+                 :src="msg.avatar_url ? getImageUrl(msg.avatar_url, 'avatar') : (target?.avatarUrl ? getImageUrl(target.avatarUrl, 'avatar') : '/img/default-avatar.png')"
                   :alt="msg.sender"
                   class="avatar-small-modern"
                   @error="handleImageError"

@@ -4,7 +4,7 @@
     <!-- Encabezado -->
     <div class="flex items-center gap-4 mb-6">
       <img
-        :src="getImageUrl(profile.avatar_url, 'avatar') || '/default-avatar.png'"
+       :src="profile.avatar_url ? getImageUrl(profile.avatar_url, 'avatar') : '/img/default-avatar.png'"
         class="w-20 h-20 rounded-full object-cover border"
       />
       <div>
@@ -147,7 +147,7 @@ const loading = ref(true)
 /* ---------- HELPERS ---------- */
 function getReviewerAvatar(r: any): string {
   const avatar = r.user_avatar || r.provider_avatar || r.reviewer_avatar
-  return avatar ? getImageUrl(avatar, 'avatar') : '/default-avatar.png'
+  return avatar ? getImageUrl(avatar, 'avatar') : '/img/default-avatar.png'
 }
 
 function getPhotoFolder(r: any): string {

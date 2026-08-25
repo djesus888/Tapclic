@@ -50,7 +50,7 @@
       <!-- Imagen -->
       <div class="card-image" v-if="s.image_url">
         <img
-          :src="getImageUrl(s.image_url)"
+         :src="getImageUrl(s.image_url)"
           :alt="$t('services.image')"
           @error="handleImageError"
         >

@@ -849,17 +849,6 @@ export default {
       if (this.showPayment && this.modalService?.requestId === requestId) this.modalService.payment_status = paymentStatus;
     },
 
-    handleOpenRatingModal(data) {
-      console.log('⭐ Evento open_rating_modal recibido:', data);
-      window.dispatchEvent(new CustomEvent('open-rating-modal', {
-        detail: {
-          request_id: data.request_id,
-          from_role: 'provider',
-          targetRole: 'provider',
-          message: '¿Quieres calificar al proveedor por este servicio?'
-        }
-      }));
-    },
 
     async fetchHistoryIdByRequest(requestId) {
       try {
@@ -911,17 +900,12 @@ export default {
         console.log('🔔 Evento payment_updated recibido:', data);
         if (data.request_id && data.payment_status) this.handleRealTimePaymentUpdate(data.request_id, data.payment_status);
       };
-      const openRatingModalHandler = (data) => {
-        this.handleOpenRatingModal(data);
-      };
 
       socketStore.on('request_updated', requestUpdatedHandler);
       socketStore.on('payment_updated', paymentUpdatedHandler);
-      socketStore.on('open_rating_modal', openRatingModalHandler);
       this.socketHandlers = [
         { event: 'request_updated', handler: requestUpdatedHandler },
         { event: 'payment_updated', handler: paymentUpdatedHandler },
-        { event: 'open_rating_modal', handler: openRatingModalHandler }
       ];
     },
 

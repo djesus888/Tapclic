@@ -1,7 +1,7 @@
 import { useSystemStore } from '@/stores/systemStore'
 
 export function getImageUrl(path, type = 'uploads') {
-  if (!path) return '';
+  if (!path || path === 'null' || path === 'undefined') return '';
   if (path.startsWith('http')) return path;
 
   // Para imágenes, usar la URL del backend (API), no la del frontend

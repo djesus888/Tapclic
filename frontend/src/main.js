@@ -28,22 +28,19 @@ const app = createApp(App)
 // Manejo global de errores de Vue
 app.config.errorHandler = (err, instance, info) => {
   console.error('>>> ERROR DE VUE:', err.message, '\nInfo:', info)
-  // No mostrar Swal para errores de red
   if (err.isNetworkError || err.code === 'ERR_NETWORK') return
 }
 
 // Errores de JavaScript no capturados
 window.addEventListener('error', (e) => {
-  // Ignorar errores de script externos (CDN, etc.)
   if (e.target?.tagName === 'SCRIPT') return
   console.error('>>> ERROR CAPTURADO:', e.message)
 })
 
-// ✅ Promesas rechazadas no manejadas (errores de red, etc.)
+// ✅ Promesas rechazadas no manejadas
 window.addEventListener('unhandledrejection', (e) => {
   const reason = e.reason
 
-  // Si es error de red o sin conexión, mostramos un mensaje amigable
   if (reason?.isNetworkError || reason?.code === 'ERR_NETWORK' || reason?.code === 'ECONNABORTED') {
     console.warn('📡 Error de red:', reason.userMessage || reason.message)
 
@@ -58,7 +55,6 @@ window.addEventListener('unhandledrejection', (e) => {
       }
     } catch {}
 
-    // Solo mostrar un Swal si no hay otro visible
     if (!Swal.isVisible()) {
       Swal.fire({
         icon: 'warning',
@@ -77,7 +73,6 @@ window.addEventListener('unhandledrejection', (e) => {
     return
   }
 
-  // Para otros errores de promesa, solo log
   console.error('>>> PROMESA RECHAZADA:', reason?.message || reason)
   e.preventDefault()
 })
@@ -104,56 +99,115 @@ if (import.meta.env.MODE === 'development') {
 // ============================================================
 // ✅ LÓGICA CENTRALIZADA: Inicialización de stores y socket
 // ============================================================
-const authStore = initializeAuthStore()
+
+// 🔥 CORRECCIÓN 1: Obtener stores UNA SOLA VEZ
+const authStore = useAuthStore()
 const socketStore = useSocketStore()
 const systemStore = useSystemStore()
 const notificationStore = useNotificationStore()
 
-// ✅ INICIALIZACIÓN PRINCIPAL (solo con token válido)
-async function initializeApp() {
-  await authStore.loadFromStorage()
+// 🔥 CORRECCIÓN 2: Flag para evitar inicializaciones múltiples
+let _initializing = false
+let _initialized = false
 
-  if (!authStore.token || !authStore.user) {
-    console.log('⏸️ No hay sesión activa, saltando inicialización')
-    return false
+// 🔥 CORRECCIÓN 3: Inicialización protegida contra múltiples llamadas
+async function initializeApp() {
+  // Evitar inicialización múltiple simultánea
+  if (_initializing) {
+    console.log('⏳ Inicialización ya en progreso, esperando...')
+    // Esperar a que termine la inicialización actual
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (!_initializing) {
+          clearInterval(checkInterval)
+          resolve(_initialized)
+        }
+      }, 100)
+    })
   }
 
+  // Si ya está inicializado, no hacer nada
+  if (_initialized) {
+    console.log('✅ App ya inicializada')
+    return true
+  }
+
+  _initializing = true
+
   try {
+    await authStore.loadFromStorage()
+
+    if (!authStore.token || !authStore.user) {
+      console.log('⏸️ No hay sesión activa, saltando inicialización')
+      _initialized = false
+      return false
+    }
+    // 🔥 OPTIMIZACIÓN: Ejecutar en paralelo las operaciones independientes
+    const tasks = []
+
     if (!notificationStore._initialized) {
-      await notificationStore.initialize()
-      console.log('📬 Notificaciones inicializadas')
+      tasks.push(notificationStore.initialize().catch(err => console.warn("Notificaciones:", err.message)))
     }
 
     if (!socketStore.isConnected && !socketStore._creating) {
-      await socketStore.connect(authStore.token, authStore.user)
-      console.log('🔌 Socket conectado en main.js')
+      tasks.push(socketStore.connect(authStore.token).catch(err => console.warn("Socket:", err.message)))
+    } else if (socketStore._creating) {
+      tasks.push(socketStore._creating)
     }
 
-    await systemStore.fetchConfig()
+    tasks.push(systemStore.fetchConfig().catch(err => console.warn("Config:", err.message)))
 
+    await Promise.allSettled(tasks)
+    console.log("✅ Operaciones paralelas completadas")
+    _initialized = true
+    console.log('✅ App inicializada correctamente')
     return true
+
   } catch (err) {
     console.warn('⚠️ Error en inicialización:', err.message)
+    _initialized = false
     return false
+  } finally {
+    _initializing = false
   }
 }
 
-// 🔥 INICIALIZAR AL CARGAR LA APP
-initializeApp()
+// 🔥 INICIALIZAR AL CARGAR LA APP (solo una vez)
+await initializeApp()
 
-// Escuchar cambios de token (login/logout)
+// 🔥 CORRECCIÓN 6: Escuchar cambios de token SIN debounce para respuesta inmediata
 watch(
   () => authStore.token,
-  async (newToken) => {
+  async (newToken, oldToken) => {
+    // Si el token no cambió realmente, ignorar
+    if (newToken === oldToken) return
+
     if (newToken) {
+      console.log('🔑 Token actualizado, inicializando app...')
+      
+      // Resetear flags para permitir reinicialización
+      _initialized = false
+      _initializing = false
+      
+      // 🔥 CORRECCIÓN CRÍTICA: Conectar socket inmediatamente
+      if (!socketStore.isConnected && !socketStore._creating) {
+        console.log('🔌 Conectando socket con nuevo token...')
+        socketStore.connect(newToken).catch(err => {
+          console.warn('⚠️ Error al conectar socket:', err)
+        })
+      }
+      
+      // Inicializar resto de la app en paralelo
       await initializeApp()
     } else {
+      console.log('🔌 Sesión cerrada, socket desconectado')
       socketStore.disconnect?.()
       notificationStore._initialized = false
       notificationStore.notifications = []
-      console.log('🔌 Sesión cerrada, socket desconectado')
+      _initialized = false
     }
-  }
+  },
+  { immediate: false } // No ejecutar inmediatamente, solo en cambios
 )
 
 // ============================================================
@@ -174,14 +228,16 @@ window.addEventListener('show-notification-toast', (e) => {
   })
 })
 
+// 🔥 CORRECCIÓN 7: Usar la MISMA instancia de socketStore para todos los eventos
+// Eliminar socketStore2 y usar socketStore directamente
+
 // ✅ Escuchar evento open_rating_modal desde WebSocket
-const socketStore2 = useSocketStore()
-socketStore2.on('open_rating_modal', (data) => {
+socketStore.on('open_rating_modal', (data) => {
   console.log('⭐ Modal de calificación desde WebSocket:', data)
   window.dispatchEvent(new CustomEvent('open-rating-modal', {
     detail: {
       request_id: data.request_id || (data.url || '').split('/').pop(),
-      targetRole: data.target_role || (authStore.user?.role === 'provider' ? 'user' : 'provider'),
+      targetRole: authStore.user?.role === 'provider' ? 'user' : 'provider',
       from_role: data.from_role || 'provider',
       message: data.message || '¿Quieres calificar este servicio?'
     }
@@ -193,6 +249,8 @@ window.addEventListener('open-rating-modal', async (e) => {
   try {
     const { request_id, targetRole: eventTargetRole, from_role } = e.detail
     if (!authStore.token) return
+
+    await new Promise(resolve => setTimeout(resolve, 1500))
 
     const { data } = await api.get(`/history/by-request/${request_id}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
@@ -214,6 +272,7 @@ window.addEventListener('open-rating-modal', async (e) => {
       confirmButtonText: 'Abrir calificación',
       cancelButtonText: 'Ahora no',
     })
+
     if (!confirmed) return
 
     const div = document.createElement('div')
@@ -223,7 +282,7 @@ window.addEventListener('open-rating-modal', async (e) => {
     const { default: ReviewComp } = await import('@/components/ReviewModal.vue')
     const { createApp } = await import('vue')
 
-    const targetRole = eventTargetRole || (from_role === 'provider' ? 'user' : 'provider')
+    const targetRole = authStore.user?.role === 'provider' ? 'user' : 'provider'
 
     const appModal = createApp(ReviewComp, {
       serviceHistoryId: historyId,
@@ -243,6 +302,7 @@ window.addEventListener('open-rating-modal', async (e) => {
         Swal.fire('¡Gracias!', 'Tu reseña ha sido guardada.', 'success')
       },
     })
+
     appModal.mount(div)
   } catch (err) {
     console.error('Error en modal de rating:', err)
@@ -267,8 +327,18 @@ window.addEventListener('payment-updated', (e) => {
 // ============================================================
 // ✅ DETECCIÓN DE CONEXIÓN EN TIEMPO REAL
 // ============================================================
+
 window.addEventListener('online', () => {
   console.log('🌐 Conexión restaurada')
+  
+  // 🔥 CORRECCIÓN: Intentar reconectar socket al restaurar conexión
+  if (authStore.token && !socketStore.isConnected && !socketStore._creating) {
+    console.log('🔌 Reconectando socket...')
+    socketStore.connect(authStore.token).catch(err => {
+      console.warn('⚠️ Error al reconectar socket:', err)
+    })
+  }
+  
   Swal.fire({
     icon: 'success',
     title: '¡Conectado!',
@@ -311,8 +381,3 @@ try {
 }
 
 app.mount('#app')
-
-// Configuración inicial
-systemStore.fetchConfig().catch((err) => {
-  console.warn('Error fetching config:', err)
-})

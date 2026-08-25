@@ -164,6 +164,35 @@ class User {
         ]);
     }
 
+    public function deleteAccount($userId, $password) {
+        $stmt = $this->conn->prepare("SELECT password, role FROM {$this->table} WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            throw new Exception("Usuario no encontrado");
+        }
+
+        if (!password_verify($password, $user["password"])) {
+            throw new Exception("La contraseña es incorrecta");
+        }
+
+        $role = $user["role"];
+        $this->conn->beginTransaction();
+
+        try {
+            $sql = "UPDATE users SET active = 0, deleted_at = NOW() WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([$userId]);
+
+            $this->conn->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+    }
+
     /* ---------- RESET PASSWORD ---------- */
 
     public function setResetToken(int $userId, ?string $token, ?string $expiresAt): bool

@@ -82,6 +82,7 @@ if (preg_match('~/api/login~', $request)) {
     preg_match('~/api/payments/reject-payment~', $request) ||
     preg_match('~/api/payments/proof~', $request) ||
     preg_match('~/api/payments/disputes~', $request) ||
+    preg_match('~/api/disputes/~', $request) ||
     preg_match('~/api/payments/dispute~', $request)
 ) {
     (new PaymentController())->handle($method);
@@ -160,6 +161,8 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/?$~', $request, $m)) {
     (new HistoryController())->updateReview((int)$m[1]);
 
+} elseif (preg_match('~/api/user/activity~', $request) && $method === 'GET') {
+    (new UserController())->getUserActivity();
 // --- RUTAS PERFIL USUARIO ---
 } elseif (preg_match('~/api/profile/update~', $request)) {
     (new UserController())->updateProfile();
@@ -169,6 +172,8 @@ if (preg_match('~/api/login~', $request)) {
     (new UserController())->uploadAvatar();
 } elseif (preg_match('~/api/profile/preferences~', $request)) {
     (new UserController())->updatePreferences();
+} elseif (preg_match('~/api/profile/delete-account~', $request)) {
+    (new UserController())->deleteAccount();
 } elseif (preg_match('~/api/profile$~', $request)) {
     (new UserController())->getProfile();
 

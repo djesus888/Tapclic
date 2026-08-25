@@ -233,7 +233,7 @@ export default {
   async mounted() {
     const auth = useAuthStore(); const socketStore = useSocketStore(); const notificationStore = useNotificationStore();
     try {
-      await notificationStore.initialize();
+      socketStore.init(); await notificationStore.initialize();
       this.setupSocketHandlers(socketStore);
       // ✅ Configurar callbacks para que el composable pueda refrescar datos
       this.setRefreshCallbacks({

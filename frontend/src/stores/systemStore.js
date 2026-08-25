@@ -14,23 +14,28 @@ export const useSystemStore = defineStore('system', {
       this.error = null
 
       try {
-        console.log('🔥 fetchConfig: iniciando llamada al backend')
-        const res = await api.get('/system/config', { timeout: 5000 })
+        console.log("🔥 fetchConfig: iniciando llamada al backend")
+        const res = await api.get("/system/config", { timeout: 5000 })
         this.config = res.data.config || res.data
-        console.log('✅ fetchConfig: datos cargados', this.config)
+        localStorage.setItem("system_config", JSON.stringify(this.config))
+        console.log("✅ fetchConfig: datos cargados", this.config)
         return res.data
       } catch (err) {
-        console.error('❌ Error cargando configuración del sistema:', err)
+        console.error("❌ Error cargando configuración del sistema:", err)
+        if (this.config) {
+          console.log("✅ Usando configuración en caché")
+          return this.config
+        }
         this.error = err
         return null
       } finally {
         this.loading = false
       }
-    }
+    },
   },
 
   getters: {
-    systemName: (state) => state.config?.system_name || 'Mi Sistema',
+    systemName: (state) => state.config?.system_name || 'TapClic',
     systemHost: (state) => state.config?.system_host || 'localhost',
     systemActive: (state) => state.config?.system_active == 1,
     themeColor: (state) => state.config?.theme_color || '#1E90FF',

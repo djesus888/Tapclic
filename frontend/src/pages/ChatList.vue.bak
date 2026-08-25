@@ -365,6 +365,10 @@ const filteredConversations = computed(() => {
  * Lifecycle
  * ------------------------------------ */
 onMounted(() => {
+  // Inicializar socket si hay token
+  if (authStore.token) {
+    socketStore.init()
+  }
   // Cargar conversaciones
   conversationStore.fetchConversations()
 
@@ -387,6 +391,11 @@ onUnmounted(() => {
 /* ------------------------------------
  * Watchers
  * ------------------------------------ */
+watch(() => authStore.token, (newToken) => {
+  if (newToken) {
+    socketStore.init()
+  }
+})
 
 // ✅ CORREGIDO: Watcher eliminado - ya no modifica other_participant.is_online
 // El estado online viene únicamente de onlineUsersStore.users

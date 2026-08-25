@@ -11,8 +11,8 @@ const routes = [
   { path: '/staff/login', component: () => import('@/pages/StaffLogin.vue') },
   { path: '/maintenance', component: () => import('@/pages/Maintenance.vue') },
   { path: '/error-500', component: () => import('@/pages/Error500.vue') },
-  
-/* Ruta real para /dashboard que evita el doble redirect */
+
+  /* Ruta real para /dashboard que evita el doble redirect */
   {
     path: '/dashboard',
     redirect: () => {
@@ -36,13 +36,13 @@ const routes = [
       { path: 'wallet', component: () => import('@/pages/Wallet.vue') },
       { path: 'config', component: () => import('@/pages/Config.vue') },
       { path: 'orders', component: () => import('@/pages/Orders.vue') },
-      { path: 'orders/:id', component: () => import('@/pages/OrderDetail.vue') },  // ← NUEVA
+      { path: 'orders/:id', component: () => import('@/pages/OrderDetail.vue') },
       { path: 'services/new', component: () => import('@/pages/services/NewServices.vue') },
       { path: 'chats', component: () => import('@/pages/ChatList.vue') },
       { path: 'chat/:id', component: () => import('@/pages/ChatView.vue') },
       { path: 'services', component: () => import('@/pages/services/Services.vue') },
       { path: 'routes', component: () =>  import('@/pages/Routes.vue') },
-      { path: 'myservices', component: () => import('@/pages/services/MyServices.vue') },     
+      { path: 'myservices', component: () => import('@/pages/services/MyServices.vue') },
       { path: 'payment', component: () => import('@/pages/PaymentMethod.vue'), meta: { role: 'provider' } },
       { path: 'admin/users', component: () => import('@/pages/AdminUser.vue') },
       { path: 'provider', component: () => import('@/pages/AdminProviders.vue'), meta: { role: 'admin' } },
@@ -73,19 +73,17 @@ const routes = [
       { path: 'delivery/orders', component: () => import('@/pages/DeliveryOrders.vue') },
       { path: 'company', component: () => import('@/pages/CompanyView.vue') },
 
+      /* ✅ CORREGIDO: Dashboards por rol → todos usan Dashboard.vue (evita doble montaje) */
+      { path: 'dashboard/user',     component: () => import('@/pages/Dashboard.vue'), meta: { role: 'user' } },
+      { path: 'dashboard/admin',    component: () => import('@/pages/Dashboard.vue'), meta: { role: 'admin' } },
+      { path: 'dashboard/provider', component: () => import('@/pages/Dashboard.vue'), meta: { role: 'provider' } },
 
-      /* Dashboards por rol */
-      { path: 'dashboard/user',     component: () => import('@/components/DashboardUser.vue'),    meta: { role: 'user' } },
-      { path: 'dashboard/admin',    component: () => import('@/components/DashboardAdmin.vue'),   meta: { role: 'admin' } },
-      { path: 'dashboard/provider', component: () => import('@/components/DashboardProvider.vue'), meta: { role: 'provider' } },
-//      { path: 'dashboard/delivery', component: () => import('@/components/DashboardDelivery.vue') },
-
-       // Ruta 404 -  Dentro del layout protegido
-       { path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
+      // Ruta 404 - Dentro del layout protegido
+      { path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
     ],
   },
-// Ruta 404 -  para  rutas no protegidas
-{ path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
+  // Ruta 404 - para rutas no protegidas
+  { path: '/:pathMatch(.*)*', component: () => import('@/pages/NotFound.vue') },
 ]
 
 const router = createRouter({
@@ -99,9 +97,8 @@ router.beforeEach((to, from, next) => {
 
   if (isStaff) {
     if (to.path === '/staff/login') return next('/delivery/orders')
-    
-    // ✅ Permitir acceso a delivery, chats, profile, config y routes
-    if (to.path.startsWith('/delivery') || 
+
+    if (to.path.startsWith('/delivery') ||
         to.path === '/chats' ||
         to.path === '/chat' ||
         to.path.startsWith('/chat/') ||
@@ -110,9 +107,9 @@ router.beforeEach((to, from, next) => {
         to.path === '/routes') {
       return next()
     }
-    
+
     return next('/delivery/orders')
-}
+  }
 
   // USUARIO NORMAL
   const auth = useAuthStore()

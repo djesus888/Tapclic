@@ -305,8 +305,69 @@ isFavorite(serviceId) {
     },
     openServiceDetails(service) { this.resetFlow(); this.$nextTick(() => { this.modalService = this.normalizeService(service); this.showServiceDetails = true; }); },
     goToRequestConfirmation() { this.showServiceDetails = false; this.showRequestConfirmation = true; },
-    async onConfirmRequest(specDetails) { /* igual */ },
-    async onProviderResponse(status) { /* igual */ },
+
+    async onConfirmRequest(payload) {
+  try {
+    const { details, contractAccepted } = payload || {};
+    if (!contractAccepted) {
+      this.$swal.fire({ icon: 'warning', title: 'Contrato', text: 'Debes aceptar las condiciones del servicio.' });
+      return;
+    }
+    const authStore = useAuthStore();
+    const serviceId = this.modalService?.id;
+    const providerId = this.modalService?.provider?.id || this.modalService?.user_id;
+    if (!serviceId || !providerId) return;
+    const payloadRequest = {
+      service_id: serviceId, provider_id: providerId,
+      price: Number(this.modalService.price) || 0, payment_method: 'efectivo',
+      additional_details: details || '',
+    };
+    const res = await api.post(this.buildPath('requests/create'), payloadRequest, {
+      headers: authStore?.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+    });
+    if (!res.data?.success) throw new Error(res.data?.error || 'No se pudo crear la solicitud');
+    this.modalService.requestId = res.data.requestId;
+    this.modalService.status = res.data.status || 'pending';
+    this.lastSpecDetails = details;
+    this.showRequestConfirmation = false;
+    this.showProviderContact = true;
+    this.$nextTick(() => {
+      const providerModal = this.$refs.providerContactModal;
+      if (providerModal) {
+        providerModal.status = this.modalService.status;
+        providerModal.startProcess();
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    const status = err.response?.status;
+    let title = 'Error';
+    let text = err.message;
+    if (status === 409) {
+      title = 'Solicitud duplicada';
+      text = 'Ya tienes una solicitud activa con este proveedor';
+    }
+    this.$swal?.fire({ icon: 'error', title, text });
+  }
+},
+async onProviderResponse(status) {
+  this.showProviderContact = false;
+  if (status === 'accepted' && this.modalService?.requestId) {
+    this.openPaymentModal();
+  } else {
+    const { isConfirmed } = await this.$swal.fire({
+      icon: status === 'rejected' ? 'error' : 'warning',
+      title: status === 'rejected' ? 'Solicitud rechazada' : 'Proveedor ocupado',
+      showCancelButton: true, confirmButtonText: 'Intentar de nuevo', cancelButtonText: 'Cancelar',
+    });
+    if (isConfirmed) {
+      this.showRequestConfirmation = true;
+      this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails); });
+    } else {
+      this.resetFlow();
+    }
+  }
+},
     openPaymentModal() { this.showServiceDetails = false; this.showRequestConfirmation = false; this.showProviderContact = false; this.showPayment = true; },
     handlePaymentSubmit(method) { if (!this.modalService?.requestId) return; this.resetFlow(); this.$swal.fire({ icon: 'success', title: this.$t('payment_completed'), text: `${this.modalService?.title || ''} - ${method}`, timer: 2000, showConfirmButton: false }); },
     handleRetry() { this.resetFlow(); this.$nextTick(() => { this.onConfirmRequest(this.lastSpecDetails); }); },

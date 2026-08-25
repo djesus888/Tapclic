@@ -85,7 +85,7 @@ export const useAuthStore = defineStore('auth', {
           default: return 'Staff'
         }
       }
-
+      
       switch (state.role) {
         case 'admin': return 'Administrador'
         case 'provider': return 'Proveedor'
@@ -102,7 +102,7 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     _saveAuthData({ token, user, role }) {
       const isStaff = role?.startsWith('staff_') || localStorage.getItem('staff_token')
-
+      
       if (isStaff) {
         localStorage.setItem('staff_token', token)
         localStorage.setItem('staff', JSON.stringify({
@@ -139,7 +139,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.role = null
       this.locale = 'es'
-
+      
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('role')
@@ -244,11 +244,6 @@ export const useAuthStore = defineStore('auth', {
 
           this.setAxiosToken(token)
           await this.loadLocale()
-
-          const socketStore = useSocketStore()
-          await socketStore.init()
-          socketStore.connect(token)
-
         } catch (error) {
           console.warn('⚠️ Datos corruptos en localStorage, limpiando...')
           this._clearAuthData()
@@ -261,12 +256,13 @@ export const useAuthStore = defineStore('auth', {
       const { apiInstance } = this._getDependencies()
       try {
         const res = await apiInstance.post('/register', credentials)
-        const { token, user } = res.data
+        const { token, user, device_id } = res.data
         if (!token || !user?.role) {
           throw new Error('Respuesta inválida del servidor al registrar.')
         }
 
         this._saveAuthData({ token, user, role: user.role })
+        if (device_id) localStorage.setItem('device_id', device_id)
 
         const { i18nInstance } = this._getDependencies()
         const $t = i18nInstance.global.t
@@ -296,16 +292,19 @@ export const useAuthStore = defineStore('auth', {
       const { apiInstance, routerInstance, i18nInstance } = this._getDependencies()
       try {
         const res = await apiInstance.post('/login', credentials)
-        const { token, user } = res.data
+        const { token, user, device_id } = res.data
         if (!token || !user?.role) {
           throw new Error('Respuesta inválida del servidor al iniciar sesión.')
         }
 
         this._saveAuthData({ token, user, role: user.role })
-
+        if (device_id) localStorage.setItem('device_id', device_id)
+        
         const socketStore = useSocketStore()
-        await socketStore.init()
-        socketStore.connect(token)
+        socketStore.connect(token).catch(err => {
+        console.warn('⚠️ Error al conectar socket después del login:', err)
+        })
+
 
         if (user.locale) {
           this.setLocale(user.locale)
@@ -333,7 +332,7 @@ export const useAuthStore = defineStore('auth', {
         const $t = i18nInstance.global.t
         const message = error.response?.data?.message || error.message || $t('invalid_credentials')
         const isMaintenance = error.response?.data?.maintenance || error.response?.status === 503
-
+        
         Swal.fire({
           icon: isMaintenance ? 'warning' : 'error',
           title: isMaintenance ? '🔧 Sistema no disponible' : $t('error'),
@@ -352,7 +351,7 @@ export const useAuthStore = defineStore('auth', {
       const { apiInstance, routerInstance, i18nInstance } = this._getDependencies()
       try {
         const res = await apiInstance.post('/provider/staff/login', credentials)
-        const { token, staff } = res.data
+        const { token, staff, device_id } = res.data
 
         if (!token || !staff) {
           throw new Error('Respuesta inválida del servidor al iniciar sesión.')
@@ -372,13 +371,9 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this._saveAuthData({ token, user, role: user.role })
-
-        const socketStore = useSocketStore()
-        await socketStore.init()
-        socketStore.connect(token)
+        if (device_id) localStorage.setItem('device_id', device_id)
 
         await this.loadLocale()
-
         const $t = i18nInstance.global.t
         Swal.fire({
           icon: 'success',
@@ -418,15 +413,13 @@ export const useAuthStore = defineStore('auth', {
         const res = await apiInstance.post('/refresh-token', {}, {
           headers: { Authorization: `Bearer ${this.token}` },
         })
-        const { token, user } = res.data
+        const { token, user, device_id } = res.data
 
         if (token && token !== this.token) {
           this._saveAuthData({ token, user, role: user?.role || this.role })
-
-          const socketStore = useSocketStore()
-          socketStore.disconnect()
-          socketStore.connect(token)
         }
+
+        if (device_id) localStorage.setItem('device_id', device_id)
 
         return token || this.token
       } catch (err) {
@@ -453,7 +446,7 @@ export const useAuthStore = defineStore('auth', {
         if (res.data.success) {
           this.setLocale(locale)
           this.user.locale = locale
-
+          
           if (this.isStaff) {
             const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
             staffData.locale = locale
@@ -478,7 +471,7 @@ export const useAuthStore = defineStore('auth', {
         if (res.data.staff) {
           const updatedStaff = res.data.staff
           localStorage.setItem('staff', JSON.stringify(updatedStaff))
-
+          
           this.user = {
             ...this.user,
             name: updatedStaff.name,
@@ -488,7 +481,6 @@ export const useAuthStore = defineStore('auth', {
             is_online: updatedStaff.is_online ?? this.user.is_online
           }
         }
-
         return res.data
       } catch (error) {
         console.error('Error al actualizar perfil de staff:', error)
@@ -509,11 +501,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     logout() {
-      const { routerInstance, i18nInstance } = this._getDependencies()
-
       const socketStore = useSocketStore()
       socketStore.disconnect()
 
+      const { routerInstance, i18nInstance } = this._getDependencies()
       const wasStaff = this.isStaff || localStorage.getItem('staff_token')
 
       if (wasStaff && this.token) {
@@ -521,12 +512,12 @@ export const useAuthStore = defineStore('auth', {
           headers: { Authorization: `Bearer ${this.token}` }
         }).catch(() => {})
       }
-
+      
       this._clearAuthData()
 
       if (i18nInstance?.global) i18nInstance.global.locale.value = 'es'
       document.documentElement.lang = 'es'
-
+      
       const targetPath = wasStaff ? '/staff/login' : '/login'
       if (routerInstance.currentRoute.value.path !== targetPath) {
         routerInstance.replace(targetPath).catch(() => {})
@@ -537,7 +528,7 @@ export const useAuthStore = defineStore('auth', {
 
 export function initializeAuthStore(dependencies = {}) {
   const auth = useAuthStore()
-
+  
   if (Object.keys(dependencies).length > 0) {
     auth._getDependencies = () => ({
       api: api,
@@ -551,11 +542,9 @@ export function initializeAuthStore(dependencies = {}) {
     auth.setAxiosToken(auth.token)
     auth.loadLocale().catch(console.warn)
 
-    const socketStore = useSocketStore()
-    socketStore.init().then(() => {
-      socketStore.connect(auth.token)
-    })
+    // 🔥 ELIMINADO: La conexión del socket se maneja EXCLUSIVAMENTE en main.js
+    // para evitar múltiples llamadas simultáneas.
   }
-
+  
   return auth
 }

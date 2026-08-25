@@ -276,11 +276,11 @@ class ServiceRequest
     }
 
     public function getById($id)
-    {
-        $query = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute([':id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+{
+    $query = "SELECT sr.*, u.role as user_role FROM {$this->table} sr JOIN users u ON u.id = sr.user_id WHERE sr.id = :id LIMIT 1";
+    $stmt = $this->conn->prepare($query);
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function updateStatus(int $id, int $actorId, string $newStatus): bool
@@ -473,9 +473,10 @@ class ServiceRequest
     private function closeRequest(PDO $pdo, int $reqId, string $status): void
     {
         try {
-            $hasProc = (bool) $pdo->query(
-                "SELECT COUNT(*) FROM mysql.proc WHERE name = 'close_request'"
-            )->fetchColumn();
+           $hasProc = (bool) $pdo->query(
+          "SELECT COUNT(*) FROM information_schema.ROUTINES 
+          WHERE ROUTINE_NAME = 'close_request' AND ROUTINE_TYPE = 'PROCEDURE'"
+          )->fetchColumn();
 
             if ($hasProc) {
                 $pdo->prepare("CALL close_request(:id, :st)")
@@ -483,6 +484,14 @@ class ServiceRequest
                 return;
             }
 
+            // Verificar si hay disputa activa ANTES de iniciar transacción
+            $disputeCheck = $pdo->prepare("SELECT COUNT(*) FROM disputes WHERE request_id = ? AND status IN ('open', 'pending', 'disputed')");
+            $disputeCheck->execute([$reqId]);
+            $hasDispute = (int)$disputeCheck->fetchColumn() > 0;
+
+            if ($hasDispute) {
+                throw new Exception('Este servicio tiene una disputa activa y no puede ser archivado.');
+            }
             $pdo->beginTransaction();
 
             $payData = $pdo->prepare("SELECT payment_status, payment_method FROM {$this->table} WHERE id = ?");
@@ -512,14 +521,19 @@ class ServiceRequest
             $stmtPay = $pdo->prepare("DELETE FROM payments WHERE service_request_id = ?");
             $stmtPay->execute([$reqId]);
 
+
+            // Solo eliminar si NO hay disputa
             $stmtReq = $pdo->prepare("DELETE FROM {$this->table} WHERE id = ?");
             $stmtReq->execute([$reqId]);
 
             $pdo->commit();
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+       } catch (Throwable $e) {
+    error_log("❌ closeRequest falló para reqId={$reqId}: " . $e->getMessage());
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $e;
+}
     }
 
     /**

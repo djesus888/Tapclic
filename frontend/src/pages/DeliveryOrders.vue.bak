@@ -241,7 +241,14 @@ const updateStatus = async (requestId, status) => {
   }
 }
 
+// ============ WEBSOCKET TIEMPO REAL ============
 const setupSocketListeners = () => {
+  // Inicializar socket si no está conectado
+  if (!socketStore.isConnected) {
+    socketStore.init().then(() => {
+      socketStore.connect(token)
+    })
+  }
 
   // Escuchar cambios de estado de pedidos
   requestUpdatedHandler = (payload) => {

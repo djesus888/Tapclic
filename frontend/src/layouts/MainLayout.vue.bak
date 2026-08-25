@@ -530,22 +530,6 @@
       :notification="selectedNotification || {}"
       @close="selectedNotification = null"
       @action="handleNotificationAction"
-      @open-payment-proof="handleOpenPaymentProof"
-    />
-
-    <!-- ========== MODAL DE DETALLE DE DISPUTA ========== -->
-    <DisputeDetailModal
-      :is-open="showDisputeModal"
-      :dispute-id="selectedDisputeId"
-      @close="showDisputeModal = false; selectedDisputeId = null"
-      @updated="notificationStore.loadNotificationsFromAPI()"
-    />
-
-    <!-- 🔥 NUEVO: MODAL DE VERIFICACIÓN DE PAGO -->
-    <ProofModal
-      v-if="showPaymentProofModal"
-      :request-id="selectedPaymentRequestId"
-      @close="showPaymentProofModal = false; selectedPaymentRequestId = null"
     />
   </div>
 </template>
@@ -566,10 +550,7 @@ import { useSystemStore } from '@/stores/systemStore'
 import { formatDate } from '@/utils/formatDate'
 import api from '@/axios'
 import NotificationModal from '@/layouts/NotificationModal.vue'
-import DisputeDetailModal from '@/components/DisputeDetailModal.vue'
 import ContentBlock from '@/components/shared/ContentBlock.vue'
-// 🔥 NUEVO: Importar ProofModal
-import ProofModal from '@/components/ProofModal.vue'
 import { useOnlineUsersStore } from '@/stores/onlineUsersStore'
 
 const onlineUsersStore = useOnlineUsersStore()
@@ -610,6 +591,8 @@ const loadFooterPages = async () => {
 }
 
 onMounted(() => {
+  notificationStore.initialize()
+  systemStore.fetchConfig()
   loadFooterPages()
 })
 
@@ -619,12 +602,6 @@ const langDropdownOpen = ref(false)
 const langDropdownRef = ref(null)
 const isExpanded = ref(false)
 const selectedNotification = ref(null)
-const selectedDisputeId = ref(null)
-const showDisputeModal = ref(false)
-
-// 🔥 NUEVO: Estado para el modal de verificación de pago
-const showPaymentProofModal = ref(false)
-const selectedPaymentRequestId = ref(null)
 
 // ✅ Bloque de bienvenida (solo al iniciar sesión, no al recargar)
 const showDashboardWelcome = ref(false)
@@ -845,38 +822,7 @@ const handleNotificationClick = async (notification) => {
     if (notification.data_json) {
       try {
         const data = JSON.parse(notification.data_json)
-        
-        // 🔥 CORRECCIÓN: Abrir modal de verificación de pago para payment_received
-        if (data.notification_type === 'payment_received' || data.type === 'payment' || data.action === 'verify_payment') {
-          selectedPaymentRequestId.value = data.request_id || notification.request_id || null
-          if (selectedPaymentRequestId.value) {
-            showPaymentProofModal.value = true
-            activePanel.value = null
-            return
-          }
-        }
-        
-        if (data.notification_type === 'open_rating' || data.action === 'open_rating_modal' || data.type === 'rating') {
-          // Abrir modal de calificación directamente
-          window.dispatchEvent(new CustomEvent('open-rating-modal', {
-            detail: {
-              request_id: data.request_id || notification.request_id,
-              targetRole: data.target_role || 'provider',
-              from_role: data.from_role || 'provider',
-              message: notification.message || '¿Quieres calificar este servicio?'
-            }
-          }))
-          activePanel.value = null
-          return
-        }
-        if (data.type === 'dispute' || data.notification_type === 'dispute_opened' || data.notification_type === 'dispute_resolved' || data.notification_type === 'dispute_message') {
-          selectedDisputeId.value = data.dispute_id || notification.dispute_id || null
-          if (selectedDisputeId.value) {
-            showDisputeModal.value = true
-            activePanel.value = null
-            return
-          }
-        } else if (data.type === 'order' && data.orderId) {
+        if (data.type === 'order' && data.orderId) {
           targetPath = `/orders/${data.orderId}`
         } else if (data.type === 'service' && data.serviceId) {
           targetPath = `/services/${data.serviceId}`
@@ -904,14 +850,6 @@ const handleNotificationClick = async (notification) => {
 const handleNotificationAction = (notification) => {
   if (notification.action_link) router.push(notification.action_link)
   selectedNotification.value = null
-}
-
-const handleOpenPaymentProof = (data) => {
-  if (data?.request_id) {
-    selectedPaymentRequestId.value = data.request_id
-    showPaymentProofModal.value = true
-    selectedNotification.value = null
-  }
 }
 
 const openConversation = (conv) => {
@@ -961,6 +899,9 @@ const logout = async () => {
       localStorage.removeItem('staff')
       onlineUsersStore.clearAll()
 
+      if (socketStore) {
+        socketStore.disconnect()
+      }
 
       showUserPanel.value = false
       router.push('/staff/login')
@@ -1004,11 +945,33 @@ let visibilityChangeListener = null
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
 
+  if (localStorage.getItem('staff_token')) {
+    try {
+      const staffToken = localStorage.getItem('staff_token')
+      const { data } = await api.get('/staff/profile', {
+        headers: { Authorization: `Bearer ${staffToken}` }
+      })
+      if (data?.staff) {
+        authStore.user = {
+          ...authStore.user,
+          is_online: data.staff.is_online ?? false
+        }
+        const staffData = JSON.parse(localStorage.getItem('staff') || '{}')
+        staffData.is_online = data.staff.is_online ?? false
+        localStorage.setItem('staff', JSON.stringify(staffData))
+      }
+    } catch (err) {
+      console.warn('No se pudo refrescar estado online del staff:', err)
+    }
+  }
+
   clickOutsideListener = (e) => {
     if (langDropdownRef.value && !langDropdownRef.value.contains(e.target)) {
       langDropdownOpen.value = false
     }
   }
+  document.addEventListener('click', clickOutsideListener)
+
   unlockAudio = () => {
     if (socketStore.notificationSound) {
       socketStore.notificationSound.volume = 0
@@ -1035,9 +998,21 @@ onMounted(async () => {
         conversationStore.fetchConversations()
       ])
 
+      // 🔥 CORRECCIÓN 1: Eliminar socketStore.init() - solo usar connect()
+      // socketStore.init({ heartbeat: true, heartbeatInterval: 30000 })
+      socketStore.connect(authStore.token)
 
       socketStore.on('conversation-updated', (payload) => conversationStore.updateConversation?.(payload))
 
+      // 🔥 CORRECCIÓN 2: En visibilitychange, usar connect() en lugar de init()
+      visibilityChangeListener = () => {
+        if (!document.hidden && (authStore.user || localStorage.getItem('staff_token'))) {
+          // Verificar si el socket está desconectado antes de reconectar
+          if (!socketStore.isConnected) {
+            socketStore.connect(authStore.token)
+          }
+        }
+      }
       document.addEventListener('visibilitychange', visibilityChangeListener)
 
     } catch (err) {
@@ -1056,6 +1031,7 @@ onBeforeUnmount(() => {
   if (visibilityChangeListener) document.removeEventListener('visibilitychange', visibilityChangeListener)
 
   socketStore.off('conversation-updated')
+  socketStore.disconnect()
 })
 </script>
 

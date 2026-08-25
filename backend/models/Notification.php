@@ -196,11 +196,6 @@ class Notification {
 
         $params = [':uid' => $userId];
 
-        // ✅ CORREGIDO: Filtrar por rol si se proporciona
-        if ($role) {
-            $query .= " AND receiver_role = :role";
-            $params[':role'] = $role;
-        }
 
         $stmt = $this->conn->prepare($query);
         return $stmt->execute($params);

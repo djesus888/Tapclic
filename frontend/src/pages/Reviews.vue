@@ -182,7 +182,8 @@ function getReviewType(r: Review): 'service' | 'user' {
 
 function getAvatarUrl(r: Review): string {
   const avatar = r.user_avatar || r.provider_avatar || (r as any).provider_avatar
-  return getImageUrl(avatar, 'avatar') || '/default-avatar.png'
+  if (!avatar) return '/img/default-avatar.png'
+  return getImageUrl(avatar, 'avatar') || '/img/default-avatar.png'
 }
 
 function getPhotoFolder(r: Review): string {

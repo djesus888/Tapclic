@@ -19,6 +19,7 @@ class Uploader
     public const CAT_TICKETS   = 'tickets';
     public const CAT_SYSTEM    = 'system';
     public const CAT_UPDATES   = 'updates';
+    public const CAT_DISPUTES = 'disputes';
 
     public function __construct(string $basePath, string $baseUrl)
     {

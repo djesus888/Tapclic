@@ -17,17 +17,92 @@ export const useConversationStore = defineStore('conversation', () => {
   )
 
   let _socketInitialized = false
+  let _socketListenersRegistered = false
 
+  // ============ INICIALIZACIÓN DEL SOCKET ============
+
+  // 🔥 CORRECCIÓN 1: Inicializar socket correctamente
   function initSocket() {
     if (_socketInitialized) return
+
     const socketStore = useSocketStore()
     const authStore = useAuthStore()
+
+    if (!authStore.user?.id) {
+      console.warn('⚠️ [conversationStore] No hay usuario para inicializar socket')
+      return
+    }
+
     const room = `user_${authStore.user.id}`
-    socketStore.on('connect', () => {
-      console.log('🔌 Chat conectado al WS')
+
+    // Si el socket ya está conectado, unirse a la sala inmediatamente
+    if (socketStore.isConnected) {
       socketStore.emit('join-room', room)
-    })
+      console.log('🔌 [conversationStore] Unido a sala de usuario:', room)
+    }
+
+    // Registrar listener para reconexiones futuras (solo una vez)
+    if (!_socketListenersRegistered) {
+      socketStore.on('connect', () => {
+        console.log('🔌 [conversationStore] Socket reconectado - uniendo a sala:', room)
+        socketStore.emit('join-room', room)
+      })
+
+      // Registrar listeners de eventos de mensajes
+      socketStore.on('new_message', (data) => {
+        console.log('📨 [conversationStore] new_message recibido desde socket:', data)
+        handleNewMessage(data)
+      })
+
+      socketStore.on('message_read', (data) => {
+        console.log('📖 [conversationStore] message_read recibido desde socket:', data)
+        handleMessageRead(data)
+      })
+
+      socketStore.on('message_delivered', (data) => {
+        console.log('📬 [conversationStore] message_delivered recibido desde socket:', data)
+        handleMessageDelivered(data)
+      })
+
+      socketStore.on('message_deleted', (data) => {
+        console.log('🗑️ [conversationStore] message_deleted recibido desde socket:', data)
+        handleMessageDeleted(data)
+      })
+
+      socketStore.on('typing_indicator', (data) => {
+        console.log('⌨️ [conversationStore] typing_indicator recibido desde socket:', data)
+        setTypingIndicator(data)
+      })
+
+      socketStore.on('message_sent_confirmation', (data) => {
+        console.log('✅ [conversationStore] message_sent_confirmation recibido desde socket:', data)
+        confirmMessageSent(data)
+      })
+
+      _socketListenersRegistered = true
+      console.log('🔌 [conversationStore] Listeners de socket registrados')
+    }
+
     _socketInitialized = true
+  }
+
+  // 🔥 CORRECCIÓN 2: Unirse a la sala del usuario manualmente
+  function joinUserRoom() {
+    const socketStore = useSocketStore()
+    const authStore = useAuthStore()
+
+    if (!authStore.user?.id) {
+      console.warn('⚠️ [conversationStore] No hay usuario para unirse a sala')
+      return
+    }
+
+    const room = `user_${authStore.user.id}`
+    if (socketStore.isConnected) {
+      socketStore.emit('join-room', room)
+      console.log('🔌 [conversationStore] Unido manualmente a sala de usuario:', room)
+    } else {
+      console.warn('⚠️ [conversationStore] Socket no conectado para unirse a sala:', room)
+    }
   }
 
   function disconnectSocket() {
@@ -40,10 +115,50 @@ export const useConversationStore = defineStore('conversation', () => {
     socketStore.off('typing_indicator')
     socketStore.off('message_sent_confirmation')
     _socketInitialized = false
+    _socketListenersRegistered = false
     typingUsers.value.clear()
+    console.log('🔌 [conversationStore] Socket desconectado y listeners limpiados')
   }
 
-  // ✅ CORREGIDO: Incluye is_online en la normalización
+  // ============ HANDLERS DE EVENTOS ============
+
+  function handleNewMessage(data) {
+    const conversationId = data.conversation_id || data.conversationId
+    if (!conversationId) {
+      console.warn('⚠️ [conversationStore] handleNewMessage: falta conversationId', data)
+      return
+    }
+    addMessage(conversationId, data.message || data)
+  }
+
+  function handleMessageRead(data) {
+    const conversationId = data.conversation_id || data.conversationId
+    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : [])
+    if (conversationId && messageIds.length > 0) {
+      markMessagesAsReadLocally(conversationId, messageIds)
+    }
+  }
+
+  function handleMessageDelivered(data) {
+    const conversationId = data.conversation_id || data.conversationId
+    const messageIds = data.message_ids || data.messageIds || (data.message_id ? [data.message_id] : [])
+    if (conversationId && messageIds.length > 0) {
+      markMessagesAsDeliveredLocally(conversationId, messageIds)
+    }
+  }
+
+  function handleMessageDeleted(data) {
+    const conversationId = data.conversation_id || data.conversationId
+    const messageId = data.message_id || data.messageId || 
+      (data.message_ids && data.message_ids[0]) ||
+      (data.messageIds && data.messageIds[0])
+    if (conversationId && messageId) {
+      removeMessage(conversationId, messageId)
+    }
+  }
+
+  // ============ FUNCIONES DE NORMALIZACIÓN ============
+
   function normalizeConversation(conv) {
     if (conv.participant && !conv.other_participant) {
       return {
@@ -86,6 +201,8 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  // ============ FUNCIONES DE MARCADO ============
+
   function markMessagesAsRead(data) {
     console.log('📚 markMessagesAsRead llamado desde socketStore:', data)
     const conversationId = data.conversation_id || data.conversationId
@@ -104,6 +221,8 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  // ============ TYPING INDICATOR ============
+
   const typingTimeouts = new Map()
 
   function setTypingIndicator(data) {
@@ -121,6 +240,7 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     const key = `${conversationId}_${userId}`
+
     if (isTyping) {
       typingSet.add(userId)
       if (typingTimeouts.has(key)) {
@@ -152,6 +272,8 @@ export const useConversationStore = defineStore('conversation', () => {
       }
     }
   }
+
+  // ============ CONFIRMACIÓN DE MENSAJES ============
 
   function confirmMessageSent(data) {
     console.log('✅ confirmMessageSent:', data)
@@ -192,6 +314,7 @@ export const useConversationStore = defineStore('conversation', () => {
     if (realMessage === data && data.conversation_id && data.text !== undefined) {
       realMessage = data
     }
+
     if (!realMessage || typeof realMessage !== 'object') {
       console.warn('⚠️ confirmMessageSent: realMessage no es válido', realMessage)
       return
@@ -252,6 +375,8 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  // ============ FUNCIONES DE ENVÍO ============
+
   function sendTypingIndicator(conversationId, isTyping) {
     const socketStore = useSocketStore()
     const authStore = useAuthStore()
@@ -263,13 +388,18 @@ export const useConversationStore = defineStore('conversation', () => {
     })
   }
 
+  // ============ FETCH FUNCTIONS ============
+
   async function fetchConversations() {
     try {
+      // 🔥 CORRECCIÓN 3: Inicializar socket ANTES de obtener conversaciones
+      initSocket()
+
       const { data: res } = await api.get('/conversations')
       const list = Array.isArray(res) ? res : res.conversations || []
       conversations.value = list.map(c => normalizeConversation(c))
-      
-      // ✅ Sincronizar onlineUsersStore con is_online de las conversaciones
+
+      // Sincronizar onlineUsersStore con is_online de las conversaciones
       const onlineUsersStore = useOnlineUsersStore()
       list.forEach(conv => {
         const other = conv.participant || conv.other_participant
@@ -284,7 +414,7 @@ export const useConversationStore = defineStore('conversation', () => {
           onlineUsersStore.removeOnlineUser(other.id, other.role)
         }
       })
-      
+
       console.log('📋 Conversaciones normalizadas:', conversations.value)
     } catch (err) {
       console.error('Error fetching conversations:', err)
@@ -351,7 +481,6 @@ export const useConversationStore = defineStore('conversation', () => {
       if (data?.messages && data.messages.length > 0) {
         const msgs = messages.value[conversationId]
         if (!msgs) return
-
         let updated = false
         let newlyReadCount = 0
         let newlyDeliveredCount = 0
@@ -394,6 +523,8 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
+  // ============ FUNCIONES DE MARCADO (HTTP) ============
+
   async function markAsRead(conversationId, messageIds) {
     if (!messageIds || messageIds.length === 0) return
     try {
@@ -413,6 +544,8 @@ export const useConversationStore = defineStore('conversation', () => {
       console.error('Error marking as delivered:', err)
     }
   }
+
+  // ============ FUNCIONES DE ELIMINACIÓN ============
 
   async function deleteMessageForMe(messageId, conversationId) {
     try {
@@ -437,6 +570,8 @@ export const useConversationStore = defineStore('conversation', () => {
       showNotification('Error al borrar conversación', 'error')
     }
   }
+
+  // ============ FUNCIONES DE MENSAJES LOCALES ============
 
   function removeMessage(conversationId, messageId) {
     if (messages.value[conversationId]) {
@@ -580,6 +715,8 @@ export const useConversationStore = defineStore('conversation', () => {
     }))
   }
 
+  // ============ FUNCIONES DE MARCADO LOCAL ============
+
   function markMessagesAsReadLocally(conversationId, messageIds) {
     console.log('📖 [STORE] Marcando localmente como leídos:', { conversationId, messageIds })
 
@@ -626,56 +763,58 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   function markMessagesAsDeliveredLocally(conversationId, messageIds) {
-    console.log('📬 [STORE] Marcando localmente como entregados:', { conversationId, messageIds });
+    console.log('📬 [STORE] Marcando localmente como entregados:', { conversationId, messageIds })
 
-    const msgs = messages.value[conversationId];
+    const msgs = messages.value[conversationId]
     if (!msgs) {
-      console.warn(`⚠️ [STORE] No hay mensajes para conversación ${conversationId}`);
-      return;
+      console.warn(`⚠️ [STORE] No hay mensajes para conversación ${conversationId}`)
+      return
     }
 
-    let updated = false;
-    let updatedCount = 0;
+    let updated = false
+    let updatedCount = 0
 
     const updatedMessages = msgs.map(m => {
-      const messageIdStr = String(m.id);
-      const isInList = messageIds.some(id => String(id) === messageIdStr);
-      const isConfirmedTemp = m.temp_id && messageIds.some(id => String(id) === String(m.temp_id));
+      const messageIdStr = String(m.id)
+      const isInList = messageIds.some(id => String(id) === messageIdStr)
+      const isConfirmedTemp = m.temp_id && messageIds.some(id => String(id) === String(m.temp_id))
 
       if ((isInList || isConfirmedTemp) && !m.is_delivered) {
-        updated = true;
-        updatedCount++;
-        console.log(`📬 [STORE] Marcando como entregado mensaje: ${m.id} (temp: ${m.temp_id})`);
+        updated = true
+        updatedCount++
+        console.log(`📬 [STORE] Marcando como entregado mensaje: ${m.id} (temp: ${m.temp_id})`)
         return {
           ...m,
           is_delivered: true,
           delivered_at: new Date().toISOString(),
           _updated_at: Date.now()
-        };
+        }
       }
-      return m;
-    });
+      return m
+    })
 
     if (updated) {
       messages.value = {
         ...messages.value,
         [conversationId]: [...updatedMessages]
-      };
-      console.log(`📬 [STORE] ${updatedCount} mensajes marcados como entregados`);
+      }
+      console.log(`📬 [STORE] ${updatedCount} mensajes marcados como entregados`)
     }
 
-    const conv = conversations.value.find(c => c.id === conversationId);
+    const conv = conversations.value.find(c => c.id === conversationId)
     if (conv && conv.lastMessage) {
-      const lastMsgId = String(conv.lastMessage.id);
+      const lastMsgId = String(conv.lastMessage.id)
       if (messageIds.some(id => String(id) === lastMsgId)) {
         conv.lastMessage = {
           ...conv.lastMessage,
           is_delivered: true,
           delivered_at: new Date().toISOString()
-        };
+        }
       }
     }
   }
+
+  // ============ FUNCIONES DE NAVEGACIÓN ============
 
   function goToChat(conversationId, router) {
     router.push(`/chat/${conversationId}`)
@@ -690,8 +829,11 @@ export const useConversationStore = defineStore('conversation', () => {
     if (idx !== -1) Object.assign(conversations.value[idx], payload)
   }
 
+  // ============ FUNCIONES DE ESTADO DE MENSAJES ============
+
   function getMessageStatus(message) {
     if (!message) return { icon: '', color: '', title: '' }
+
     const isOwn = message.is_mine
     if (!isOwn) {
       return {
@@ -700,12 +842,15 @@ export const useConversationStore = defineStore('conversation', () => {
         title: message.is_read ? 'Leído' : ''
       }
     }
+
     if (message.is_read) {
       return { icon: '✓✓', color: 'text-blue-500', title: 'Leído' }
     }
+
     if (message.is_delivered) {
       return { icon: '✓✓', color: 'text-gray-400', title: 'Entregado' }
     }
+
     return { icon: '✓', color: 'text-gray-400', title: 'Enviado' }
   }
 
@@ -714,12 +859,16 @@ export const useConversationStore = defineStore('conversation', () => {
     return typingSet ? Array.from(typingSet) : []
   }
 
+  // ============ UTILIDADES ============
+
   function showNotification(message, type = 'info') {
     console.log(`[${type.toUpperCase()}] ${message}`)
     if (type === 'error' || type === 'success') {
       alert(message)
     }
   }
+
+  // ============ RETORNO ============
 
   return {
     conversations,
@@ -728,29 +877,44 @@ export const useConversationStore = defineStore('conversation', () => {
     loaded,
     typingUsers,
     activeConversationId,
+
+    // Inicialización
     initSocket,
+    joinUserRoom,
     disconnectSocket,
+
+    // Fetch
     fetchConversation,
     fetchConversations,
     fetchMessages,
     syncMessageStatuses,
+
+    // Marcado
     markAsRead,
     markAsDelivered,
     deleteMessageForMe,
     deleteConversationForMe,
+
+    // Navegación
     goToChat,
     prependMessage,
     updateConversation,
+
+    // Mensajes
     addMessage,
     getMessageStatus,
     markMessagesAsReadLocally,
     markMessagesAsDeliveredLocally,
     markMessagesAsRead,
     markMessagesAsDelivered,
+
+    // Typing
     setTypingIndicator,
     confirmMessageSent,
     sendTypingIndicator,
     getTypingUsers,
+
+    // Utilidades
     removeMessage,
     normalizeConversation,
     markConversationAsRead

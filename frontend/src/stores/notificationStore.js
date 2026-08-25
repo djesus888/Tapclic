@@ -13,18 +13,16 @@ export const useNotificationStore = defineStore('notification', {
     _soundEnabledTypes: ['new_message', 'request_updated', 'payment_received'],
     _pollingInterval: null,
     _notificationListenerCleanup: null,
-    _sessionClosedListenerCleanup: null
+    _sessionClosedListenerCleanup: null,
+    _duplicateConnectionCleanup: null, // 🔥 NUEVO: Para manejar duplicate_connection
+    _sessionClosedAlertShown: false, // 🔥 NUEVO: Evitar alertas duplicadas
   }),
 
   actions: {
     async initialize() {
       if (this._initialized) return;
 
-      await this.loadNotificationsFromAPI();
-      this._initialized = true;
-
       const socketStore = useSocketStore();
-      socketStore.init();
 
       // ============================================================
       // Limpiar listener anterior antes de registrar uno nuevo
@@ -55,36 +53,118 @@ export const useNotificationStore = defineStore('notification', {
       });
 
       // ============================================================
-      // Escuchar cierre de sesión remoto
+      // Escuchar cierre de sesión remoto (session_closed)
       // ============================================================
       if (this._sessionClosedListenerCleanup) {
         this._sessionClosedListenerCleanup();
       }
 
       this._sessionClosedListenerCleanup = socketStore.on('session_closed', (data) => {
-        console.warn('🔒 Sesión cerrada en otro dispositivo:', data);
+        console.warn('🔒 Evento session_closed recibido:', data);
+        this._handleSessionClosed(data);
+      });
 
-        const authStore = useAuthStore();
+      // 🔥 NUEVO: Escuchar evento duplicate_connection del WebSocket
+      // ============================================================
+      if (this._duplicateConnectionCleanup) {
+        this._duplicateConnectionCleanup();
+      }
 
-        // Mostrar notificación
-        Swal.fire({
-          icon: 'warning',
-          title: '🔒 Sesión cerrada',
-          text: data?.message || 'Tu cuenta ha sido abierta en otro dispositivo. Esta sesión ha sido cerrada por seguridad.',
-          confirmButtonText: 'Entendido',
-          confirmButtonColor: '#667eea',
-          allowOutsideClick: false,
-          allowEscapeKey: false
-        }).then(() => {
-          // Cerrar sesión local
-          authStore.logout();
-          // Usar window.location en lugar de router
-          window.location.href = '/login';
+      this._duplicateConnectionCleanup = socketStore.on('duplicate_connection', (data) => {
+        console.warn('🔒 Evento duplicate_connection recibido del servidor WebSocket:', data);
+        
+        // Mostrar la misma alerta que session_closed
+        this._handleSessionClosed({
+          message: data?.message || 'Tu cuenta ha sido abierta en otro dispositivo. Esta sesión ha sido cerrada por seguridad.',
+          timestamp: new Date().toISOString(),
+          device_id: data?.newSocketId || null,
         });
       });
 
+      // Cargar notificaciones en segundo plano (sin bloquear)
+      this.loadNotificationsFromAPI().catch(() => {});
+      this._initialized = true;
+
       // Iniciar polling de respaldo
       this._startPolling();
+    },
+
+    // 🔥 NUEVO: Método centralizado para manejar cierre de sesión
+    _handleSessionClosed(data) {
+      console.warn('🔒 Sesión cerrada remotamente:', data);
+
+      const authStore = useAuthStore();
+      const myDeviceId = localStorage.getItem('device_id');
+
+      // ⭐ CORRECCIÓN PRINCIPAL: Verificar device_id
+      if (data?.device_id && myDeviceId) {
+        // Si mi device_id coincide con el device_id del evento, CERRAR SESIÓN
+        if (String(data.device_id) === String(myDeviceId)) {
+          console.log('✅ Este es mi dispositivo, cerrando sesión');
+          this._showSessionClosedAlert(data);
+          return;
+        }
+        
+        // Si mi device_id coincide con new_device_id, soy el NUEVO, ignorar
+        if (data?.new_device_id && String(data.new_device_id) === String(myDeviceId)) {
+          console.log('✅ Soy el dispositivo nuevo, ignorando session_closed');
+          return;
+        }
+        
+        // Si no coincide con ninguno, ignorar
+        console.log('✅ device_id no coincide, ignorando. Mi device:', myDeviceId, '| Event device:', data.device_id);
+        return;
+      }
+
+      // Fallback por timestamp (si no hay device_id disponible)
+      if (authStore.token) {
+        try {
+          const payload = JSON.parse(atob(authStore.token.split('.')[1]));
+          if (payload.iat && data?.timestamp) {
+            const tokenTime = new Date(payload.iat * 1000).getTime();
+            const closeTime = new Date(data.timestamp).getTime();
+            if (tokenTime > closeTime) {
+              console.log('✅ Este es el dispositivo nuevo (por timestamp), ignorando session_closed');
+              return;
+            }
+          }
+        } catch (e) {
+          // Si no se puede decodificar, continuar con el cierre
+        }
+      }
+
+      // Si no hay device_id ni timestamp, mostrar alerta por defecto
+      this._showSessionClosedAlert(data);
+    },
+
+    // 🔥 NUEVO: Método para mostrar la alerta de sesión cerrada
+    _showSessionClosedAlert(data) {
+      // Verificar si ya se mostró una alerta de sesión cerrada
+      if (this._sessionClosedAlertShown) {
+        console.log('⚠️ Alerta de sesión cerrada ya mostrada, omitiendo');
+        return;
+      }
+
+      this._sessionClosedAlertShown = true;
+
+      // Mostrar notificación
+      Swal.fire({
+        icon: 'warning',
+        title: '🔒 Sesión cerrada',
+        text: data?.message || 'Tu cuenta ha sido abierta en otro dispositivo. Esta sesión ha sido cerrada por seguridad.',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#667eea',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+      }).then(() => {
+        // Resetear flag
+        this._sessionClosedAlertShown = false;
+
+        // Cerrar sesión local
+        useAuthStore().logout();
+        // Usar window.location en lugar de router
+        window.location.href = '/login';
+      });
     },
 
     _startPolling() {
@@ -124,7 +204,7 @@ export const useNotificationStore = defineStore('notification', {
 
         const existingIds = new Set(this.notifications.map(n => n.id));
         const newNotifications = list.filter(n => !existingIds.has(n.id));
-
+        
         if (newNotifications.length > 0) {
           this.notifications = [...newNotifications, ...this.notifications];
         }
@@ -132,7 +212,6 @@ export const useNotificationStore = defineStore('notification', {
         list.forEach(n => {
           if (n.is_read) this._readCache.add(n.id);
         });
-
       } catch (err) {
         console.error('Error loading notifications:', err);
       }
@@ -262,7 +341,14 @@ export const useNotificationStore = defineStore('notification', {
         this._sessionClosedListenerCleanup();
         this._sessionClosedListenerCleanup = null;
       }
-    }
+      // 🔥 NUEVO: Limpiar listener de duplicate_connection
+      if (this._duplicateConnectionCleanup) {
+        this._duplicateConnectionCleanup();
+        this._duplicateConnectionCleanup = null;
+      }
+      // 🔥 NUEVO: Resetear flag de alerta
+      this._sessionClosedAlertShown = false;
+    },
   },
 
   getters: {
