@@ -53,7 +53,7 @@ CREATE TABLE `audit_logs` (
   KEY `idx_action_type` (`action_type`),
   KEY `idx_created_at` (`created_at`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=969 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1311 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -203,6 +203,28 @@ CREATE TABLE `device_revocation_log` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `dispute_messages`
+--
+
+DROP TABLE IF EXISTS `dispute_messages`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `dispute_messages` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `dispute_id` int(11) NOT NULL,
+  `sender_id` int(10) unsigned NOT NULL,
+  `sender_role` enum('user','provider','admin') NOT NULL,
+  `message` text NOT NULL,
+  `file_url` varchar(255) DEFAULT NULL,
+  `file_type` varchar(50) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `dispute_id` (`dispute_id`),
+  CONSTRAINT `dispute_messages_ibfk_1` FOREIGN KEY (`dispute_id`) REFERENCES `disputes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `disputes`
 --
 
@@ -214,6 +236,7 @@ CREATE TABLE `disputes` (
   `request_id` int(11) NOT NULL,
   `payment_id` int(11) DEFAULT NULL,
   `user_id` int(11) NOT NULL COMMENT 'Quién abre la disputa',
+  `provider_id` int(11) DEFAULT NULL,
   `reason` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
   `status` enum('open','under_review','resolved','closed') DEFAULT 'open',
@@ -225,10 +248,9 @@ CREATE TABLE `disputes` (
   KEY `request_id` (`request_id`),
   KEY `user_id` (`user_id`),
   KEY `resolved_by` (`resolved_by`),
-  CONSTRAINT `disputes_ibfk_1` FOREIGN KEY (`request_id`) REFERENCES `service_requests` (`id`),
   CONSTRAINT `disputes_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `disputes_ibfk_3` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -266,7 +288,7 @@ CREATE TABLE `favorites` (
   KEY `service_id` (`service_id`),
   CONSTRAINT `favorites_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `favorites_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -334,7 +356,7 @@ CREATE TABLE `login_attempts` (
   KEY `idx_ip_address` (`ip_address`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_success` (`success`)
-) ENGINE=InnoDB AUTO_INCREMENT=234 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=400 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -418,7 +440,7 @@ CREATE TABLE `notifications` (
   `is_read` tinyint(1) DEFAULT 0,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=89 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=83 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -510,7 +532,7 @@ CREATE TABLE `payments` (
   PRIMARY KEY (`id`),
   KEY `service_request_id` (`service_request_id`),
   CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`service_request_id`) REFERENCES `service_requests` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -530,7 +552,7 @@ CREATE TABLE `platform_earnings` (
   PRIMARY KEY (`id`),
   KEY `idx_type` (`type`),
   KEY `idx_created` (`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=80 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=107 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -560,7 +582,7 @@ CREATE TABLE `provider_billing` (
   KEY `idx_provider` (`provider_id`),
   KEY `idx_status` (`status`),
   KEY `idx_period` (`period_end`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -587,7 +609,7 @@ CREATE TABLE `provider_payment_methods` (
   PRIMARY KEY (`id`),
   KEY `provider_id` (`provider_id`),
   CONSTRAINT `provider_payment_methods_ibfk_1` FOREIGN KEY (`provider_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -629,6 +651,7 @@ CREATE TABLE `requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `service_id` int(11) NOT NULL,
   `sender_id` int(11) NOT NULL,
+  `user_role` varchar(20) DEFAULT 'user',
   `receiver_id` int(11) NOT NULL,
   `status` enum('pending','accepted','rejected') DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT current_timestamp(),
@@ -735,7 +758,7 @@ CREATE TABLE `service_history` (
   PRIMARY KEY (`id`),
   KEY `idx_user_date` (`user_id`,`finished_at`),
   KEY `idx_request` (`request_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -795,7 +818,7 @@ CREATE TABLE `service_requests` (
   CONSTRAINT `service_requests_ibfk_1` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`),
   CONSTRAINT `service_requests_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `service_requests_ibfk_3` FOREIGN KEY (`provider_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -824,7 +847,7 @@ CREATE TABLE `service_reviews` (
   CONSTRAINT `service_reviews_ibfk_1` FOREIGN KEY (`service_history_id`) REFERENCES `service_history` (`id`),
   CONSTRAINT `service_reviews_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `service_reviews_ibfk_3` FOREIGN KEY (`provider_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1052,7 +1075,7 @@ CREATE TABLE `token_blacklist` (
   PRIMARY KEY (`id`),
   KEY `idx_token` (`token`(255)),
   KEY `idx_expires` (`expires_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=309 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=497 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1082,7 +1105,7 @@ CREATE TABLE `user_devices` (
   KEY `idx_last_active` (`last_active`),
   KEY `idx_fingerprint` (`device_fingerprint`),
   CONSTRAINT `user_devices_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=217 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=376 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1111,7 +1134,7 @@ CREATE TABLE `user_reviews` (
   CONSTRAINT `user_reviews_ibfk_1` FOREIGN KEY (`service_history_id`) REFERENCES `service_history` (`id`),
   CONSTRAINT `user_reviews_ibfk_2` FOREIGN KEY (`provider_id`) REFERENCES `users` (`id`),
   CONSTRAINT `user_reviews_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1229,4 +1252,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-08-02 16:11:50
+-- Dump completed on 2026-08-25 10:33:20
