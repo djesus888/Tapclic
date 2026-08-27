@@ -45,9 +45,17 @@
         Disputas
         <span v-if="pendingDisputes > 0" class="tab-badge">{{ pendingDisputes }}</span>
       </button>
-    </div>
+      <button
+        class="tab-button"
+        :class="{ active: activeTab === 'user-reports' }"
+        @click="activeTab = 'user-reports'; fetchUserReports()"
+      >
 
-    <!-- ==================== DASHBOARD ==================== -->
+        <span class="tab-icon">🚨</span>
+        Reportes de Usuarios
+        <span v-if="pendingUserReports > 0" class="tab-badge">{{ pendingUserReports }}</span>
+      </button>
+    </div>
     <div v-if="activeTab === 'dashboard'">
       <!-- Tarjetas de Estadísticas -->
       <section class="summary-stats">
@@ -521,6 +529,56 @@
     <div v-if="showToast" class="toast" :class="toastType">
       {{ toastMessage }}
     </div>
+    <!-- ==================== REPORTES DE USUARIOS ==================== -->
+    <div v-if="activeTab === 'user-reports'" class="review-reports-section">
+      <div class="filters-bar">
+        <h3>🚨 Reportes de Usuarios</h3>
+        <div class="filter-stats">
+          <span class="filter-badge badge-pending">{{ pendingUserReports }} pendientes</span>
+        </div>
+      </div>
+
+      <div v-if="!userReports.length" class="empty-state">
+        <div class="empty-icon">🚨</div>
+        <h3>No hay reportes de usuarios</h3>
+        <p>Todo en orden por ahora</p>
+      </div>
+
+      <div v-else class="reports-list">
+        <div
+          v-for="r in userReports"
+          :key="r.id"
+          class="review-report-card status-pending"
+        >
+          <div class="report-header">
+            <div class="report-meta">
+              <span class="report-id">Reporte #{{ r.id }}</span>
+              <span class="report-date">{{ formatDate(r.created_at) }}</span>
+            </div>
+            <span class="status-badge" :class="r.status === 'pending' ? 'pending' : 'resolved'">
+              {{ r.status === 'pending' ? 'Pendiente' : 'Resuelto' }}
+            </span>
+          </div>
+
+          <div class="report-body">
+            <div class="report-info-grid">
+              <div class="info-item">
+                <span class="info-label">Reportado por</span>
+                <span class="info-value">{{ r.reporter_name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Usuario reportado</span>
+                <span class="info-value">{{ r.reported_user_name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Razón</span>
+                <span class="info-value">{{ r.reason }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -570,6 +628,8 @@ const reviewPage = ref(1)
 const reviewPagination = ref({})
 const pendingReviewReports = ref(0)
 
+const userReports = ref([])
+const pendingUserReports = ref(0)
 // Disputes
 const disputes = ref([])
 const disputeLoading = ref(false)
@@ -752,6 +812,17 @@ async function fetchDisputes() {
     showNotification('Error al cargar disputas', 'error')
   } finally {
     disputeLoading.value = false
+  }
+}
+async function fetchUserReports() {
+  try {
+    const { data } = await api.get("/api/admin/user-reports", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+    })
+    userReports.value = data.reports || []
+    pendingUserReports.value = data.reports?.filter(r => r.status === "pending").length || 0
+  } catch (err) {
+    showNotification("Error al cargar reportes de usuarios", "error")
   }
 }
 

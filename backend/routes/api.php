@@ -22,6 +22,7 @@ require_once __DIR__ . '/../controllers/BillingController.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
 require_once __DIR__ . '/../controllers/MonetizationController.php';
 require_once __DIR__ . "/../controllers/FavoritesController.php";
+require_once __DIR__ . "/../controllers/UserReportController.php";
 require_once __DIR__ . '/../controllers/CompanyController.php';
 
 //$request = $_SERVER['REQUEST_URI'];
@@ -153,6 +154,10 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($method === 'POST' && preg_match('~/api/reviews/report/?$~', $request)) {
     (new HistoryController())->handle($method);
 } elseif ($method === 'POST' && preg_match('~/api/reviews/report-content/?$~', $request)) {
+} elseif ($method === "POST" && preg_match("~^/api/user-reports/?$~", $request)) {
+    (new UserReportController())->create($auth);
+} elseif ($method === "GET" && preg_match("~^/api/user-reports/my/?$~", $request)) {
+    (new UserReportController())->myReports($auth);
     (new HistoryController())->handle($method);
 } elseif ($method === 'PUT' && preg_match('~/api/reviews/(\d+)/reply/?$~', $request, $m)) {
     (new HistoryController())->reply((int)$m[1]);
@@ -227,6 +232,8 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($method === 'POST' && preg_match('~/api/admin/reports/resolve~', $request)) {
     (new HistoryController())->resolveReport();
 } elseif (preg_match('~/api/admin/reports~', $request) && $method === 'GET') {
+} elseif (preg_match("~^/api/admin/user-reports/?$~", $request) && $method === "GET") {
+    (new UserReportController())->adminIndex($auth);
     (new AdminController())->reports();
 } elseif (preg_match('~/api/admin/stats~', $request)) {
     (new AdminController())->stats();

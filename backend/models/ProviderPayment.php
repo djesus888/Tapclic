@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../utils/Encryption.php';
 
 class ProviderPayment
 {
@@ -17,20 +18,20 @@ class ProviderPayment
     {
         $stmt = $this->conn->prepare(
             "INSERT INTO {$this->table}
-             (provider_id, method_type, bank_name, holder_name, id_number,
-              phone_number, account_number, email, qr_url, is_active)
-             VALUES
-             (:pid, :mt, :bn, :hn, :idn, :pn, :an, :em, :qr, :active)"
+            (provider_id, method_type, bank_name, holder_name, id_number,
+             phone_number, account_number, email, qr_url, is_active)
+            VALUES
+            (:pid, :mt, :bn, :hn, :idn, :pn, :an, :em, :qr, :active)"
         );
         $stmt->execute([
             ':pid'    => $providerId,
             ':mt'     => $data['method_type'],
             ':bn'     => $data['bank_name']      ?? null,
             ':hn'     => $data['holder_name']  ?? null,
-            ':idn'    => $data['id_number']     ?? null,
-            ':pn'     => $data['phone_number']  ?? null,
-            ':an'     => $data['account_number']?? null,
-            ':em'     => $data['email']         ?? null,
+            ':idn'    => Encryption::encrypt($data['id_number']     ?? null),
+            ':pn'     => Encryption::encrypt($data['phone_number']  ?? null),
+            ':an'     => Encryption::encrypt($data['account_number'] ?? null),
+            ':em'     => Encryption::encrypt($data['email']         ?? null),
             ':qr'     => $data['qr_url']        ?? null,
             ':active' => $data['is_active']     ?? 1
         ]);
@@ -45,7 +46,8 @@ class ProviderPayment
              ORDER BY created_at DESC"
         );
         $stmt->execute([':pid' => $providerId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $this->decryptRows($rows);
     }
 
     public function getActiveByProvider(int $providerId): array
@@ -55,23 +57,24 @@ class ProviderPayment
              WHERE provider_id = :pid AND is_active = 1"
         );
         $stmt->execute([':pid' => $providerId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $this->decryptRows($rows);
     }
 
     public function update(int $id, int $providerId, array $data): bool
     {
         $stmt = $this->conn->prepare(
             "UPDATE {$this->table}
-                SET method_type    = :mt,
-                    bank_name      = :bn,
-                    holder_name    = :hn,
-                    id_number      = :idn,
-                    phone_number   = :pn,
-                    account_number = :an,
-                    email          = :em,
-                    qr_url         = :qr,
-                    is_active      = :active
-              WHERE id = :id AND provider_id = :pid"
+               SET method_type    = :mt,
+                   bank_name      = :bn,
+                   holder_name    = :hn,
+                   id_number      = :idn,
+                   phone_number   = :pn,
+                   account_number = :an,
+                   email          = :em,
+                   qr_url         = :qr,
+                   is_active      = :active
+             WHERE id = :id AND provider_id = :pid"
         );
         $stmt->execute([
             ':id'     => $id,
@@ -79,10 +82,10 @@ class ProviderPayment
             ':mt'     => $data['method_type'],
             ':bn'     => $data['bank_name']      ?? null,
             ':hn'     => $data['holder_name']  ?? null,
-            ':idn'    => $data['id_number']     ?? null,
-            ':pn'     => $data['phone_number']  ?? null,
-            ':an'     => $data['account_number']?? null,
-            ':em'     => $data['email']         ?? null,
+            ':idn'    => Encryption::encrypt($data['id_number']     ?? null),
+            ':pn'     => Encryption::encrypt($data['phone_number']  ?? null),
+            ':an'     => Encryption::encrypt($data['account_number'] ?? null),
+            ':em'     => Encryption::encrypt($data['email']         ?? null),
             ':qr'     => $data['qr_url']        ?? null,
             ':active' => $data['is_active']     ?? 1
         ]);
@@ -97,5 +100,18 @@ class ProviderPayment
         );
         $stmt->execute([':id' => $id, ':pid' => $providerId]);
         return $stmt->rowCount() > 0;
+    }
+
+    /* ---------- Helper para desencriptar ---------- */
+
+    private function decryptRows(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            $row['id_number']      = Encryption::decrypt($row['id_number']);
+            $row['phone_number']   = Encryption::decrypt($row['phone_number']);
+            $row['account_number'] = Encryption::decrypt($row['account_number']);
+            $row['email']          = Encryption::decrypt($row['email']);
+        }
+        return $rows;
     }
 }

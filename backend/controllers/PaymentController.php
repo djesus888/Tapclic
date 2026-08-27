@@ -336,6 +336,16 @@ class PaymentController
                 case 'paypal': $out['paypal'] = ['email' => $m['email'], 'titular' => $m['holder_name']]; break;
             }
         }
+        // Registrar auditoría de visualización de datos de pago
+        $viewerId = null;
+        if (isset($_SERVER["HTTP_AUTHORIZATION"])) {
+          $token = str_replace("Bearer ", "", $_SERVER["HTTP_AUTHORIZATION"]);
+          $payload = verifyJWT($token);
+          if ($payload) $viewerId = $payload->user_id ?? $payload->sub ?? null;
+        }
+        if ($viewerId) {
+          AuditLogger::log($viewerId, "payment_info_view", "Visualización de datos de pago", "Cliente ID: {$viewerId} consultó datos de pago del Proveedor ID: {$providerId}");
+        }
         echo json_encode(['paymentInfo' => $out]);
     }
 

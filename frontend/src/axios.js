@@ -45,7 +45,7 @@ api.interceptors.response.use(
                           error.response?.data?.msg || 
                           null
     
-    const errorCode = error.response?.data?.code || null
+    // const errorCode = error.response?.data?.code || null
 
     // 🎯 Mostrar el error en pantalla (excepto para 401 que ya tiene su propio manejo)
     if (backendMessage && error.response?.status !== 401) {
@@ -77,8 +77,9 @@ api.interceptors.response.use(
       let errorMessage = '📡 Sin internet - No tienes conexión a internet'
       let userMessage = 'No tienes conexión a internet. Por favor, verifica tu red.'
 
+      let savedLocale = "es"
       try {
-        const savedLocale = localStorage.getItem('userLocale') || 'es'
+        savedLocale = localStorage.getItem("userLocale") || "es"
         if (savedLocale === 'en') {
           errorMessage = '📡 No internet - You are not connected to the internet'
           userMessage = 'You are not connected to the internet. Please check your network.'

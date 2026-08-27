@@ -1,3 +1,4 @@
+Enter password: 
 /*M!999999\- enable the sandbox mode */ 
 -- MariaDB dump 10.19-12.0.2-MariaDB, for Android (aarch64)
 --
@@ -1109,6 +1110,33 @@ CREATE TABLE `user_devices` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `user_reports`
+--
+
+DROP TABLE IF EXISTS `user_reports`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_reports` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `reporter_id` int(11) NOT NULL,
+  `reported_user_id` int(11) NOT NULL,
+  `reason` text NOT NULL,
+  `type` varchar(50) DEFAULT 'user_report',
+  `status` enum('pending','resolved','dismissed') DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  `resolved_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `reporter_id` (`reporter_id`),
+  KEY `reported_user_id` (`reported_user_id`),
+  KEY `resolved_by` (`resolved_by`),
+  CONSTRAINT `user_reports_ibfk_1` FOREIGN KEY (`reporter_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_reports_ibfk_2` FOREIGN KEY (`reported_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_reports_ibfk_3` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `user_reviews`
 --
 
@@ -1252,4 +1280,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-08-25 10:33:20
+-- Dump completed on 2026-08-26 19:30:01

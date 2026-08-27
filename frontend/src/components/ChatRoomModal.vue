@@ -535,8 +535,8 @@ const ensureConversation = async () => {
         }
         return true;
       }
-    } catch (_err) {
-      console.log('⚠️ No se encontró conversación existente');
+    } catch (err) {
+      console.log("⚠️ No se encontró conversación existente:", err.message);
     }
 
     console.log('🆕 Creando nueva conversación...');
@@ -811,7 +811,7 @@ const handleMessageConfirmation = (data) => {
 };
 
 const handleMessageDeleted = (data) => {
-  const { conversation_id, message_id } = data || {};
+  const { conversation_id } = data || {};
   if (conversation_id === localConversationId.value) {
     // El conversationStore ya eliminó el mensaje
   }

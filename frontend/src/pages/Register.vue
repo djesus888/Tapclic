@@ -149,6 +149,21 @@
             <!-- ✅ Promoción en formulario de registro -->
             <ContentBlock identifier="register-promo" class="register-promo-block" />
 
+            <!-- ✅ Consentimiento legal -->
+            <div class="form-group checkbox-group legal-consent">
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  v-model="acceptedTerms"
+                  required
+                  class="checkbox-input"
+                >
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-text">
+                  He leído y acepto los <router-link to="/page/terms" target="_blank">Términos de Servicio</router-link> y la <router-link to="/page/privacy" target="_blank">Política de Privacidad</router-link>. Confirmo que soy mayor de 18 años.
+                </span>
+              </label>
+            </div>
             <!-- Botón de registro -->
             <button
               type="submit"
@@ -259,6 +274,7 @@ components: {
     const auth = useAuthStore()
     const router = useRouter()
 
+    const acceptedTerms = ref(false)
     const form = ref({
       name: '',
       role: '',

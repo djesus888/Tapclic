@@ -1,20 +1,43 @@
 <template>
   <Transition name="cookie-slide">
-    <div v-if="show" class="cookie-banner">
+    <div
+      v-if="show"
+      class="cookie-banner"
+    >
       <div class="cookie-content">
         <div class="cookie-icon">🍪</div>
         <div class="cookie-text">
           <p><strong>Este sitio usa cookies</strong></p>
           <p>Utilizamos cookies propias y de terceros para mejorar tu experiencia, mostrar contenido personalizado y analizar el tráfico. Al hacer clic en "Aceptar", consientes el uso de todas las cookies.</p>
           <div class="cookie-links">
-            <router-link to="/page/privacy" class="cookie-link">Política de Privacidad</router-link>
-            <router-link to="/page/terms" class="cookie-link">Términos y Condiciones</router-link>
+            <router-link
+              to="/page/privacy"
+              class="cookie-link"
+            >
+              Política de Privacidad
+            </router-link>
+            <router-link
+              to="/page/terms"
+              class="cookie-link"
+            >
+              Términos y Condiciones
+            </router-link>
           </div>
         </div>
       </div>
       <div class="cookie-actions">
-        <button @click="reject" class="btn-cookie-reject">Solo esenciales</button>
-        <button @click="accept" class="btn-cookie-accept">Aceptar todas</button>
+        <button
+          @click="reject"
+          class="btn-cookie-reject"
+        >
+          Solo esenciales
+        </button>
+        <button
+          @click="accept"
+          class="btn-cookie-accept"
+        >
+          Aceptar todas
+        </button>
       </div>
     </div>
   </Transition>

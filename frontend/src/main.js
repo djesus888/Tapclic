@@ -173,7 +173,7 @@ async function initializeApp() {
 }
 
 // 🔥 INICIALIZAR AL CARGAR LA APP (solo una vez)
-await initializeApp()
+initializeApp().catch(err => console.warn("Error init:", err))
 
 // 🔥 CORRECCIÓN 6: Escuchar cambios de token SIN debounce para respuesta inmediata
 watch(

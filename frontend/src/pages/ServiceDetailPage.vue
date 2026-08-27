@@ -215,6 +215,10 @@
           <span class="button-icon">📋</span>
           <span class="button-text">{{ $t('view_details') }}</span>
         </button>
+        <button class="secondary-button report-button" @click="openReportModal">
+          <span class="button-icon">🚨</span>
+          <span class="button-text">Reportar Usuario</span>
+        </button>
         <button class="secondary-button" @click="openLiveTracking">
           <span class="button-icon">🚚</span>
           <span class="button-text">{{ $t('track_order') }}</span>
@@ -508,8 +512,45 @@ function openChat(target?: any) {
     avatarUrl: service.value.provider?.avatar_url,
   }
 }
+function openReportModal() {
+  Swal.fire({
+    title: "Reportar Usuario",
+    text: "Describe brevemente el problema:",
+    input: "textarea",
+    inputPlaceholder: "Ej: Este proveedor me estafó con un pago...",
+    showCancelButton: true,
+    confirmButtonText: "Enviar Reporte",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: "#dc3545",
+    preConfirm: async (reason) => {
+      if (!reason || reason.trim().length < 10) {
+        Swal.showValidationMessage("Por favor describe el problema con al menos 10 caracteres")
+        return false
+      }
+      try {
+        const api = (await import("@/axios")).default
+        const authStore = (await import("@/stores/authStore")).useAuthStore()
+        await api.post("/user-reports", {
+          reported_user_id: service.value.provider?.id,
+          reason: reason.trim(),
+          type: "user_report"
+        }, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        return true
+      } catch (err) {
+        Swal.showValidationMessage("Error al enviar el reporte: " + (err.response?.data?.error || err.message))
+        return false
+      }
+    }
+  }).then((result) => {
+    if (result.isConfirmed) {
+      Swal.fire("Reporte Enviado", "Gracias por ayudarnos a mantener la comunidad segura.", "success")
+    }
+  })
+}
 
-/* ---------- seguimiento en vivo (MANTENIDO EXACTAMENTE IGUAL) ---------- */
+
 function openLiveTracking() {
   if (!modalService.value) return
   liveOrder.value = {

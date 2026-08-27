@@ -197,7 +197,12 @@ async function submitPayment() {
             </div>
           </div>
 
-          <!-- Detalles del método seleccionado -->
+          <!-- AVISOS DE SEGURIDAD -->
+            <div class="security-warning" style="background:#fff3cd;border:2px solid #ffc107;padding:12px;border-radius:10px;margin-bottom:15px">
+              <p style="margin:0;font-weight:600;color:#856404">⚠️ Verifica la identidad del proveedor antes de transferir. No envíes dinero si sospechas del usuario.</p>
+            </div>
+
+            <!-- Detalles del método seleccionado -->
           <div v-if="paymentMethod !== 'efectivo'" class="method-details">
             <div class="details-header">
               <h3 class="details-title">Información de Pago</h3>
