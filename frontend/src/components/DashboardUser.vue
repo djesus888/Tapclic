@@ -839,7 +839,7 @@ export default {
       this.lastFetch.history = 0;
       await this.fetchActiveRequests();
       if (this.showLiveTracking && this.liveOrder?.id === requestId) this.liveOrder.status = newStatus;
-      if (['completed', 'cancelled', 'rejected'].includes(newStatus)) await this.fetchHistory();
+      if (['completed', 'cancelled', 'rejected', 'finalized'].includes(newStatus)) await this.fetchHistory();
       this.playNotification();
     },
 

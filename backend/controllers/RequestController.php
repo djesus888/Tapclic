@@ -4,7 +4,8 @@ require_once __DIR__ . '/../models/ServiceRequest.php';
 require_once __DIR__ . '/../utils/jwt.php';
 require_once __DIR__ . '/../services/WebSocketService.php';
 require_once __DIR__ . '/../utils/AuditLogger.php';
-require_once __DIR__ . '/../middleware/Auth.php';
+require_once __DIR__ . "/../middleware/Auth.php";
+require_once __DIR__ . "/../utils/Encryption.php";
 
 use services\WebSocketService;
 
@@ -46,6 +47,8 @@ class RequestController
             } else {
                 $this->completed($auth);
             }
+        } elseif (preg_match('/\/api\/requests\/completed/', $path) && $method === 'POST') {
+            $this->updateStatus($auth, 'completed');
         } elseif (preg_match('/\/api\/requests\/pending/', $path) && $method === 'GET') {
             if ($auth->role === 'provider') {
                 $result = $this->model->getPendingByProvider($auth->id);
@@ -100,7 +103,7 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Estado actualizado',
+                'title' => '🔔 Estado actualizado',
                 'message' => "Tu solicitud cambió a: $newStatus",
                 'data_json' => json_encode([
                     'request_id' => (int)$requestId,
@@ -129,7 +132,6 @@ class RequestController
                     'request' => [
                         'id' => (int)$requestId,
                         'status' => $newStatus,
-                        'updated_at' => date('Y-m-d H:i:s')
                     ]
                 ]
             );
@@ -143,7 +145,6 @@ class RequestController
                         'request' => [
                             'id' => (int)$requestId,
                             'status' => $newStatus,
-                            'updated_at' => date('Y-m-d H:i:s')
                         ]
                     ]
                 );
@@ -194,7 +195,7 @@ class RequestController
         $requestId = $data['request_id'] ?? null;
         $newStatus = $data['status'] ?? null;
 
-        $validStatuses = ['in_progress', 'on_the_way', 'arrived', 'finalized', 'completed'];
+        $validStatuses = ['in_progress', 'on_the_way', 'arrived', 'completed'];
         if (!$requestId || !in_array($newStatus, $validStatuses)) {
             http_response_code(400);
             echo json_encode(["error" => "Datos inválidos"]);
@@ -213,23 +214,33 @@ class RequestController
         if ($ok) {
             try {
                 require_once __DIR__ . '/../services/WebSocketService.php';
-                \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $auth->staff_id, 'request_updated', [
-                    'request_id' => $requestId,
-                    'status' => $newStatus,
-                    'updated_at' => date('Y-m-d H:i:s')
+                // Emitir al cliente
+                $clientRole = $request["user_role"] ?? "user";
+                \Services\WebSocketService::emitToUser($clientRole, (int)$request["user_id"], "request_updated", [
+                    "request" => [
+                        "id" => (int)$requestId,
+                        "status" => $newStatus,
+                        "updated_at" => date("Y-m-d H:i:s")
+                    ]
                 ]);
             } catch (\Exception $e) {
                 error_log("⚠️ No se pudo emitir WebSocket: " . $e->getMessage());
             }
 
             $statusMessages = [
+                // Mensajes para el CLIENTE
                 'in_progress' => '🚛 El delivery ha iniciado la entrega',
                 'on_the_way'  => '🛵 El delivery va en camino',
                 'arrived'     => '📍 El delivery ha llegado al destino',
                 'finalized'   => '✅ El delivery ha entregado el pedido',
-                'completed'   => '✅ Entrega completada',
+                'completed'   => '✅ El servicio ha sido completado.',
             ];
             $message = $statusMessages[$newStatus] ?? "Estado actualizado: {$newStatus}";
+
+            // Mensaje especial para el PROVEEDOR cuando staff completa
+            $providerMessage = $newStatus === 'completed' 
+                ? '✅ El staff completó el servicio. Puedes finalizarlo desde tu panel.' 
+                : $message;
 
             try {
                 $this->model->saveNotification([
@@ -256,7 +267,7 @@ class RequestController
                     'receiver_id' => $request['provider_id'],
                     'receiver_role' => 'provider',
                     'title' => '📦 Delivery actualizó estado',
-                    'message' => $message,
+                    'message' => $providerMessage,
                     'data_json' => json_encode([
                         'url' => '/orders/' . $requestId,
                         'action' => 'view_request',
@@ -310,22 +321,9 @@ class RequestController
             AuditLogger::log($auth->id, 'delivery_assigned', 'Delivery asignado', "Pedido: {$requestId} → Staff: {$staffId}");
 
             try {
-                require_once __DIR__ . '/../services/WebSocketService.php';
-                \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $staffId, 'new-notification', [
-                    'event' => 'delivery_assigned',
-                    'title' => '🚚 Nuevo pedido asignado',
-                    'message' => "Se te ha asignado un nuevo pedido #{$requestId}",
-                    'notification_type' => 'delivery_assigned',
-                    'url' => '/delivery/orders',
-                    'action' => 'view_delivery',
-                    'request_id' => $requestId,
-                    'timestamp' => date('Y-m-d H:i:s')
-                ]);
-
                 \Services\WebSocketService::emitToUser('staff_' . ($staff['role'] ?? 'delivery'), $staffId, 'request_updated', [
                     'request_id' => $requestId,
                     'status' => $request['status'],
-                    'updated_at' => date('Y-m-d H:i:s')
                 ]);
             } catch (\Exception $e) {
                 error_log("⚠️ No se pudo emitir WebSocket al staff: " . $e->getMessage());
@@ -429,8 +427,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $providerId,
                 'receiver_role' => 'provider',
-                'title' => 'Nueva solicitud',
-                'message' => 'Tienes una nueva solicitud pendiente',
+                'title' => '🆕 Nueva solicitud',
+                'message' => '📩 Tienes una nueva solicitud pendiente',
                 'data_json' => json_encode([
                     'url' => '/orders/' . $newId,
                     'action' => 'view_request',
@@ -491,6 +489,22 @@ class RequestController
         } else {
             $result = $this->model->getActiveByUser($auth->id);
         }
+        
+        // Desencriptar payment_methods
+        foreach ($result as &$row) {
+            if (!empty($row["payment_methods"])) {
+                $methods = json_decode($row["payment_methods"], true);
+                if (is_array($methods)) {
+                    foreach ($methods as &$method) {
+                        if (!empty($method["phone_number"])) $method["phone_number"] = Encryption::decrypt($method["phone_number"]);
+                        if (!empty($method["id_number"])) $method["id_number"] = Encryption::decrypt($method["id_number"]);
+                        if (!empty($method["account_number"])) $method["account_number"] = Encryption::decrypt($method["account_number"]);
+                        if (!empty($method["email"])) $method["email"] = Encryption::decrypt($method["email"]);
+                    }
+                    $row["payment_methods"] = json_encode($methods);
+                }
+            }
+        }
         echo json_encode(["success" => true, "data" => $result]);
     }
 
@@ -516,8 +530,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Proveedor ocupado',
-                'message' => 'El proveedor está ocupado temporalmente',
+                'title' => '⏳ Proveedor ocupado',
+                'message' => '😴 El proveedor está ocupado temporalmente',
                 'data_json' => json_encode([
                     'url' => '/orders/' . $requestId,
                     'action' => 'view_request',
@@ -577,8 +591,8 @@ class RequestController
                     'sender_id' => $auth->id,
                     'receiver_id' => $request['user_id'],
                     'receiver_role' => $userRole,
-                    'title' => 'Solicitud aceptada',
-                    'message' => 'Tu solicitud fue aceptada por el proveedor',
+                    'title' => '✅ Solicitud aceptada',
+                    'message' => '🎉 Tu solicitud fue aceptada por el proveedor',
                     'data_json' => json_encode(['url' => '/service/' . $request['service_id'], 'action' => 'view_service', 'notification_type' => 'service_update', 'service_id' => $request['service_id']])
                 ]);
 
@@ -628,7 +642,7 @@ class RequestController
                 return;
             }
 
-            $updated = $this->model->updateStatus($requestId, $auth->id, 'completed');
+            $updated = $this->model->updateStatus($requestId, $auth->id, 'finalized');
             if (!$updated) {
                 echo json_encode(["success" => false, "message" => "No se pudo finalizar"]);
                 return;
@@ -653,8 +667,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Servicio finalizado - ¡Califica tu experiencia!',
-                'message' => 'El proveedor marcó el servicio como finalizado.',
+                'title' => '⭐ Servicio finalizado - ¡Califica tu experiencia!',
+                'message' => '🏁 El proveedor marcó el servicio como finalizado.',
                 'data_json' => json_encode([
                     'type' => 'rating',
                     'notification_type' => 'open_rating',
@@ -673,7 +687,7 @@ class RequestController
                     'open_rating_modal',
                     [
                         'notification_id' => $notifId,
-                        'title' => 'Servicio finalizado - ¡Califica tu experiencia!',
+                        'title' => '⭐ Servicio finalizado - ¡Califica tu experiencia!',
                         'message' => 'El proveedor marcó el servicio como finalizado. ¿Quieres dejar una reseña?',
                         'request_id' => (int)$requestId,
                         'provider_id' => $auth->id,
@@ -695,7 +709,7 @@ class RequestController
                     'open_rating_modal',
                     [
                         'notification_id' => $notifId,
-                        'title' => 'Servicio finalizado - ¡Califica al cliente!',
+                        'title' => '⭐ Servicio finalizado - ¡Califica al cliente!',
                         'message' => 'Has completado el servicio. ¿Quieres calificar a tu cliente?',
                         'request_id' => (int)$requestId,
                         'provider_id' => $auth->id,
@@ -714,7 +728,6 @@ class RequestController
                 'request' => [
                     'id' => (int)$requestId,
                     'status' => 'completed',
-                    'updated_at' => date('Y-m-d H:i:s')
                 ]
             ];
 
@@ -758,8 +771,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Servicio en progreso',
-                'message' => 'El proveedor ha comenzado el servicio',
+                'title' => '📦 Servicio en progreso',
+                'message' => '🔧 El proveedor ha comenzado el servicio',
                 'data_json' => json_encode([
                     'url' => '/orders/' . $requestId,
                     'action' => 'view_request',
@@ -806,8 +819,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Proveedor en camino',
-                'message' => 'El proveedor está en camino',
+                'title' => '🛵 Proveedor en camino',
+                'message' => '🗺️ El proveedor está en camino',
                 'data_json' => json_encode([
                     'url' => '/orders/' . $requestId,
                     'action' => 'view_request',
@@ -854,8 +867,8 @@ class RequestController
                 'sender_id' => $auth->id,
                 'receiver_id' => $request['user_id'],
                 'receiver_role' => $userRole,
-                'title' => 'Proveedor llegó',
-                'message' => 'El proveedor ha llegado',
+                'title' => '📍 Proveedor llegó',
+                'message' => '🏠 El proveedor ha llegado',
                 'data_json' => json_encode([
                     'url' => '/orders/' . $requestId,
                     'action' => 'view_request',
@@ -906,8 +919,8 @@ class RequestController
                     'sender_id' => $auth->id,
                     'receiver_id' => $request['user_id'],
                     'receiver_role' => $userRole,
-                    'title' => 'Solicitud rechazada',
-                    'message' => 'Tu solicitud fue rechazada',
+                    'title' => '❌ Solicitud rechazada',
+                    'message' => '😞 Tu solicitud fue rechazada',
                     'data_json' => json_encode([
                         'url' => '/orders/' . $requestId,
                         'action' => 'view_request',
@@ -985,7 +998,7 @@ class RequestController
                     'sender_id' => $auth->id,
                     'receiver_id' => $otherId,
                     'receiver_role' => $otherRole,
-                    'title' => 'Solicitud cancelada',
+                    'title' => '🚫 Solicitud cancelada',
                     'message' => "Cancelada por el {$actorRole}",
                     'data_json' => json_encode([
                         'url' => '/orders/' . $requestId,

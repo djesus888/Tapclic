@@ -71,6 +71,12 @@ class Auth {
 
         error_log("Token decodificado exitosamente: " . json_encode($decoded));
 
+        // ✅ STAFF: Omitir validación de sesión estándar
+        if (isset($decoded->staff_id) && strpos($decoded->role ?? "", "staff_") === 0) {
+            error_log("Staff autenticado: staff_id = {$decoded->staff_id}, role = {$decoded->role}");
+            return $decoded;
+        }
+
         // ✅ Verificar que la sesión y dispositivo sean válidos
         $sessionCheck = self::isSessionValid($decoded, $token);
         if (!$sessionCheck['valid']) {

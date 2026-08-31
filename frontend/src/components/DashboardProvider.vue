@@ -202,8 +202,8 @@ import LiveOrderTracking from '@/components/LiveOrderTracking.vue';
 import ReviewModal from '@/components/ReviewModal.vue';
 import { useServiceRequest } from '@/composables/useServiceRequest';
 
-const ACTIVE_STATUSES = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'finalized'];
-const STATUS_FLOW = { pending: ['accepted', 'rejected'], accepted: ['in_progress', 'cancelled'], in_progress: ['on_the_way', 'cancelled'], on_the_way: ['arrived', 'cancelled'], arrived: ['finalized', 'cancelled'], finalized: ['completed'], completed: [], cancelled: [], rejected: [] };
+const ACTIVE_STATUSES = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'completed', 'finalized'];
+const STATUS_FLOW = { pending: ['accepted', 'rejected'], accepted: ['in_progress', 'cancelled'], in_progress: ['on_the_way', 'cancelled'], on_the_way: ['arrived', 'cancelled'], arrived: ['completed', 'finalized', 'cancelled'], completed: ['finalized'], finalized: [], cancelled: [], rejected: [] };
 const STATUS_EMOJIS = { pending: '⏳', accepted: '👍', rejected: '👎', in_progress: '📦', on_the_way: '🚚', arrived: '📍', finalized: '✅', completed: '✅', cancelled: '❌' };
 
 export default {
@@ -314,7 +314,7 @@ export default {
     pullMove(e) { if (!this.pulling) return; const y = e.touches ? e.touches[0].clientY : e.clientY; if (y - this.pullStartY > 120) { const now = Date.now(); if (now - this.lastPullRefresh_ > this.pullRefreshCooldown_) { this.lastPullRefresh_ = now; this.pulling = false; this.syncRequests(); } } },
     pullEnd() { this.pulling = false; },
     updateRequestStatus(requestId, newStatus, updatedAt) { const i = this.inProgressRequests.findIndex(r => r.id === requestId); if (i === -1) return; const u = [...this.inProgressRequests]; u[i] = { ...u[i], status: newStatus, updated_at: updatedAt }; this.inProgressRequests = u; },
-    handleRequestUpdate(request) { if (request.status !== 'pending') this.availableRequests = this.availableRequests.filter(r => r.id !== request.id); const i = this.inProgressRequests.findIndex(r => r.id === request.id); if (ACTIVE_STATUSES.includes(request.status)) { if (i >= 0) this.inProgressRequests.splice(i, 1, { ...request }); else this.inProgressRequests.unshift({ ...request }); } else if (i >= 0) this.inProgressRequests.splice(i, 1); if (['completed', 'cancelled', 'rejected', 'busy'].includes(request.status)) this.updateHistory(request); },
+    handleRequestUpdate(request) { if (request.status !== 'pending') this.availableRequests = this.availableRequests.filter(r => r.id !== request.id); const i = this.inProgressRequests.findIndex(r => r.id === request.id); if (ACTIVE_STATUSES.includes(request.status)) { if (i >= 0) this.inProgressRequests.splice(i, 1, { ...request }); else this.inProgressRequests.unshift({ ...request }); } else if (i >= 0) this.inProgressRequests.splice(i, 1); if (['completed', 'cancelled', 'rejected', 'busy', 'finalized'].includes(request.status)) this.updateHistory(request); },
     handlePaymentUpdate(request_id, payment_status) { const req = this.inProgressRequests.find(r => r.id === request_id); if (req) req.payment_status = payment_status; },
     updateHistory(request) { const i = this.historyRequests.findIndex(h => h.id === request.id); const n = this.normalizeHistory(request); if (i >= 0) this.historyRequests[i] = n; else this.historyRequests.unshift(n); },
     resetModals() { this.chatTarget = null; this.showNewTicket = false; this.openDropdown = null; this.showProofModal = false; this.proofModalRequestId = null; this.historyModal = false; this.selectedHistory = {}; this.showAssignModal = false; },

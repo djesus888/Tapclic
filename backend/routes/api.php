@@ -199,6 +199,8 @@ if (preg_match('~/api/login~', $request)) {
     (new PaymentMethodController())->providerIndex();
 } elseif ($request === '/api/provider/payment-methods' && $method === 'POST') {
     (new PaymentMethodController())->providerStore();
+} elseif (preg_match("~^/api/provider/payment-methods/(\d+)$~", $request, $m) && $method === "PUT") {
+    (new ProviderPaymentController())->updateMethod((int)$m[1]);
 
 // --- RUTAS MÉTODOS DE PAGO ---
 } elseif ($request === '/api/payment-methods' && $method === 'GET') {
@@ -218,7 +220,7 @@ if (preg_match('~/api/login~', $request)) {
 } elseif ($request === '/api/admin/payment-methods' && $method === 'POST') {
     (new PaymentMethodController())->store();
 } elseif (preg_match('~/api/admin/payment-methods/(\d+)$~', $request, $m) && $method === 'PUT') {
-    (new PaymentMethodController())->update((int)$m[1]);
+    (new ProviderPaymentController())->updateMethod((int)$m[1]);
 } elseif (preg_match('~/api/admin/payment-methods/(\d+)$~', $request, $m) && $method === 'DELETE') {
     (new PaymentMethodController())->destroy((int)$m[1]);
 

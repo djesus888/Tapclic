@@ -1,7 +1,8 @@
 <?php
 // controllers/PaymentMethodController.php
 
-require_once __DIR__ . '/../models/PaymentMethod.php';
+require_once __DIR__ . "/../models/PaymentMethod.php";
+require_once __DIR__ . "/../models/ProviderPayment.php";
 require_once __DIR__ . '/../utils/jwt.php';
 
 class PaymentMethodController {
@@ -56,13 +57,8 @@ public function providerIndex(): void
         $user = $this->authenticate();
         if (!$user) return;
 
-        $stmt = $this->paymentMethod->getConnection()->prepare("
-            SELECT * FROM provider_payment_methods 
-            WHERE provider_id = ? 
-            ORDER BY id ASC
-        ");
-        $stmt->execute([$user['id']]);
-        $methods = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $providerPayment = new ProviderPayment();
+        $methods = $providerPayment->getByProvider($user['id']);
 
         echo json_encode([
             'success' => true,

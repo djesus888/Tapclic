@@ -176,7 +176,7 @@ class ServiceRequest
             JOIN users u ON u.id = sr.user_id
             JOIN users p ON p.id = sr.provider_id
             WHERE sr.user_id = :id
-              AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
+              AND sr.status IN ('accepted','in_progress','on_the_way','arrived','completed')
             ORDER BY sr.updated_at DESC
         ";
 
@@ -222,6 +222,7 @@ class ServiceRequest
             FROM service_history sh
             JOIN users u ON sh.user_id = u.id
             WHERE sh.assigned_staff_id = :sid
+              AND sh.status IN ('completed', 'finalized')
             ORDER BY sh.finished_at DESC
             LIMIT 50
         ");
@@ -266,7 +267,7 @@ class ServiceRequest
             JOIN users u ON u.id = sr.user_id
             JOIN users p ON p.id = sr.provider_id
             WHERE sr.provider_id = :pid
-              AND sr.status IN ('accepted','in_progress','on_the_way','arrived')
+              AND sr.status IN ('accepted','in_progress','on_the_way','arrived','completed')
             ORDER BY sr.updated_at DESC
         ";
 
@@ -288,7 +289,7 @@ class ServiceRequest
         $sql = "UPDATE {$this->table}
                 SET status = :status, updated_at = NOW()
                 WHERE id = :id
-                  AND (user_id = :actorId OR provider_id = :actorId)";
+                  AND (user_id = :actorId OR provider_id = :actorId OR assigned_staff_id = :actorId)";
 
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([
@@ -303,10 +304,11 @@ class ServiceRequest
         return $stmt->execute([':sid' => $staffId, ':rid' => $requestId]);
     }
 
-    // ✅ saveNotification con verificación anti-duplicados
+    /**
+     * Guarda notificación y emite al WebSocket
+     */
     public function saveNotification($data)
     {
-        // Verificar duplicado antes de insertar (misma notificación en los últimos 10 segundos)
         $checkQuery = "SELECT COUNT(*) as count FROM notifications
                        WHERE receiver_id = :receiver_id
                        AND receiver_role = :receiver_role
@@ -324,8 +326,8 @@ class ServiceRequest
 
         $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
         if ($result['count'] > 0) {
-            error_log("Notificación duplicada detectada en saveNotification, omitiendo inserción");
-            return true; // Retornar true para no romper el flujo
+            error_log("Notificación duplicada detectada, omitiendo");
+            return true;
         }
 
         $query = "INSERT INTO notifications
@@ -333,7 +335,7 @@ class ServiceRequest
                   VALUES (:sender_id, :receiver_id, :receiver_role, :title, :message, :data_json, 0, NOW())";
 
         $stmt = $this->conn->prepare($query);
-        return $stmt->execute([
+        $saved = $stmt->execute([
             ':sender_id' => $data['sender_id'] ?? null,
             ':receiver_id' => $data['receiver_id'],
             ':receiver_role' => $data['receiver_role'],
@@ -341,6 +343,28 @@ class ServiceRequest
             ':message' => $data['message'],
             ':data_json' => $data['data_json'] ?? null
         ]);
+
+        if ($saved) {
+            try {
+                require_once __DIR__ . '/../services/WebSocketService.php';
+                \Services\WebSocketService::emitToUser(
+                    $data['receiver_role'],
+                    (int)$data['receiver_id'],
+                    'new-notification',
+                    [
+                        'id' => (int)$this->conn->lastInsertId(),
+                        'title' => $data['title'],
+                        'message' => $data['message'],
+                        'notification_type' => $data['data_json'] ? (json_decode($data['data_json'], true)['notification_type'] ?? null) : null,
+                        'url' => $data['data_json'] ? (json_decode($data['data_json'], true)['url'] ?? null) : null,
+                    ]
+                );
+            } catch (\Exception $e) {
+                error_log("⚠️ No se pudo emitir notificación WebSocket: " . $e->getMessage());
+            }
+        }
+
+        return $saved;
     }
 
     /**
@@ -348,7 +372,6 @@ class ServiceRequest
      */
     public function saveNotificationReturnId($data)
     {
-        // Verificar duplicado
         $checkQuery = "SELECT COUNT(*) as count FROM notifications
                        WHERE receiver_id = :receiver_id
                        AND receiver_role = :receiver_role
@@ -366,7 +389,7 @@ class ServiceRequest
 
         if ($checkStmt->fetch(PDO::FETCH_ASSOC)['count'] > 0) {
             error_log("Notificación duplicada, omitiendo");
-            return null; // Retornar null para indicar que no se insertó
+            return null;
         }
 
         $query = "INSERT INTO notifications
@@ -382,7 +405,6 @@ class ServiceRequest
             ':message' => $data['message'],
             ':data_json' => $data['data_json'] ?? null
         ]);
-
         return (int)$this->conn->lastInsertId();
     }
 
@@ -414,7 +436,7 @@ class ServiceRequest
                     cancelled_by = :actorRole,
                     updated_at = NOW()
                 WHERE id = :id
-                  AND (user_id = :actorId OR provider_id = :actorId)";
+                  AND (user_id = :actorId OR provider_id = :actorId OR assigned_staff_id = :actorId)";
 
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([

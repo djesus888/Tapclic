@@ -138,7 +138,7 @@ class PaymentController
             'sender_id' => $auth->id,
             'receiver_id' => $request['provider_id'],
             'receiver_role' => 'provider',
-            'title' => 'Pago registrado',
+            'title' => '💳 Pago registrado',
             'message' => $method === 'efectivo'
                 ? 'El cliente pagará en efectivo'
                 : 'Cliente subió comprobante – verifica el pago',
@@ -152,21 +152,6 @@ class PaymentController
             ])
         ];
         (new ServiceRequest())->saveNotification($notif);
-
-        WebSocketService::sendNotification(
-            'provider',
-            $request['provider_id'],
-            'Pago registrado',
-            $notif['message'],
-            [
-                'event' => 'payment_received',
-                'notification_type' => 'payment_received',
-                'url' => '/orders/' . $requestId,
-                'action' => 'verify_payment',
-                'request_id' => (int)$requestId,
-                'payment_id' => $paymentId
-            ]
-        );
 
         WebSocketService::emitToUser('provider', $request['provider_id'], 'payment_updated', [
             'request_id' => (int)$requestId, 'payment_status' => 'verifying', 'proof_url' => $proofUrl, 'method' => $method, 'reference' => $reference
@@ -222,15 +207,12 @@ class PaymentController
             'sender_id' => $auth->id,
             'receiver_id' => $row['user_id'],
             'receiver_role' => $userRole,
-            'title' => 'Pago confirmado',
-            'message' => 'El proveedor certificó que recibió tu pago',
+            'title' => '✅ Pago confirmado',
+            'message' => '✅ El proveedor certificó que recibió tu pago',
             'data_json' => json_encode(['type' => 'payment', 'notification_type' => 'payment_received', 'url' => '/orders/' . $row['service_request_id'], 'action' => 'view_order', 'request_id' => (int)$row['service_request_id'], 'payment_id' => (int)$paymentId])
         ];
         (new ServiceRequest())->saveNotification($notif);
 
-        WebSocketService::sendNotification($userRole, $row['user_id'], 'Pago confirmado', 'El proveedor certificó que recibió tu pago', [
-            'event' => 'payment_received', 'notification_type' => 'payment_received', 'url' => '/orders/' . $row['service_request_id'], 'action' => 'view_order', 'request_id' => (int)$row['service_request_id'], 'payment_id' => (int)$paymentId
-        ]);
 
         WebSocketService::emitToUser($userRole, $row['user_id'], 'payment_updated', ['request_id' => (int)$row['service_request_id'], 'payment_status' => 'paid']);
         WebSocketService::emitToUser($userRole, $row['user_id'], 'request_updated', ['request' => ['id' => (int)$row['service_request_id'], 'payment_status' => 'paid', 'status' => 'accepted', 'updated_at' => date('Y-m-d H:i:s')]]);
@@ -274,15 +256,12 @@ class PaymentController
             'sender_id' => $auth->id,
             'receiver_id' => $row['user_id'],
             'receiver_role' => $userRole,
-            'title' => 'Pago rechazado',
-            'message' => 'El proveedor rechazó tu comprobante de pago.',
+            'title' => '❌ Pago rechazado',
+            'message' => '❌ El proveedor rechazó tu comprobante de pago.',
             'data_json' => json_encode(['type' => 'payment', 'notification_type' => 'payment_received', 'url' => '/orders/' . $row['service_request_id'], 'action' => 'view_order', 'request_id' => (int)$row['service_request_id'], 'payment_id' => (int)$paymentId])
         ];
         (new ServiceRequest())->saveNotification($notif);
 
-        WebSocketService::sendNotification($userRole, $row['user_id'], 'Pago rechazado', 'El proveedor rechazó tu comprobante.', [
-            'event' => 'payment_received', 'notification_type' => 'payment_received', 'url' => '/orders/' . $row['service_request_id'], 'action' => 'view_order', 'request_id' => (int)$row['service_request_id'], 'payment_id' => (int)$paymentId
-        ]);
 
         WebSocketService::emitToUser($userRole, $row['user_id'], 'payment_updated', ['request_id' => (int)$row['service_request_id'], 'payment_status' => 'rejected']);
         WebSocketService::emitToUser($userRole, $row['user_id'], 'request_updated', ['request' => ['id' => (int)$row['service_request_id'], 'payment_status' => 'pending', 'updated_at' => date('Y-m-d H:i:s')]]);
@@ -407,7 +386,7 @@ class PaymentController
 
         try {
             WebSocketService::emitToRole("admin", "new-notification", [
-                "title" => "Nueva disputa abierta",
+                "title" => "⚖️ Nueva disputa abierta",
                 "message" => "{$user["name"]} abrió una disputa: {$reason}",
                 "notification_type" => "dispute_opened",
                 "dispute_id" => $disputeId,
@@ -419,7 +398,7 @@ class PaymentController
 
             if ($request["provider_id"]) {
                 WebSocketService::emitToUser("provider", $request["provider_id"], "new-notification", [
-                    "title" => "Disputa abierta en tu servicio",
+                    "title" => "⚖️ Disputa abierta en tu servicio",
                     "message" => "{$user["name"]} abrió una disputa sobre tu servicio: {$reason}",
                     "notification_type" => "dispute_opened",
                     "dispute_id" => $disputeId,
@@ -747,7 +726,7 @@ class PaymentController
 
             try {
                 WebSocketService::emitToUser("user", $dispute["user_id"], "new-notification", [
-                    "title" => "Disputa resuelta",
+                    "title" => "✅ Disputa resuelta",
                     "message" => $resolution,
                     "notification_type" => "dispute_resolved",
                     "dispute_id" => $disputeId,
@@ -763,7 +742,7 @@ class PaymentController
 
                 if ($requestRow && $requestRow["provider_id"]) {
                     WebSocketService::emitToUser("provider", $requestRow["provider_id"], "new-notification", [
-                        "title" => "Disputa resuelta",
+                        "title" => "✅ Disputa resuelta",
                         "message" => $resolution,
                         "notification_type" => "dispute_resolved",
                         "dispute_id" => $disputeId,

@@ -855,20 +855,6 @@ const handleNotificationClick = async (notification) => {
             return
           }
         }
-        
-        if (data.notification_type === 'open_rating' || data.action === 'open_rating_modal' || data.type === 'rating') {
-          // Abrir modal de calificación directamente
-          window.dispatchEvent(new CustomEvent('open-rating-modal', {
-            detail: {
-              request_id: data.request_id || notification.request_id,
-              targetRole: data.target_role || 'provider',
-              from_role: data.from_role || 'provider',
-              message: notification.message || '¿Quieres calificar este servicio?'
-            }
-          }))
-          activePanel.value = null
-          return
-        }
         if (data.type === 'dispute' || data.notification_type === 'dispute_opened' || data.notification_type === 'dispute_resolved' || data.notification_type === 'dispute_message') {
           selectedDisputeId.value = data.dispute_id || notification.dispute_id || null
           if (selectedDisputeId.value) {

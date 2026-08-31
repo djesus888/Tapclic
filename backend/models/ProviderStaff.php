@@ -43,15 +43,24 @@ class ProviderStaff {
     }
 
     public function update(int $id, array $data): bool {
-        $sql = "UPDATE {$this->table} SET name = :name, phone = :phone, role = :role, active = :active WHERE id = :id";
+        $sql = "UPDATE {$this->table} SET name = :name, phone = :phone, role = :role, active = :active";
+        if (!empty($data["email"])) $sql .= ", email = :email";
+        if (!empty($data["password"])) $sql .= ", password = :password";
+        $sql .= " WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([
+
+        $params = [
             ':name'   => $data['name'],
             ':phone'  => $data['phone'] ?? null,
             ':role'   => $data['role'] ?? 'delivery',
             ':active' => $data['active'] ?? 1,
             ':id'     => $id,
-        ]);
+        ];
+
+        if (!empty($data["email"])) $params[':email'] = $data['email'];
+        if (!empty($data["password"])) $params[':password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+
+        return $stmt->execute($params);
     }
 
     public function updateProfile(int $id, array $data): bool {
@@ -87,51 +96,43 @@ class ProviderStaff {
     public function updatePassword(int $id, string $newPassword): bool {
         $sql = "UPDATE {$this->table} SET password = :password WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([
+        $params = [
             ':password' => password_hash($newPassword, PASSWORD_DEFAULT),
             ':id'       => $id,
-        ]);
+        ];
+        return $stmt->execute($params);
     }
 
-    // ✅ NUEVO: Actualizar estado online
     public function updateOnlineStatus(int $id, bool $isOnline): bool {
-        $sql = "UPDATE {$this->table} 
-                SET is_online = :is_online, 
+        $sql = "UPDATE {$this->table}
+                SET is_online = :is_online,
                     last_seen = CASE WHEN :is_online = 1 THEN last_seen ELSE NOW() END
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([
+        $params = [
             ':is_online' => $isOnline ? 1 : 0,
             ':id' => $id
-        ]);
+        ];
+        return $stmt->execute($params);
     }
 
+    public function markOfflineByTimeout(int $timeoutMinutes = 5): int {
+        $sql = "UPDATE {$this->table}
+                SET is_online = 0,
+                    last_seen = NOW()
+                WHERE is_online = 1
+                AND active = 1
+                AND last_heartbeat IS NOT NULL
+                AND last_heartbeat < DATE_SUB(NOW(), INTERVAL :timeout MINUTE)";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([':timeout' => $timeoutMinutes]);
+        return $stmt->rowCount();
+    }
 
-
-/**
- * Marcar como offline a staff que no ha enviado heartbeat
- * dentro del tiempo límite
- */
-public function markOfflineByTimeout(int $timeoutMinutes = 5): int {
-    $sql = "UPDATE {$this->table} 
-            SET is_online = 0, 
-                last_seen = NOW() 
-            WHERE is_online = 1 
-            AND active = 1
-            AND last_heartbeat IS NOT NULL
-            AND last_heartbeat < DATE_SUB(NOW(), INTERVAL :timeout MINUTE)";
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute([':timeout' => $timeoutMinutes]);
-    return $stmt->rowCount();
-}
-
-
-
-    // ✅ NUEVO: Actualizar heartbeat
     public function updateHeartbeat(int $id): bool {
-        $sql = "UPDATE {$this->table} 
-                SET is_online = 1, 
-                    last_heartbeat = NOW() 
+        $sql = "UPDATE {$this->table}
+                SET is_online = 1,
+                    last_heartbeat = NOW()
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([':id' => $id]);

@@ -599,10 +599,10 @@ CREATE TABLE `provider_payment_methods` (
   `method_type` enum('pago_movil','transferencia','zelle','binance','paypal') NOT NULL,
   `bank_name` varchar(100) DEFAULT NULL,
   `holder_name` varchar(100) DEFAULT NULL,
-  `id_number` varchar(20) DEFAULT NULL,
-  `phone_number` varchar(20) DEFAULT NULL,
-  `account_number` varchar(50) DEFAULT NULL,
-  `email` varchar(100) DEFAULT NULL,
+  `id_number` varchar(500) DEFAULT NULL,
+  `phone_number` varchar(500) DEFAULT NULL,
+  `account_number` varchar(500) DEFAULT NULL,
+  `email` varchar(500) DEFAULT NULL,
   `qr_url` text DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
@@ -1280,4 +1280,4 @@ CREATE TABLE `wallets` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
--- Dump completed on 2026-08-26 19:30:01
+-- Dump completed on 2026-08-27  4:17:13

@@ -71,3 +71,4 @@ backend/public/uploads/*
 
 # Test files
 evidence_test.txt
+dump.rdb

@@ -183,11 +183,11 @@
 <script>
 import PaymentPill from '@/components/PaymentPill.vue';
 
-const ACTIVE_STATUSES = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'finalized'];
+const ACTIVE_STATUSES = ['accepted', 'in_progress', 'on_the_way', 'arrived', 'completed', 'finalized'];
 const STATUS_FLOW = {
   pending: ['accepted', 'rejected'], accepted: ['in_progress'],
   in_progress: ['on_the_way'], on_the_way: ['arrived'],
-  arrived: ['finalized'], finalized: ['completed'], completed: [],
+  arrived: ['completed', 'finalized'], completed: ['finalized'], finalized: [],
   cancelled: [], rejected: []
 };
 const STATUS_EMOJIS = {

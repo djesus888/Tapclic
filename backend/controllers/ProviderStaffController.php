@@ -83,6 +83,23 @@ class ProviderStaffController {
         ];
         $token = JwtHandler::encode($payload);
 
+        // ✅ NOTA: Staff ya no necesita registro en sessions/user_devices (bypass en Auth.php)
+        try {
+            $db = (new Database())->getConnection();
+            
+            // Insertar en sessions
+            $stmt = $db->prepare("INSERT INTO sessions (id, user_id, last_activity) VALUES (?, ?, ?)");
+            $stmt->execute([$staff['id'], time()]);
+            
+            // Insertar en user_devices con el token
+            $deviceName = $_SERVER['HTTP_USER_AGENT'] ?? 'Staff Device';
+            $deviceId = md5($deviceName . time());
+            $stmt = $db->prepare("INSERT INTO user_devices (user_id, refresh_token, device_name, is_current, created_at) VALUES (?, ?, ?, 1, NOW())");
+            $stmt->execute([$staff['id'], $token, $deviceName]);
+        } catch (Exception $e) {
+            error_log("Error registrando sesión de staff: " . $e->getMessage());
+        }
+
         // ✅ NUEVO: Marcar como online al hacer login
         $this->model->updateOnlineStatus($staff['id'], true);
         $this->model->updateHeartbeat($staff['id']);

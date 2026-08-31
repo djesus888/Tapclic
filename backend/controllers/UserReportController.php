@@ -31,14 +31,12 @@ class UserReportController
             return;
         }
 
-        // Verificar que no se reporte a sí mismo
         if ((int)$auth->id === (int)$reportedUserId) {
             http_response_code(400);
             echo json_encode(['error' => 'No puedes reportarte a ti mismo']);
             return;
         }
 
-        // Verificar que el usuario reportado existe
         $stmt = $this->conn->prepare("SELECT id FROM users WHERE id = ?");
         $stmt->execute([$reportedUserId]);
         if (!$stmt->fetch()) {
@@ -47,7 +45,6 @@ class UserReportController
             return;
         }
 
-        // Insertar reporte
         $stmt = $this->conn->prepare("
             INSERT INTO user_reports (reporter_id, reported_user_id, reason, type, status)
             VALUES (?, ?, ?, 'user_report', 'pending')
@@ -55,7 +52,6 @@ class UserReportController
         $stmt->execute([$auth->id, $reportedUserId, $reason]);
         $reportId = $this->conn->lastInsertId();
 
-        // Registrar auditoría
         AuditLogger::log($auth->id, 'user_reported', 'Usuario reportado', "Reporte ID: {$reportId} - Reportado ID: {$reportedUserId} - Razón: {$reason}");
 
         echo json_encode(['success' => true, 'message' => 'Reporte enviado correctamente', 'report_id' => $reportId]);
@@ -74,26 +70,26 @@ class UserReportController
         $stmt->execute([$auth->id]);
         echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
-}
 
-// GET /api/admin/user-reports - Admin: ver todos los reportes
-public function adminIndex(object $auth): void
-{
-    if ($auth->role !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Acceso denegado']);
-        return;
+    // GET /api/admin/user-reports - Admin: ver todos los reportes
+    public function adminIndex(object $auth): void
+    {
+        if ($auth->role !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['error' => 'Acceso denegado']);
+            return;
+        }
+
+        $stmt = $this->conn->prepare("
+            SELECT ur.*,
+                   u1.name as reporter_name,
+                   u2.name as reported_user_name
+            FROM user_reports ur
+            JOIN users u1 ON u1.id = ur.reporter_id
+            JOIN users u2 ON u2.id = ur.reported_user_id
+            ORDER BY ur.created_at DESC
+        ");
+        $stmt->execute();
+        echo json_encode(['success' => true, 'reports' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
-
-    $stmt = $this->conn->prepare("
-        SELECT ur.*, 
-               u1.name as reporter_name, 
-               u2.name as reported_user_name
-        FROM user_reports ur
-        JOIN users u1 ON u1.id = ur.reporter_id
-        JOIN users u2 ON u2.id = ur.reported_user_id
-        ORDER BY ur.created_at DESC
-    ");
-    $stmt->execute();
-    echo json_encode(['success' => true, 'reports' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }

@@ -64,8 +64,8 @@
           <div class="progress-step" :class="{ done: isStepDone(order.status, 'on_the_way') }">🚗</div>
           <div class="progress-line" :class="{ done: isStepDone(order.status, 'arrived') }"></div>
           <div class="progress-step" :class="{ done: isStepDone(order.status, 'arrived') }">📍</div>
-          <div class="progress-line" :class="{ done: isStepDone(order.status, 'finalized') }"></div>
-          <div class="progress-step" :class="{ done: isStepDone(order.status, 'finalized') }">🏁</div>
+          <div class="progress-line" :class="{ done: isStepDone(order.status, 'completed') }"></div>
+          <div class="progress-step" :class="{ done: isStepDone(order.status, 'completed') }">🏁</div>
         </div>
 
         <div class="order-actions">
@@ -89,7 +89,7 @@
           </button>
           <button
             v-if="order.status === 'arrived'"
-            @click="updateStatus(order.id, 'finalized')"
+            @click="updateStatus(order.id, 'completed')"
             class="btn-action success">
             ✅ Entregado
           </button>

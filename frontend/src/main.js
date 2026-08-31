@@ -231,18 +231,6 @@ window.addEventListener('show-notification-toast', (e) => {
 // 🔥 CORRECCIÓN 7: Usar la MISMA instancia de socketStore para todos los eventos
 // Eliminar socketStore2 y usar socketStore directamente
 
-// ✅ Escuchar evento open_rating_modal desde WebSocket
-socketStore.on('open_rating_modal', (data) => {
-  console.log('⭐ Modal de calificación desde WebSocket:', data)
-  window.dispatchEvent(new CustomEvent('open-rating-modal', {
-    detail: {
-      request_id: data.request_id || (data.url || '').split('/').pop(),
-      targetRole: authStore.user?.role === 'provider' ? 'user' : 'provider',
-      from_role: data.from_role || 'provider',
-      message: data.message || '¿Quieres calificar este servicio?'
-    }
-  }))
-})
 
 // ✅ Modal de rating
 window.addEventListener('open-rating-modal', async (e) => {
